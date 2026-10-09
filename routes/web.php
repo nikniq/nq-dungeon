@@ -1,23 +1,26 @@
 <?php
 
-use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
-use Illuminate\Cookie\Middleware\EncryptCookies;
-use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
-use Illuminate\Session\Middleware\StartSession;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CharacterController;
 use Illuminate\Support\Facades\Route;
-use Illuminate\View\Middleware\ShareErrorsFromSession;
 
-// The game is a static page: no login, no forms, no state on the server.
-// It runs without the session stack so it cannot 500 when the host's .env
-// points sessions at a database that has not been migrated.
 Route::get('/', fn () => response()
     ->view('game')
     ->header('Cache-Control', 'no-cache, no-store, must-revalidate'))
-    ->withoutMiddleware([
-        EncryptCookies::class,
-        AddQueuedCookiesToResponse::class,
-        StartSession::class,
-        ShareErrorsFromSession::class,
-        ValidateCsrfToken::class,
-    ])
     ->name('game');
+
+Route::middleware('guest')->group(function () {
+    Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+    Route::post('/login', [AuthController::class, 'login']);
+});
+
+Route::middleware('auth')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+    Route::get('/character', [CharacterController::class, 'edit'])->name('character.edit');
+    Route::post('/character', [CharacterController::class, 'update'])->name('character.update');
+    Route::post('/character/abandon', [CharacterController::class, 'abandon'])->name('character.abandon');
+    Route::get('/api/character', [CharacterController::class, 'show'])->name('character.show');
+    Route::post('/api/character', [CharacterController::class, 'save'])->name('character.save');
+});

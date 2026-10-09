@@ -1,17 +1,8 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Dungeon Adventure</title>
-  <link rel="stylesheet" href="{{ asset('css/style.css') }}?v={{ filemtime(public_path('css/style.css')) }}">
-</head>
-<body>
-  <div class="container">
-    <header class="top">
-      <h1>Dungeon Adventure</h1>
-      <button id="restart" type="button">Restart</button>
-    </header>
+@extends('layouts.app')
+@section('content')
+    @guest
+      <p class="flash muted">Playing as a guest. <a href="{{ route('register') }}">Create a hero</a> or <a href="{{ route('login') }}">log in</a> to save your hero and continue runs later.</p>
+    @endguest
     <div class="hud">
       <div id="stats">Floor 1 | HP 20/20</div>
       <div class="hp-track"><div id="hpbar" class="hp-fill"></div></div>
@@ -37,8 +28,17 @@
     <p class="help">
       Move with arrow keys, WASD or HJKL. Space or <kbd>.</kbd> waits a turn, <kbd>R</kbd> restarts.
       Walk into monsters to attack. Collect gold and potions, reach the green exit, and clear all 5 floors.
+      <button id="restart" type="button">Restart</button>
     </p>
-  </div>
+@endsection
+@section('scripts')
+  <script>
+    window.DUNGEON = {
+      user: @json(auth()->check()),
+      saveUrl: @json(route('character.save')),
+      loadUrl: @json(route('character.show')),
+      csrf: @json(csrf_token()),
+    };
+  </script>
   <script src="{{ asset('js/script.js') }}?v={{ filemtime(public_path('js/script.js')) }}"></script>
-</body>
-</html>
+@endsection

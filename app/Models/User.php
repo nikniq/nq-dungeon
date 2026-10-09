@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -39,6 +40,11 @@ class User extends Authenticatable
      *
      * @return array<string, string>
      */
+    public function character(): HasOne
+    {
+        return $this->hasOne(Character::class);
+    }
+
     protected function casts(): array
     {
         return [

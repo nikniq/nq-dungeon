@@ -30,7 +30,43 @@ canvas.width = tileSize * cols;
 canvas.height = tileSize * rows;
 
 let map, seen, visible, monsters, potions, golds, exit;
-let player, floor, gameOver, turn;
+let player, floor, gameOver, turn, kills;
+
+// ---------- account save/load ----------
+// window.DUNGEON is set by the page: user is true when someone is logged in.
+const ACCOUNT = window.DUNGEON || { user: false };
+
+const SAVE_EVERY_TURNS = 20;
+
+async function saveProgress(event, keepalive = false) {
+  if (!ACCOUNT.user || !player) return;
+  try {
+    const res = await fetch(ACCOUNT.saveUrl, {
+      method: 'POST',
+      keepalive,
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': ACCOUNT.csrf },
+      credentials: 'same-origin',
+      body: JSON.stringify({ event, floor, level: player.level, xp: player.xp, gold: player.gold,
+        hp: player.hp, max_hp: player.maxHp, atk: player.atk, kills }),
+    });
+    if (!res.ok) throw new Error(res.status);
+    kills = 0; // counted server-side now
+  } catch (e) {
+    log('Could not save progress (' + e.message + ').', 'bad');
+  }
+}
+
+async function loadProgress() {
+  if (!ACCOUNT.user) return null;
+  try {
+    const res = await fetch(ACCOUNT.loadUrl, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+    if (!res.ok) throw new Error(res.status);
+    return await res.json();
+  } catch (e) {
+    log('Could not load your hero (' + e.message + ').', 'bad');
+    return null;
+  }
+}
 
 // ---------- helpers ----------
 const rnd = (n) => Math.floor(Math.random() * n);
@@ -171,6 +207,7 @@ function updateVisibility() {
 
 // ---------- drawing ----------
 function draw() {
+  if (!map) return;
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     const t = map[r][c];
     // The whole layout is always drawn; the lit area around the player is
@@ -240,6 +277,7 @@ function playerAttack(m) {
   m.hp -= dmg; m.awake = true;
   if (m.hp <= 0) {
     monsters = monsters.filter((x) => x !== m);
+    kills++;
     log(`You slay the ${m.type.name} (+${m.type.xp} XP).`, 'good');
     gainXp(m.type.xp);
   } else {
@@ -288,14 +326,16 @@ function nextFloor() {
   floor++;
   if (floor > FINAL_FLOOR) {
     endGame('You escaped!', `You cleared all ${FINAL_FLOOR} floors with ${player.gold} gold at level ${player.level}. Press R to play again.`);
+    saveProgress('win');
     return;
   }
   log(`You descend to floor ${floor}.`, 'good');
   buildFloor();
+  saveProgress('progress');
 }
 
 function tryMove(dx, dy) {
-  if (gameOver) return;
+  if (gameOver || !map) return;
   const nx = player.x + dx, ny = player.y + dy;
   if (!inBounds(nx, ny) || map[ny][nx] === TILE.WALL) return;
   const m = getMonsterAt(nx, ny);
@@ -319,12 +359,14 @@ function tryMove(dx, dy) {
     if (map[ny][nx] === TILE.EXIT) { nextFloor(); if (gameOver) { updateStats(); return; } updateVisibility(); updateStats(); draw(); return; }
   }
   turn++;
+  if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
   stepMonsters();
   updateVisibility();
   updateStats();
   if (player.hp <= 0) {
     player.hp = 0; updateStats();
     endGame('You died', `You fell on floor ${floor} after ${turn} turns with ${player.gold} gold. Press R to try again.`);
+    saveProgress('death');
   }
   draw();
 }
@@ -351,6 +393,9 @@ document.querySelectorAll('[data-move]').forEach((btn) => {
   });
 });
 restartBtn.addEventListener('click', init);
+// Save when the tab is closed or backgrounded, so a mid-floor run is not lost.
+window.addEventListener('pagehide', () => { if (!gameOver) saveProgress('progress', true); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && !gameOver) saveProgress('progress', true); });
 overlay.addEventListener('click', init);
 
 // ---------- setup ----------
@@ -363,14 +408,35 @@ function buildFloor() {
   updateVisibility();
 }
 
-function init() {
+function startRun(saved) {
   player = { x: 1, y: 1, hp: 20, maxHp: 20, atk: 3, level: 1, xp: 0, gold: 0 };
-  floor = 1; gameOver = false; turn = 0;
+  floor = 1; gameOver = false; turn = 0; kills = 0;
   overlay.classList.remove('show');
   logEl.innerHTML = '';
+  const resuming = saved && saved.floor > 0;
+  if (resuming) {
+    floor = saved.floor;
+    Object.assign(player, { hp: saved.hp, maxHp: saved.max_hp, atk: saved.atk, level: saved.level, xp: saved.xp, gold: saved.gold });
+  }
   buildFloor();
-  log('You enter the dungeon. Find the green exit on each floor.');
+  if (resuming) {
+    log(`Welcome back, ${saved.name}. You resume on floor ${floor}.`, 'good');
+  } else {
+    log(saved ? `${saved.name} enters the dungeon. Find the green exit on each floor.` : 'You enter the dungeon. Find the green exit on each floor.');
+    saveProgress('progress');
+  }
   updateStats(); draw();
+}
+
+let starting = false;
+async function init() {
+  if (starting) return;
+  starting = true;
+  try {
+    startRun(await loadProgress());
+  } finally {
+    starting = false;
+  }
 }
 
 function loop() { if (!gameOver) draw(); requestAnimationFrame(loop); }
