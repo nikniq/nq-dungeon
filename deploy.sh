@@ -51,13 +51,22 @@ echo "→ cache config/routes/views"
 php artisan optimize
 
 echo "→ verify"
-APP_URL=$(php artisan tinker --execute='echo config("app.url");' 2>/dev/null | tail -1 | tr -d '\r')
+APP_URL=$(grep -E '^APP_URL=' .env | cut -d= -f2- | tr -d '"\r')
 if [ -n "$APP_URL" ]; then
-    STATUS=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$APP_URL/up" || echo "000")
-    if [ "$STATUS" = "200" ]; then
-        echo "  ✓ $APP_URL/up → 200"
-    else
-        echo "  ✗ $APP_URL/up → $STATUS (check storage/logs/laravel.log)"
+    FAILED=0
+    for path in /up /; do
+        STATUS=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$APP_URL$path" || echo "000")
+        if [ "$STATUS" = "200" ]; then
+            echo "  ✓ $APP_URL$path → 200"
+        else
+            echo "  ✗ $APP_URL$path → $STATUS"
+            FAILED=1
+        fi
+    done
+    if [ "$FAILED" = "1" ]; then
+        echo
+        echo "--- last errors in storage/logs/laravel.log ---"
+        grep -E '\.(ERROR|CRITICAL|EMERGENCY):' storage/logs/laravel.log 2>/dev/null | tail -n 3 | cut -c1-400 || echo "(no log yet)"
         exit 1
     fi
 fi
