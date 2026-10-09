@@ -1,0 +1,32 @@
+#!/bin/bash
+#================================================================
+# Settings for cx.sh (the LOCAL assistant). Copy to vars.sh and fill in:
+#
+#   cp vars.sh.example vars.sh
+#
+# vars.sh is gitignored — it names hosts and accounts, so it stays out of
+# the repo. This example carries placeholders only.
+#================================================================
+
+# --- Identity ------------------------------------------------------------
+PROJECT="nq-dungeon.example.com"     # site name, used in banners and paths
+REMOTE_USER="your-ssh-user"
+REMOTE_HOST="your-host.example.com"
+REMOTE="$REMOTE_USER@$REMOTE_HOST"
+REMOTE_PORT="22"
+
+# App root on the server, relative to ~. deploy.sh, .env and storage/ live
+# here; public_html/ inside it is the vhost document root.
+REMOTE_APP="www/$PROJECT"
+
+# Public URL that option 30 health-checks (covers DNS and TLS, not just PHP).
+APP_URL="https://$PROJECT"
+
+# --- Tooling -------------------------------------------------------------
+# Kept as variables so you can add flags once (e.g. -i KEY).
+APP_SSH="ssh -p $REMOTE_PORT"
+APP_SCP="scp -P $REMOTE_PORT"
+
+# --- Local paths ---------------------------------------------------------
+LOG_OUTPUT="./log/remote.out"
+BACKUP_DIR="./backup"                # where option 91 downloads archives to

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Dungeon Adventure</title>
-  <link rel="stylesheet" href="{{ asset('css/style.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/style.css') }}?v={{ filemtime(public_path('css/style.css')) }}">
 </head>
 <body>
   <div class="container">
@@ -39,6 +39,6 @@
       Walk into monsters to attack. Collect gold and potions, reach the green exit, and clear all 5 floors.
     </p>
   </div>
-  <script src="{{ asset('js/script.js') }}"></script>
+  <script src="{{ asset('js/script.js') }}?v={{ filemtime(public_path('js/script.js')) }}"></script>
 </body>
 </html>

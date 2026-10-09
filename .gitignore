@@ -28,3 +28,8 @@ Thumbs.db
 
 # Claude Code personal settings
 /.claude/settings.local.json
+
+# cx.sh local assistant — host/account settings and run logs, never committed
+vars.sh
+/log
+/backup

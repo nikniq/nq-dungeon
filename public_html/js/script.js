@@ -11,7 +11,7 @@ const restartBtn = document.getElementById('restart');
 
 const TILE = { WALL: 0, FLOOR: 1, EXIT: 2 };
 const COLORS = {
-  wall: '#0b2230', wallDim: '#071820', floor: '#15384a', floorDim: '#0d2531',
+  wall: '#0b2230', wallDim: '#08192a', floor: '#1b4a62', floorDim: '#10303f',
   exit: '#5fe17a', player: '#ffd86b', gold: '#f5c542', potion: '#7bdfff', unknown: '#060c14',
 };
 const MONSTER_TYPES = [
@@ -54,18 +54,32 @@ function xpToNext(level) { return 10 + (level - 1) * 8; }
 function createMap() {
   map = Array.from({ length: rows }, () => new Array(cols).fill(TILE.WALL));
   seen = Array.from({ length: rows }, () => new Array(cols).fill(false));
-  let x = 1 + rnd(3), y = 1 + rnd(3);
-  map[y][x] = TILE.FLOOR;
-  for (let i = 0; i < cols * rows * 6; i++) {
-    const d = [[1, 0], [-1, 0], [0, 1], [0, -1]][rnd(4)];
-    x = Math.max(1, Math.min(cols - 2, x + d[0]));
-    y = Math.max(1, Math.min(rows - 2, y + d[1]));
-    map[y][x] = TILE.FLOOR;
-    if (Math.random() < 0.15) {
-      for (let nx = -1; nx <= 1; nx++) for (let ny = -1; ny <= 1; ny++) {
-        if (inBounds(x + nx, y + ny)) map[y + ny][x + nx] = TILE.FLOOR;
-      }
+  // Rooms joined by L-shaped corridors: each new room is dug out and then
+  // connected to the previous one, so every room is reachable.
+  const rooms = [];
+  const carve = (x, y) => { if (inBounds(x, y)) map[y][x] = TILE.FLOOR; };
+  for (let attempt = 0; attempt < 60 && rooms.length < 9 + floor; attempt++) {
+    const w = 4 + rnd(6), h = 3 + rnd(4);
+    const x = 1 + rnd(cols - w - 2), y = 1 + rnd(rows - h - 2);
+    const room = { x, y, w, h, cx: x + Math.floor(w / 2), cy: y + Math.floor(h / 2) };
+    if (rooms.some((o) => x < o.x + o.w + 1 && x + w + 1 > o.x && y < o.y + o.h + 1 && y + h + 1 > o.y)) continue;
+    for (let r = y; r < y + h; r++) for (let c = x; c < x + w; c++) carve(c, r);
+    if (rooms.length) {
+      const prev = rooms[rooms.length - 1];
+      let cx = prev.cx, cy = prev.cy;
+      const horizontalFirst = Math.random() < 0.5;
+      const digX = () => { while (cx !== room.cx) { cx += Math.sign(room.cx - cx); carve(cx, cy); } };
+      const digY = () => { while (cy !== room.cy) { cy += Math.sign(room.cy - cy); carve(cx, cy); } };
+      if (horizontalFirst) { digX(); digY(); } else { digY(); digX(); }
     }
+    rooms.push(room);
+  }
+  // A few extra links between random rooms so there are loops to escape through.
+  for (let i = 0; i < 2 && rooms.length > 2; i++) {
+    const a = rooms[rnd(rooms.length)], b = rooms[rnd(rooms.length)];
+    let cx = a.cx, cy = a.cy;
+    while (cx !== b.cx) { cx += Math.sign(b.cx - cx); carve(cx, cy); }
+    while (cy !== b.cy) { cy += Math.sign(b.cy - cy); carve(cx, cy); }
   }
 }
 
@@ -159,10 +173,11 @@ function updateVisibility() {
 function draw() {
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     const t = map[r][c];
+    // The whole layout is always drawn; the lit area around the player is
+    // brighter, and only monsters and items are hidden outside it.
     let color;
     if (visible[r][c]) color = t === TILE.WALL ? COLORS.wall : t === TILE.EXIT ? COLORS.exit : COLORS.floor;
-    else if (seen[r][c]) color = t === TILE.WALL ? COLORS.wallDim : t === TILE.EXIT ? '#2f7a43' : COLORS.floorDim;
-    else color = COLORS.unknown;
+    else color = t === TILE.WALL ? COLORS.wallDim : t === TILE.EXIT ? '#2f7a43' : COLORS.floorDim;
     ctx.fillStyle = color;
     ctx.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
   }
