@@ -1,17 +1,26 @@
 # Dungeon Adventure
 
-A small browser-based dungeon game. Open `index.html` in your browser and play.
+A small browser-based dungeon game, served by Laravel. The web root is `public_html/`
+(point your web server's document root there).
 
 Controls:
-- Move: Arrow keys or WASD
-- Restart: Click Restart or press `r` after death
+- Move / attack: Arrow keys, WASD or HJKL (or the on-screen D-pad)
+- Wait a turn: Space or `.`
+- Restart: Click Restart or press `r`
 
-Run locally (recommended):
+Clear all 5 floors: find the green exit on each one. Monsters sleep until they
+notice you and then chase. Kill them for XP to level up, grab gold and potions.
+
+## Setup
 
 ```bash
-# from repository folder
-python3 -m http.server 8000
-# then open http://localhost:8000 in your browser
+composer install
+cp .env.example .env
+php artisan key:generate
+php artisan serve
+# open http://localhost:8000
 ```
 
-Have fun! Feel free to ask for features or polish.
+Game assets live in `public_html/js/script.js` and `public_html/css/style.css`;
+the page is `resources/views/game.blade.php`, routed at `/` in `routes/web.php`.
+# nq-dungeon
