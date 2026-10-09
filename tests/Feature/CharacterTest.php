@@ -71,7 +71,18 @@ class CharacterTest extends TestCase
         $state = ['event' => 'win', 'floor' => 5, 'level' => 6, 'xp' => 1, 'gold' => 300, 'hp' => 30, 'max_hp' => 40, 'atk' => 8, 'kills' => 3, 'weapon' => 'warhammer', 'armor' => 'plate', 'bag' => []];
 
         $this->actingAs($user)->postJson('/api/character', $state)->assertOk()
-            ->assertJson(['wins' => 1, 'floor' => 0, 'best_floor' => 5, 'best_gold' => 300]);
+            ->assertJson(['wins' => 1, 'floor' => 0, 'best_floor' => 5, 'best_gold' => 300,
+                'level' => 6, 'gold' => 300, 'weapon' => 'warhammer', 'armor' => 'plate']);
+    }
+
+    public function test_town_state_is_saved_without_starting_a_run(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla']);
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 1, 'xp' => 0, 'gold' => 0, 'hp' => 20, 'max_hp' => 20, 'atk' => 3, 'kills' => 0, 'weapon' => 'dagger', 'armor' => null, 'bag' => []];
+
+        $this->actingAs($user)->postJson('/api/character', $state)->assertOk()
+            ->assertJson(['floor' => 0, 'runs' => 0, 'weapon' => 'dagger']);
     }
 
     public function test_save_rejects_bad_input(): void
@@ -103,7 +114,7 @@ class CharacterTest extends TestCase
         $user = User::factory()->create();
         $user->character()->create(['name' => 'Ayla', 'floor' => 2, 'level' => 3]);
 
-        $this->actingAs($user)->get('/character')->assertOk()->assertSee('Ayla')->assertSee('Floor 2');
+        $this->actingAs($user)->get('/character')->assertOk()->assertSee('Ayla')->assertSee('Floor 2,');
         $this->actingAs($user)->post('/character', ['name' => 'Ayla the Bold'])->assertRedirect('/');
         $this->actingAs($user)->post('/character/abandon')->assertRedirect('/');
         $this->assertDatabaseHas('characters', ['name' => 'Ayla the Bold', 'floor' => 0, 'level' => 1]);

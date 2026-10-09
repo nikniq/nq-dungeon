@@ -8,7 +8,11 @@ Controls:
 - Wait a turn: Space or `.`
 - Restart: Click Restart or press `r`
 
-Clear all 5 floors: find the green exit on each one. Monsters sleep until they
+You start in the town square: a merchant, an inn that heals, and the dungeon
+entrance. Clear all 5 floors to return to town with your level, gold and gear.
+Death sends you back to town as a fresh hero.
+
+In the dungeon: find the green exit on each floor. Monsters sleep until they
 notice you and then chase. Kill them for XP to level up, grab gold and potions.
 Each floor has a merchant (`$`) who buys and sells weapons, armor and potions;
 the item catalog lives in `config/items.php`. Hover or tap anything on the map

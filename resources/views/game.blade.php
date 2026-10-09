@@ -48,8 +48,8 @@
     </details>
     <p class="help">
       Move with arrow keys, WASD or HJKL. Space or <kbd>.</kbd> waits a turn, <kbd>R</kbd> restarts.
-      Walk into monsters to attack. Collect gold and potions, reach the green exit, and clear all 5 floors.
-      Step onto the merchant (<b>$</b>) to buy and sell gear. <kbd>P</kbd> drinks a potion from your bag.
+      Start in the town square: the merchant (<b>$</b>) buys and sells gear, the inn (<b>+</b>) heals you, and the green entrance leads down.
+      Walk into monsters to attack. Collect gold and potions, find the exit on each floor, and clear all 5 to return to town. <kbd>P</kbd> drinks a potion from your bag.
       <button id="restart" type="button">Restart</button>
     </p>
 @endsection

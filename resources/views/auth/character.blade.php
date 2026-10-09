@@ -4,7 +4,7 @@
 <div class="panel">
   <h2>{{ $character->name }}</h2>
   <table class="sheet">
-    <tr><th>Current run</th><td>@if ($character->floor > 0) Floor {{ $character->floor }}, level {{ $character->level }}, {{ $character->hp }}/{{ $character->max_hp }} HP, attack {{ $character->atk }}, {{ $character->gold }} gold @else None in progress @endif</td></tr>
+    <tr><th>Hero</th><td>@if ($character->floor > 0) Floor {{ $character->floor }}, @else In town, @endif level {{ $character->level }}, {{ $character->hp }}/{{ $character->max_hp }} HP, attack {{ $character->atk }}, {{ $character->gold }} gold</td></tr>
     <tr><th>Weapon</th><td>{{ $character->weapon ? $items['weapons'][$character->weapon]['name'].' (+'.$items['weapons'][$character->weapon]['atk'].' attack)' : 'Bare hands' }}</td></tr>
     <tr><th>Armor</th><td>{{ $character->armor ? $items['armor'][$character->armor]['name'].' ('.$items['armor'][$character->armor]['def'].' defence)' : 'None' }}</td></tr>
     <tr><th>Bag</th><td>{{ collect($character->bag ?? [])->map(fn ($id) => ($items['weapons'][$id] ?? $items['armor'][$id] ?? $items['consumables'][$id])['name'])->implode(', ') ?: 'Empty' }}</td></tr>
@@ -20,12 +20,10 @@
     @error('name')<p class="error">{{ $message }}</p>@enderror
     <button type="submit" class="primary">Save name</button>
   </form>
-  @if ($character->floor > 0)
-  <form method="post" action="{{ route('character.abandon') }}" class="form" onsubmit="return confirm('Abandon the current run? Your hero restarts at level 1.')">
+  <form method="post" action="{{ route('character.abandon') }}" class="form" onsubmit="return confirm('Start over? Your hero restarts in town at level 1 with nothing.')">
     @csrf
-    <button type="submit">Abandon current run</button>
+    <button type="submit">Start over</button>
   </form>
-  @endif
   <p class="muted"><a href="{{ route('game') }}">Back to the dungeon</a></p>
 </div>
 @endsection

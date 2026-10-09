@@ -9,10 +9,11 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 const restartBtn = document.getElementById('restart');
 
-const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3 };
+const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5 };
+const TOWN = 0; // floor number of the town square
 const COLORS = {
   wall: '#0b2230', wallDim: '#08192a', floor: '#1b4a62', floorDim: '#10303f',
-  exit: '#5fe17a', player: '#ffd86b', gold: '#f5c542', potion: '#7bdfff', unknown: '#060c14', shop: '#c084fc',
+  exit: '#5fe17a', player: '#ffd86b', gold: '#f5c542', potion: '#7bdfff', unknown: '#060c14', shop: '#c084fc', inn: '#ff9ecf', fountain: '#3b82f6', townFloor: '#3a4a3a', townWall: '#5b4636',
 };
 const MONSTER_TYPES = [
   { name: 'Rat',    color: '#c98f5a', hp: 3,  atk: 1, xp: 2,  minFloor: 1 },
@@ -125,6 +126,26 @@ function createMap() {
   }
 }
 
+function createTown() {
+  // A walled square: houses around the edge, a fountain in the middle,
+  // the merchant and the inn on the square, the dungeon entrance at the bottom.
+  map = Array.from({ length: rows }, () => new Array(cols).fill(TILE.WALL));
+  seen = Array.from({ length: rows }, () => new Array(cols).fill(true));
+  for (let r = 3; r < rows - 3; r++) for (let c = 4; c < cols - 4; c++) map[r][c] = TILE.FLOOR;
+  const house = (x, y, w, h) => { for (let r = y; r < y + h; r++) for (let c = x; c < x + w; c++) map[r][c] = TILE.WALL; };
+  house(6, 5, 6, 4); house(16, 4, 7, 3); house(28, 5, 6, 4);
+  house(6, rows - 9, 6, 4); house(28, rows - 9, 6, 4);
+  const cx = Math.floor(cols / 2), cy = Math.floor(rows / 2);
+  for (let r = cy - 1; r <= cy; r++) for (let c = cx - 1; c <= cx; c++) map[r][c] = TILE.FOUNTAIN;
+  shops = [{ x: 12, y: 7 }]; map[7][12] = TILE.SHOP;          // merchant outside the top-left house
+  map[7][27] = TILE.INN;                                        // inn outside the top-right house
+  exit = { x: cx, y: rows - 4 }; map[exit.y][exit.x] = TILE.EXIT; // dungeon entrance
+  player.x = cx; player.y = cy + 3;
+  monsters = []; potions = []; golds = [];
+}
+
+const inTown = () => floor === TOWN;
+
 // Breadth-first distances from a point; used for exit placement and monster pathing.
 function bfs(sx, sy, blockMonsters) {
   const d = Array.from({ length: rows }, () => new Array(cols).fill(-1));
@@ -206,6 +227,7 @@ function placeItems() {
 
 // ---------- visibility ----------
 function updateVisibility() {
+  if (inTown()) { visible = Array.from({ length: rows }, () => new Array(cols).fill(true)); return; }
   visible = Array.from({ length: rows }, () => new Array(cols).fill(false));
   const d = bfs(player.x, player.y, false);
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
@@ -230,10 +252,24 @@ function draw() {
     // The whole layout is always drawn; the lit area around the player is
     // brighter, and only monsters and items are hidden outside it.
     let color;
-    if (visible[r][c]) color = t === TILE.WALL ? COLORS.wall : t === TILE.EXIT ? COLORS.exit : COLORS.floor;
+    if (t === TILE.FOUNTAIN) color = COLORS.fountain;
+    else if (inTown()) color = t === TILE.WALL ? COLORS.townWall : t === TILE.EXIT ? COLORS.exit : COLORS.townFloor;
+    else if (visible[r][c]) color = t === TILE.WALL ? COLORS.wall : t === TILE.EXIT ? COLORS.exit : COLORS.floor;
     else color = t === TILE.WALL ? COLORS.wallDim : t === TILE.EXIT ? '#2f7a43' : COLORS.floorDim;
     ctx.fillStyle = color;
     ctx.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
+  }
+  if (inTown()) {
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      if (map[r][c] !== TILE.INN) continue;
+      ctx.fillStyle = COLORS.inn;
+      ctx.fillRect(c * tileSize + 2, r * tileSize + 2, tileSize - 4, tileSize - 4);
+      ctx.fillStyle = '#06202c';
+      ctx.font = `bold ${Math.floor(tileSize * 0.8)}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('+', c * tileSize + tileSize / 2, r * tileSize + tileSize / 2 + 1);
+      ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+    }
   }
   for (const sh of shops) {
     ctx.fillStyle = COLORS.shop;
@@ -304,6 +340,9 @@ function describeTile(x, y) {
   const g = getGoldAt(x, y);
   if (g) return `Gold — ${g.amount} pieces`;
   if (map[y][x] === TILE.SHOP) return 'Merchant — step here to buy and sell gear';
+  if (map[y][x] === TILE.INN) return 'Inn — step here to recover all your HP';
+  if (map[y][x] === TILE.FOUNTAIN) return 'The town fountain';
+  if (map[y][x] === TILE.EXIT && inTown()) return 'Dungeon entrance — step here to begin your descent';
   if (map[y][x] === TILE.EXIT) return 'Stairs down — the exit from this floor';
   return null;
 }
@@ -347,17 +386,22 @@ function buildLegend() {
   };
   add(`background:${COLORS.player}`, 'You', '');
   for (const t of MONSTER_TYPES) {
-    const locked = t.minFloor > floor;
+    const locked = t.minFloor > Math.max(floor, 1);
     add(`background:${t.color};${locked ? 'opacity:.35' : ''}`, t.name, locked ? `from floor ${t.minFloor}` : `${t.hp} HP, attack ${t.atk}, ${t.xp} XP`, t.name[0]);
   }
   add(`background:${COLORS.potion};border-radius:50%`, 'Potion', '+5 HP');
   add(`background:${COLORS.gold};transform:rotate(45deg) scale(.7)`, 'Gold', '');
   add(`background:${COLORS.shop}`, 'Merchant', 'buy and sell', '$');
-  add(`background:${COLORS.exit}`, 'Exit', 'stairs down');
+  if (inTown()) {
+    add(`background:${COLORS.inn}`, 'Inn', 'full heal', '+');
+    add(`background:${COLORS.exit}`, 'Entrance', 'into the dungeon');
+  } else {
+    add(`background:${COLORS.exit}`, 'Exit', 'stairs down');
+  }
 }
 
 function updateStats() {
-  statsEl.textContent = `Floor ${floor}/${FINAL_FLOOR} | HP ${player.hp}/${player.maxHp} | ATK ${player.atk}${weaponAtk() ? '+' + weaponAtk() : ''} | DEF ${armorDef()} | Lv ${player.level} (${player.xp}/${xpToNext(player.level)} XP) | Gold ${player.gold}`;
+  statsEl.textContent = `${inTown() ? 'Town' : `Floor ${floor}/${FINAL_FLOOR}`} | HP ${player.hp}/${player.maxHp} | ATK ${player.atk}${weaponAtk() ? '+' + weaponAtk() : ''} | DEF ${armorDef()} | Lv ${player.level} (${player.xp}/${xpToNext(player.level)} XP) | Gold ${player.gold}`;
   renderInventory();
   hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
   hpBar.style.background = player.hp / player.maxHp > 0.5 ? '#5fe17a' : player.hp / player.maxHp > 0.25 ? '#f5c542' : '#ff6b6b';
@@ -428,11 +472,13 @@ function endGame(title, text) {
 function nextFloor() {
   floor++;
   if (floor > FINAL_FLOOR) {
-    endGame('You escaped!', `You cleared all ${FINAL_FLOOR} floors with ${player.gold} gold at level ${player.level}. Press R to play again.`);
+    floor = TOWN;
+    buildFloor();
+    log(`You escaped the dungeon with ${player.gold} gold at level ${player.level}! The town square welcomes you back.`, 'good');
     saveProgress('win');
     return;
   }
-  log(`You descend to floor ${floor}.`, 'good');
+  log(floor === 1 ? 'You descend into the dungeon.' : `You descend to floor ${floor}.`, 'good');
   buildFloor();
   saveProgress('progress');
 }
@@ -460,6 +506,10 @@ function tryMove(dx, dy) {
       log(`You pick up ${g.amount} gold.`, 'good');
     }
     if (map[ny][nx] === TILE.SHOP) { openShop(); }
+    if (map[ny][nx] === TILE.INN) {
+      if (player.hp < player.maxHp) { player.hp = player.maxHp; log('You rest at the inn and recover fully.', 'good'); }
+      else log('The innkeeper nods. You are already in perfect health.');
+    }
     if (map[ny][nx] === TILE.EXIT) { nextFloor(); if (gameOver) { updateStats(); return; } updateVisibility(); updateStats(); draw(); return; }
   }
   turn++;
@@ -603,7 +653,7 @@ function renderShop() {
   shopGold.textContent = `${player.gold} gold`;
   shopBuy.innerHTML = '';
   const stock = Object.entries({ ...ITEMS.weapons, ...ITEMS.armor, ...ITEMS.consumables })
-    .filter(([, it]) => it.floor <= floor + 1);
+    .filter(([, it]) => it.floor <= Math.max(floor, 1) + 1);
   for (const [id, it] of stock) {
     const li = document.createElement('li');
     const btn = document.createElement('button');
@@ -652,12 +702,16 @@ document.getElementById('shop-close')?.addEventListener('click', closeShop);
 
 // ---------- setup ----------
 function buildFloor() {
-  createMap();
-  placePlayer();
-  placeShop();
-  placeExit();
-  placeMonsters();
-  placeItems();
+  if (inTown()) {
+    createTown();
+  } else {
+    createMap();
+    placePlayer();
+    placeShop();
+    placeExit();
+    placeMonsters();
+    placeItems();
+  }
   updateVisibility();
   clearInspect();
   buildLegend();
@@ -669,19 +723,20 @@ function startRun(saved) {
   closeShop();
   overlay.classList.remove('show');
   logEl.innerHTML = '';
-  const resuming = saved && saved.floor > 0;
-  if (resuming) {
-    floor = saved.floor;
+  floor = TOWN;
+  if (saved) {
+    floor = saved.floor || TOWN;
     Object.assign(player, { hp: saved.hp, maxHp: saved.max_hp, atk: saved.atk, level: saved.level, xp: saved.xp, gold: saved.gold,
       weapon: itemInfo(saved.weapon) ? saved.weapon : null, armor: itemInfo(saved.armor) ? saved.armor : null,
       bag: (saved.bag || []).filter(itemInfo).slice(0, ITEMS.bag_size) });
   }
   buildFloor();
-  if (resuming) {
+  if (saved && saved.floor > 0) {
     log(`Welcome back, ${saved.name}. You resume on floor ${floor}.`, 'good');
+  } else if (saved && saved.level > 1) {
+    log(`Welcome back to town, ${saved.name}. The dungeon entrance is at the bottom of the square.`, 'good');
   } else {
-    log(saved ? `${saved.name} enters the dungeon. Find the green exit on each floor.` : 'You enter the dungeon. Find the green exit on each floor.');
-    saveProgress('progress');
+    log(`${saved ? saved.name + ' arrives' : 'You arrive'} in the town square. Visit the merchant ($) and the inn (+), then take the entrance at the bottom.`);
   }
   updateStats(); draw();
 }

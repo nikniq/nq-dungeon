@@ -25,12 +25,13 @@ class CharacterController extends Controller
     /**
      * The game posts its state while a run is in progress and at the end of one.
      * event: 'progress' (periodic, on floor change, on page hide), 'death' or 'win'.
+     * floor 0 is the town square: a hero there is between dives.
      */
     public function save(Request $request): JsonResponse
     {
         $data = $request->validate([
             'event' => ['required', 'in:progress,death,win'],
-            'floor' => ['required', 'integer', 'min:1', 'max:99'],
+            'floor' => ['required', 'integer', 'min:0', 'max:99'],
             'level' => ['required', 'integer', 'min:1', 'max:999'],
             'xp' => ['required', 'integer', 'min:0'],
             'gold' => ['required', 'integer', 'min:0'],
@@ -58,12 +59,17 @@ class CharacterController extends Controller
                 $c->runs++;
             }
             $c->fill(collect($data)->only(['floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'bag'])->all());
-        } else {
+        } elseif ($data['event'] === 'win') {
+            // Back to town with everything earned; only the floor resets.
             if ($c->floor === 0) {
                 $c->runs++;
             }
-            if ($data['event'] === 'win') {
-                $c->wins++;
+            $c->wins++;
+            $c->fill(collect($data)->only(['level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'bag'])->all());
+            $c->floor = 0;
+        } else {
+            if ($c->floor === 0) {
+                $c->runs++;
             }
             $c->resetRun();
         }
