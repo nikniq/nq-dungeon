@@ -2,4 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', fn () => view('game'))->name('game');
+Route::get('/', fn () => response()
+    ->view('game')
+    ->header('Cache-Control', 'no-cache, no-store, must-revalidate'))
+    ->name('game');

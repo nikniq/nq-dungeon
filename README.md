@@ -13,6 +13,8 @@ notice you and then chase. Kill them for XP to level up, grab gold and potions.
 
 ## Setup
 
+Requires PHP 8.2 or newer (Laravel 12). Sessions and cache use the file driver, so no database is needed.
+
 ```bash
 composer install
 cp .env.example .env
