@@ -6,6 +6,7 @@ use App\Models\Character;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class CharacterController extends Controller
@@ -37,6 +38,14 @@ class CharacterController extends Controller
             'max_hp' => ['required', 'integer', 'min:1', 'max:9999'],
             'atk' => ['required', 'integer', 'min:1', 'max:999'],
             'kills' => ['required', 'integer', 'min:0'],
+            'weapon' => ['nullable', Rule::in(array_keys(config('items.weapons')))],
+            'armor' => ['nullable', Rule::in(array_keys(config('items.armor')))],
+            'bag' => ['present', 'array', 'max:'.config('items.bag_size')],
+            'bag.*' => [Rule::in(array_merge(
+                array_keys(config('items.weapons')),
+                array_keys(config('items.armor')),
+                array_keys(config('items.consumables')),
+            ))],
         ]);
 
         $c = $this->current($request);
@@ -48,7 +57,7 @@ class CharacterController extends Controller
             if ($data['floor'] === 1 && $c->floor === 0) {
                 $c->runs++;
             }
-            $c->fill(collect($data)->only(['floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk'])->all());
+            $c->fill(collect($data)->only(['floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'bag'])->all());
         } else {
             if ($c->floor === 0) {
                 $c->runs++;
@@ -65,7 +74,7 @@ class CharacterController extends Controller
 
     public function edit(Request $request): View
     {
-        return view('auth.character', ['character' => $this->current($request)]);
+        return view('auth.character', ['character' => $this->current($request), 'items' => config('items')]);
     }
 
     public function update(Request $request): RedirectResponse

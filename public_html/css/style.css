@@ -53,3 +53,32 @@ button.primary,a.primary{background:#5fe17a;color:#06202c;border-color:#5fe17a;f
 .sheet th{text-align:left;color:#a8c0d8;font-weight:500;padding:4px 8px 4px 0;white-space:nowrap;vertical-align:top}
 .sheet td{padding:4px 0}
 .help #restart{margin-left:8px}
+/* --- enemy legend and tile tooltip --- */
+.tip{position:absolute;display:none;pointer-events:none;padding:5px 8px;background:#06202c;border:1px solid #12384a;border-radius:6px;color:#e6eef8;font-size:.85rem;white-space:nowrap;z-index:2}
+.tip.show{display:block}
+.legend-box{margin-top:8px;background:#06202c;border-radius:6px;padding:6px 10px}
+.legend-box summary{cursor:pointer;color:#cfe9ff;font-size:.9rem}
+.legend{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.9rem}
+.legend li{display:flex;align-items:center;gap:6px}
+.legend .swatch{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:3px;font-size:12px;font-weight:700;color:#06202c;flex:none}
+.small{font-size:.8rem;margin:6px 0 2px}
+/* --- inventory and shop --- */
+.inventory{display:flex;flex-wrap:wrap;gap:8px 24px;align-items:flex-start;margin-top:8px;padding:8px 10px;background:#06202c;border-radius:6px;font-size:.9rem}
+.inventory .bag{display:flex;gap:8px;align-items:flex-start;flex:1;min-width:200px}
+.itemlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.itemlist.compact{flex-direction:row;flex-wrap:wrap}
+.itemlist li{display:flex;align-items:center;gap:8px;padding:3px 6px;background:#0f1724;border-radius:4px}
+.itemlist li .muted{font-size:.8rem}
+.itemlist button{padding:2px 8px;font-size:.8rem}
+.itemlist button:disabled{opacity:.4;cursor:not-allowed}
+.itemlist .empty{background:none;color:#a8c0d8}
+.shop{cursor:default;align-items:stretch;justify-content:flex-start;overflow:auto;text-align:left}
+.shop:not([hidden]){display:flex}
+.shop[hidden]{display:none}
+.shop-inner{width:100%;max-width:640px;margin:auto;background:#06202c;border:1px solid #12384a;border-radius:8px;padding:12px}
+.shop-head{display:flex;align-items:center;gap:12px}
+.shop-head h2{margin:0;flex:1;font-size:1.3rem;color:#ffd86b}
+.shop-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+.shop-cols h3{margin:0 0 6px;font-size:1rem;color:#cfe9ff}
+.gold{color:#f5c542;font-weight:600}
+@media (max-width:600px){.shop-cols{grid-template-columns:1fr}}

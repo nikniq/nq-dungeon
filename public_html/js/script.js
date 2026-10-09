@@ -9,10 +9,10 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 const restartBtn = document.getElementById('restart');
 
-const TILE = { WALL: 0, FLOOR: 1, EXIT: 2 };
+const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3 };
 const COLORS = {
   wall: '#0b2230', wallDim: '#08192a', floor: '#1b4a62', floorDim: '#10303f',
-  exit: '#5fe17a', player: '#ffd86b', gold: '#f5c542', potion: '#7bdfff', unknown: '#060c14',
+  exit: '#5fe17a', player: '#ffd86b', gold: '#f5c542', potion: '#7bdfff', unknown: '#060c14', shop: '#c084fc',
 };
 const MONSTER_TYPES = [
   { name: 'Rat',    color: '#c98f5a', hp: 3,  atk: 1, xp: 2,  minFloor: 1 },
@@ -29,12 +29,17 @@ const tileSize = Math.floor(Math.min(canvas.width / cols, canvas.height / rows))
 canvas.width = tileSize * cols;
 canvas.height = tileSize * rows;
 
-let map, seen, visible, monsters, potions, golds, exit;
+let map, seen, visible, monsters, potions, golds, exit, shops;
 let player, floor, gameOver, turn, kills;
 
 // ---------- account save/load ----------
 // window.DUNGEON is set by the page: user is true when someone is logged in.
 const ACCOUNT = window.DUNGEON || { user: false };
+const ITEMS = ACCOUNT.items || { weapons: {}, armor: {}, consumables: {}, bag_size: 12 };
+const itemInfo = (id) => ITEMS.weapons[id] || ITEMS.armor[id] || ITEMS.consumables[id] || null;
+const itemKind = (id) => ITEMS.weapons[id] ? 'weapon' : ITEMS.armor[id] ? 'armor' : 'consumable';
+const weaponAtk = () => (player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk : 0;
+const armorDef = () => (player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def : 0;
 
 const SAVE_EVERY_TURNS = 20;
 
@@ -47,7 +52,8 @@ async function saveProgress(event, keepalive = false) {
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': ACCOUNT.csrf },
       credentials: 'same-origin',
       body: JSON.stringify({ event, floor, level: player.level, xp: player.xp, gold: player.gold,
-        hp: player.hp, max_hp: player.maxHp, atk: player.atk, kills }),
+        hp: player.hp, max_hp: player.maxHp, atk: player.atk, kills,
+        weapon: player.weapon, armor: player.armor, bag: player.bag }),
     });
     if (!res.ok) throw new Error(res.status);
     kills = 0; // counted server-side now
@@ -151,6 +157,17 @@ function placePlayer() {
   player.x = start.x; player.y = start.y;
 }
 
+function placeShop() {
+  // A merchant stands a few steps from where you arrive on each floor.
+  shops = [];
+  const d = bfs(player.x, player.y, false);
+  const cells = floorCells((c, r) => d[r][c] < 2 || d[r][c] > 6);
+  if (!cells.length) return;
+  const cell = cells[rnd(cells.length)];
+  map[cell.y][cell.x] = TILE.SHOP;
+  shops.push(cell);
+}
+
 function placeExit() {
   // Put the exit on the floor cell farthest from the player, so each floor is a real trek.
   const d = bfs(player.x, player.y, false);
@@ -218,6 +235,15 @@ function draw() {
     ctx.fillStyle = color;
     ctx.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
   }
+  for (const sh of shops) {
+    ctx.fillStyle = COLORS.shop;
+    ctx.fillRect(sh.x * tileSize + 2, sh.y * tileSize + 2, tileSize - 4, tileSize - 4);
+    ctx.fillStyle = '#06202c';
+    ctx.font = `bold ${Math.floor(tileSize * 0.75)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('$', sh.x * tileSize + tileSize / 2, sh.y * tileSize + tileSize / 2 + 1);
+    ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+  }
   const now = performance.now();
   for (const g of golds) {
     if (!visible[g.y][g.x]) continue;
@@ -246,6 +272,11 @@ function draw() {
       ctx.fillStyle = '#f33';
       ctx.fillRect(m.x * tileSize + 2, m.y * tileSize, (tileSize - 4) * (m.hp / m.maxHp), 2);
     }
+    ctx.fillStyle = '#06202c';
+    ctx.font = `bold ${Math.floor(tileSize * 0.7)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(m.type.name[0], m.x * tileSize + tileSize / 2, m.y * tileSize + tileSize / 2 + 1);
+    ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
     if (!m.awake) {
       ctx.fillStyle = '#fff'; ctx.font = '9px sans-serif';
       ctx.fillText('z', m.x * tileSize + tileSize - 7, m.y * tileSize + 9);
@@ -253,10 +284,81 @@ function draw() {
   }
   ctx.fillStyle = COLORS.player;
   ctx.fillRect(player.x * tileSize + 2, player.y * tileSize + 2, tileSize - 4, tileSize - 4);
+  if (inspected) {
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    ctx.strokeRect(inspected.x * tileSize + 1, inspected.y * tileSize + 1, tileSize - 2, tileSize - 2);
+  }
+}
+
+// ---------- inspecting tiles (hover / tap) ----------
+const tipEl = document.getElementById('tip');
+const legendEl = document.getElementById('legend');
+let inspected = null;
+
+function describeTile(x, y) {
+  if (!map || !inBounds(x, y) || !visible[y][x]) return null;
+  if (x === player.x && y === player.y) return `You — ${player.hp}/${player.maxHp} HP, attack ${player.atk}`;
+  const m = getMonsterAt(x, y);
+  if (m) return `${m.type.name} — ${m.hp}/${m.maxHp} HP, attack ${m.atk}${m.awake ? '' : ' (asleep)'}`;
+  if (getPotionAt(x, y)) return 'Potion — restores 5 HP';
+  const g = getGoldAt(x, y);
+  if (g) return `Gold — ${g.amount} pieces`;
+  if (map[y][x] === TILE.SHOP) return 'Merchant — step here to buy and sell gear';
+  if (map[y][x] === TILE.EXIT) return 'Stairs down — the exit from this floor';
+  return null;
+}
+
+function tileFromEvent(e) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = canvas.width / rect.width, sy = canvas.height / rect.height;
+  return { x: Math.floor((e.clientX - rect.left) * sx / tileSize), y: Math.floor((e.clientY - rect.top) * sy / tileSize) };
+}
+
+function inspect(e) {
+  const t = tileFromEvent(e);
+  const text = describeTile(t.x, t.y);
+  if (text) {
+    inspected = t;
+    tipEl.textContent = text;
+    tipEl.classList.add('show');
+    const rect = canvas.parentElement.getBoundingClientRect();
+    tipEl.style.left = `${Math.min(e.clientX - rect.left + 12, rect.width - tipEl.offsetWidth - 8)}px`;
+    tipEl.style.top = `${e.clientY - rect.top + 16}px`;
+  } else {
+    clearInspect();
+  }
+}
+
+function clearInspect() {
+  inspected = null;
+  tipEl.classList.remove('show');
+}
+
+canvas.addEventListener('mousemove', inspect);
+canvas.addEventListener('mouseleave', clearInspect);
+canvas.addEventListener('click', inspect);
+
+function buildLegend() {
+  legendEl.innerHTML = '';
+  const add = (swatchStyle, label, detail, glyph = '') => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="swatch" style="${swatchStyle}">${glyph}</span><b>${label}</b> <span class="muted">${detail}</span>`;
+    legendEl.appendChild(li);
+  };
+  add(`background:${COLORS.player}`, 'You', '');
+  for (const t of MONSTER_TYPES) {
+    const locked = t.minFloor > floor;
+    add(`background:${t.color};${locked ? 'opacity:.35' : ''}`, t.name, locked ? `from floor ${t.minFloor}` : `${t.hp} HP, attack ${t.atk}, ${t.xp} XP`, t.name[0]);
+  }
+  add(`background:${COLORS.potion};border-radius:50%`, 'Potion', '+5 HP');
+  add(`background:${COLORS.gold};transform:rotate(45deg) scale(.7)`, 'Gold', '');
+  add(`background:${COLORS.shop}`, 'Merchant', 'buy and sell', '$');
+  add(`background:${COLORS.exit}`, 'Exit', 'stairs down');
 }
 
 function updateStats() {
-  statsEl.textContent = `Floor ${floor}/${FINAL_FLOOR} | HP ${player.hp}/${player.maxHp} | ATK ${player.atk} | Lv ${player.level} (${player.xp}/${xpToNext(player.level)} XP) | Gold ${player.gold}`;
+  statsEl.textContent = `Floor ${floor}/${FINAL_FLOOR} | HP ${player.hp}/${player.maxHp} | ATK ${player.atk}${weaponAtk() ? '+' + weaponAtk() : ''} | DEF ${armorDef()} | Lv ${player.level} (${player.xp}/${xpToNext(player.level)} XP) | Gold ${player.gold}`;
+  renderInventory();
   hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
   hpBar.style.background = player.hp / player.maxHp > 0.5 ? '#5fe17a' : player.hp / player.maxHp > 0.25 ? '#f5c542' : '#ff6b6b';
 }
@@ -273,20 +375,21 @@ function gainXp(n) {
 }
 
 function playerAttack(m) {
-  const dmg = player.atk + rnd(2);
+  const dmg = player.atk + weaponAtk() + rnd(2);
   m.hp -= dmg; m.awake = true;
   if (m.hp <= 0) {
     monsters = monsters.filter((x) => x !== m);
     kills++;
     log(`You slay the ${m.type.name} (+${m.type.xp} XP).`, 'good');
     gainXp(m.type.xp);
+    dropLoot(m);
   } else {
     log(`You hit the ${m.type.name} for ${dmg}.`);
   }
 }
 
 function monsterAttack(m) {
-  const dmg = Math.max(1, m.atk - (player.level > 3 ? 1 : 0));
+  const dmg = Math.max(1, m.atk - armorDef());
   player.hp -= dmg;
   log(`${m.type.name} hits you for ${dmg}.`, 'bad');
 }
@@ -356,6 +459,7 @@ function tryMove(dx, dy) {
       golds = golds.filter((x) => x !== g);
       log(`You pick up ${g.amount} gold.`, 'good');
     }
+    if (map[ny][nx] === TILE.SHOP) { openShop(); }
     if (map[ny][nx] === TILE.EXIT) { nextFloor(); if (gameOver) { updateStats(); return; } updateVisibility(); updateStats(); draw(); return; }
   }
   turn++;
@@ -381,13 +485,17 @@ const KEYS = {
   ArrowRight: [1, 0], d: [1, 0], D: [1, 0], l: [1, 0],
 };
 window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { closeShop(); return; }
+  if (shopOpen) return;
   if (e.key === 'r' || e.key === 'R') { init(); return; }
+  if (e.key === 'p' || e.key === 'P') { drinkPotion(); return; }
   if (e.key === '.' || e.key === ' ') { e.preventDefault(); wait(); return; }
   const dir = KEYS[e.key];
   if (dir) { e.preventDefault(); tryMove(dir[0], dir[1]); }
 });
 document.querySelectorAll('[data-move]').forEach((btn) => {
   btn.addEventListener('click', () => {
+    if (shopOpen) return;
     const [dx, dy] = btn.dataset.move.split(',').map(Number);
     if (dx === 0 && dy === 0) wait(); else tryMove(dx, dy);
   });
@@ -398,25 +506,175 @@ window.addEventListener('pagehide', () => { if (!gameOver) saveProgress('progres
 document.addEventListener('visibilitychange', () => { if (document.hidden && !gameOver) saveProgress('progress', true); });
 overlay.addEventListener('click', init);
 
+// ---------- inventory ----------
+const invWeapon = document.getElementById('inv-weapon');
+const invArmor = document.getElementById('inv-armor');
+const invBag = document.getElementById('inv-bag');
+
+function itemLabel(id) {
+  const it = itemInfo(id);
+  if (!it) return id;
+  if (ITEMS.weapons[id]) return `${it.name} (+${it.atk} attack)`;
+  if (ITEMS.armor[id]) return `${it.name} (${it.def} defence)`;
+  return `${it.name} (+${it.heal} HP)`;
+}
+
+function renderInventory() {
+  if (!invBag || !player) return;
+  invWeapon.textContent = player.weapon ? itemLabel(player.weapon) : 'Bare hands';
+  invArmor.textContent = player.armor ? itemLabel(player.armor) : 'None';
+  invBag.innerHTML = '';
+  if (!player.bag.length) {
+    const li = document.createElement('li'); li.className = 'empty'; li.textContent = `empty (0/${ITEMS.bag_size})`; invBag.appendChild(li); return;
+  }
+  player.bag.forEach((id, idx) => {
+    const li = document.createElement('li');
+    const kind = itemKind(id);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = kind === 'consumable' ? 'Drink' : 'Equip';
+    btn.addEventListener('click', () => kind === 'consumable' ? drinkPotion(idx) : equip(idx));
+    li.append(itemLabel(id), btn);
+    invBag.appendChild(li);
+  });
+}
+
+function bagFull() { return player.bag.length >= ITEMS.bag_size; }
+
+function equip(idx) {
+  const id = player.bag[idx];
+  const kind = itemKind(id);
+  if (kind === 'consumable') return;
+  const slot = kind === 'weapon' ? 'weapon' : 'armor';
+  player.bag.splice(idx, 1);
+  if (player[slot]) player.bag.push(player[slot]);
+  player[slot] = id;
+  log(`You equip the ${itemInfo(id).name}.`, 'good');
+  updateStats(); renderShop();
+}
+
+function drinkPotion(idx) {
+  if (gameOver || !player) return;
+  if (idx === undefined) idx = player.bag.findIndex((id) => itemKind(id) === 'consumable');
+  if (idx < 0) { log('You have no potions in your bag.'); return; }
+  const it = itemInfo(player.bag[idx]);
+  const healed = Math.min(it.heal, player.maxHp - player.hp);
+  player.bag.splice(idx, 1);
+  player.hp += healed;
+  log(healed > 0 ? `You drink a potion and heal ${healed} HP.` : 'You drink a potion but were already at full health.', 'good');
+  updateStats(); renderShop();
+}
+
+function dropLoot(m) {
+  if (Math.random() > 0.12 || bagFull()) return;
+  const pool = Object.entries({ ...ITEMS.weapons, ...ITEMS.armor, ...ITEMS.consumables })
+    .filter(([, it]) => it.floor <= floor);
+  if (!pool.length) return;
+  const [id, it] = pool[rnd(pool.length)];
+  player.bag.push(id);
+  log(`The ${m.type.name} drops a ${it.name}.`, 'good');
+}
+
+// ---------- shop ----------
+const shopEl = document.getElementById('shop');
+const shopBuy = document.getElementById('shop-buy');
+const shopSell = document.getElementById('shop-sell');
+const shopGold = document.getElementById('shop-gold');
+let shopOpen = false;
+
+const sellPrice = (id) => Math.floor(itemInfo(id).price / 2);
+
+function openShop() {
+  if (!shopEl) return;
+  shopOpen = true;
+  shopEl.hidden = false;
+  log('The merchant greets you. Buy and sell with the buttons, Esc to leave.');
+  renderShop();
+}
+
+function closeShop() {
+  if (!shopEl) return;
+  shopOpen = false;
+  shopEl.hidden = true;
+}
+
+function renderShop() {
+  if (!shopOpen) return;
+  shopGold.textContent = `${player.gold} gold`;
+  shopBuy.innerHTML = '';
+  const stock = Object.entries({ ...ITEMS.weapons, ...ITEMS.armor, ...ITEMS.consumables })
+    .filter(([, it]) => it.floor <= floor + 1);
+  for (const [id, it] of stock) {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.textContent = `Buy ${it.price}g`;
+    btn.disabled = player.gold < it.price || bagFull();
+    btn.addEventListener('click', () => buy(id));
+    li.append(itemLabel(id), btn);
+    shopBuy.appendChild(li);
+  }
+  shopSell.innerHTML = '';
+  const owned = [];
+  if (player.weapon) owned.push({ id: player.weapon, where: 'weapon' });
+  if (player.armor) owned.push({ id: player.armor, where: 'armor' });
+  player.bag.forEach((id, idx) => owned.push({ id, where: idx }));
+  if (!owned.length) {
+    const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'Nothing to sell'; shopSell.appendChild(li);
+  }
+  for (const o of owned) {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.textContent = `Sell ${sellPrice(o.id)}g`;
+    btn.addEventListener('click', () => sell(o));
+    li.append(itemLabel(o.id) + (typeof o.where === 'string' ? ' (equipped)' : ''), btn);
+    shopSell.appendChild(li);
+  }
+}
+
+function buy(id) {
+  const it = itemInfo(id);
+  if (player.gold < it.price || bagFull()) return;
+  player.gold -= it.price;
+  player.bag.push(id);
+  log(`You buy a ${it.name} for ${it.price} gold.`, 'good');
+  updateStats(); renderShop();
+}
+
+function sell(o) {
+  const price = sellPrice(o.id);
+  if (typeof o.where === 'string') player[o.where] = null; else player.bag.splice(o.where, 1);
+  player.gold += price;
+  log(`You sell the ${itemInfo(o.id).name} for ${price} gold.`, 'good');
+  updateStats(); renderShop();
+}
+
+document.getElementById('shop-close')?.addEventListener('click', closeShop);
+
 // ---------- setup ----------
 function buildFloor() {
   createMap();
   placePlayer();
+  placeShop();
   placeExit();
   placeMonsters();
   placeItems();
   updateVisibility();
+  clearInspect();
+  buildLegend();
 }
 
 function startRun(saved) {
-  player = { x: 1, y: 1, hp: 20, maxHp: 20, atk: 3, level: 1, xp: 0, gold: 0 };
+  player = { x: 1, y: 1, hp: 20, maxHp: 20, atk: 3, level: 1, xp: 0, gold: 0, weapon: null, armor: null, bag: [] };
   floor = 1; gameOver = false; turn = 0; kills = 0;
+  closeShop();
   overlay.classList.remove('show');
   logEl.innerHTML = '';
   const resuming = saved && saved.floor > 0;
   if (resuming) {
     floor = saved.floor;
-    Object.assign(player, { hp: saved.hp, maxHp: saved.max_hp, atk: saved.atk, level: saved.level, xp: saved.xp, gold: saved.gold });
+    Object.assign(player, { hp: saved.hp, maxHp: saved.max_hp, atk: saved.atk, level: saved.level, xp: saved.xp, gold: saved.gold,
+      weapon: itemInfo(saved.weapon) ? saved.weapon : null, armor: itemInfo(saved.armor) ? saved.armor : null,
+      bag: (saved.bag || []).filter(itemInfo).slice(0, ITEMS.bag_size) });
   }
   buildFloor();
   if (resuming) {

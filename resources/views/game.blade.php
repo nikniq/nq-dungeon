@@ -9,6 +9,17 @@
     </div>
     <div class="stage">
       <canvas id="game" width="800" height="600"></canvas>
+      <div id="tip" class="tip" role="status"></div>
+      <div id="shop" class="overlay shop" hidden>
+        <div class="shop-inner">
+          <div class="shop-head"><h2>Merchant</h2><span id="shop-gold" class="gold"></span><button type="button" id="shop-close">Close</button></div>
+          <div class="shop-cols">
+            <section><h3>Buy</h3><ul id="shop-buy" class="itemlist"></ul></section>
+            <section><h3>Sell</h3><ul id="shop-sell" class="itemlist"></ul></section>
+          </div>
+          <p class="muted small">The merchant pays half price for anything you sell. Press Esc to leave.</p>
+        </div>
+      </div>
       <div id="overlay" class="overlay">
         <h2 id="overlay-title"></h2>
         <p id="overlay-text"></p>
@@ -25,9 +36,20 @@
         <button type="button" data-move="0,1" aria-label="Down">&#9660;</button>
       </div>
     </div>
+    <div class="inventory" id="inventory">
+      <div class="equip"><span class="muted">Weapon</span> <b id="inv-weapon">Bare hands</b></div>
+      <div class="equip"><span class="muted">Armor</span> <b id="inv-armor">None</b></div>
+      <div class="bag"><span class="muted">Bag</span> <ul id="inv-bag" class="itemlist compact"></ul></div>
+    </div>
+    <details class="legend-box" open>
+      <summary>What's on screen</summary>
+      <ul id="legend" class="legend"></ul>
+      <p class="muted small">Hover over or tap anything on the map to see what it is.</p>
+    </details>
     <p class="help">
       Move with arrow keys, WASD or HJKL. Space or <kbd>.</kbd> waits a turn, <kbd>R</kbd> restarts.
       Walk into monsters to attack. Collect gold and potions, reach the green exit, and clear all 5 floors.
+      Step onto the merchant (<b>$</b>) to buy and sell gear. <kbd>P</kbd> drinks a potion from your bag.
       <button id="restart" type="button">Restart</button>
     </p>
 @endsection
@@ -38,6 +60,7 @@
       saveUrl: @json(route('character.save')),
       loadUrl: @json(route('character.show')),
       csrf: @json(csrf_token()),
+      items: @json(config('items')),
     };
   </script>
   <script src="{{ asset('js/script.js') }}?v={{ filemtime(public_path('js/script.js')) }}"></script>

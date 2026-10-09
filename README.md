@@ -10,6 +10,9 @@ Controls:
 
 Clear all 5 floors: find the green exit on each one. Monsters sleep until they
 notice you and then chase. Kill them for XP to level up, grab gold and potions.
+Each floor has a merchant (`$`) who buys and sells weapons, armor and potions;
+the item catalog lives in `config/items.php`. Hover or tap anything on the map
+to see what it is. Create a hero to save runs and gear between visits.
 
 ## Setup
 

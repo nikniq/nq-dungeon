@@ -9,8 +9,12 @@ class Character extends Model
 {
     protected $fillable = [
         'name', 'floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk',
-        'runs', 'wins', 'best_floor', 'best_gold', 'kills',
+        'weapon', 'armor', 'bag', 'runs', 'wins', 'best_floor', 'best_gold', 'kills',
     ];
+
+    protected $casts = ['bag' => 'array'];
+
+    protected $attributes = ['bag' => '[]'];
 
     public function user(): BelongsTo
     {
@@ -20,6 +24,9 @@ class Character extends Model
     /** Reset the in-progress run to a fresh level-1 hero, keeping lifetime records. */
     public function resetRun(): void
     {
-        $this->fill(['floor' => 0, 'level' => 1, 'xp' => 0, 'gold' => 0, 'hp' => 20, 'max_hp' => 20, 'atk' => 3]);
+        $this->fill([
+            'floor' => 0, 'level' => 1, 'xp' => 0, 'gold' => 0, 'hp' => 20, 'max_hp' => 20, 'atk' => 3,
+            'weapon' => null, 'armor' => null, 'bag' => [],
+        ]);
     }
 }

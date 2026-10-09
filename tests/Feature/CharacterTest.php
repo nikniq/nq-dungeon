@@ -49,26 +49,26 @@ class CharacterTest extends TestCase
         $user = User::factory()->create();
         $user->character()->create(['name' => 'Ayla']);
 
-        $state = ['floor' => 1, 'level' => 1, 'xp' => 0, 'gold' => 0, 'hp' => 20, 'max_hp' => 20, 'atk' => 3, 'kills' => 0];
+        $state = ['floor' => 1, 'level' => 1, 'xp' => 0, 'gold' => 0, 'hp' => 20, 'max_hp' => 20, 'atk' => 3, 'kills' => 0, 'weapon' => null, 'armor' => null, 'bag' => []];
         $this->actingAs($user)->postJson('/api/character', ['event' => 'progress'] + $state)->assertOk()
             ->assertJson(['floor' => 1, 'runs' => 1]);
 
-        $state = ['floor' => 3, 'level' => 2, 'xp' => 5, 'gold' => 40, 'hp' => 9, 'max_hp' => 24, 'atk' => 4, 'kills' => 6];
+        $state = ['floor' => 3, 'level' => 2, 'xp' => 5, 'gold' => 40, 'hp' => 9, 'max_hp' => 24, 'atk' => 4, 'kills' => 6, 'weapon' => 'short_sword', 'armor' => 'leather', 'bag' => ['potion', 'dagger']];
         $this->actingAs($user)->postJson('/api/character', ['event' => 'progress'] + $state)->assertOk()
-            ->assertJson(['floor' => 3, 'level' => 2, 'gold' => 40, 'hp' => 9, 'best_floor' => 3, 'kills' => 6, 'runs' => 1]);
+            ->assertJson(['floor' => 3, 'level' => 2, 'gold' => 40, 'hp' => 9, 'best_floor' => 3, 'kills' => 6, 'runs' => 1, 'weapon' => 'short_sword', 'armor' => 'leather', 'bag' => ['potion', 'dagger']]);
 
         // Reloading the page resumes from the saved floor.
         $this->actingAs($user)->getJson('/api/character')->assertOk()->assertJson(['floor' => 3, 'name' => 'Ayla']);
 
         $this->actingAs($user)->postJson('/api/character', ['event' => 'death', 'kills' => 2] + $state)->assertOk()
-            ->assertJson(['floor' => 0, 'level' => 1, 'gold' => 0, 'best_floor' => 3, 'best_gold' => 40, 'kills' => 8, 'runs' => 1, 'wins' => 0]);
+            ->assertJson(['floor' => 0, 'level' => 1, 'gold' => 0, 'best_floor' => 3, 'best_gold' => 40, 'kills' => 8, 'runs' => 1, 'wins' => 0, 'weapon' => null, 'armor' => null, 'bag' => []]);
     }
 
     public function test_win_counts_an_escape(): void
     {
         $user = User::factory()->create();
         $user->character()->create(['name' => 'Ayla', 'floor' => 5]);
-        $state = ['event' => 'win', 'floor' => 5, 'level' => 6, 'xp' => 1, 'gold' => 300, 'hp' => 30, 'max_hp' => 40, 'atk' => 8, 'kills' => 3];
+        $state = ['event' => 'win', 'floor' => 5, 'level' => 6, 'xp' => 1, 'gold' => 300, 'hp' => 30, 'max_hp' => 40, 'atk' => 8, 'kills' => 3, 'weapon' => 'warhammer', 'armor' => 'plate', 'bag' => []];
 
         $this->actingAs($user)->postJson('/api/character', $state)->assertOk()
             ->assertJson(['wins' => 1, 'floor' => 0, 'best_floor' => 5, 'best_gold' => 300]);
@@ -79,6 +79,23 @@ class CharacterTest extends TestCase
         $user = User::factory()->create();
         $this->actingAs($user)->postJson('/api/character', ['event' => 'cheat', 'floor' => -1])
             ->assertUnprocessable();
+
+        $state = ['event' => 'progress', 'floor' => 1, 'level' => 1, 'xp' => 0, 'gold' => 0, 'hp' => 20, 'max_hp' => 20, 'atk' => 3, 'kills' => 0];
+        $this->actingAs($user)->postJson('/api/character', $state + ['weapon' => 'lightsaber', 'armor' => null, 'bag' => []])
+            ->assertUnprocessable()->assertJsonValidationErrors('weapon');
+        $this->actingAs($user)->postJson('/api/character', $state + ['weapon' => null, 'armor' => null, 'bag' => ['potion', 'excalibur']])
+            ->assertUnprocessable()->assertJsonValidationErrors('bag.1');
+        $this->actingAs($user)->postJson('/api/character', $state + ['weapon' => null, 'armor' => null, 'bag' => array_fill(0, 13, 'potion')])
+            ->assertUnprocessable()->assertJsonValidationErrors('bag');
+    }
+
+    public function test_character_page_shows_equipment(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla', 'floor' => 2, 'weapon' => 'mace', 'armor' => 'chain', 'bag' => ['potion', 'dagger']]);
+
+        $this->actingAs($user)->get('/character')->assertOk()
+            ->assertSee('Mace (+3 attack)')->assertSee('Chain mail (2 defence)')->assertSee('Potion, Dagger');
     }
 
     public function test_character_page_rename_and_abandon(): void
