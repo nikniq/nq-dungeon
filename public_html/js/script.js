@@ -74,14 +74,10 @@ function seededRandom(seed) {
 const noise = (x, y, salt = 0) => hash32(x, y, salt) / 4294967295;
 
 // ---------- tiles: one accessor for every scene ----------
-const BLANK_CHUNK = { tiles: new Uint8Array(CHUNK * CHUNK), seen: new Uint8Array(CHUNK * CHUNK), rooms: [] };
 function getChunk(cx, cy) {
   const k = key(cx, cy);
   let ch = chunks.get(k);
-  if (!ch) {
-    if (coop.active) { coop.need.add(k); return BLANK_CHUNK; }
-    ch = scene === 'world' ? generateWorldChunk(cx, cy) : generateChunk(cx, cy); chunks.set(k, ch);
-  }
+  if (!ch) { ch = scene === 'world' ? generateWorldChunk(cx, cy) : generateChunk(cx, cy); chunks.set(k, ch); }
   return ch;
 }
 function getTile(x, y) {
@@ -103,8 +99,7 @@ function wasSeen(x, y) {
 function markSeen(x, y) {
   if (bounded) return;
   const cx = Math.floor(x / CHUNK), cy = Math.floor(y / CHUNK);
-  const ch = getChunk(cx, cy);
-  if (ch !== BLANK_CHUNK) ch.seen[(y - cy * CHUNK) * CHUNK + (x - cx * CHUNK)] = 1;
+  getChunk(cx, cy).seen[(y - cy * CHUNK) * CHUNK + (x - cx * CHUNK)] = 1;
 }
 const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE;
 
@@ -118,7 +113,7 @@ const armorDef = () => (player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor
 const SAVE_EVERY_TURNS = 20;
 
 async function saveProgress(event, keepalive = false) {
-  if (!ACCOUNT.user || !player || coop.active) return;
+  if (!ACCOUNT.user || !player) return;
   try {
     const res = await fetch(ACCOUNT.saveUrl, {
       method: 'POST', keepalive, credentials: 'same-origin',
@@ -143,166 +138,6 @@ async function loadProgress() {
     log('Could not load your hero (' + e.message + ').', 'bad');
     return null;
   }
-}
-
-// ---------- co-op ----------
-// With a party, the dungeon lives on the server: moves are sent as actions,
-// the world comes back as snapshots, and the page polls between actions.
-const coop = { active: false, party: null, seq: 0, need: new Set(), others: [], timer: null, busy: false, monsterById: new Map() };
-const partyEl = document.getElementById('party');
-
-async function api(path, body) {
-  const res = await fetch(path, {
-    method: body ? 'POST' : 'GET', credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': ACCOUNT.csrf },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.message || `HTTP ${res.status}`), { status: res.status });
-  return data;
-}
-
-async function refreshParty() {
-  if (!ACCOUNT.user) return null;
-  try {
-    const data = await api(ACCOUNT.partyUrl);
-    coop.party = data.party;
-    renderParty();
-    return data;
-  } catch (e) { return null; }
-}
-
-function renderParty() {
-  if (!partyEl) return;
-  const p = coop.party;
-  if (!p) {
-    partyEl.innerHTML = `<div class="party-head"><b>Party</b> <span class="muted">Explore the dungeon together.</span></div>
-      <div class="party-actions"><button type="button" id="party-create">Create a party</button>
-      <form id="party-join" class="inline-form"><input type="text" id="party-code" maxlength="6" placeholder="Join code" autocomplete="off"><button type="submit">Join</button></form></div>`;
-    partyEl.querySelector('#party-create').addEventListener('click', async () => { try { coop.party = (await api(ACCOUNT.partyUrl, {})).party; renderParty(); log(`Party created. Share the code ${coop.party.code}.`, 'good'); } catch (e) { log(e.message, 'bad'); } });
-    partyEl.querySelector('#party-join').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const code = partyEl.querySelector('#party-code').value.trim().toUpperCase();
-      try { coop.party = (await api(ACCOUNT.partyUrl + '/join', { code })).party; renderParty(); log(`You joined the party ${coop.party.code}.`, 'good'); } catch (err) { log(err.message, 'bad'); }
-    });
-    return;
-  }
-  partyEl.innerHTML = `<div class="party-head"><b>Party</b> <span class="code">${p.code}</span> <span class="muted">${p.floor > 0 ? `on floor ${p.floor}` : 'in town'} · share the code to invite</span>
-      <button type="button" id="party-leave">Leave</button></div>
-    <ul class="party-list">${p.members.map((m) => `<li><span class="dot ${m.online ? 'on' : ''}"></span>${m.name} <span class="muted">Lv ${m.level}${m.in_dungeon ? ' · in the dungeon' : ''}</span></li>`).join('')}</ul>
-    <p class="muted small">${p.floor > 0 ? 'Take the gate at the bottom of the square to join them.' : 'When anyone takes the gate, the party\'s floor begins. Stairs move everyone down together.'}</p>`;
-  partyEl.querySelector('#party-leave').addEventListener('click', async () => {
-    try { await api(ACCOUNT.partyUrl + '/leave', {}); } catch (e) {}
-    if (coop.active) stopCoop();
-    coop.party = null; renderParty(); log('You left the party.');
-    if (scene === 'dungeon') { returnHome(); afterSceneChange(); }
-  });
-}
-
-function neededChunks() {
-  const { x0, y0, x1, y1 } = viewBounds();
-  for (let cy = Math.floor(y0 / CHUNK); cy <= Math.floor(y1 / CHUNK); cy++) for (let cx = Math.floor(x0 / CHUNK); cx <= Math.floor(x1 / CHUNK); cx++) {
-    if (!chunks.has(key(cx, cy))) coop.need.add(key(cx, cy));
-  }
-  return [...coop.need].join('|');
-}
-
-function applySnapshot(snap) {
-  if (snap.seq !== undefined) coop.seq = Math.max(coop.seq, snap.seq);
-  for (const [k, tiles] of Object.entries(snap.chunks || {})) {
-    const existing = chunks.get(k);
-    const arr = new Uint8Array(CHUNK * CHUNK);
-    for (let i = 0; i < arr.length; i++) arr[i] = tiles.charCodeAt(i) - 48;
-    chunks.set(k, { tiles: arr, seen: existing ? existing.seen : new Uint8Array(CHUNK * CHUNK), rooms: [] });
-    coop.need.delete(k);
-    bgDirty = true;
-  }
-  if (snap.party) { coop.party = snap.party; renderParty(); }
-  const me = snap.me;
-  if (me) {
-    Object.assign(player, { hp: me.hp, maxHp: me.max_hp, atk: me.atk, level: me.level, xp: me.xp, gold: me.gold, weapon: me.weapon, armor: me.armor, bag: me.bag || [] });
-    coop.memberId = me.id;
-    if (me.x !== player.x || me.y !== player.y) { player.x = me.x; player.y = me.y; if (Math.abs(player.x - (player.rx ?? me.x)) > 3) settle(player); }
-  }
-  if (snap.exit) exit = { x: snap.exit[0], y: snap.exit[1] };
-  if (snap.monsters) {
-    const next = new Map();
-    for (const [id, x, y, t, hp, maxHp, awake] of snap.monsters) {
-      const prev = coop.monsterById.get(id);
-      const m = prev || { id, rx: x, ry: y };
-      if (prev && (prev.x !== x) ) m.face = Math.sign(x - prev.x);
-      Object.assign(m, { x, y, type: MONSTER_TYPES[t], hp, maxHp, awake: !!awake });
-      next.set(id, m);
-    }
-    coop.monsterById = next;
-    monsters = [...next.values()]; monstersDirty = true;
-  }
-  if (snap.potions) potions = snap.potions.map(([x, y]) => ({ x, y, heal: 5 }));
-  if (snap.golds) golds = snap.golds.map(([x, y, amount]) => ({ x, y, amount }));
-  if (snap.shops) shops = snap.shops.map(([x, y]) => ({ x, y }));
-  if (snap.members) {
-    const prev = new Map(coop.others.map((o) => [o.id, o]));
-    coop.others = snap.members.map((o) => { const old = prev.get(o.id); const n = old || { rx: o.x, ry: o.y }; if (old && old.x !== o.x) n.face = Math.sign(o.x - old.x); return Object.assign(n, o); });
-  }
-  for (const l of snap.log || []) log(l.text, l.cls);
-  for (const h of snap.hits || []) {
-    floatText(h.x, h.y, `-${h.dmg}`, h.who === 'player' ? '#ffd86b' : '#ff6b6b');
-    if (h.who === 'monster' && h.x === player.x && h.y === player.y) player.flashUntil = performance.now() + 120;
-    else { const m = monsters.find((mm) => mm.x === h.x && mm.y === h.y); if (m) m.flashUntil = performance.now() + 120; }
-  }
-  for (const ev of snap.events || []) {
-    if (ev.type === 'floor') { floor = ev.floor; chunks = new Map(); coop.monsterById = new Map(); coop.need.clear(); bgDirty = true; settle(player); buildLegend(); }
-    if (ev.type === 'win') { stopCoop(); returnHome(); afterSceneChange(); log(`You escaped the dungeon together! The town square welcomes you back.`, 'good'); return; }
-    if (ev.type === 'death' && ev.member === coop.memberId) { stopCoop(); endGame('You died', `You fell on floor ${floor}. Your party fights on without you. Press R to start over in town.`); return; }
-  }
-  if (me && !me.in_dungeon && coop.active && !gameOver) { stopCoop(); returnHome(); afterSceneChange(); return; }
-  if ((snap.flags || []).includes('shop')) openShop('shop');
-  updateCamera(); updateVisibility(); updateStats();
-}
-
-async function enterCoop() {
-  try {
-    scene = 'dungeon'; bounded = null; ground = null; decor = null; houses = []; npcs = []; interior = null;
-    chunks = new Map(); monsters = []; potions = []; golds = []; shops = []; coop.monsterById = new Map(); coop.others = []; coop.need.clear(); coop.seq = 0;
-    coop.active = true;
-    dungeonDef = null;
-    const snap = await api(ACCOUNT.partyUrl + '/enter', {});
-    floor = snap.floor;
-    applySnapshot(snap);
-    settle(player); afterSceneChange();
-    log(`You join your party on floor ${floor}. Follow the compass to the stairs.`, 'good');
-    await pollState();
-    coop.timer = setInterval(pollState, 350);
-  } catch (e) {
-    coop.active = false;
-    log('Could not join the party floor: ' + e.message, 'bad');
-    returnHome(); afterSceneChange();
-  }
-}
-
-function stopCoop() {
-  coop.active = false;
-  if (coop.timer) clearInterval(coop.timer);
-  coop.timer = null; coop.others = []; coop.monsterById = new Map();
-}
-
-async function pollState() {
-  if (!coop.active || coop.busy) return;
-  coop.busy = true;
-  try {
-    const snap = await api(`${ACCOUNT.partyUrl}/state?since=${coop.seq}&chunks=${encodeURIComponent(neededChunks())}`);
-    if (coop.active) applySnapshot(snap);
-  } catch (e) {
-    if (e.status === 409) { stopCoop(); returnHome(); afterSceneChange(); }
-  } finally { coop.busy = false; }
-}
-
-async function coopAction(action) {
-  if (!coop.active) return;
-  try {
-    const snap = await api(ACCOUNT.partyUrl + '/act', { ...action, since: coop.seq, chunks: neededChunks() });
-    if (coop.active) applySnapshot(snap);
-  } catch (e) { log('Action failed: ' + e.message, 'bad'); }
 }
 
 // ---------- pixel sprites ----------
@@ -780,7 +615,7 @@ function createWorld() {
   shops = []; monsters = []; potions = []; golds = []; exit = null; monstersDirty = true;
   refreshTownContext();
 }
-// Back to the overworld at the home town's square (after a dive, a death, or leaving a party).
+// Back to the overworld at the home town's square (after a dive or a death).
 function returnHome() {
   floor = TOWN;
   createWorld();
@@ -1246,16 +1081,6 @@ function drawHud(g, now) {
   const ratio = Math.max(0, player.hp / player.maxHp);
   g.fillStyle = '#06202c'; g.fillRect(18, 32, w - 20, 6);
   g.fillStyle = ratio > 0.5 ? '#5fe17a' : ratio > 0.25 ? '#f5c542' : '#ff6b6b'; g.fillRect(18, 32, (w - 20) * ratio, 6);
-  if (coop.active && coop.party) {
-    g.font = '12px sans-serif';
-    const rows = coop.party.members.filter((m) => m.id !== coop.memberId);
-    rows.forEach((m, i) => {
-      const other = coop.others.find((o) => o.id === m.id);
-      const text = `${m.name}  ${other ? `${other.hp}/${other.max_hp} HP` : m.in_dungeon ? 'nearby' : 'in town'}`;
-      g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(8, 50 + i * 22, g.measureText(text).width + 20, 18, 5); g.fill();
-      g.fillStyle = other ? '#9fd4ff' : '#a8c0d8'; g.fillText(text, 18, 53 + i * 22);
-    });
-  }
   // compass: to the stairs in the dungeon, to the next town outdoors
   const target = scene === 'dungeon' ? exit : (inTown() ? (() => { const t = nearestOtherTown(player.x, player.y); return t ? { x: t.cx, y: t.cy, name: t.name } : null; })() : null);
   if (target) {
@@ -1363,18 +1188,6 @@ function draw() {
   const shadow = (x, y) => { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x * T - cam.x + T / 2, y * T - cam.y + T - 4, T * 0.3, 4, 0, 0, Math.PI * 2); ctx.fill(); };
   const bob = (o, idle = true) => (idle ? Math.sin(now / 260 + (o.x * 7 + o.y * 13)) * 0.03 : 0);
   if (safeZone()) for (const n of npcs) if (inView(n)) { const [lx, ly] = [n.rx ?? n.x, n.ry ?? n.y]; shadow(lx, ly); drawSprite(ctx, n.type.sprite, lx, ly - bob(n), 1, 3, n.face === -1); }
-  for (const o of coop.others) {
-    if (!inView(o)) continue;
-    if (o.rx === undefined) settle(o);
-    o.rx += (o.x - o.rx) * 0.35; o.ry += (o.y - o.ry) * 0.35;
-    shadow(o.rx, o.ry);
-    drawSprite(ctx, 'player', o.rx, o.ry - bob(o), 1, 3, o.face === -1);
-    ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
-    const label = `${o.name} ${o.hp}/${o.max_hp}`; const lw = ctx.measureText(label).width + 8;
-    ctx.fillStyle = 'rgba(6,12,20,0.7)'; ctx.fillRect(o.rx * T - cam.x + T / 2 - lw / 2, o.ry * T - cam.y - 16, lw, 14);
-    ctx.fillStyle = '#9fd4ff'; ctx.fillText(label, o.rx * T - cam.x + T / 2, o.ry * T - cam.y - 5);
-    ctx.textAlign = 'start';
-  }
   for (const m of monsters) {
     if (!inView(m) || !isVisible(m.x, m.y)) continue;
     const [ldx, ldy] = lunge(m, now);
@@ -1704,19 +1517,6 @@ function tryMove(dx, dy) {
   if (gameOver || !player || shopOpen) return;
   const nx = player.x + dx, ny = player.y + dy;
   const t = getTile(nx, ny);
-  if (coop.active) {
-    if (dx) player.face = dx;
-    if (dx === 0 && dy === 0) { coopAction({ type: 'wait' }); return; }
-    if (t === TILE.WALL) return;
-    const blocked = getMonsterAt(nx, ny) || coop.others.some((o) => o.x === nx && o.y === ny);
-    if (blocked) {
-      const m = getMonsterAt(nx, ny);
-      if (m) player.lunge = { dx, dy, until: performance.now() + 140 };
-    } else { player.x = nx; player.y = ny; updateCamera(); updateVisibility(); }
-    coopAction({ type: 'move', dx, dy });
-    draw();
-    return;
-  }
   if (t === TILE.WALL || t === TILE.FOUNTAIN) return;
   const n = safeZone() && getNpcAt(nx, ny);
   if (n) { talk(n); draw(); return; }
@@ -1747,7 +1547,6 @@ function tryMove(dx, dy) {
     }
     if (t === TILE.EXIT) {
       if (inTown()) { const here = townContaining(nx, ny) || nearestTownTo(nx, ny); homeTown = here.key; player.wx = nx; player.wy = ny + 1; dungeonDef = townDungeon(here); }
-      if (inTown() && coop.party && ACCOUNT.user) { enterCoop(); return; }
       nextFloor(); return;
     }
     if (t === TILE.SITE && inTown()) {
@@ -1755,7 +1554,6 @@ function tryMove(dx, dy) {
       if (site) {
         homeTown = nearestTownTo(nx, ny).key; player.wx = nx; player.wy = ny;
         dungeonDef = siteDungeon(site);
-        if (coop.party) log('Your party cannot follow you here; the countryside dungeons are explored alone.');
         log(`You enter the ${site.name}: ${site.floors} floors, danger ${stars(site.danger)}.`, 'good');
         nextFloor(); return;
       }
@@ -1807,7 +1605,6 @@ document.querySelectorAll('[data-move]').forEach((btn) => {
 });
 restartBtn.addEventListener('click', init);
 overlay.addEventListener('click', init);
-window.addEventListener('pagehide', () => { if (coop.active) stopCoop(); });
 
 const stageEl = canvas.parentElement;
 const fsBtn = document.getElementById('fullscreen');
@@ -1870,7 +1667,6 @@ function renderInventory() {
 }
 function bagFull() { return player.bag.length >= ITEMS.bag_size; }
 function equip(idx) {
-  if (coop.active) { coopAction({ type: 'equip', where: idx }).then(renderShop); return; }
   const id = player.bag[idx];
   const kind = itemKind(id);
   if (kind === 'consumable') return;
@@ -1883,7 +1679,6 @@ function equip(idx) {
 }
 function drinkPotion(idx) {
   if (gameOver || !player) return;
-  if (coop.active) { coopAction({ type: 'drink' }).then(renderShop); return; }
   if (idx === undefined) idx = player.bag.findIndex((id) => itemKind(id) === 'consumable');
   if (idx < 0) { log('You have no potions in your bag.'); draw(); return; }
   const it = itemInfo(player.bag[idx]);
@@ -1957,7 +1752,6 @@ function renderShop() {
   }
 }
 function buy(id) {
-  if (coop.active) { coopAction({ type: 'buy', item: id }).then(renderShop); return; }
   const it = itemInfo(id), price = buyPrice(id);
   if (player.gold < price || bagFull()) return;
   player.gold -= price; player.bag.push(id);
@@ -1965,7 +1759,6 @@ function buy(id) {
   updateStats(); renderShop(); draw();
 }
 function sell(o) {
-  if (coop.active) { coopAction({ type: 'sell', where: o.where }).then(renderShop); return; }
   const price = sellPrice(o.id);
   if (typeof o.where === 'string') player[o.where] = null; else player.bag.splice(o.where, 1);
   player.gold += price;
@@ -2014,16 +1807,7 @@ let starting = false;
 async function init() {
   if (starting) return;
   starting = true;
-  stopCoop();
-  try {
-    const [saved, partyInfo] = await Promise.all([loadProgress(), refreshParty()]);
-    if (partyInfo && partyInfo.in_dungeon) {
-      startRun({ ...saved, floor: 0 });
-      await enterCoop();
-    } else {
-      startRun(saved && coop.party && coop.party.floor === 0 && saved.floor > 0 ? { ...saved, floor: 0 } : saved);
-    }
-  } finally { starting = false; }
+  try { startRun(await loadProgress()); } finally { starting = false; }
 }
 function loop() { if (!gameOver) draw(); requestAnimationFrame(loop); }
 requestAnimationFrame(loop);

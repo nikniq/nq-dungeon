@@ -45,11 +45,6 @@ class User extends Authenticatable
         return $this->hasOne(Character::class);
     }
 
-    public function partyMember(): HasOne
-    {
-        return $this->hasOne(PartyMember::class);
-    }
-
     protected function casts(): array
     {
         return [
