@@ -11,15 +11,18 @@ return [
         'mace' => ['name' => 'Mace', 'atk' => 3, 'price' => 85, 'floor' => 2],
         'longsword' => ['name' => 'Longsword', 'atk' => 4, 'price' => 150, 'floor' => 3],
         'warhammer' => ['name' => 'Warhammer', 'atk' => 6, 'price' => 280, 'floor' => 4],
+        'greatsword' => ['name' => 'Royal greatsword', 'atk' => 9, 'price' => 650, 'floor' => 7],
     ],
     'armor' => [
         'leather' => ['name' => 'Leather armor', 'def' => 1, 'price' => 20, 'floor' => 1],
         'chain' => ['name' => 'Chain mail', 'def' => 2, 'price' => 65, 'floor' => 2],
         'scale' => ['name' => 'Scale mail', 'def' => 3, 'price' => 130, 'floor' => 3],
         'plate' => ['name' => 'Plate armor', 'def' => 4, 'price' => 240, 'floor' => 4],
+        'dragonscale' => ['name' => 'Dragonscale mail', 'def' => 6, 'price' => 800, 'floor' => 7],
     ],
     'consumables' => [
         'potion' => ['name' => 'Potion', 'heal' => 5, 'price' => 12, 'floor' => 1],
+        'elixir' => ['name' => 'Elixir', 'heal' => 25, 'price' => 45, 'floor' => 7],
     ],
     'bag_size' => 12,
 ];

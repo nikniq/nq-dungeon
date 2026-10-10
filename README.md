@@ -8,11 +8,15 @@ Controls:
 - Wait a turn: Space or `.`
 - Restart: Click Restart or press `r`
 
-You start in Hearth, one town on an endless seeded overworld (`WORLD_SEED` in
-`script.js`). Towns sit on a lattice every 96 tiles, joined by roads across grass,
-forest, water and mountains; each has a name, a shop, an inn, a gate into the
-dungeon and sometimes a watch house, herbalist or home. Your position and home
-town are saved, and a dive returns you to the town whose gate you took. Clear all 5 floors to return to town with your level, gold and gear.
+You start in Hearth on an endless seeded overworld (`WORLD_SEED` in `script.js`).
+Settlements sit roughly every 96 tiles (some cells are empty), placed on the best
+land nearby and joined by roads: villages, towns, cities, walled castles, and one
+grand castle, Castle Aurum, where King Aldric holds court and the Royal Armoury
+sells the realm's best gear. Cities and some towns have a specialist shop: smithy,
+armoury or apothecary. Out in the country stand caves, crypts, warrens and towers,
+short themed dungeons with their own monsters, a danger rating that grows with
+distance from Hearth, and a hoard at the bottom. Press M for the world map. Your
+position and home town are saved; a dive returns you where you went in. Clear all 5 floors to return to town with your level, gold and gear.
 Death sends you back to town as a fresh hero.
 
 In the dungeon: each floor is endless, generated chunk by chunk as you explore,
