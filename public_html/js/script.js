@@ -175,22 +175,60 @@ const SPRITES = {
   plant:    ['...G....', '..GgG...', '.GgGGG..', '..GGG...', '...G....', '..hhh...', '..hHh...', '..hhh...'],
   rug:      ['rrrrrrrr', 'ryyyyyyr', 'ryrrrryr', 'ryryyryr', 'ryryyryr', 'ryrrrryr', 'ryyyyyyr', 'rrrrrrrr'],
 };
+// 16x16 versions of the creatures and key items; these win over the 8x8 ones.
+const BIG_SPRITES = {
+  rat: ['................', '................', '................', '.......hh.....h.', '......hhhh...hh.', '.....hkhhhh.hh..', '....hhhhhhhhh...', '...hhhhhhhhhh...', '..hhhhhhhhhhhh..', '..hhhhhhhhhhhhh.', '..hhhhhhhhhhh.h.', '...hhhhhhhhhh.h.', '....hh.hh.hh....', '....hh.hh.hh....', '................', '................'],
+  goblin: ['....g......g....', '...gg......gg...', '...gggggggggg...', '..gggggggggggg..', '..ggkgggggkggg..', '..gggggggggggg..', '...ggggwwgggg...', '....gggggggg....', '...HGGGGGGGGH...', '..hHGGGGGGGGHh..', '..h.GGGGGGGG.h..', '....GGGGGGGG....', '....GGG..GGG....', '....GGG..GGG....', '...hhh....hhh...', '................'],
+  skeleton: ['.....wwwwww.....', '....wwwwwwww....', '....wkkwwkkw....', '....wwwwwwww....', '.....wkwkww.....', '......wwww......', '.......ww.......', '....wwwwwwww....', '...w.wwwwww.w...', '...w.w.ww.w.w...', '...e.wwwwww.e...', '.....w.ww.w.....', '......w..w......', '......w..w......', '.....ee..ee.....', '................'],
+  orc: ['...dd......dd...', '..dddd....dddd..', '..dddddddddddd..', '.dddddddddddddd.', '.ddkkddddddkkdd.', '.dddddddddddddd.', '..ddddwwwwdddd..', '...dddwddwddd...', '..HHHHHHHHHHHH..', '.hHHHHHHHHHHHHh.', '.h.HHHHHHHHHH.h.', 'eee.HHHHHHHH.eee', '....HHHH.HHHH...', '....HHHH.HHHH...', '...kkkk...kkkk..', '................'],
+  wraith: ['......pppp......', '.....pppppp.....', '....pppppppp....', '....pkppppkp....', '....pppppppp....', '.....pppppp.....', '....pppppppp....', '...pppppppppp...', '..pppppppppppp..', '..pppppppppppp..', '..pppppppppppp..', '..pp.pppppp.pp..', '..p..pp..pp..p..', '.....p....p.....', '................', '................'],
+  potion: ['......wwww......', '......weew......', '......eeee......', '.......cc.......', '.....cccccc.....', '....cccccccc....', '...cccwwccccc...', '...ccwccccccc...', '...ccwccccccc...', '...cccccccccc...', '...cccccccccc...', '....cccccccc....', '.....cccccc.....', '................', '................', '................'],
+  gold: ['................', '................', '.....yyyyyy.....', '....yyooooyy....', '...yyoyyyyoyy...', '...yoyyyyyyoy...', '...yoyyyyyyoy...', '...yyoyyyyoyy...', '..yyyyooooyyyy..', '.yyyyyyyyyyyyyy.', '.yooooooooooooy.', '.yyyyyyyyyyyyyy.', '..yyyyyyyyyyyy..', '................', '................', '................'],
+  stairs: ['kkkkkkkkkkkkkkkk', 'kEEEEEEEEEEEEEEk', 'kEEEEEEEEEEEEEEk', 'kkkEEEEEEEEEEEEk', 'kkkEEEEEEEEEEEEk', 'kkkkkkEEEEEEEEEk', 'kkkkkkEEEEEEEEEk', 'kkkkkkkkkEEEEEEk', 'kkkkkkkkkEEEEEEk', 'kkkkkkkkkkkkEEEk', 'kkkkkkkkkkkkEEEk', 'kkkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkkk'],
+  tree: ['......GGGG......', '....GGGGGGGG....', '...GGgGGGGGGG...', '..GGGGGGGgGGGG..', '..GgGGGGGGGGGG..', '.GGGGGGGGGGGGGG.', '.GGGGGgGGGGgGGG.', '.GGGGGGGGGGGGGG.', '..GGGGGGGGGGGG..', '..GGGgGGGGGGGG..', '...GGGGGGGGGG...', '.....GGGGGG.....', '......HHHH......', '......HHHH......', '......HHHH......', '.....HHHHHH.....'],
+  player: ['.....yyyyyy.....', '....yyyyyyyy....', '....yyssssyy....', '....ysssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....bbbbbbbb....', '...bbbbbbbbbb...', '..sbbbbyybbbbs..', '..s.bbbbbbbb.s..', '....bbbbbbbb....', '....bbb..bbb....', '....bbb..bbb....', '...HHH....HHH...', '................'],
+  merchant: ['.....hhhhhh.....', '....hhhhhhhh....', '....hhsssshh....', '....hsssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....hhhhhhhh....', '...hhhhhhhhhh...', '..shhhhyyhhhhs..', '..s.hhhhhhhh.s..', '....hhhhhhhh....', '....hhh..hhh....', '....hhh..hhh....', '...HHH....HHH...', '................'],
+  innkeeper: ['.....HHHHHH.....', '....HHHHHHHH....', '....HHssssHH....', '....Hsssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....PPPPPPPP....', '...PPPPPPPPPP...', '..sPPPPwwPPPPs..', '..s.PPPPPPPP.s..', '....PPPPPPPP....', '....PPP..PPP....', '....PPP..PPP....', '...HHH....HHH...', '................'],
+  guard: ['.....eeeeee.....', '....eeeeeeee....', '....eessssee....', '....esssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....eeeeeeee....', '...eeeeeeeeee...', '..seeeewweeees..', '..s.eeeeeeee.s..', '....eeeeeeee....', '....EEE..EEE....', '....EEE..EEE....', '...HHH....HHH...', '................'],
+  elder: ['.....wwwwww.....', '....wwwwwwww....', '....wwssssww....', '....wsssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....GGGGGGGG....', '...GGGGGGGGGG...', '..sGGGGGGGGGGs..', '..s.GGGGGGGG.s..', '....GGGGGGGG....', '....GGG..GGG....', '....GGG..GGG....', '...HHH....HHH...', '................'],
+  child: ['.....oooooo.....', '....oooooooo....', '....oossssoo....', '....osssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....bbbbbbbb....', '...bbbbbbbbbb...', '..sbbbbbbbbbbs..', '..s.bbbbbbbb.s..', '....bbbbbbbb....', '....bbb..bbb....', '....bbb..bbb....', '...HHH....HHH...', '................'],
+  villager: ['.....hhhhhh.....', '....hhhhhhhh....', '....hhsssshh....', '....hsssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....rrrrrrrr....', '...rrrrrrrrrr...', '..srrrrrrrrrrs..', '..s.rrrrrrrr.s..', '....rrrrrrrr....', '....rrr..rrr....', '....rrr..rrr....', '...HHH....HHH...', '................'],
+  farmer: ['.....tttttt.....', '....tttttttt....', '....ttsssstt....', '....tsssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....GGGGGGGG....', '...GGGGGGGGGG...', '..sGGGGhhGGGGs..', '..s.GGGGGGGG.s..', '....GGGGGGGG....', '....hhh..hhh....', '....hhh..hhh....', '...HHH....HHH...', '................'],
+};
 const spriteCache = {};
 function sprite(name) {
   if (spriteCache[name]) return spriteCache[name];
-  const c = document.createElement('canvas'); c.width = c.height = 8;
+  const rows = BIG_SPRITES[name] || SPRITES[name];
+  const c = document.createElement('canvas'); c.width = c.height = rows.length;
   const g = c.getContext('2d');
-  SPRITES[name].forEach((row, y) => [...row].forEach((ch, x) => { if (PAL[ch]) { g.fillStyle = PAL[ch]; g.fillRect(x, y, 1, 1); } }));
+  rows.forEach((row, y) => [...row].forEach((ch, x) => { if (PAL[ch]) { g.fillStyle = PAL[ch]; g.fillRect(x, y, 1, 1); } }));
   spriteCache[name] = c;
   return c;
 }
-// Draw a sprite at a world tile, through the camera.
-function drawSprite(g, name, x, y, alpha = 1, pad = 3) {
+// Draw a sprite at a world position (tiles, may be fractional while moving).
+// `off` is the camera for the live layer and the cache origin for the background.
+let off = { x: 0, y: 0 };
+function drawSprite(g, name, x, y, alpha = 1, pad = 3, flip = false, flash = false) {
   g.imageSmoothingEnabled = false;
   g.globalAlpha = alpha;
-  g.drawImage(sprite(name), x * T - cam.x + pad, y * T - cam.y + pad, T - pad * 2, T - pad * 2);
+  const dx = x * T - off.x + pad, dy = y * T - off.y + pad, size = T - pad * 2;
+  let img = sprite(name);
+  if (flash) {
+    // whiten only the sprite's own pixels, via a scratch canvas
+    const src = img;
+    scratch.width = scratch.height = src.width;
+    const sg = scratch.getContext('2d');
+    sg.clearRect(0, 0, scratch.width, scratch.height);
+    sg.drawImage(src, 0, 0);
+    sg.globalCompositeOperation = 'source-atop'; sg.fillStyle = 'rgba(255,255,255,0.85)'; sg.fillRect(0, 0, scratch.width, scratch.height);
+    sg.globalCompositeOperation = 'source-over';
+    img = scratch;
+  }
+  if (flip) { g.save(); g.translate(dx + size, dy); g.scale(-1, 1); g.imageSmoothingEnabled = false; g.drawImage(img, 0, 0, size, size); g.restore(); }
+  else g.drawImage(img, dx, dy, size, size);
   g.globalAlpha = 1;
 }
+const scratch = document.createElement('canvas');
 
 // ---------- townsfolk and buildings ----------
 const NPC_TYPES = [
@@ -233,7 +271,7 @@ const BUILDINGS = {
     '#..T.T.........#', '#..............#', '#.........BB...#', '#..............#', '#######D########'] },
   inn:   { name: 'The Sleeping Rat', sign: 'INN', roof: '#8b2e2e', npcs: { I: 'dottie' }, layout: [
     '################', '#BB.BB.BB..f...#', '#..............#', '#..............#', '#......I.......#',
-    '#....CCCCC.....#', '#..T.......T...#', '#..............#', '#..T...b...T...#', '#######D########'] },
+    '#....CCCCC.....#', '#..T.......T...#', '#..............#', '#..T.b.....T...#', '#######D########'] },
   herbs: { name: "Mara's Cottage", sign: 'HERBS', roof: '#2e7d32', npcs: { E: 'mara' }, layout: [
     '################', '#SS.f..........#', '#..............#', '#..E...........#', '#..CCC.........#',
     '#..............#', '#.....T....B...#', '#..p...........#', '#..............#', '#######D########'] },
@@ -327,7 +365,7 @@ function leaveBuilding() {
   const h = interior.house;
   interior = null;
   createTown();
-  player.x = h.doorX; player.y = h.doorY + 1;
+  player.x = h.doorX; player.y = h.doorY + 1; settle(player);
   npcs = npcs.filter((n) => !(n.x === player.x && n.y === player.y));
   afterSceneChange();
   log('You step back out onto the square.');
@@ -349,6 +387,7 @@ function stepNpcs() {
     const nx = n.x + dx, ny = n.y + dy;
     if (getTile(nx, ny) !== TILE.FLOOR || getNpcAt(nx, ny) || (nx === player.x && ny === player.y)) continue;
     if (Math.abs(nx - TW / 2) > 13 || Math.abs(ny - TH / 2) > 9) continue;
+    if (dx) n.face = dx;
     n.x = nx; n.y = ny;
     if (bubble && bubble.x === n.x - dx && bubble.y === n.y - dy) { bubble.x = n.x; bubble.y = n.y; }
   }
@@ -490,23 +529,52 @@ function updateVisibility() {
   }
 }
 
-// ---------- camera ----------
+// ---------- camera and animation ----------
+// Everything that moves has a render position (rx, ry) that glides to its
+// tile position; the camera follows the hero's render position so the hero
+// stays centred while the world slides underneath.
+const floats = [];
+function floatText(x, y, text, color) { floats.push({ x, y, text, color, at: performance.now() }); }
+function settle(o) { o.rx = o.x; o.ry = o.y; }
+function animate(now) {
+  const ease = (o) => {
+    if (o.rx === undefined) settle(o);
+    o.rx += (o.x - o.rx) * 0.35; o.ry += (o.y - o.ry) * 0.35;
+    if (Math.abs(o.x - o.rx) < 0.01) o.rx = o.x;
+    if (Math.abs(o.y - o.ry) < 0.01) o.ry = o.y;
+  };
+  ease(player);
+  for (const m of monsters) if (cheb(m, player) <= SIM_RADIUS) ease(m);
+  for (const n of npcs) ease(n);
+  updateCamera();
+}
 function updateCamera() {
-  cam.x = Math.round(player.x * T + T / 2 - canvas.width / 2);
-  cam.y = Math.round(player.y * T + T / 2 - canvas.height / 2);
+  const px = player.rx ?? player.x, py = player.ry ?? player.y;
+  cam.x = Math.round(px * T + T / 2 - canvas.width / 2);
+  cam.y = Math.round(py * T + T / 2 - canvas.height / 2);
+}
+// Offset in pixels for a creature's lunge towards what it just attacked.
+function lunge(o, now) {
+  if (!o.lunge || now > o.lunge.until) return [0, 0];
+  const f = (o.lunge.until - now) / 140;
+  return [o.lunge.dx * 8 * f, o.lunge.dy * 8 * f];
 }
 function viewBounds() {
   return { x0: Math.floor(cam.x / T) - 1, y0: Math.floor(cam.y / T) - 1, x1: Math.ceil((cam.x + canvas.width) / T) + 1, y1: Math.ceil((cam.y + canvas.height) / T) + 1 };
 }
+function bgBounds() {
+  return { x0: Math.floor(bgOrigin.x / T), y0: Math.floor(bgOrigin.y / T), x1: Math.ceil((bgOrigin.x + bg.width) / T), y1: Math.ceil((bgOrigin.y + bg.height) / T) };
+}
 
 // ---------- drawing ----------
 const bg = document.createElement('canvas');
-bg.width = canvas.width; bg.height = canvas.height;
+bg.width = canvas.width + T * 2; bg.height = canvas.height + T * 2;
 const bgx = bg.getContext('2d');
 let bgDirty = true;
+let bgOrigin = { x: 0, y: 0 };
 
 function drawBrick(g, c, r, lit) {
-  const X = c * T - cam.x, Y = r * T - cam.y, n = noise(c, r, 1);
+  const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 1);
   const faceBelow = walkable(getTile(c, r + 1));   // a wall with floor below shows its face
   g.fillStyle = faceBelow ? (n < 0.5 ? '#3b4f66' : '#374a60') : (n < 0.5 ? '#232f3e' : '#1f2b39');
   g.fillRect(X, Y, T, T);
@@ -517,14 +585,14 @@ function drawBrick(g, c, r, lit) {
   if (faceBelow) { g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(X, Y + T - 6, T, 6); }
 }
 function drawStone(g, c, r) {
-  const X = c * T - cam.x, Y = r * T - cam.y, n = noise(c, r, 7);
+  const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 7);
   g.fillStyle = n < 0.5 ? '#1c4b63' : '#1a4559'; g.fillRect(X, Y, T, T);
   g.fillStyle = '#163d50';
   if (n < 0.25) g.fillRect(X + 6, Y + 8, 4, 3); else if (n < 0.5) g.fillRect(X + 20, Y + 22, 6, 2); else if (n < 0.6) g.fillRect(X + 12, Y + 16, 2, 2);
   g.fillStyle = 'rgba(0,0,0,0.15)'; g.fillRect(X, Y + T - 1, T, 1); g.fillRect(X + T - 1, Y, 1, T);
 }
 function drawCobble(g, c, r) {
-  const X = c * T - cam.x, Y = r * T - cam.y, q = T / 2;
+  const X = c * T - off.x, Y = r * T - off.y, q = T / 2;
   g.fillStyle = '#4b5563'; g.fillRect(X, Y, T, T);
   for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
     const n = noise(c * 2 + i, r * 2 + j, 3);
@@ -533,14 +601,14 @@ function drawCobble(g, c, r) {
   }
 }
 function drawGrass(g, c, r) {
-  const X = c * T - cam.x, Y = r * T - cam.y, n = noise(c, r, 11);
+  const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 11);
   g.fillStyle = n < 0.5 ? '#3f7d3a' : '#448a3f'; g.fillRect(X, Y, T, T);
   g.fillStyle = '#5aa352';
   if (n < 0.3) { g.fillRect(X + 7, Y + 10, 2, 5); g.fillRect(X + 20, Y + 18, 2, 5); }
   else if (n < 0.6) { g.fillRect(X + 15, Y + 5, 2, 5); g.fillRect(X + 24, Y + 23, 2, 4); }
 }
 function drawHouse(g, h) {
-  const X = h.x * T - cam.x, Y = h.y * T - cam.y, W = h.w * T, H = h.h * T, roofH = Math.floor(H * 0.45);
+  const X = h.x * T - off.x, Y = h.y * T - off.y, W = h.w * T, H = h.h * T, roofH = Math.floor(H * 0.45);
   g.fillStyle = '#d9b382'; g.fillRect(X, Y + roofH, W, H - roofH);
   g.fillStyle = 'rgba(0,0,0,0.12)'; for (let y = Y + roofH + 6; y < Y + H; y += 10) g.fillRect(X, y, W, 2);
   g.fillStyle = h.roof; g.fillRect(X - 4, Y, W + 8, roofH);
@@ -550,7 +618,7 @@ function drawHouse(g, h) {
     g.fillStyle = '#7bdfff'; g.fillRect(wx, Y + roofH + 10, 14, 14);
     g.fillStyle = '#1b2733'; g.fillRect(wx + 6, Y + roofH + 10, 2, 14); g.fillRect(wx, Y + roofH + 16, 14, 2);
   }
-  const dx = h.doorX * T - cam.x + 6;
+  const dx = h.doorX * T - off.x + 6;
   g.fillStyle = '#5b3a1a'; g.fillRect(dx, Y + H - 22, 20, 22);
   g.fillStyle = '#ffd86b'; g.fillRect(dx + 14, Y + H - 12, 3, 3);
   if (h.sign) {
@@ -565,11 +633,12 @@ function drawHouse(g, h) {
 function renderBackground() {
   bgDirty = false;
   const g = bgx;
-  const { x0, y0, x1, y1 } = viewBounds();
+  off = bgOrigin;
+  const { x0, y0, x1, y1 } = bgBounds();
   if (scene === 'house') {
     g.fillStyle = '#060c14'; g.fillRect(0, 0, bg.width, bg.height);
     for (let r = Math.max(0, y0); r <= Math.min(bounded.h - 1, y1); r++) for (let c = Math.max(0, x0); c <= Math.min(bounded.w - 1, x1); c++) {
-      const t = bounded.tiles[r][c], X = c * T - cam.x, Y = r * T - cam.y;
+      const t = bounded.tiles[r][c], X = c * T - off.x, Y = r * T - off.y;
       if (t === TILE.WALL) {
         g.fillStyle = r === 0 ? '#5b3a1a' : '#6b4423'; g.fillRect(X, Y, T, T);
         g.fillStyle = 'rgba(0,0,0,0.25)'; for (let y = 6; y < T; y += 10) g.fillRect(X, Y + y, T, 2);
@@ -582,9 +651,9 @@ function renderBackground() {
       }
     }
     g.fillStyle = '#e6eef8'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
-    g.fillText(interior.house.name, bounded.w * T / 2 - cam.x, -cam.y - 10);
+    g.fillText(interior.house.name, bounded.w * T / 2 - off.x, -cam.y - 10);
     g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif';
-    g.fillText('Walk into things to use them. The door at the bottom leads out.', bounded.w * T / 2 - cam.x, bounded.h * T - cam.y + 20);
+    g.fillText('Walk into things to use them. The door at the bottom leads out.', bounded.w * T / 2 - off.x, bounded.h * T - off.y + 20);
     g.textAlign = 'start';
     return;
   }
@@ -596,15 +665,15 @@ function renderBackground() {
       if (!inside || (t === TILE.WALL && (r < 2 || r >= TH - 2 || c < 3 || c >= TW - 3))) {
         // the hedge and the forest beyond the town
         if (!inside && noise(c, r, 5) < 0.5) drawSprite(g, 'tree', c, r, 1, 1);
-        else if (inside) { if (noise(c, r, 5) < 0.45) drawSprite(g, 'tree', c, r, 1, 1); else { g.fillStyle = '#2e7d32'; g.fillRect(c * T - cam.x + 3, r * T - cam.y + 3, T - 6, T - 6); } }
+        else if (inside) { if (noise(c, r, 5) < 0.45) drawSprite(g, 'tree', c, r, 1, 1); else { g.fillStyle = '#2e7d32'; g.fillRect(c * T - off.x + 3, r * T - off.y + 3, T - 6, T - 6); } }
       } else if (t === TILE.FLOOR && ground[r][c] === 'grass' && noise(c, r, 9) < 0.08) drawSprite(g, 'flower', c, r);
       if (t === TILE.FOUNTAIN) {
-        const X = c * T - cam.x, Y = r * T - cam.y;
+        const X = c * T - off.x, Y = r * T - off.y;
         g.fillStyle = '#9ca3af'; g.fillRect(X, Y, T, T);
         g.fillStyle = '#6b7280'; g.fillRect(X + (c === TW / 2 - 1 ? 0 : T - 5), Y, 5, T); g.fillRect(X, Y + (r === TH / 2 - 1 ? 0 : T - 5), T, 5);
       }
       if (t === TILE.EXIT) {
-        const X = c * T - cam.x, Y = r * T - cam.y;
+        const X = c * T - off.x, Y = r * T - off.y;
         g.fillStyle = '#374151'; g.fillRect(X - 6, Y - 6, T + 12, T + 12);
         g.fillStyle = '#9ca3af'; g.fillRect(X - 6, Y - 6, T + 12, 4);
         drawSprite(g, 'stairs', c, r);
@@ -625,7 +694,7 @@ function renderBackground() {
       drawStone(g, c, r);
       if (t === TILE.FLOOR && noise(c, r, 13) < 0.03) drawSprite(g, 'bones', c, r, 0.8);
       if (t === TILE.EXIT) drawSprite(g, 'stairs', c, r);
-      if (t === TILE.SHOP) { g.fillStyle = 'rgba(192,132,252,0.25)'; g.fillRect(c * T - cam.x, r * T - cam.y, T, T); }
+      if (t === TILE.SHOP) { g.fillStyle = 'rgba(192,132,252,0.25)'; g.fillRect(c * T - off.x, r * T - off.y, T, T); }
     }
   }
   // light falls off towards the edge of sight
@@ -634,7 +703,7 @@ function renderBackground() {
     const lit = visible.has(key(c, r));
     const dd = cheb({ x: c, y: r }, player);
     const dark = !lit ? 0.68 : Math.min(0.5, Math.max(0, (dd - 3) / VIEW_RADIUS) * 0.6);
-    if (dark > 0) { g.fillStyle = `rgba(4,10,18,${dark})`; g.fillRect(c * T - cam.x, r * T - cam.y, T, T); }
+    if (dark > 0) { g.fillStyle = `rgba(4,10,18,${dark})`; g.fillRect(c * T - off.x, r * T - off.y, T, T); }
   }
 }
 
@@ -719,9 +788,13 @@ function drawMinimap(g) {
 
 function draw() {
   if (!player || scene === null) return;
-  if (bgDirty) renderBackground();
-  ctx.drawImage(bg, 0, 0);
   const now = performance.now();
+  animate(now);
+  const originX = Math.floor(cam.x / T) * T - T, originY = Math.floor(cam.y / T) * T - T;
+  if (originX !== bgOrigin.x || originY !== bgOrigin.y) { bgOrigin = { x: originX, y: originY }; bgDirty = true; }
+  if (bgDirty) renderBackground();
+  off = cam;
+  ctx.drawImage(bg, bgOrigin.x - cam.x, bgOrigin.y - cam.y);
   const { x0, y0, x1, y1 } = viewBounds();
   const inView = (o) => o.x >= x0 && o.x <= x1 && o.y >= y0 && o.y <= y1;
   if (inTown()) {
@@ -758,20 +831,35 @@ function draw() {
       }
     }
   }
-  if (safeZone()) for (const n of npcs) if (inView(n)) drawSprite(ctx, n.type.sprite, n.x, n.y);
+  const shadow = (x, y) => { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x * T - cam.x + T / 2, y * T - cam.y + T - 4, T * 0.3, 4, 0, 0, Math.PI * 2); ctx.fill(); };
+  const bob = (o, idle = true) => (idle ? Math.sin(now / 260 + (o.x * 7 + o.y * 13)) * 0.03 : 0);
+  if (safeZone()) for (const n of npcs) if (inView(n)) { const [lx, ly] = [n.rx ?? n.x, n.ry ?? n.y]; shadow(lx, ly); drawSprite(ctx, n.type.sprite, lx, ly - bob(n), 1, 3, n.face === -1); }
   for (const m of monsters) {
     if (!inView(m) || !isVisible(m.x, m.y)) continue;
-    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(m.x * T - cam.x + T / 2, m.y * T - cam.y + T - 4, T * 0.3, 4, 0, 0, Math.PI * 2); ctx.fill();
-    drawSprite(ctx, m.type.sprite, m.x, m.y);
+    const [ldx, ldy] = lunge(m, now);
+    const lx = (m.rx ?? m.x) + ldx / T, ly = (m.ry ?? m.y) + ldy / T - bob(m, m.awake);
+    shadow(lx, ly);
+    drawSprite(ctx, m.type.sprite, lx, ly, 1, 3, m.face === -1, m.flashUntil > now);
     if (m.hp < m.maxHp) {
-      ctx.fillStyle = '#300'; ctx.fillRect(m.x * T - cam.x + 3, m.y * T - cam.y, T - 6, 3);
-      ctx.fillStyle = '#f33'; ctx.fillRect(m.x * T - cam.x + 3, m.y * T - cam.y, (T - 6) * (m.hp / m.maxHp), 3);
+      ctx.fillStyle = '#300'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, T - 6, 3);
+      ctx.fillStyle = '#f33'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, (T - 6) * (m.hp / m.maxHp), 3);
     }
-    if (!m.awake) { ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.fillText('z', m.x * T - cam.x + T - 10, m.y * T - cam.y + 11); }
+    if (!m.awake) { ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.fillText('z', lx * T - cam.x + T - 10, ly * T - cam.y + 11 + Math.sin(now / 400) * 2); }
   }
-  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(player.x * T - cam.x + T / 2, player.y * T - cam.y + T - 4, T * 0.3, 4, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(255,216,107,0.16)'; ctx.beginPath(); ctx.arc(player.x * T - cam.x + T / 2, player.y * T - cam.y + T / 2, T * 0.7, 0, Math.PI * 2); ctx.fill();
-  drawSprite(ctx, 'player', player.x, player.y);
+  {
+    const [ldx, ldy] = lunge(player, now);
+    const lx = (player.rx ?? player.x) + ldx / T, ly = (player.ry ?? player.y) + ldy / T - bob(player);
+    shadow(lx, ly);
+    ctx.fillStyle = 'rgba(255,216,107,0.16)'; ctx.beginPath(); ctx.arc(lx * T - cam.x + T / 2, ly * T - cam.y + T / 2, T * 0.7, 0, Math.PI * 2); ctx.fill();
+    drawSprite(ctx, 'player', lx, ly, 1, 3, player.face === -1, player.flashUntil > now);
+  }
+  for (let i = floats.length - 1; i >= 0; i--) {
+    const f = floats[i], age = now - f.at;
+    if (age > 800) { floats.splice(i, 1); continue; }
+    ctx.globalAlpha = 1 - age / 800; ctx.fillStyle = f.color; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(f.text, f.x * T - cam.x + T / 2, f.y * T - cam.y - age / 40);
+    ctx.textAlign = 'start'; ctx.globalAlpha = 1;
+  }
   if (bubble) { if (now > bubble.until) bubble = null; else drawBubble(ctx, bubble); }
   if (inspected) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(inspected.x * T - cam.x + 1, inspected.y * T - cam.y + 1, T - 2, T - 2); }
   drawHud(ctx, now);
@@ -881,6 +969,11 @@ function gainXp(n) {
 function playerAttack(m) {
   const dmg = player.atk + weaponAtk() + rnd(2);
   m.hp -= dmg; m.awake = true;
+  const now = performance.now();
+  player.lunge = { dx: Math.sign(m.x - player.x), dy: Math.sign(m.y - player.y), until: now + 140 };
+  if (m.x !== player.x) player.face = Math.sign(m.x - player.x);
+  m.flashUntil = now + 120;
+  floatText(m.x, m.y, `-${dmg}`, '#ffd86b');
   if (m.hp <= 0) {
     monsters = monsters.filter((x) => x !== m); monstersDirty = true;
     kills++;
@@ -892,6 +985,11 @@ function playerAttack(m) {
 function monsterAttack(m) {
   const dmg = Math.max(1, m.atk - armorDef());
   player.hp -= dmg;
+  const now = performance.now();
+  m.lunge = { dx: Math.sign(player.x - m.x), dy: Math.sign(player.y - m.y), until: now + 140 };
+  if (player.x !== m.x) m.face = Math.sign(player.x - m.x);
+  player.flashUntil = now + 120;
+  floatText(player.x, player.y, `-${dmg}`, '#ff6b6b');
   log(`${m.type.name} hits you for ${dmg}.`, 'bad');
 }
 function stepMonsters() {
@@ -914,7 +1012,7 @@ function stepMonsters() {
       const nx = m.x + dx, ny = m.y + dy;
       if (getTile(nx, ny) === TILE.FLOOR && !getMonsterAt(nx, ny) && !(nx === player.x && ny === player.y)) best = [nx, ny];
     }
-    if (best) { monsterIndex.delete(key(m.x, m.y)); m.x = best[0]; m.y = best[1]; monsterIndex.set(key(m.x, m.y), m); }
+    if (best) { if (best[0] !== m.x) m.face = Math.sign(best[0] - m.x); monsterIndex.delete(key(m.x, m.y)); m.x = best[0]; m.y = best[1]; monsterIndex.set(key(m.x, m.y), m); }
   }
 }
 function endGame(title, text) {
@@ -951,6 +1049,7 @@ function tryMove(dx, dy) {
     if (scene === 'house') leaveBuilding(); else enterBuilding(houses.find((h) => h.doorX === nx && h.doorY === ny));
     return;
   }
+  if (dx) player.face = dx;
   const m = getMonsterAt(nx, ny);
   if (m) playerAttack(m);
   else {
@@ -961,9 +1060,10 @@ function tryMove(dx, dy) {
       player.hp += healed;
       potions = potions.filter((p) => p !== pot);
       log(healed > 0 ? `You drink a potion and heal ${healed} HP.` : 'You drink a potion but were already at full health.', 'good');
+      if (healed > 0) floatText(nx, ny, `+${healed}`, '#9ef0b0');
     }
     const g = getGoldAt(nx, ny);
-    if (g) { player.gold += g.amount; golds = golds.filter((x) => x !== g); log(`You pick up ${g.amount} gold.`, 'good'); }
+    if (g) { player.gold += g.amount; golds = golds.filter((x) => x !== g); log(`You pick up ${g.amount} gold.`, 'good'); floatText(nx, ny, `+${g.amount}g`, '#f5c542'); }
     if (t === TILE.SHOP) openShop('shop');
     if (t === TILE.BED) {
       if (interior && interior.house.id === 'inn') restAtInn();
@@ -1171,7 +1271,8 @@ document.getElementById('shop-close')?.addEventListener('click', closeShop);
 
 // ---------- setup ----------
 function afterSceneChange() {
-  bubble = null; closeShop(); clearInspect();
+  bubble = null; closeShop(); clearInspect(); floats.length = 0;
+  settle(player); for (const n of npcs) settle(n);
   updateCamera(); updateVisibility(); buildLegend(); updateStats(); draw();
 }
 function startRun(saved) {
