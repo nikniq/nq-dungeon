@@ -9,7 +9,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 const restartBtn = document.getElementById('restart');
 
-const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5 };
+const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8 };
 const TOWN = 0; // floor number of the town square
 const COLORS = {
   wall: '#0b2230', wallDim: '#08192a', floor: '#1b4a62', floorDim: '#10303f',
@@ -32,6 +32,7 @@ canvas.height = tileSize * rows;
 
 let map, seen, visible, monsters, potions, golds, exit, shops;
 let houses = [], npcs = [], ground = null, bubble = null;
+let interior = null, decor = null; // set while the player is inside a building
 let player, floor, gameOver, turn, kills;
 
 // ---------- account save/load ----------
@@ -108,6 +109,17 @@ const SPRITES = {
   tree:     ['..GGGG..', '.GGgGGG.', 'GGgGGGGG', 'GGGGGgGG', '.GGGGGG.', '..GGGG..', '...HH...', '...HH...'],
   flower:   ['........', '........', '...P....', '..PwP.y.', '...P.yoy', '...G..y.', '..GG.G..', '........'],
   lamp:     ['...kk...', '..kyyk..', '..kyyk..', '...kk...', '...kk...', '...kk...', '...kk...', '..kkkk..'],
+  farmer:   ['.tttttt.', '..tttt..', '..ssss..', '..sksk..', '.GGGGGG.', '.GhhhhG.', '..hh.hh.', '..HH.HH.'],
+  counter:  ['........', 'hhhhhhhh', 'HHHHHHHH', 'HhHHHHhH', 'HhHHHHhH', 'HHHHHHHH', 'HhHHHHhH', 'HHHHHHHH'],
+  shelf:    ['HHHHHHHH', 'HcHbHyHH', 'HHHHHHHH', 'HrHHHcHH', 'HHHHHHHH', 'HyHbHHHH', 'HHHHHHHH', 'HHHHHHHH'],
+  bed:      ['hhhhhhhh', 'hwwwwwwh', 'hwwPPPPh', 'hrrrrrrh', 'hrrrrrrh', 'hrrrrrrh', 'hhhhhhhh', 'h......h'],
+  table:    ['........', 'hhhhhhhh', 'HHHHHHHH', '.H....H.', '.H....H.', '.H....H.', '.H....H.', '........'],
+  barrel:   ['..hhhh..', '.hHHHHh.', '.hhhhhh.', '.hHHHHh.', '.hHHHHh.', '.hhhhhh.', '.hHHHHh.', '..hhhh..'],
+  rack:     ['H.e..e.H', 'H.e..e.H', 'HHHHHHHH', 'H.e..e.H', 'H.e..e.H', 'HHHHHHHH', 'H......H', 'H......H'],
+  chest:    ['........', '.hhhhhh.', '.hHHHHh.', '.hhyyhh.', '.hHHHHh.', '.hHHHHh.', '.hhhhhh.', '........'],
+  fire:     ['EEEEEEEE', 'E......E', 'E..oo..E', 'E.oyyo.E', 'E.oyyo.E', 'EorrrroE', 'EEEEEEEE', 'EEEEEEEE'],
+  plant:    ['...G....', '..GgG...', '.GgGGG..', '..GGG...', '...G....', '..hhh...', '..hHh...', '..hhh...'],
+  rug:      ['rrrrrrrr', 'ryyyyyyr', 'ryrrrryr', 'ryryyryr', 'ryryyryr', 'ryrrrryr', 'ryyyyyyr', 'rrrrrrrr'],
 };
 const spriteCache = {};
 function sprite(name) {
@@ -126,7 +138,8 @@ function drawSprite(g, name, x, y, size = tileSize, alpha = 1) {
   g.globalAlpha = 1;
 }
 
-// Townsfolk who wander the square and chat when you walk into them.
+// Townsfolk. The outdoor ones wander the square; the indoor ones keep their
+// post and may do something when you walk into them (action).
 const NPC_TYPES = [
   { sprite: 'guard', name: 'Bren the guard', lines: [
     'Keep your armor on down there. The orcs on floor three hit like a mule.',
@@ -140,11 +153,55 @@ const NPC_TYPES = [
     'Did you see a skeleton? Are they scary? Can I come?',
     'I found a dagger once. Dad made me sell it.',
     'The fountain is lucky. Everyone says so.'] },
-  { sprite: 'villager', name: 'Hilde', lines: [
-    'The inn heals you for free. Rest before you go down.',
-    'Potions are twelve gold. Carry a few; the deeper floors are stingy with them.',
+  { sprite: 'farmer', name: 'Tomas the farmer', lines: [
+    'Rats in the dungeon, rats in my barn. At least yours give experience.',
+    'Old Mara brews potions cheaper than the shop. Her cottage is the one at the bottom left.',
     'Clear all five floors and you come back up with everything you carried.'] },
 ];
+const INDOOR_NPCS = {
+  fenwick: { sprite: 'merchant', name: 'Fenwick the merchant', action: 'shop', lines: [
+    'Finest steel this side of the dungeon. Come to the counter.'] },
+  dottie: { sprite: 'innkeeper', name: 'Dottie the innkeeper', action: 'inn', lines: [
+    'A bed is a bed. Take any that is free.'] },
+  orla: { sprite: 'guard', name: 'Captain Orla', lines: [
+    'The watch does not go below the first floor. That is what adventurers are for.',
+    'Skeletons shrug off weak blows. Bring at least a mace by floor two.',
+    'If you die down there, you come back with nothing but your name. Choose when to turn back.'] },
+  mara: { sprite: 'elder', name: 'Old Mara', action: 'potions', lines: [
+    'Potions, ten gold. Cheaper than Fenwick and twice as fresh.'] },
+  hilde: { sprite: 'villager', name: 'Hilde', lines: [
+    'Make yourself at home, but mind the chest. Pip thinks it is a dragon hoard.',
+    'The inn heals you for free. Rest before you go down.',
+    'Sell the merchant your spare gear; half price is better than carrying it.'] },
+};
+
+// Building interiors. 16x10 rooms drawn in the middle of the map.
+//  # wall  . floor  D door  C counter  S shelf  B bed  T table  b barrel
+//  R weapon rack  c chest  f fireplace  p plant  r rug  letters = who stands there
+const BUILDINGS = {
+  shop:     { name: "Fenwick's Goods", sign: 'SHOP', roof: '#6d3b8b', npcs: { M: 'fenwick' }, layout: [
+    '################', '#SSSSSSSSSSSSS.#', '#.....M........#', '#..CCCCCCCC....#', '#..............#',
+    '#.b............#', '#.b....T.......#', '#.........rr...#', '#..............#', '#######D########'] },
+  watch:    { name: 'The Watch House', sign: 'WATCH', roof: '#7a4a2a', npcs: { G: 'orla' }, layout: [
+    '################', '#RRRR......c.c.#', '#..............#', '#...G..........#', '#..............#',
+    '#..T.T.........#', '#..............#', '#.........BB...#', '#..............#', '#######D########'] },
+  inn:      { name: 'The Sleeping Rat', sign: 'INN', roof: '#8b2e2e', npcs: { I: 'dottie' }, layout: [
+    '################', '#BB.BB.BB..f...#', '#..............#', '#..............#', '#......I.......#',
+    '#....CCCCC.....#', '#..T.......T...#', '#..............#', '#..T...b...T...#', '#######D########'] },
+  herbs:    { name: "Mara's Cottage", sign: 'HERBS', roof: '#2e7d32', npcs: { E: 'mara' }, layout: [
+    '################', '#SS.f..........#', '#..............#', '#..E...........#', '#..CCC.........#',
+    '#..............#', '#.....T....B...#', '#..p...........#', '#..............#', '#######D########'] },
+  home:     { name: "Hilde's House", sign: '', roof: '#7a4a2a', npcs: { H: 'hilde' }, layout: [
+    '################', '#f......BB.BB..#', '#..............#', '#....T.........#', '#..H...rr......#',
+    '#......rr......#', '#..c...........#', '#..........p...#', '#..............#', '#######D########'] },
+};
+const FURNITURE = {
+  C: { sprite: 'counter', name: 'Counter', solid: true }, S: { sprite: 'shelf', name: 'Shelves', solid: true },
+  B: { sprite: 'bed', name: 'Bed', solid: false }, T: { sprite: 'table', name: 'Table', solid: true },
+  b: { sprite: 'barrel', name: 'Barrel', solid: true }, R: { sprite: 'rack', name: 'Weapon rack', solid: true },
+  c: { sprite: 'chest', name: 'Chest', solid: true }, f: { sprite: 'fire', name: 'Fireplace', solid: true },
+  p: { sprite: 'plant', name: 'Potted plant', solid: true }, r: { sprite: 'rug', name: 'Rug', solid: false },
+};
 
 const messages = []; // recent lines drawn inside the game view
 function log(text, cls = '') {
@@ -205,15 +262,16 @@ function createTown() {
   for (let r = cy + 6; r < rows - 2; r++) for (let c = cx - 1; c <= cx + 1; c++) ground[r][c] = 'cobble';
   for (let r = 2; r < cy - 6; r++) for (let c = cx - 1; c <= cx + 1; c++) ground[r][c] = 'cobble';
   houses = [];
-  const house = (x, y, w, h, door) => {
+  const house = (x, y, w, h, id) => {
     for (let r = y; r < y + h; r++) for (let c = x; c < x + w; c++) map[r][c] = TILE.WALL;
-    houses.push({ x, y, w, h, door });
+    const doorX = x + Math.floor(w / 2), doorY = y + h - 1;
+    map[doorY][doorX] = TILE.DOOR;
+    houses.push({ x, y, w, h, id, doorX, doorY, ...BUILDINGS[id] });
   };
-  house(6, 4, 6, 4, 'shop'); house(16, 3, 8, 3, 'plain'); house(28, 4, 6, 4, 'inn');
-  house(6, rows - 8, 6, 4, 'plain'); house(28, rows - 8, 6, 4, 'plain');
+  house(6, 4, 6, 4, 'shop'); house(16, 3, 8, 3, 'watch'); house(28, 4, 6, 4, 'inn');
+  house(6, rows - 8, 6, 4, 'herbs'); house(28, rows - 8, 6, 4, 'home');
   for (let r = cy - 1; r <= cy; r++) for (let c = cx - 1; c <= cx; c++) map[r][c] = TILE.FOUNTAIN;
-  shops = [{ x: 9, y: 8 }]; map[8][9] = TILE.SHOP;             // merchant at the door of the top-left house
-  map[8][31] = TILE.INN;                                        // innkeeper at the door of the top-right house
+  shops = [];
   exit = { x: cx, y: rows - 5 }; map[exit.y][exit.x] = TILE.EXIT; // the gate down into the dungeon (clear of the message strip)
   player.x = cx; player.y = cy + 3;
   monsters = []; potions = []; golds = [];
@@ -228,17 +286,83 @@ function createTown() {
   bubble = null;
 }
 
+function createInterior(house) {
+  const def = BUILDINGS[house.id];
+  const ox = Math.floor((cols - 16) / 2), oy = Math.floor((rows - 10) / 2);
+  map = Array.from({ length: rows }, () => new Array(cols).fill(TILE.WALL));
+  seen = Array.from({ length: rows }, () => new Array(cols).fill(true));
+  decor = Array.from({ length: rows }, () => new Array(cols).fill(null));
+  ground = null; shops = []; monsters = []; potions = []; golds = []; npcs = []; exit = null;
+  def.layout.forEach((row, r) => [...row].forEach((ch, c) => {
+    const x = ox + c, y = oy + r;
+    if (ch === '#') return;
+    map[y][x] = TILE.FLOOR;
+    if (ch === 'D') { map[y][x] = TILE.DOOR; player.x = x; player.y = y - 1; return; }
+    if (FURNITURE[ch]) {
+      decor[y][x] = FURNITURE[ch];
+      map[y][x] = ch === 'B' ? TILE.BED : FURNITURE[ch].solid ? TILE.FURNITURE : TILE.FLOOR;
+    } else if (def.npcs[ch]) {
+      npcs.push({ x, y, type: INDOOR_NPCS[def.npcs[ch]], fixed: true, pause: 0 });
+    }
+  }));
+  interior.ox = ox; interior.oy = oy;
+}
+
+function enterBuilding(house) {
+  interior = { house };
+  buildFloor();
+  log(`You enter ${house.name}.`);
+  updateStats(); draw();
+}
+
+function leaveBuilding() {
+  const h = interior.house;
+  interior = null;
+  buildFloor();
+  player.x = h.doorX; player.y = h.doorY + 1;
+  if (getNpcAt(player.x, player.y)) npcs = npcs.filter((n) => !(n.x === player.x && n.y === player.y));
+  log(`You step back out onto the square.`);
+  updateStats(); draw();
+}
+
+// Walking into furniture: a few pieces do something, the rest just describe themselves.
+function useFurniture(d, x, y) {
+  const action = interior && interior.house.id;
+  if (d.sprite === 'counter' && action === 'shop') return openShop('shop');
+  if (d.sprite === 'counter' && action === 'herbs') return openShop('potions');
+  if (d.sprite === 'counter' && action === 'inn') return restAtInn();
+  const flavour = {
+    shelf: action === 'herbs' ? 'Jars of dried roots and something that is still moving.' : 'Neatly labelled stock. Fenwick does not like browsing hands.',
+    table: 'A sturdy table. Someone has carved a map of the first floor into it. It is wrong.',
+    barrel: 'It smells of ale. Mostly.',
+    rack: 'Spears and shields, property of the town watch. Not for sale.',
+    chest: action === 'watch' ? 'Locked. The watch keeps its pay in here.' : "Hilde's things. Best leave them.",
+    fire: 'The fire crackles. Warm, after the dungeon.',
+    plant: 'A healthy fern. Someone waters it.',
+  };
+  log(flavour[d.sprite] || `${d.name}.`);
+}
+
+function restAtInn() {
+  if (player.hp < player.maxHp) { player.hp = player.maxHp; log('You rest at the inn and recover fully.', 'good'); }
+  else log('You are already in perfect health.');
+  updateStats();
+}
+
 const getNpcAt = (x, y) => npcs.find((n) => n.x === x && n.y === y);
 
 function talk(n) {
   const line = n.type.lines[rnd(n.type.lines.length)];
   log(`${n.type.name}: ${line}`);
   bubble = { x: n.x, y: n.y, text: line, until: performance.now() + 4000 };
+  if (n.type.action === 'shop') openShop('shop');
+  else if (n.type.action === 'potions') openShop('potions');
+  else if (n.type.action === 'inn') restAtInn();
 }
 
 function stepNpcs() {
   for (const n of npcs) {
-    if (n.pause-- > 0) continue;
+    if (n.fixed || n.pause-- > 0) continue;
     n.pause = 1 + rnd(4);
     const [dx, dy] = [[1, 0], [-1, 0], [0, 1], [0, -1]][rnd(4)];
     const nx = n.x + dx, ny = n.y + dy;
@@ -249,7 +373,8 @@ function stepNpcs() {
   }
 }
 
-const inTown = () => floor === TOWN;
+const safeZone = () => floor === TOWN;          // town or inside a building: no monsters
+const inTown = () => floor === TOWN && !interior; // outdoors on the square
 
 // Breadth-first distances from a point; used for exit placement and monster pathing.
 function bfs(sx, sy, blockMonsters) {
@@ -333,7 +458,7 @@ function placeItems() {
 // ---------- visibility ----------
 function updateVisibility() {
   bgDirty = true;
-  if (inTown()) { visible = Array.from({ length: rows }, () => new Array(cols).fill(true)); return; }
+  if (safeZone()) { visible = Array.from({ length: rows }, () => new Array(cols).fill(true)); return; }
   visible = Array.from({ length: rows }, () => new Array(cols).fill(false));
   const d = bfs(player.x, player.y, false);
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
@@ -416,7 +541,7 @@ function drawHouse(g, h) {
   g.fillStyle = 'rgba(0,0,0,0.12)';
   for (let y = Y + roofH + 4; y < Y + H; y += 6) g.fillRect(X, y, W, 1);
   // roof with an overhang and shingle lines
-  g.fillStyle = h.door === 'inn' ? '#8b2e2e' : h.door === 'shop' ? '#6d3b8b' : '#7a4a2a';
+  g.fillStyle = h.roof;
   g.fillRect(X - 2, Y, W + 4, roofH);
   g.fillStyle = 'rgba(0,0,0,0.18)';
   for (let y = Y + 4; y < Y + roofH; y += 5) g.fillRect(X - 2, y, W + 4, 1);
@@ -425,14 +550,15 @@ function drawHouse(g, h) {
   g.fillStyle = '#7bdfff';
   for (let wx = X + 8; wx < X + W - 8; wx += 24) { g.fillRect(wx, Y + roofH + 6, 8, 8); g.fillStyle = '#1b2733'; g.fillRect(wx + 3, Y + roofH + 6, 2, 8); g.fillRect(wx, Y + roofH + 9, 8, 2); g.fillStyle = '#7bdfff'; }
   // door at the bottom middle
-  const dx = X + Math.floor(W / 2) - 6;
+  const dx = h.doorX * tileSize + 4;
   g.fillStyle = '#5b3a1a'; g.fillRect(dx, Y + H - 14, 12, 14);
   g.fillStyle = '#ffd86b'; g.fillRect(dx + 9, Y + H - 8, 2, 2);
   // sign
-  if (h.door !== 'plain') {
-    g.fillStyle = '#f4f4f4'; g.fillRect(dx - 2, Y + roofH - 4, 16, 8);
+  if (h.sign) {
+    const sw = Math.max(16, h.sign.length * 5 + 6);
+    g.fillStyle = '#f4f4f4'; g.fillRect(dx + 6 - sw / 2, Y + roofH - 4, sw, 8);
     g.fillStyle = '#1b1b2f'; g.font = 'bold 7px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(h.door === 'inn' ? 'INN' : 'SHOP', dx + 6, Y + roofH);
+    g.fillText(h.sign, dx + 6, Y + roofH);
     g.textAlign = 'start'; g.textBaseline = 'alphabetic';
   }
 }
@@ -441,6 +567,30 @@ function renderBackground() {
   bgDirty = false;
   const g = bgx;
   const cx = Math.floor(cols / 2), cy = Math.floor(rows / 2);
+  if (interior) {
+    g.fillStyle = '#060c14'; g.fillRect(0, 0, bg.width, bg.height);
+    const { ox, oy } = interior;
+    for (let r = oy; r < oy + 10; r++) for (let c = ox; c < ox + 16; c++) {
+      const t = map[r][c];
+      const X = c * tileSize, Y = r * tileSize;
+      if (t === TILE.WALL) {
+        g.fillStyle = r === oy ? '#5b3a1a' : '#6b4423'; g.fillRect(X, Y, tileSize, tileSize);
+        g.fillStyle = 'rgba(0,0,0,0.25)'; for (let y = 4; y < tileSize; y += 6) g.fillRect(X, Y + y, tileSize, 1);
+        if (r === oy && c > ox && c < ox + 15 && noise(c, r, 2) < 0.3) { g.fillStyle = '#7bdfff'; g.fillRect(X + 6, Y + 5, 8, 8); g.fillStyle = '#1b2733'; g.fillRect(X + 9, Y + 5, 2, 8); g.fillRect(X + 6, Y + 8, 8, 2); }
+      } else {
+        g.fillStyle = noise(c, r, 4) < 0.5 ? '#a97c50' : '#b08656'; g.fillRect(X, Y, tileSize, tileSize);
+        g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(X, Y + tileSize - 1, tileSize, 1); g.fillRect(X + (c % 2) * (tileSize / 2), Y, 1, tileSize);
+        if (t === TILE.DOOR) { g.fillStyle = '#5b3a1a'; g.fillRect(X + 2, Y + 2, tileSize - 4, tileSize - 2); g.fillStyle = '#ffd86b'; g.fillRect(X + tileSize - 6, Y + tileSize / 2, 2, 2); }
+        if (decor[r][c]) drawSprite(g, decor[r][c].sprite, c, r, tileSize, 1);
+      }
+    }
+    g.fillStyle = '#e6eef8'; g.font = 'bold 12px sans-serif'; g.textAlign = 'center';
+    g.fillText(interior.house.name, canvas.width / 2, oy * tileSize - 8);
+    g.fillStyle = '#a8c0d8'; g.font = '11px sans-serif';
+    g.fillText('Walk into things to use them. The door at the bottom leads out.', canvas.width / 2, (oy + 10) * tileSize + 16);
+    g.textAlign = 'start';
+    return;
+  }
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     const t = map[r][c];
     if (inTown()) {
@@ -501,7 +651,7 @@ function drawBubble(g, b) {
 
 function drawHud(g, now) {
   // Stats strip along the top edge.
-  const text = `${inTown() ? 'Town' : `Floor ${floor}/${FINAL_FLOOR}`}   HP ${player.hp}/${player.maxHp}   ATK ${player.atk + weaponAtk()}   DEF ${armorDef()}   Lv ${player.level}   Gold ${player.gold}`;
+  const text = `${interior ? interior.house.name : inTown() ? 'Town' : `Floor ${floor}/${FINAL_FLOOR}`}   HP ${player.hp}/${player.maxHp}   ATK ${player.atk + weaponAtk()}   DEF ${armorDef()}   Lv ${player.level}   Gold ${player.gold}`;
   g.font = 'bold 11px sans-serif';
   const w = g.measureText(text).width + 16;
   g.fillStyle = 'rgba(6,12,20,0.78)';
@@ -554,13 +704,19 @@ function draw() {
     drawSprite(ctx, 'potion', p.x, p.y);
   }
   for (const sh of shops) {
-    if (!inTown()) { ctx.fillStyle = 'rgba(192,132,252,0.25)'; ctx.fillRect(sh.x * tileSize, sh.y * tileSize, tileSize, tileSize); }
+    ctx.fillStyle = 'rgba(192,132,252,0.25)'; ctx.fillRect(sh.x * tileSize, sh.y * tileSize, tileSize, tileSize);
     drawSprite(ctx, 'merchant', sh.x, sh.y);
   }
-  if (inTown()) {
-    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (map[r][c] === TILE.INN) drawSprite(ctx, 'innkeeper', c, r);
-    for (const n of npcs) drawSprite(ctx, n.type.sprite, n.x, n.y);
+  if (interior) {
+    const now2 = performance.now();
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      if (decor[r] && decor[r][c] && decor[r][c].sprite === 'fire') {
+        ctx.fillStyle = `rgba(255,159,67,${0.15 + 0.1 * Math.sin(now2 / 150)})`;
+        ctx.beginPath(); ctx.arc(c * tileSize + tileSize / 2, r * tileSize + tileSize / 2, tileSize, 0, Math.PI * 2); ctx.fill();
+      }
+    }
   }
+  if (safeZone()) for (const n of npcs) drawSprite(ctx, n.type.sprite, n.x, n.y);
   for (const m of monsters) {
     if (!visible[m.y][m.x]) continue;
     drawSprite(ctx, m.type.sprite, m.x, m.y);
@@ -593,8 +749,15 @@ let inspected = null;
 function describeTile(x, y) {
   if (!map || !inBounds(x, y) || !visible[y][x]) return null;
   if (x === player.x && y === player.y) return `You — ${player.hp}/${player.maxHp} HP, attack ${player.atk}`;
-  const n = inTown() && getNpcAt(x, y);
-  if (n) return `${n.type.name} — walk into them to chat`;
+  const n = safeZone() && getNpcAt(x, y);
+  if (n) return `${n.type.name} — walk into them to ${n.type.action === 'shop' || n.type.action === 'potions' ? 'trade' : n.type.action === 'inn' ? 'rest' : 'chat'}`;
+  if (map[y][x] === TILE.DOOR) {
+    if (interior) return 'Door — back out to the square';
+    const h = houses.find((hh) => hh.doorX === x && hh.doorY === y);
+    return h ? `${h.name} — step onto the door to go in` : 'Door';
+  }
+  if (interior && decor[y][x]) return decor[y][x].sprite === 'bed' ? 'Bed — lie down to rest' : `${decor[y][x].name} — walk into it`;
+  if (inTown() && map[y][x] === TILE.WALL) { const h = houses.find((hh) => x >= hh.x && x < hh.x + hh.w && y >= hh.y && y < hh.y + hh.h); if (h) return `${h.name} — the door is at the bottom`; }
   const m = getMonsterAt(x, y);
   if (m) return `${m.type.name} — ${m.hp}/${m.maxHp} HP, attack ${m.atk}${m.awake ? '' : ' (asleep)'}`;
   if (getPotionAt(x, y)) return 'Potion — restores 5 HP';
@@ -657,9 +820,13 @@ function buildLegend() {
   add('potion', 'Potion', '+5 HP');
   add('gold', 'Gold', '');
   add('merchant', 'Merchant', 'buy and sell');
-  if (inTown()) {
-    add('innkeeper', 'Innkeeper', 'rest for free');
+  if (interior) {
+    legendEl.innerHTML = '';
+    for (const n of npcs) add(n.type.sprite, n.type.name, n.type.action === 'inn' ? 'rest for free' : n.type.action ? 'buy and sell' : 'chat');
+    add('bed', 'Bed', 'rest'); add('counter', 'Counter', 'trade or rest');
+  } else if (inTown()) {
     add('guard', 'Townsfolk', 'walk into them to chat');
+    add('merchant', 'Shop', 'top-left house'); add('innkeeper', 'Inn', 'top-right house');
     add('stairs', 'Gate', 'into the dungeon');
   } else {
     add('stairs', 'Exit', 'stairs down');
@@ -667,7 +834,7 @@ function buildLegend() {
 }
 
 function updateStats() {
-  statsEl.textContent = `${inTown() ? 'Town' : `Floor ${floor}/${FINAL_FLOOR}`} | HP ${player.hp}/${player.maxHp} | ATK ${player.atk}${weaponAtk() ? '+' + weaponAtk() : ''} | DEF ${armorDef()} | Lv ${player.level} (${player.xp}/${xpToNext(player.level)} XP) | Gold ${player.gold}`;
+  statsEl.textContent = `${interior ? interior.house.name : inTown() ? 'Town' : `Floor ${floor}/${FINAL_FLOOR}`} | HP ${player.hp}/${player.maxHp} | ATK ${player.atk}${weaponAtk() ? '+' + weaponAtk() : ''} | DEF ${armorDef()} | Lv ${player.level} (${player.xp}/${xpToNext(player.level)} XP) | Gold ${player.gold}`;
   renderInventory();
   hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
   hpBar.style.background = player.hp / player.maxHp > 0.5 ? '#5fe17a' : player.hp / player.maxHp > 0.25 ? '#f5c542' : '#ff6b6b';
@@ -753,8 +920,14 @@ function tryMove(dx, dy) {
   if (gameOver || !map) return;
   const nx = player.x + dx, ny = player.y + dy;
   if (!inBounds(nx, ny) || map[ny][nx] === TILE.WALL || map[ny][nx] === TILE.FOUNTAIN) return;
-  const n = inTown() && getNpcAt(nx, ny);
+  const n = safeZone() && getNpcAt(nx, ny);
   if (n) { talk(n); draw(); return; }
+  if (map[ny][nx] === TILE.FURNITURE) { useFurniture(decor[ny][nx], nx, ny); draw(); return; }
+  if (map[ny][nx] === TILE.DOOR) {
+    if (interior) leaveBuilding();
+    else enterBuilding(houses.find((h) => h.doorX === nx && h.doorY === ny));
+    return;
+  }
   const m = getMonsterAt(nx, ny);
   if (m) {
     playerAttack(m);
@@ -773,16 +946,16 @@ function tryMove(dx, dy) {
       golds = golds.filter((x) => x !== g);
       log(`You pick up ${g.amount} gold.`, 'good');
     }
-    if (map[ny][nx] === TILE.SHOP) { openShop(); }
-    if (map[ny][nx] === TILE.INN) {
-      if (player.hp < player.maxHp) { player.hp = player.maxHp; log('You rest at the inn and recover fully.', 'good'); }
-      else log('The innkeeper nods. You are already in perfect health.');
+    if (map[ny][nx] === TILE.SHOP) { openShop('shop'); }
+    if (map[ny][nx] === TILE.BED) {
+      if (interior && interior.house.id === 'inn') restAtInn();
+      else log(player.hp < player.maxHp ? 'Not your bed. You lie down anyway, but it does not help.' : 'A bed. Not yours.');
     }
     if (map[ny][nx] === TILE.EXIT) { nextFloor(); if (gameOver) { updateStats(); return; } updateVisibility(); updateStats(); draw(); return; }
   }
   turn++;
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
-  if (inTown()) stepNpcs(); else stepMonsters();
+  if (safeZone()) stepNpcs(); else stepMonsters();
   updateVisibility();
   updateStats();
   if (player.hp <= 0) {
@@ -933,11 +1106,20 @@ let shopOpen = false;
 
 const sellPrice = (id) => Math.floor(itemInfo(id).price / 2);
 
-function openShop() {
+const SHOPS = {
+  shop: { title: 'Merchant', stock: (id, it) => it.floor <= Math.max(floor, 1) + 1, price: (it) => it.price, greet: 'The merchant greets you. Buy and sell with the buttons, Esc to leave.' },
+  potions: { title: "Mara's potions", stock: (id) => id === 'potion', price: (it) => it.price - 2, greet: 'Mara sets out her potions. She buys gear too, at half price.' },
+};
+let shopKind = 'shop';
+const buyPrice = (id) => SHOPS[shopKind].price(itemInfo(id));
+
+function openShop(kind = 'shop') {
   if (!shopEl) return;
+  shopKind = kind;
   shopOpen = true;
   shopEl.hidden = false;
-  log('The merchant greets you. Buy and sell with the buttons, Esc to leave.');
+  document.querySelector('#shop h2').textContent = SHOPS[kind].title;
+  log(SHOPS[kind].greet);
   renderShop();
 }
 
@@ -952,12 +1134,12 @@ function renderShop() {
   shopGold.textContent = `${player.gold} gold`;
   shopBuy.innerHTML = '';
   const stock = Object.entries({ ...ITEMS.weapons, ...ITEMS.armor, ...ITEMS.consumables })
-    .filter(([, it]) => it.floor <= Math.max(floor, 1) + 1);
-  for (const [id, it] of stock) {
+    .filter(([id, it]) => SHOPS[shopKind].stock(id, it));
+  for (const [id] of stock) {
     const li = document.createElement('li');
     const btn = document.createElement('button');
-    btn.type = 'button'; btn.textContent = `Buy ${it.price}g`;
-    btn.disabled = player.gold < it.price || bagFull();
+    btn.type = 'button'; btn.textContent = `Buy ${buyPrice(id)}g`;
+    btn.disabled = player.gold < buyPrice(id) || bagFull();
     btn.addEventListener('click', () => buy(id));
     li.append(itemLabel(id), btn);
     shopBuy.appendChild(li);
@@ -981,11 +1163,11 @@ function renderShop() {
 }
 
 function buy(id) {
-  const it = itemInfo(id);
-  if (player.gold < it.price || bagFull()) return;
-  player.gold -= it.price;
+  const it = itemInfo(id), price = buyPrice(id);
+  if (player.gold < price || bagFull()) return;
+  player.gold -= price;
   player.bag.push(id);
-  log(`You buy a ${it.name} for ${it.price} gold.`, 'good');
+  log(`You buy a ${it.name} for ${price} gold.`, 'good');
   updateStats(); renderShop();
 }
 
@@ -1002,9 +1184,11 @@ document.getElementById('shop-close')?.addEventListener('click', closeShop);
 // ---------- setup ----------
 function buildFloor() {
   bubble = null;
-  if (inTown()) {
-    createTown();
+  closeShop();
+  if (safeZone()) {
+    if (interior) createInterior(interior.house); else createTown();
   } else {
+    interior = null; decor = null;
     createMap();
     placePlayer();
     placeShop();
@@ -1023,7 +1207,7 @@ function startRun(saved) {
   closeShop();
   overlay.classList.remove('show');
   logEl.innerHTML = '';
-  floor = TOWN;
+  floor = TOWN; interior = null;
   if (saved) {
     floor = saved.floor || TOWN;
     Object.assign(player, { hp: saved.hp, maxHp: saved.max_hp, atk: saved.atk, level: saved.level, xp: saved.xp, gold: saved.gold,

@@ -50,7 +50,7 @@
     </details>
     <p class="help">
       Move with arrow keys, WASD or HJKL. Space or <kbd>.</kbd> waits a turn, <kbd>R</kbd> restarts.
-      Start in the town square: the merchant (<b>$</b>) buys and sells gear, the inn (<b>+</b>) heals you, and the green entrance leads down.
+      Start in the town square. Step onto a house door to go inside: the shop sells gear, the inn heals you, Mara's cottage has cheap potions, and the gate at the bottom leads down.
       Walk into monsters to attack. Collect gold and potions, find the exit on each floor, and clear all 5 to return to town. <kbd>P</kbd> drinks a potion from your bag.
       <button id="restart" type="button">Restart</button>
     </p>

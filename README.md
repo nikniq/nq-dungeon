@@ -8,8 +8,9 @@ Controls:
 - Wait a turn: Space or `.`
 - Restart: Click Restart or press `r`
 
-You start in the town square: a merchant, an inn that heals, and the dungeon
-entrance. Clear all 5 floors to return to town with your level, gold and gear.
+You start in the town square. Step onto a house door to go inside: Fenwick's shop,
+the inn (free rest), the watch house, Mara's cottage (cheap potions) and Hilde's
+home each have their own room, furniture and residents. The gate leads down. Clear all 5 floors to return to town with your level, gold and gear.
 Death sends you back to town as a fresh hero.
 
 In the dungeon: find the green exit on each floor. Monsters sleep until they
