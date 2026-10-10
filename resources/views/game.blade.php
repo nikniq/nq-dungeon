@@ -38,6 +38,9 @@
       </div>
       <button type="button" id="fullscreen" class="fs">Fullscreen</button>
     </div>
+    @auth
+    <div class="party" id="party"></div>
+    @endauth
     <div class="inventory" id="inventory">
       <div class="equip"><span class="muted">Weapon</span> <b id="inv-weapon">Bare hands</b></div>
       <div class="equip"><span class="muted">Armor</span> <b id="inv-armor">None</b></div>
@@ -63,6 +66,7 @@
       loadUrl: @json(route('character.show')),
       csrf: @json(csrf_token()),
       items: @json(config('items')),
+      partyUrl: @json(url('/api/party')),
     };
   </script>
   <script src="{{ asset('js/script.js') }}?v={{ filemtime(public_path('js/script.js')) }}"></script>

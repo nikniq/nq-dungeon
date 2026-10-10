@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\HeroController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\PartyController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -30,4 +31,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/character/abandon', [CharacterController::class, 'abandon'])->name('character.abandon');
     Route::get('/api/character', [CharacterController::class, 'show'])->name('character.show');
     Route::post('/api/character', [CharacterController::class, 'save'])->name('character.save');
+    // co-op parties
+    Route::get('/api/party', [PartyController::class, 'show'])->name('party.show');
+    Route::post('/api/party', [PartyController::class, 'create'])->name('party.create');
+    Route::post('/api/party/join', [PartyController::class, 'join'])->name('party.join');
+    Route::post('/api/party/leave', [PartyController::class, 'leave'])->name('party.leave');
+    Route::post('/api/party/enter', [PartyController::class, 'enter'])->name('party.enter');
+    Route::get('/api/party/state', [PartyController::class, 'state'])->name('party.state');
+    Route::post('/api/party/act', [PartyController::class, 'act'])->name('party.act');
 });

@@ -20,6 +20,15 @@ Each floor has a merchant (`$`) who buys and sells weapons, armor and potions;
 the item catalog lives in `config/items.php`. Hover or tap anything on the map
 to see what it is. Create a hero to save runs and gear between visits.
 
+## Co-op
+
+Logged-in players can form a party of up to four (create a code, friends join with
+it). When anyone in a party takes the gate, the party shares one server-run floor:
+every move is resolved in `app/Game/Dungeon.php`, monsters act on a 600ms tick,
+and clients poll `/api/party/state` every 350ms. Stairs move everyone down together;
+clearing floor five sends the whole party home. The HTTP polling transport can be
+swapped for Pusher or Reverb later without touching the rules.
+
 ## Setup
 
 Requires PHP 8.2 or newer (Laravel 12). Sessions and cache use the file driver, so no database is needed.

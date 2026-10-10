@@ -125,3 +125,13 @@ a.secondary{background:#0b3142;border:1px solid #12384a;color:#d5f0ff;border-rad
 .bottom{flex-wrap:wrap}
 .fs{align-self:center}
 @media (max-width:600px){.fs{width:100%}}
+/* --- co-op party panel --- */
+.party{margin-top:8px;padding:8px 10px;background:#06202c;border-radius:6px;font-size:.9rem}
+.party-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.party .code{font-family:ui-monospace,Menlo,monospace;background:#0f1724;padding:2px 8px;border-radius:4px;letter-spacing:2px;color:#ffd86b;font-weight:700}
+.party-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.inline-form{display:flex;gap:6px}
+.inline-form input{width:110px;padding:5px 8px;border-radius:6px;border:1px solid #12384a;background:#0f1724;color:#e6eef8;text-transform:uppercase;letter-spacing:2px}
+.party-list{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 16px}
+.party-list .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#4b5563;margin-right:6px}
+.party-list .dot.on{background:#5fe17a}
