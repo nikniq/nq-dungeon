@@ -53,7 +53,7 @@
     </details>
     <p class="help">
       Move with arrow keys, WASD or HJKL. Space or <kbd>.</kbd> waits a turn, <kbd>R</kbd> restarts.
-      Start in the town square. Step onto a house door to go inside: the shop sells gear, the inn heals you, Mara's cottage has cheap potions, and the gate at the bottom leads down.
+      You start in Hearth. Step onto a house door to go inside, take the gate at the bottom into the dungeon, or follow a road across the wilds to another town; each has its own shops and people.
       Walk into monsters to attack. Collect gold and potions, find the exit on each floor, and clear all 5 to return to town. <kbd>P</kbd> drinks a potion from your bag.
       <button id="restart" type="button">Restart</button>
     </p>

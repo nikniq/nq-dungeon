@@ -42,6 +42,9 @@ class CharacterController extends Controller
             'weapon' => ['nullable', Rule::in(array_keys(config('items.weapons')))],
             'armor' => ['nullable', Rule::in(array_keys(config('items.armor')))],
             'bag' => ['present', 'array', 'max:'.config('items.bag_size')],
+            'wx' => ['nullable', 'integer', 'between:-100000,100000'],
+            'wy' => ['nullable', 'integer', 'between:-100000,100000'],
+            'home' => ['nullable', 'string', 'max:16', 'regex:/^-?\d+,-?\d+$/'],
             'bag.*' => [Rule::in(array_merge(
                 array_keys(config('items.weapons')),
                 array_keys(config('items.armor')),
@@ -58,14 +61,14 @@ class CharacterController extends Controller
             if ($data['floor'] === 1 && $c->floor === 0) {
                 $c->runs++;
             }
-            $c->fill(collect($data)->only(['floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'bag'])->all());
+            $c->fill(collect($data)->only(['floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'bag', 'wx', 'wy', 'home'])->filter(fn ($v) => $v !== null)->all());
         } elseif ($data['event'] === 'win') {
             // Back to town with everything earned; only the floor resets.
             if ($c->floor === 0) {
                 $c->runs++;
             }
             $c->wins++;
-            $c->fill(collect($data)->only(['level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'bag'])->all());
+            $c->fill(collect($data)->only(['level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'bag', 'wx', 'wy', 'home'])->filter(fn ($v) => $v !== null)->all());
             $c->floor = 0;
         } else {
             if ($c->floor === 0) {

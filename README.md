@@ -8,9 +8,11 @@ Controls:
 - Wait a turn: Space or `.`
 - Restart: Click Restart or press `r`
 
-You start in the town square. Step onto a house door to go inside: Fenwick's shop,
-the inn (free rest), the watch house, Mara's cottage (cheap potions) and Hilde's
-home each have their own room, furniture and residents. The gate leads down. Clear all 5 floors to return to town with your level, gold and gear.
+You start in Hearth, one town on an endless seeded overworld (`WORLD_SEED` in
+`script.js`). Towns sit on a lattice every 96 tiles, joined by roads across grass,
+forest, water and mountains; each has a name, a shop, an inn, a gate into the
+dungeon and sometimes a watch house, herbalist or home. Your position and home
+town are saved, and a dive returns you to the town whose gate you took. Clear all 5 floors to return to town with your level, gold and gear.
 Death sends you back to town as a fresh hero.
 
 In the dungeon: each floor is endless, generated chunk by chunk as you explore,

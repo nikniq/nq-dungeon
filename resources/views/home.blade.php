@@ -23,10 +23,10 @@
 </section>
 
 <section class="features">
-  <div><h3>Town square</h3><p>Every dive starts in town. Buy weapons and armor from the merchant, rest at the inn, then take the stairs.</p></div>
+  <div><h3>An open world</h3><p>Walk the roads between towns, each with its own shops and people, and take any town's gate down into the dungeon.</p></div>
   <div><h3>Turn-based tactics</h3><p>Monsters sleep until they notice you, then give chase. Every step is a turn, so take your time.</p></div>
   <div><h3>Loot and levels</h3><p>Kill for XP, level up for HP and attack, and equip the gear you find or buy. Sell the rest.</p></div>
-  <div><h3>Saved heroes</h3><p>Your run is saved as you play. Come back on any device, pick up on the same floor, and build a record.</p></div>
+  <div><h3>Play together</h3><p>Form a party of up to four. Share one dungeon floor, fight side by side, and take the stairs down as a group.</p></div>
 </section>
 
 <section class="board">

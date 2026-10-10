@@ -34,7 +34,7 @@ const MONSTER_TYPES = [
 
 // ---------- state ----------
 let floor, player, gameOver, turn, kills;
-let scene = 'town';            // 'town' | 'house' | 'dungeon'
+let scene = 'world';           // 'world' | 'house' | 'dungeon'
 let bounded = null;            // { w, h, tiles[][] } for town and interiors
 let chunks = new Map();        // dungeon chunks keyed "cx,cy"
 let floorSeed = 1;
@@ -57,7 +57,7 @@ const getPotionAt = (x, y) => potions.find((p) => p.x === x && p.y === y);
 const getGoldAt = (x, y) => golds.find((g) => g.x === x && g.y === y);
 const getNpcAt = (x, y) => npcs.find((n) => n.x === x && n.y === y);
 const safeZone = () => floor === TOWN;
-const inTown = () => scene === 'town';
+const inTown = () => scene === 'world';   // outdoors on the overworld
 const isVisible = (x, y) => safeZone() || visible.has(key(x, y));
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
@@ -80,7 +80,7 @@ function getChunk(cx, cy) {
   let ch = chunks.get(k);
   if (!ch) {
     if (coop.active) { coop.need.add(k); return BLANK_CHUNK; }
-    ch = generateChunk(cx, cy); chunks.set(k, ch);
+    ch = scene === 'world' ? generateWorldChunk(cx, cy) : generateChunk(cx, cy); chunks.set(k, ch);
   }
   return ch;
 }
@@ -124,7 +124,8 @@ async function saveProgress(event, keepalive = false) {
       method: 'POST', keepalive, credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': ACCOUNT.csrf },
       body: JSON.stringify({ event, floor, level: player.level, xp: player.xp, gold: player.gold,
-        hp: player.hp, max_hp: player.maxHp, atk: player.atk, kills, weapon: player.weapon, armor: player.armor, bag: player.bag }),
+        hp: player.hp, max_hp: player.maxHp, atk: player.atk, kills, weapon: player.weapon, armor: player.armor, bag: player.bag,
+        wx: player.wx ?? 20, wy: player.wy ?? 21, home: homeTown }),
     });
     if (!res.ok) throw new Error(res.status);
     kills = 0;
@@ -194,7 +195,7 @@ function renderParty() {
     try { await api(ACCOUNT.partyUrl + '/leave', {}); } catch (e) {}
     if (coop.active) stopCoop();
     coop.party = null; renderParty(); log('You left the party.');
-    if (scene === 'dungeon') { floor = TOWN; createTown(); afterSceneChange(); }
+    if (scene === 'dungeon') { returnHome(); afterSceneChange(); }
   });
 }
 
@@ -251,10 +252,10 @@ function applySnapshot(snap) {
   }
   for (const ev of snap.events || []) {
     if (ev.type === 'floor') { floor = ev.floor; chunks = new Map(); coop.monsterById = new Map(); coop.need.clear(); bgDirty = true; settle(player); buildLegend(); }
-    if (ev.type === 'win') { stopCoop(); floor = TOWN; createTown(); afterSceneChange(); log(`You escaped the dungeon together! The town square welcomes you back.`, 'good'); return; }
+    if (ev.type === 'win') { stopCoop(); returnHome(); afterSceneChange(); log(`You escaped the dungeon together! The town square welcomes you back.`, 'good'); return; }
     if (ev.type === 'death' && ev.member === coop.memberId) { stopCoop(); endGame('You died', `You fell on floor ${floor}. Your party fights on without you. Press R to start over in town.`); return; }
   }
-  if (me && !me.in_dungeon && coop.active && !gameOver) { stopCoop(); floor = TOWN; createTown(); afterSceneChange(); return; }
+  if (me && !me.in_dungeon && coop.active && !gameOver) { stopCoop(); returnHome(); afterSceneChange(); return; }
   if ((snap.flags || []).includes('shop')) openShop('shop');
   updateCamera(); updateVisibility(); updateStats();
 }
@@ -274,7 +275,7 @@ async function enterCoop() {
   } catch (e) {
     coop.active = false;
     log('Could not join the party floor: ' + e.message, 'bad');
-    floor = TOWN; createTown(); afterSceneChange();
+    returnHome(); afterSceneChange();
   }
 }
 
@@ -291,7 +292,7 @@ async function pollState() {
     const snap = await api(`${ACCOUNT.partyUrl}/state?since=${coop.seq}&chunks=${encodeURIComponent(neededChunks())}`);
     if (coop.active) applySnapshot(snap);
   } catch (e) {
-    if (e.status === 409) { stopCoop(); floor = TOWN; createTown(); afterSceneChange(); }
+    if (e.status === 409) { stopCoop(); returnHome(); afterSceneChange(); }
   } finally { coop.busy = false; }
 }
 
@@ -464,40 +465,162 @@ function log(text, cls = '') {
 }
 function xpToNext(level) { return 10 + (level - 1) * 8; }
 
-// ---------- town ----------
-const TW = 40, TH = 30;
-function createTown() {
-  scene = 'town';
-  bounded = { w: TW, h: TH, tiles: Array.from({ length: TH }, () => new Array(TW).fill(TILE.WALL)) };
-  ground = Array.from({ length: TH }, () => new Array(TW).fill('grass'));
-  const cx = TW / 2, cy = TH / 2;
-  for (let r = 2; r < TH - 2; r++) for (let c = 3; c < TW - 3; c++) bounded.tiles[r][c] = TILE.FLOOR;
-  for (let r = cy - 6; r <= cy + 6; r++) for (let c = cx - 11; c <= cx + 11; c++) ground[r][c] = 'cobble';
-  for (let r = cy + 6; r < TH - 2; r++) for (let c = cx - 1; c <= cx + 1; c++) ground[r][c] = 'cobble';
-  for (let r = 2; r < cy - 6; r++) for (let c = cx - 1; c <= cx + 1; c++) ground[r][c] = 'cobble';
-  houses = [];
-  const house = (x, y, w, h, id) => {
-    for (let r = y; r < y + h; r++) for (let c = x; c < x + w; c++) bounded.tiles[r][c] = TILE.WALL;
-    const doorX = x + Math.floor(w / 2), doorY = y + h - 1;
-    bounded.tiles[doorY][doorX] = TILE.DOOR;
-    houses.push({ x, y, w, h, id, doorX, doorY, ...BUILDINGS[id] });
+// ---------- the overworld ----------
+// One seeded world for everyone. Terrain comes from value noise; towns sit on
+// a lattice with a little jitter and are joined by roads, so you can always
+// walk from one to the next. Each town has a name, its own set of buildings,
+// a fountain, townsfolk and a gate down into the dungeon.
+const WORLD_SEED = 7331, TOWN_SPACING = 96, TW = 40, TH = 30;
+const GROUND = { GRASS: 0, FOREST: 1, SAND: 2, WATER: 3, MOUNTAIN: 4, ROAD: 5, COBBLE: 6, TREE: 7 };
+const worldChunks = new Map();   // kept across scene changes
+const towns = new Map();         // lattice key -> town
+let homeTown = '0,0';            // the town whose gate you last took
+const SYL_A = ['Ash', 'Bar', 'Cal', 'Dun', 'El', 'Fen', 'Gar', 'Hol', 'Ist', 'Kel', 'Lor', 'Mor', 'Nor', 'Ost', 'Pem', 'Quil', 'Rav', 'Sil', 'Tor', 'Ul', 'Vel', 'Wyn'];
+const SYL_B = ['bury', 'ford', 'gate', 'haven', 'holm', 'mere', 'moor', 'ton', 'vale', 'wick', 'worth', 'by', 'stead', 'bridge', 'march'];
+
+function valueNoise(x, y, salt, scale) {
+  const fx = x / scale, fy = y / scale, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+  const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+  const n00 = noise(x0, y0, salt), n10 = noise(x0 + 1, y0, salt), n01 = noise(x0, y0 + 1, salt), n11 = noise(x0 + 1, y0 + 1, salt);
+  return (n00 * (1 - sx) + n10 * sx) * (1 - sy) + (n01 * (1 - sx) + n11 * sx) * sy;
+}
+function terrainAt(x, y) {
+  const h = valueNoise(x, y, WORLD_SEED, 26) * 0.6 + valueNoise(x, y, WORLD_SEED + 1, 9) * 0.3 + valueNoise(x, y, WORLD_SEED + 2, 4) * 0.1;
+  if (h < 0.3) return GROUND.WATER;
+  if (h < 0.34) return GROUND.SAND;
+  if (h > 0.84) return GROUND.MOUNTAIN;
+  if (h > 0.62) return valueNoise(x, y, WORLD_SEED + 3, 5) > 0.5 ? GROUND.TREE : GROUND.FOREST;
+  return GROUND.GRASS;
+}
+
+function townAt(i, j) {
+  const k = key(i, j);
+  if (towns.has(k)) return towns.get(k);
+  const origin = i === 0 && j === 0;
+  const jx = origin ? 0 : Math.floor((noise(i, j, 91) - 0.5) * 32), jy = origin ? 0 : Math.floor((noise(i, j, 92) - 0.5) * 32);
+  const cx = i * TOWN_SPACING + 20 + jx, cy = j * TOWN_SPACING + 15 + jy;
+  const x0 = cx - 20, y0 = cy - 15;
+  const name = origin ? 'Hearth' : SYL_A[Math.floor(noise(i, j, 93) * SYL_A.length)] + SYL_B[Math.floor(noise(i, j, 94) * SYL_B.length)];
+  const town = { key: k, i, j, name, cx, cy, x0, y0, houses: [], npcs: null, spawn: { x: cx, y: cy + 3 }, gate: { x: cx, y: y0 + 26 } };
+  const add = (lx, ly, w, h, id) => town.houses.push({ x: x0 + lx, y: y0 + ly, w, h, id, doorX: x0 + lx + Math.floor(w / 2), doorY: y0 + ly + h - 1, town: k, ...BUILDINGS[id] });
+  add(6, 4, 6, 4, 'shop'); add(28, 4, 6, 4, 'inn');
+  if (origin || noise(i, j, 95) < 0.7) add(16, 3, 8, 3, 'watch');
+  if (origin || noise(i, j, 96) < 0.65) add(6, 22, 6, 4, 'herbs');
+  if (origin || noise(i, j, 97) < 0.7) add(28, 22, 6, 4, 'home');
+  towns.set(k, town);
+  return town;
+}
+function townContaining(x, y) {
+  const i0 = Math.round((x - 20) / TOWN_SPACING), j0 = Math.round((y - 15) / TOWN_SPACING);
+  for (let i = i0 - 1; i <= i0 + 1; i++) for (let j = j0 - 1; j <= j0 + 1; j++) {
+    const t = townAt(i, j);
+    if (x >= t.x0 && x < t.x0 + TW && y >= t.y0 && y < t.y0 + TH) return t;
+  }
+  return null;
+}
+function nearbyTowns(x, y, reach = 1) {
+  const i0 = Math.round((x - 20) / TOWN_SPACING), j0 = Math.round((y - 15) / TOWN_SPACING), out = [];
+  for (let i = i0 - reach; i <= i0 + reach; i++) for (let j = j0 - reach; j <= j0 + reach; j++) out.push(townAt(i, j));
+  return out;
+}
+function nearestOtherTown(x, y) {
+  const here = townContaining(x, y);
+  let best = null, bd = Infinity;
+  for (const t of nearbyTowns(x, y, 1)) {
+    if (here && t.key === here.key) continue;
+    const d = Math.abs(t.cx - x) + Math.abs(t.cy - y);
+    if (d < bd) { bd = d; best = t; }
+  }
+  return best;
+}
+// Town layout in local coordinates, shared by the stamp and the renderer.
+function townTile(town, wx, wy) {
+  const lx = wx - town.x0, ly = wy - town.y0;
+  const cx = 20, cy = 15;
+  let g = GROUND.GRASS, t = TILE.FLOOR;
+  if (ly >= cy - 6 && ly <= cy + 6 && lx >= cx - 11 && lx <= cx + 11) g = GROUND.COBBLE;
+  if (lx >= cx - 1 && lx <= cx + 1) g = GROUND.COBBLE;            // the path through the square to the roads
+  if (ly >= cy - 1 && ly <= cy && lx >= cx - 1 && lx <= cx) { t = TILE.FOUNTAIN; g = GROUND.COBBLE; }
+  for (const h of town.houses) {
+    if (wx >= h.x && wx < h.x + h.w && wy >= h.y && wy < h.y + h.h) t = (wx === h.doorX && wy === h.doorY) ? TILE.DOOR : TILE.WALL;
+  }
+  if (wx === town.gate.x && wy === town.gate.y) t = TILE.EXIT;
+  return [t, g];
+}
+function generateWorldChunk(cx, cy) {
+  const tiles = new Uint8Array(CHUNK * CHUNK), gr = new Uint8Array(CHUNK * CHUNK);
+  const ox = cx * CHUNK, oy = cy * CHUNK;
+  for (let y = 0; y < CHUNK; y++) for (let x = 0; x < CHUNK; x++) {
+    const g = terrainAt(ox + x, oy + y);
+    gr[y * CHUNK + x] = g;
+    tiles[y * CHUNK + x] = (g === GROUND.WATER || g === GROUND.MOUNTAIN || g === GROUND.TREE) ? TILE.WALL : TILE.FLOOR;
+  }
+  const mark = (wx, wy) => {
+    const lx = wx - ox, ly = wy - oy;
+    if (lx < 0 || ly < 0 || lx >= CHUNK || ly >= CHUNK) return;
+    gr[ly * CHUNK + lx] = GROUND.ROAD; tiles[ly * CHUNK + lx] = TILE.FLOOR;
   };
-  house(6, 4, 6, 4, 'shop'); house(16, 3, 8, 3, 'watch'); house(28, 4, 6, 4, 'inn');
-  house(6, TH - 8, 6, 4, 'herbs'); house(28, TH - 8, 6, 4, 'home');
-  for (let r = cy - 1; r <= cy; r++) for (let c = cx - 1; c <= cx; c++) bounded.tiles[r][c] = TILE.FOUNTAIN;
-  shops = []; monsters = []; potions = []; golds = []; decor = null; monstersDirty = true;
-  exit = { x: cx, y: TH - 4 }; bounded.tiles[exit.y][exit.x] = TILE.EXIT;
-  player.x = cx; player.y = cy + 3;
-  npcs = [];
+  // roads: every town links east and south to its lattice neighbours
+  const i0 = Math.floor((ox - 20) / TOWN_SPACING), j0 = Math.floor((oy - 15) / TOWN_SPACING);
+  for (let i = i0 - 1; i <= i0 + 1; i++) for (let j = j0 - 1; j <= j0 + 1; j++) {
+    const a = townAt(i, j);
+    for (const b of [townAt(i + 1, j), townAt(i, j + 1)]) {
+      let x = a.cx, y = a.cy;
+      while (x !== b.cx) { x += Math.sign(b.cx - x); mark(x, y); mark(x, y + 1); }
+      while (y !== b.cy) { y += Math.sign(b.cy - y); mark(x, y); mark(x + 1, y); }
+    }
+  }
+  // town stamps
+  for (const town of nearbyTowns(ox + CHUNK / 2, oy + CHUNK / 2, 1)) {
+    for (let y = Math.max(oy, town.y0); y < Math.min(oy + CHUNK, town.y0 + TH); y++) for (let x = Math.max(ox, town.x0); x < Math.min(ox + CHUNK, town.x0 + TW); x++) {
+      const [t, g] = townTile(town, x, y);
+      tiles[(y - oy) * CHUNK + (x - ox)] = t; gr[(y - oy) * CHUNK + (x - ox)] = g;
+    }
+  }
+  return { tiles, seen: new Uint8Array(CHUNK * CHUNK), rooms: [], ground: gr };
+}
+function groundAt(x, y) {
+  const cx = Math.floor(x / CHUNK), cy = Math.floor(y / CHUNK);
+  const ch = getChunk(cx, cy);
+  return ch.ground ? ch.ground[(y - cy * CHUNK) * CHUNK + (x - cx * CHUNK)] : GROUND.GRASS;
+}
+function townNpcs(town) {
+  if (town.npcs) return town.npcs;
+  town.npcs = [];
   const spots = [];
-  for (let r = cy - 5; r <= cy + 5; r++) for (let c = cx - 10; c <= cx + 10; c++) {
-    if (bounded.tiles[r][c] === TILE.FLOOR && Math.abs(c - cx) + Math.abs(r - cy) >= 4) spots.push({ x: c, y: r });
+  for (let y = town.cy - 5; y <= town.cy + 5; y++) for (let x = town.cx - 10; x <= town.cx + 10; x++) {
+    if (townTile(town, x, y)[0] === TILE.FLOOR && Math.abs(x - town.cx) + Math.abs(y - town.cy) >= 4) spots.push({ x, y });
   }
-  for (const t of NPC_TYPES) {
-    if (!spots.length) break;
-    const cell = spots.splice(rnd(spots.length), 1)[0];
-    npcs.push({ ...cell, type: t, pause: rnd(3) });
+  const count = town.key === '0,0' ? NPC_TYPES.length : 2 + Math.floor(noise(town.i, town.j, 98) * 3);
+  for (let n = 0; n < count && spots.length; n++) {
+    const cell = spots.splice(Math.floor(noise(town.i, town.j, 100 + n) * spots.length), 1)[0];
+    town.npcs.push({ ...cell, type: NPC_TYPES[(n + Math.floor(noise(town.i, town.j, 99) * 4)) % NPC_TYPES.length], pause: rnd(3), home: { x: town.cx, y: town.cy } });
   }
+  return town.npcs;
+}
+// Houses and townsfolk of the towns around the hero become the live lists.
+function refreshTownContext() {
+  if (scene !== 'world') return;
+  const near = nearbyTowns(player.x, player.y, 1);
+  houses = near.flatMap((t) => t.houses);
+  npcs = near.flatMap((t) => townNpcs(t));
+}
+function createWorld() {
+  scene = 'world';
+  bounded = null; ground = null; decor = null; interior = null;
+  chunks = worldChunks;
+  shops = []; monsters = []; potions = []; golds = []; exit = null; monstersDirty = true;
+  refreshTownContext();
+}
+// Back to the overworld at the home town's square (after a dive, a death, or leaving a party).
+function returnHome() {
+  floor = TOWN;
+  createWorld();
+  const [i, j] = homeTown.split(',').map(Number);
+  const t = townAt(i, j);
+  player.x = t.spawn.x; player.y = t.spawn.y; player.wx = player.x; player.wy = player.y;
+  settle(player);
+  refreshTownContext();
 }
 
 function createInterior(house) {
@@ -528,9 +651,9 @@ function enterBuilding(house) {
 function leaveBuilding() {
   const h = interior.house;
   interior = null;
-  createTown();
-  player.x = h.doorX; player.y = h.doorY + 1; settle(player);
-  npcs = npcs.filter((n) => !(n.x === player.x && n.y === player.y));
+  createWorld();
+  player.x = h.doorX; player.y = h.doorY + 1; player.wx = player.x; player.wy = player.y; settle(player);
+  for (const n of npcs) if (n.x === player.x && n.y === player.y) { n.y += 1; }
   afterSceneChange();
   log('You step back out onto the square.');
 }
@@ -550,7 +673,7 @@ function stepNpcs() {
     const [dx, dy] = DIRS[rnd(4)];
     const nx = n.x + dx, ny = n.y + dy;
     if (getTile(nx, ny) !== TILE.FLOOR || getNpcAt(nx, ny) || (nx === player.x && ny === player.y)) continue;
-    if (Math.abs(nx - TW / 2) > 13 || Math.abs(ny - TH / 2) > 9) continue;
+    if (n.home && (Math.abs(nx - n.home.x) > 13 || Math.abs(ny - n.home.y) > 9)) continue;
     if (dx) n.face = dx;
     n.x = nx; n.y = ny;
     if (bubble && bubble.x === n.x - dx && bubble.y === n.y - dy) { bubble.x = n.x; bubble.y = n.y; }
@@ -644,7 +767,7 @@ function populateChunk(chunk, rand) {
 
 function createDungeon() {
   scene = 'dungeon';
-  bounded = null; ground = null; decor = null; houses = []; npcs = [];
+  bounded = null; ground = null; decor = null; houses = []; npcs = []; interior = null;
   chunks = new Map(); monsters = []; potions = []; golds = []; shops = []; monstersDirty = true;
   floorSeed = hash32(Date.now() & 0xffff, floor, rnd(1e6));
   const spawn = getChunk(0, 0);
@@ -764,12 +887,36 @@ function drawCobble(g, c, r) {
     g.fillRect(X + i * q + 2, Y + j * q + 2, q - 4, q - 4);
   }
 }
-function drawGrass(g, c, r) {
+function drawGrass(g, c, r, forest = false) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 11);
-  g.fillStyle = n < 0.5 ? '#3f7d3a' : '#448a3f'; g.fillRect(X, Y, T, T);
-  g.fillStyle = '#5aa352';
+  g.fillStyle = forest ? (n < 0.5 ? '#2f5f2c' : '#336a30') : (n < 0.5 ? '#3f7d3a' : '#448a3f'); g.fillRect(X, Y, T, T);
+  g.fillStyle = forest ? '#3f7d3a' : '#5aa352';
   if (n < 0.3) { g.fillRect(X + 7, Y + 10, 2, 5); g.fillRect(X + 20, Y + 18, 2, 5); }
   else if (n < 0.6) { g.fillRect(X + 15, Y + 5, 2, 5); g.fillRect(X + 24, Y + 23, 2, 4); }
+}
+function drawWater(g, c, r) {
+  const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 21);
+  g.fillStyle = n < 0.5 ? '#1d4ed8' : '#1e40af'; g.fillRect(X, Y, T, T);
+  g.fillStyle = '#60a5fa';
+  if (n < 0.3) g.fillRect(X + 6, Y + 10, 10, 2); else if (n < 0.55) g.fillRect(X + 16, Y + 22, 10, 2);
+  // a lighter shore where land touches
+  if (groundAt(c, r - 1) !== GROUND.WATER || groundAt(c - 1, r) !== GROUND.WATER) { g.fillStyle = 'rgba(147,197,253,0.35)'; g.fillRect(X, Y, T, 3); }
+}
+function drawSand(g, c, r) {
+  const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 23);
+  g.fillStyle = n < 0.5 ? '#e7d3a1' : '#dfc78f'; g.fillRect(X, Y, T, T);
+  g.fillStyle = '#cdb272'; if (n < 0.3) g.fillRect(X + 9, Y + 14, 3, 3); else if (n < 0.6) g.fillRect(X + 20, Y + 6, 2, 2);
+}
+function drawMountain(g, c, r) {
+  const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 25);
+  g.fillStyle = n < 0.5 ? '#6b7280' : '#5b6370'; g.fillRect(X, Y, T, T);
+  g.fillStyle = '#4b5563'; g.beginPath(); g.moveTo(X + 4, Y + T - 4); g.lineTo(X + T / 2, Y + 6); g.lineTo(X + T - 4, Y + T - 4); g.closePath(); g.fill();
+  g.fillStyle = '#e5e7eb'; g.beginPath(); g.moveTo(X + T / 2 - 5, Y + 13); g.lineTo(X + T / 2, Y + 6); g.lineTo(X + T / 2 + 5, Y + 13); g.closePath(); g.fill();
+}
+function drawRoad(g, c, r) {
+  const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 27);
+  g.fillStyle = n < 0.5 ? '#a8865a' : '#9f7e53'; g.fillRect(X, Y, T, T);
+  g.fillStyle = '#8c6d45'; if (n < 0.35) g.fillRect(X + 8, Y + 12, 4, 3); else if (n < 0.7) g.fillRect(X + 20, Y + 20, 3, 3);
 }
 function drawHouse(g, h) {
   const X = h.x * T - off.x, Y = h.y * T - off.y, W = h.w * T, H = h.h * T, roofH = Math.floor(H * 0.45);
@@ -821,20 +968,22 @@ function renderBackground() {
     g.textAlign = 'start';
     return;
   }
-  if (scene === 'town') {
+  if (scene === 'world') {
     for (let r = y0; r <= y1; r++) for (let c = x0; c <= x1; c++) {
-      const inside = c >= 0 && r >= 0 && c < TW && r < TH;
-      const t = inside ? bounded.tiles[r][c] : TILE.WALL;
-      if (inside && (ground[r][c] === 'cobble' || t === TILE.FOUNTAIN)) drawCobble(g, c, r); else drawGrass(g, c, r);
-      if (!inside || (t === TILE.WALL && (r < 2 || r >= TH - 2 || c < 3 || c >= TW - 3))) {
-        // the hedge and the forest beyond the town
-        if (!inside && noise(c, r, 5) < 0.5) drawSprite(g, 'tree', c, r, 1, 1);
-        else if (inside) { if (noise(c, r, 5) < 0.45) drawSprite(g, 'tree', c, r, 1, 1); else { g.fillStyle = '#2e7d32'; g.fillRect(c * T - off.x + 3, r * T - off.y + 3, T - 6, T - 6); } }
-      } else if (t === TILE.FLOOR && ground[r][c] === 'grass' && noise(c, r, 9) < 0.08) drawSprite(g, 'flower', c, r);
+      const t = getTile(c, r), gnd = groundAt(c, r);
+      if (gnd === GROUND.COBBLE || t === TILE.FOUNTAIN) drawCobble(g, c, r);
+      else if (gnd === GROUND.WATER) drawWater(g, c, r);
+      else if (gnd === GROUND.SAND) drawSand(g, c, r);
+      else if (gnd === GROUND.MOUNTAIN) drawMountain(g, c, r);
+      else if (gnd === GROUND.ROAD) drawRoad(g, c, r);
+      else if (gnd === GROUND.FOREST || gnd === GROUND.TREE) { drawGrass(g, c, r, true); if (gnd === GROUND.TREE) drawSprite(g, 'tree', c, r, 1, 1); }
+      else { drawGrass(g, c, r); if (t === TILE.FLOOR && noise(c, r, 9) < 0.06) drawSprite(g, 'flower', c, r); }
       if (t === TILE.FOUNTAIN) {
         const X = c * T - off.x, Y = r * T - off.y;
         g.fillStyle = '#9ca3af'; g.fillRect(X, Y, T, T);
-        g.fillStyle = '#6b7280'; g.fillRect(X + (c === TW / 2 - 1 ? 0 : T - 5), Y, 5, T); g.fillRect(X, Y + (r === TH / 2 - 1 ? 0 : T - 5), T, 5);
+        g.fillStyle = '#6b7280';
+        if (getTile(c - 1, r) !== TILE.FOUNTAIN) g.fillRect(X, Y, 5, T); else g.fillRect(X + T - 5, Y, 5, T);
+        if (getTile(c, r - 1) !== TILE.FOUNTAIN) g.fillRect(X, Y, T, 5); else g.fillRect(X, Y + T - 5, T, 5);
       }
       if (t === TILE.EXIT) {
         const X = c * T - off.x, Y = r * T - off.y;
@@ -843,9 +992,16 @@ function renderBackground() {
         drawSprite(g, 'stairs', c, r);
       }
     }
-    for (const h of houses) drawHouse(g, h);
-    const cx = TW / 2, cy = TH / 2;
-    for (const [lc, lr] of [[cx - 11, cy - 6], [cx + 11, cy - 6], [cx - 11, cy + 6], [cx + 11, cy + 6]]) drawSprite(g, 'lamp', lc, lr);
+    for (const h of houses) if (h.x <= x1 && h.x + h.w >= x0 && h.y <= y1 && h.y + h.h >= y0) drawHouse(g, h);
+    for (const town of nearbyTowns(player.x, player.y, 1)) {
+      if (town.cx < x0 - 12 || town.cx > x1 + 12 || town.cy < y0 - 8 || town.cy > y1 + 8) continue;
+      for (const [lc, lr] of [[town.cx - 11, town.cy - 6], [town.cx + 11, town.cy - 6], [town.cx - 11, town.cy + 6], [town.cx + 11, town.cy + 6]]) drawSprite(g, 'lamp', lc, lr);
+      g.fillStyle = 'rgba(6,12,20,0.6)'; g.font = 'bold 13px sans-serif'; g.textAlign = 'center';
+      const w = g.measureText(town.name).width + 14;
+      g.fillRect(town.cx * T - off.x + T - w / 2, town.y0 * T - off.y + T * 1.2, w, 20);
+      g.fillStyle = '#ffd86b'; g.textBaseline = 'top'; g.fillText(town.name, town.cx * T - off.x + T, town.y0 * T - off.y + T * 1.2 + 3);
+      g.textAlign = 'start'; g.textBaseline = 'alphabetic';
+    }
     return;
   }
   // dungeon
@@ -891,7 +1047,7 @@ function drawBubble(g, b) {
 }
 
 function drawHud(g, now) {
-  const where = scene === 'house' ? interior.house.name : inTown() ? 'Town' : `Floor ${floor}/${FINAL_FLOOR}`;
+  const where = scene === 'house' ? interior.house.name : inTown() ? (townContaining(player.x, player.y)?.name ?? 'The wilds') : `Floor ${floor}/${FINAL_FLOOR}`;
   const text = `${where}   HP ${player.hp}/${player.maxHp}   ATK ${player.atk + weaponAtk()}   DEF ${armorDef()}   Lv ${player.level}   Gold ${player.gold}`;
   g.font = 'bold 13px sans-serif';
   const w = g.measureText(text).width + 20;
@@ -911,10 +1067,12 @@ function drawHud(g, now) {
       g.fillStyle = other ? '#9fd4ff' : '#a8c0d8'; g.fillText(text, 18, 53 + i * 22);
     });
   }
-  // compass to the stairs, dungeon only
-  if (scene === 'dungeon' && exit) {
-    const dx = exit.x - player.x, dy = exit.y - player.y, d = Math.abs(dx) + Math.abs(dy);
-    const label = d === 0 ? 'Stairs: here' : `Stairs ${Math.abs(dy) > Math.abs(dx) / 2 ? (dy < 0 ? 'N' : 'S') : ''}${Math.abs(dx) > Math.abs(dy) / 2 ? (dx < 0 ? 'W' : 'E') : ''}  ${d} tiles`;
+  // compass: to the stairs in the dungeon, to the next town outdoors
+  const target = scene === 'dungeon' ? exit : (inTown() ? (() => { const t = nearestOtherTown(player.x, player.y); return t ? { x: t.cx, y: t.cy, name: t.name } : null; })() : null);
+  if (target) {
+    const dx = target.x - player.x, dy = target.y - player.y, d = Math.abs(dx) + Math.abs(dy);
+    const what = scene === 'dungeon' ? 'Stairs' : target.name;
+    const label = d === 0 ? `${what}: here` : `${what} ${Math.abs(dy) > Math.abs(dx) / 2 ? (dy < 0 ? 'N' : 'S') : ''}${Math.abs(dx) > Math.abs(dy) / 2 ? (dx < 0 ? 'W' : 'E') : ''}  ${d} tiles`;
     g.font = 'bold 12px sans-serif';
     const cw = g.measureText(label).width + 36;
     const bx = canvas.width - cw - 8;
@@ -926,8 +1084,8 @@ function drawHud(g, now) {
     g.moveTo(ax - Math.cos(ang) * 7, ay - Math.sin(ang) * 7); g.lineTo(ax + Math.cos(ang) * 7, ay + Math.sin(ang) * 7); g.stroke();
     g.beginPath(); g.moveTo(ax + Math.cos(ang) * 7, ay + Math.sin(ang) * 7);
     g.lineTo(ax + Math.cos(ang + 2.5) * 5, ay + Math.sin(ang + 2.5) * 5); g.lineTo(ax + Math.cos(ang - 2.5) * 5, ay + Math.sin(ang - 2.5) * 5); g.closePath(); g.fillStyle = '#5fe17a'; g.fill();
-    drawMinimap(g);
   }
+  if (scene === 'dungeon' || inTown()) drawMinimap(g);
   g.font = '13px sans-serif';
   const recent = messages.filter((m) => now - m.at < 9000);
   if (recent.length) {
@@ -946,12 +1104,19 @@ function drawHud(g, now) {
 }
 
 // Explored tiles around the hero, dungeon only.
+const WORLD_MAP_COLORS = ['#448a3f', '#336a30', '#dfc78f', '#1d4ed8', '#6b7280', '#a8865a', '#6b7280', '#2e7d32'];
 function drawMinimap(g) {
-  const px = 3, hw = 30, hh = 20;
+  const px = scene === 'world' ? 2 : 3, hw = scene === 'world' ? 48 : 30, hh = scene === 'world' ? 32 : 20;
   const W = (hw * 2 + 1) * px, H = (hh * 2 + 1) * px, X = canvas.width - W - 8, Y = 44;
   g.fillStyle = 'rgba(6,12,20,0.78)'; g.fillRect(X - 2, Y - 2, W + 4, H + 4);
   for (let dy = -hh; dy <= hh; dy++) for (let dx = -hw; dx <= hw; dx++) {
     const x = player.x + dx, y = player.y + dy;
+    if (scene === 'world') {
+      const t = getTile(x, y), gnd = groundAt(x, y);
+      g.fillStyle = t === TILE.EXIT ? '#5fe17a' : (t === TILE.WALL && gnd === GROUND.GRASS) ? '#d9b382' : WORLD_MAP_COLORS[gnd];
+      g.fillRect(X + (dx + hw) * px, Y + (dy + hh) * px, px, px);
+      continue;
+    }
     if (!wasSeen(x, y)) continue;
     const t = getTile(x, y);
     g.fillStyle = t === TILE.WALL ? '#2b3a4a' : t === TILE.EXIT ? '#5fe17a' : t === TILE.SHOP ? '#c084fc' : '#4b7f99';
@@ -971,8 +1136,9 @@ function draw() {
   ctx.drawImage(bg, bgOrigin.x - cam.x, bgOrigin.y - cam.y);
   const { x0, y0, x1, y1 } = viewBounds();
   const inView = (o) => o.x >= x0 && o.x <= x1 && o.y >= y0 && o.y <= y1;
-  if (inTown()) {
-    const X = (TW / 2 - 1) * T - cam.x + 5, Y = (TH / 2 - 1) * T - cam.y + 5, S = T * 2 - 10;
+  if (inTown()) for (const town of nearbyTowns(player.x, player.y, 1)) {
+    if (town.cx < x0 || town.cx > x1 || town.cy < y0 || town.cy > y1) continue;
+    const X = (town.cx - 1) * T - cam.x + 5, Y = (town.cy - 1) * T - cam.y + 5, S = T * 2 - 10;
     ctx.fillStyle = '#3b82f6'; ctx.fillRect(X, Y, S, S);
     for (let i = 0; i < 3; i++) {
       const rr = ((now / 900 + i / 3) % 1) * (S / 2);
@@ -1080,6 +1246,14 @@ function describeTile(x, y) {
   if (scene === 'house' && decor[y] && decor[y][x]) return decor[y][x].sprite === 'bed' ? 'Bed — lie down to rest' : `${decor[y][x].name} — walk into it`;
   if (inTown() && t === TILE.WALL) { const h = houses.find((hh) => x >= hh.x && x < hh.x + hh.w && y >= hh.y && y < hh.y + hh.h); if (h) return `${h.name} — the door is at the bottom`; }
   if (t === TILE.EXIT) return inTown() ? 'Dungeon gate — step here to begin your descent' : 'Stairs down — the exit from this floor';
+  if (inTown()) {
+    const gnd = groundAt(x, y);
+    if (gnd === GROUND.WATER) return 'Water — too deep to cross';
+    if (gnd === GROUND.MOUNTAIN) return 'Mountains — no way over';
+    if (gnd === GROUND.TREE) return 'Dense trees — find a way round';
+    if (gnd === GROUND.ROAD) { const nt = nearestOtherTown(x, y); return `Road${nt ? ' — leads towards ' + nt.name : ''}`; }
+    if (gnd === GROUND.SAND) return 'Sand';
+  }
   return null;
 }
 function tileFromEvent(e) {
@@ -1131,11 +1305,12 @@ function buildLegend() {
   if (inTown()) {
     add('guard', 'Townsfolk', 'walk into them to chat');
     add('stairs', 'Gate', 'into the dungeon');
+    add('tree', 'Forest, water, mountains', 'impassable; roads join the towns');
   } else add('stairs', 'Stairs', 'follow the compass');
 }
 
 function updateStats() {
-  const where = scene === 'house' ? interior.house.name : inTown() ? 'Town' : `Floor ${floor}/${FINAL_FLOOR}`;
+  const where = scene === 'house' ? interior.house.name : inTown() ? (townContaining(player.x, player.y)?.name ?? 'The wilds') : `Floor ${floor}/${FINAL_FLOOR}`;
   statsEl.textContent = `${where} | HP ${player.hp}/${player.maxHp} | ATK ${player.atk}${weaponAtk() ? '+' + weaponAtk() : ''} | DEF ${armorDef()} | Lv ${player.level} (${player.xp}/${xpToNext(player.level)} XP) | Gold ${player.gold}`;
   hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
   hpBar.style.background = player.hp / player.maxHp > 0.5 ? '#5fe17a' : player.hp / player.maxHp > 0.25 ? '#f5c542' : '#ff6b6b';
@@ -1210,8 +1385,7 @@ function endGame(title, text) {
 function nextFloor() {
   floor++;
   if (floor > FINAL_FLOOR) {
-    floor = TOWN; interior = null;
-    createTown();
+    returnHome();
     afterSceneChange();
     log(`You escaped the dungeon with ${player.gold} gold at level ${player.level}! The town square welcomes you back.`, 'good');
     saveProgress('win');
@@ -1269,19 +1443,23 @@ function tryMove(dx, dy) {
       else log(player.hp < player.maxHp ? 'Not your bed. You lie down anyway, but it does not help.' : 'A bed. Not yours.');
     }
     if (t === TILE.EXIT) {
+      if (inTown()) { const here = townContaining(nx, ny); if (here) homeTown = here.key; player.wx = nx; player.wy = ny + 1; }
       if (inTown() && coop.party && ACCOUNT.user) { enterCoop(); return; }
       nextFloor(); return;
     }
+    if (inTown()) { player.wx = nx; player.wy = ny; }
   }
   turn++;
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
   if (safeZone()) stepNpcs(); else stepMonsters();
+  if (inTown() && (turn % 8 === 0)) refreshTownContext();
   updateCamera();
   updateVisibility();
   updateStats();
   if (player.hp <= 0) {
     player.hp = 0; updateStats();
     endGame('You died', `You fell on floor ${floor} after ${turn} turns with ${player.gold} gold. Press R to try again.`);
+    { const t = townAt(...homeTown.split(',').map(Number)); player.wx = t.spawn.x; player.wy = t.spawn.y; }
     saveProgress('death');
   }
   draw();
@@ -1493,11 +1671,18 @@ function startRun(saved) {
       weapon: itemInfo(saved.weapon) ? saved.weapon : null, armor: itemInfo(saved.armor) ? saved.armor : null,
       bag: (saved.bag || []).filter(itemInfo).slice(0, ITEMS.bag_size) });
   }
-  if (floor === TOWN) createTown(); else createDungeon();
+  if (saved && saved.home && /^-?\d+,-?\d+$/.test(saved.home)) homeTown = saved.home;
+  if (floor === TOWN) {
+    createWorld();
+    const t = townAt(...homeTown.split(',').map(Number));
+    if (saved && Number.isInteger(saved.wx) && Number.isInteger(saved.wy) && walkable(getTile(saved.wx, saved.wy))) { player.x = saved.wx; player.y = saved.wy; }
+    else { player.x = t.spawn.x; player.y = t.spawn.y; }
+    player.wx = player.x; player.wy = player.y; settle(player); refreshTownContext();
+  } else createDungeon();
   afterSceneChange();
   if (saved && saved.floor > 0) log(`Welcome back, ${saved.name}. You resume on floor ${floor}. Follow the compass to the stairs.`, 'good');
-  else if (saved && saved.level > 1) log(`Welcome back to town, ${saved.name}. The dungeon gate is at the bottom of the square.`, 'good');
-  else log(`${saved ? saved.name + ' arrives' : 'You arrive'} in the town square. Step onto a house door to go inside, or take the gate at the bottom.`);
+  else if (saved && saved.level > 1) log(`Welcome back, ${saved.name}. ${townContaining(player.x, player.y) ? 'You are in ' + townContaining(player.x, player.y).name + '.' : 'You are out in the wilds.'} Roads lead to other towns.`, 'good');
+  else log(`${saved ? saved.name + ' arrives' : 'You arrive'} in Hearth. Step onto a house door to go inside, take the gate at the bottom into the dungeon, or follow a road to the next town.`);
 }
 let starting = false;
 async function init() {

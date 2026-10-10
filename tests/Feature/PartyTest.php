@@ -119,7 +119,7 @@ class PartyTest extends TestCase
             if (! $d->walkable($me['x'] + $dx, $me['y'] + $dy)) { $wall = [$dx, $dy]; break; }
         }
         if ($wall) {
-            usleep(130000);
+            PartyMember::where('user_id', $a->id)->update(['last_action_ms' => 0]);
             $res = $this->actingAs($a)->postJson('/api/party/act', ['type' => 'move', 'dx' => $wall[0], 'dy' => $wall[1]])->assertOk()->json();
             $this->assertSame([$me['x'], $me['y']], [$res['me']['x'], $res['me']['y']]);
         }
@@ -178,13 +178,13 @@ class PartyTest extends TestCase
 
         $this->actingAs($a)->postJson('/api/party/act', ['type' => 'buy', 'item' => 'short_sword'])->assertOk()
             ->assertJsonPath('me.gold', 60)->assertJsonPath('me.bag', ['short_sword']);
-        usleep(130000);
+        PartyMember::where('user_id', $a->id)->update(['last_action_ms' => 0]);
         $this->actingAs($a)->postJson('/api/party/act', ['type' => 'equip', 'where' => 0])->assertOk()
             ->assertJsonPath('me.weapon', 'short_sword')->assertJsonPath('me.bag', []);
-        usleep(130000);
+        PartyMember::where('user_id', $a->id)->update(['last_action_ms' => 0]);
         $this->actingAs($a)->postJson('/api/party/act', ['type' => 'sell', 'where' => 'weapon'])->assertOk()
             ->assertJsonPath('me.weapon', null)->assertJsonPath('me.gold', 80);
-        usleep(130000);
+        PartyMember::where('user_id', $a->id)->update(['last_action_ms' => 0]);
         $this->actingAs($a)->postJson('/api/party/act', ['type' => 'buy', 'item' => 'warhammer'])->assertOk()
             ->assertJsonPath('me.gold', 80); // not stocked this deep
         // off the merchant tile nothing sells

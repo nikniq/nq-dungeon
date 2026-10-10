@@ -9,7 +9,7 @@ class Character extends Model
 {
     protected $fillable = [
         'name', 'bio', 'floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk',
-        'weapon', 'armor', 'bag', 'runs', 'wins', 'best_floor', 'best_gold', 'kills',
+        'weapon', 'armor', 'bag', 'wx', 'wy', 'home', 'runs', 'wins', 'best_floor', 'best_gold', 'kills',
     ];
 
     protected $casts = ['bag' => 'array'];
