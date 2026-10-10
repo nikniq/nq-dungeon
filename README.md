@@ -13,7 +13,8 @@ the inn (free rest), the watch house, Mara's cottage (cheap potions) and Hilde's
 home each have their own room, furniture and residents. The gate leads down. Clear all 5 floors to return to town with your level, gold and gear.
 Death sends you back to town as a fresh hero.
 
-In the dungeon: find the green exit on each floor. Monsters sleep until they
+In the dungeon: each floor is endless, generated chunk by chunk as you explore,
+and the camera keeps you centred. Follow the compass in the corner to the stairs. Monsters sleep until they
 notice you and then chase. Kill them for XP to level up, grab gold and potions.
 Each floor has a merchant (`$`) who buys and sells weapons, armor and potions;
 the item catalog lives in `config/items.php`. Hover or tap anything on the map

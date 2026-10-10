@@ -9,7 +9,7 @@
       <div class="hp-track"><div id="hpbar" class="hp-fill"></div></div>
     </div>
     <div class="stage">
-      <canvas id="game" width="800" height="600"></canvas>
+      <canvas id="game" width="960" height="640"></canvas>
       <div id="tip" class="tip" role="status"></div>
       <div id="shop" class="overlay shop" hidden>
         <div class="shop-inner">
