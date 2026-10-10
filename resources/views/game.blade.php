@@ -36,6 +36,7 @@
         <button type="button" data-move="1,0" aria-label="Right">&#9654;</button>
         <button type="button" data-move="0,1" aria-label="Down">&#9660;</button>
       </div>
+      <button type="button" id="worldmap" class="fs">Map (M)</button>
       <button type="button" id="fullscreen" class="fs">Fullscreen</button>
     </div>
     @auth

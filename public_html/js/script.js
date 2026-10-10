@@ -475,8 +475,13 @@ const GROUND = { GRASS: 0, FOREST: 1, SAND: 2, WATER: 3, MOUNTAIN: 4, ROAD: 5, C
 const worldChunks = new Map();   // kept across scene changes
 const towns = new Map();         // lattice key -> town
 let homeTown = '0,0';            // the town whose gate you last took
-const SYL_A = ['Ash', 'Bar', 'Cal', 'Dun', 'El', 'Fen', 'Gar', 'Hol', 'Ist', 'Kel', 'Lor', 'Mor', 'Nor', 'Ost', 'Pem', 'Quil', 'Rav', 'Sil', 'Tor', 'Ul', 'Vel', 'Wyn'];
-const SYL_B = ['bury', 'ford', 'gate', 'haven', 'holm', 'mere', 'moor', 'ton', 'vale', 'wick', 'worth', 'by', 'stead', 'bridge', 'march'];
+const SYL_A = ['Ash', 'Bar', 'Cal', 'Dun', 'El', 'Fen', 'Gar', 'Hol', 'Ist', 'Kel', 'Lor', 'Mor', 'Nor', 'Ost', 'Pem', 'Quil', 'Rav', 'Sil', 'Tor', 'Ul', 'Vel', 'Wyn', 'Bre', 'Cor', 'Dra', 'Ever', 'Glen', 'Har', 'Lin', 'Thorn'];
+const SYL_M = ['', '', '', 'en', 'er', 'wood', 'stone', 'water', 'ling', 'ash', 'oak'];
+const SYL_B = ['bury', 'ford', 'gate', 'haven', 'holm', 'mere', 'moor', 'ton', 'vale', 'wick', 'worth', 'by', 'stead', 'bridge', 'march', 'field', 'cross', 'fall', 'hollow', 'rest'];
+function townName(i, j) {
+  const h = hash32(i * 7919, j * 104729, 4242);
+  return SYL_A[h % SYL_A.length] + SYL_M[Math.floor(h / 64) % SYL_M.length] + SYL_B[Math.floor(h / 4096) % SYL_B.length];
+}
 
 function valueNoise(x, y, salt, scale) {
   const fx = x / scale, fy = y / scale, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
@@ -500,7 +505,7 @@ function townAt(i, j) {
   const jx = origin ? 0 : Math.floor((noise(i, j, 91) - 0.5) * 32), jy = origin ? 0 : Math.floor((noise(i, j, 92) - 0.5) * 32);
   const cx = i * TOWN_SPACING + 20 + jx, cy = j * TOWN_SPACING + 15 + jy;
   const x0 = cx - 20, y0 = cy - 15;
-  const name = origin ? 'Hearth' : SYL_A[Math.floor(noise(i, j, 93) * SYL_A.length)] + SYL_B[Math.floor(noise(i, j, 94) * SYL_B.length)];
+  const name = origin ? 'Hearth' : townName(i, j);
   const town = { key: k, i, j, name, cx, cy, x0, y0, houses: [], npcs: null, spawn: { x: cx, y: cy + 3 }, gate: { x: cx, y: y0 + 26 } };
   const add = (lx, ly, w, h, id) => town.houses.push({ x: x0 + lx, y: y0 + ly, w, h, id, doorX: x0 + lx + Math.floor(w / 2), doorY: y0 + ly + h - 1, town: k, ...BUILDINGS[id] });
   add(6, 4, 6, 4, 'shop'); add(28, 4, 6, 4, 'inn');
@@ -1215,6 +1220,81 @@ function draw() {
   if (bubble) { if (now > bubble.until) bubble = null; else drawBubble(ctx, bubble); }
   if (inspected) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(inspected.x * T - cam.x + 1, inspected.y * T - cam.y + 1, T - 2, T - 2); }
   drawHud(ctx, now);
+  if (mapOpen) drawWorldMap(ctx, now);
+}
+
+// ---------- the world map ----------
+// A wide view of the surface around the hero, sampled every other tile and
+// cached until the hero has moved a fair way. Towns are named, roads drawn.
+let mapOpen = false;
+const MAP_STEP = 2, MAP_PX = 3;
+const mapCache = { ox: null, oy: null, canvas: document.createElement('canvas') };
+const MAP_COLORS = ['#3f7d3a', '#2f5f2c', '#dfc78f', '#1d4ed8', '#6b7280', '#a8865a', '#6b7280', '#2e7d32'];
+
+function toggleMap() {
+  if (scene !== 'world') { log('The map shows the surface. You are ' + (scene === 'dungeon' ? 'underground.' : 'indoors.')); return; }
+  mapOpen = !mapOpen;
+  draw();
+}
+function renderWorldMap() {
+  const W = Math.floor((canvas.width - 40) / MAP_PX), H = Math.floor((canvas.height - 96) / MAP_PX);  // samples
+  const ox = Math.floor((player.x - W * MAP_STEP / 2) / 16) * 16, oy = Math.floor((player.y - H * MAP_STEP / 2) / 16) * 16;
+  if (mapCache.ox === ox && mapCache.oy === oy) return;
+  const c = mapCache.canvas; c.width = W * MAP_PX; c.height = H * MAP_PX;
+  const g = c.getContext('2d');
+  for (let sy = 0; sy < H; sy++) for (let sx = 0; sx < W; sx++) {
+    g.fillStyle = MAP_COLORS[terrainAt(ox + sx * MAP_STEP, oy + sy * MAP_STEP)];
+    g.fillRect(sx * MAP_PX, sy * MAP_PX, MAP_PX, MAP_PX);
+  }
+  const toPx = (x, y) => [((x - ox) / MAP_STEP) * MAP_PX, ((y - oy) / MAP_STEP) * MAP_PX];
+  // roads between lattice neighbours, then the towns on top
+  const i0 = Math.floor((ox - 20) / TOWN_SPACING) - 1, i1 = Math.floor((ox + W * MAP_STEP) / TOWN_SPACING) + 1;
+  const j0 = Math.floor((oy - 15) / TOWN_SPACING) - 1, j1 = Math.floor((oy + H * MAP_STEP) / TOWN_SPACING) + 1;
+  g.strokeStyle = '#a8865a'; g.lineWidth = 2;
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+    const a = townAt(i, j);
+    for (const b of [townAt(i + 1, j), townAt(i, j + 1)]) {
+      const [ax, ay] = toPx(a.cx, a.cy), [bx, by] = toPx(b.cx, b.cy);
+      g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, ay); g.lineTo(bx, by); g.stroke();
+    }
+  }
+  g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom';
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+    const t = townAt(i, j);
+    const [x, y] = toPx(t.x0, t.y0), w = (TW / MAP_STEP) * MAP_PX, h = (TH / MAP_STEP) * MAP_PX;
+    g.fillStyle = '#6b7280'; g.fillRect(x, y, w, h);
+    g.fillStyle = '#d9b382'; g.fillRect(x + 4, y + 4, w - 8, 6); g.fillRect(x + 4, y + h - 10, w - 8, 6);
+    g.fillStyle = '#5fe17a'; g.fillRect(x + w / 2 - 2, y + h - 6, 4, 4);
+    const label = t.key === homeTown ? t.name + ' (home)' : t.name, lw = g.measureText(label).width + 8;
+    g.fillStyle = 'rgba(6,12,20,0.75)'; g.fillRect(x + w / 2 - lw / 2, y - 16, lw, 14);
+    g.fillStyle = '#ffd86b'; g.fillText(label, x + w / 2, y - 3);
+  }
+  g.textAlign = 'start'; g.textBaseline = 'alphabetic';
+  mapCache.ox = ox; mapCache.oy = oy;
+}
+function drawWorldMap(g, now) {
+  renderWorldMap();
+  const c = mapCache.canvas, X = Math.floor((canvas.width - c.width) / 2), Y = 56;
+  g.fillStyle = 'rgba(6,12,20,0.92)'; g.fillRect(0, 0, canvas.width, canvas.height);
+  g.drawImage(c, X, Y);
+  g.strokeStyle = '#12384a'; g.lineWidth = 2; g.strokeRect(X - 1, Y - 1, c.width + 2, c.height + 2);
+  // the hero
+  const px = X + ((player.x - mapCache.ox) / MAP_STEP) * MAP_PX, py = Y + ((player.y - mapCache.oy) / MAP_STEP) * MAP_PX;
+  g.fillStyle = 'rgba(255,216,107,0.35)'; g.beginPath(); g.arc(px, py, 8 + Math.sin(now / 200) * 2, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#ffd86b'; g.beginPath(); g.arc(px, py, 4, 0, Math.PI * 2); g.fill();
+  g.font = 'bold 12px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#ffd86b'; g.fillText('You', px, py - 10);
+  // title line
+  const here = townContaining(player.x, player.y);
+  g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.textAlign = 'left'; g.textBaseline = 'top';
+  g.fillText('World map', 20, 14);
+  g.font = '13px sans-serif'; g.fillStyle = '#a8c0d8';
+  g.fillText(`${here ? here.name : 'The wilds'}  ·  position ${player.x}, ${player.y}  ·  each square is ${MAP_STEP} tiles  ·  M or Esc closes`, 112, 18);
+  // legend
+  const items = [['#3f7d3a', 'grass'], ['#2e7d32', 'forest'], ['#1d4ed8', 'water'], ['#6b7280', 'mountains / town'], ['#a8865a', 'road'], ['#5fe17a', 'gate']];
+  let lx = 20; const ly = canvas.height - 26;
+  g.font = '12px sans-serif'; g.textBaseline = 'middle';
+  for (const [col, name] of items) { g.fillStyle = col; g.fillRect(lx, ly - 5, 10, 10); g.fillStyle = '#cfe9ff'; g.fillText(name, lx + 14, ly); lx += g.measureText(name).width + 30; }
+  g.textAlign = 'start'; g.textBaseline = 'alphabetic';
 }
 
 // ---------- inspecting tiles (hover / tap) ----------
@@ -1262,6 +1342,7 @@ function tileFromEvent(e) {
   return { x: Math.floor(((e.clientX - rect.left) * sx + cam.x) / T), y: Math.floor(((e.clientY - rect.top) * sy + cam.y) / T) };
 }
 function inspect(e) {
+  if (mapOpen) { clearInspect(); return; }
   const t = tileFromEvent(e);
   const text = describeTile(t.x, t.y);
   if (text) {
@@ -1474,8 +1555,10 @@ const KEYS = {
   ArrowRight: [1, 0], d: [1, 0], D: [1, 0], l: [1, 0],
 };
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { closeShop(); return; }
+  if (e.key === 'Escape') { closeShop(); if (mapOpen) { mapOpen = false; draw(); } return; }
   if (shopOpen) return;
+  if (e.key === 'm' || e.key === 'M') { toggleMap(); return; }
+  if (mapOpen && KEYS[e.key]) { mapOpen = false; }
   if (e.key === 'r' || e.key === 'R') { init(); return; }
   if (e.key === 'p' || e.key === 'P') { drinkPotion(); return; }
   if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); return; }
@@ -1507,6 +1590,7 @@ function fitCanvas() {
   canvas.style.height = `${Math.floor(canvas.height * scale)}px`;
 }
 fsBtn?.addEventListener('click', toggleFullscreen);
+document.getElementById('worldmap')?.addEventListener('click', toggleMap);
 document.addEventListener('fullscreenchange', () => { fitCanvas(); if (fsBtn) fsBtn.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'; });
 window.addEventListener('resize', fitCanvas);
 let touchStart = null;
@@ -1656,7 +1740,7 @@ document.getElementById('shop-close')?.addEventListener('click', closeShop);
 
 // ---------- setup ----------
 function afterSceneChange() {
-  bubble = null; closeShop(); clearInspect(); floats.length = 0;
+  bubble = null; closeShop(); clearInspect(); floats.length = 0; mapOpen = false;
   settle(player); for (const n of npcs) settle(n);
   updateCamera(); updateVisibility(); buildLegend(); updateStats(); draw();
 }
