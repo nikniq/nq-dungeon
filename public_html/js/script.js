@@ -16,11 +16,11 @@ const COLORS = {
   exit: '#5fe17a', player: '#ffd86b', gold: '#f5c542', potion: '#7bdfff', unknown: '#060c14', shop: '#c084fc', inn: '#ff9ecf', fountain: '#3b82f6', townFloor: '#3a4a3a', townWall: '#5b4636',
 };
 const MONSTER_TYPES = [
-  { name: 'Rat',    color: '#c98f5a', hp: 3,  atk: 1, xp: 2,  minFloor: 1 },
-  { name: 'Goblin', color: '#7ad36b', hp: 5,  atk: 2, xp: 4,  minFloor: 1 },
-  { name: 'Skeleton', color: '#dcdcdc', hp: 8, atk: 3, xp: 7, minFloor: 2 },
-  { name: 'Orc',    color: '#ff6b6b', hp: 12, atk: 4, xp: 12, minFloor: 3 },
-  { name: 'Wraith', color: '#b18cff', hp: 10, atk: 5, xp: 16, minFloor: 4 },
+  { name: 'Rat',    color: '#c98f5a', sprite: 'rat', hp: 3,  atk: 1, xp: 2,  minFloor: 1 },
+  { name: 'Goblin', color: '#7ad36b', sprite: 'goblin', hp: 5,  atk: 2, xp: 4,  minFloor: 1 },
+  { name: 'Skeleton', color: '#dcdcdc', sprite: 'skeleton', hp: 8, atk: 3, xp: 7, minFloor: 2 },
+  { name: 'Orc',    color: '#ff6b6b', sprite: 'orc', hp: 12, atk: 4, xp: 12, minFloor: 3 },
+  { name: 'Wraith', color: '#b18cff', sprite: 'wraith', hp: 10, atk: 5, xp: 16, minFloor: 4 },
 ];
 const FINAL_FLOOR = 5;
 const VIEW_RADIUS = 7;
@@ -31,6 +31,7 @@ canvas.width = tileSize * cols;
 canvas.height = tileSize * rows;
 
 let map, seen, visible, monsters, potions, golds, exit, shops;
+let houses = [], npcs = [], ground = null, bubble = null;
 let player, floor, gameOver, turn, kills;
 
 // ---------- account save/load ----------
@@ -83,7 +84,72 @@ const getMonsterAt = (x, y) => monsters.find((m) => m.x === x && m.y === y);
 const getPotionAt = (x, y) => potions.find((p) => p.x === x && p.y === y);
 const getGoldAt = (x, y) => golds.find((g) => g.x === x && g.y === y);
 
+// ---------- pixel sprites ----------
+// 8x8 glyphs; each letter is a palette colour, '.' is transparent. They are
+// rasterised once into small canvases and drawn scaled with no smoothing.
+const PAL = { k: '#1b1b2f', w: '#f4f4f4', y: '#ffd86b', o: '#ff9f43', r: '#e74c3c', g: '#7ad36b', G: '#2e7d32', b: '#4a90e2', B: '#1f3a93',
+  p: '#b18cff', P: '#ff9ecf', s: '#f1c27d', h: '#8b5a2b', H: '#5b3a1a', e: '#c0c0c0', E: '#6d6d6d', t: '#d9b382', c: '#7bdfff', d: '#8b2e2e' };
+const SPRITES = {
+  player:   ['..yyyy..', '.yssssy.', '.sksssk.', '..ssss..', '.bbbbbb.', 'ybbbbbby', '..bb.bb.', '..HH.HH.'],
+  rat:      ['........', '.hh...h.', 'hkhh.hh.', 'hhhhhhh.', '.hhhhhhh', '..hhhh.h', '.h.h.h..', '........'],
+  goblin:   ['.g....g.', '.gggggg.', '.gkggkg.', '..gggg..', '.hGGGGh.', '..GGGG..', '..G..G..', '..h..h..'],
+  skeleton: ['..wwww..', '..wkwk..', '..wwww..', '...ww...', '.wwwwww.', '.ew.wwe.', '..w..w..', '..e..e..'],
+  orc:      ['.dd..dd.', '.dddddd.', '.dkddkd.', '.ddwwdd.', 'hHHHHHHh', '.HHHHHH.', '.HH..HH.', '.kk..kk.'],
+  wraith:   ['..pppp..', '.pppppp.', '.pkppkp.', '.pppppp.', '.pppppp.', '.pppppp.', '.p.pp.p.', '........'],
+  merchant: ['..hhhh..', '.hssssh.', '..sksk..', '...ss...', '.hhhhhh.', 'hhyyyyhh', '.hhhhhh.', '..HH.HH.'],
+  innkeeper:['..HHHH..', '..ssss..', '..sksk..', '...ss...', '.PPPPPP.', '.wPPPPw.', '.PPPPPP.', '..HH.HH.'],
+  guard:    ['..eeee..', '..ssss..', '..sksk..', '..eeee..', '.eeeeee.', 'weeeeeew', '.ee..ee.', '.EE..EE.'],
+  elder:    ['..wwww..', '..ssss..', '..sksk..', '..swws..', '.GGGGGG.', '.GGGGGG.', '..GGGG..', '..HH.HH.'],
+  child:    ['........', '..oooo..', '..ssss..', '..sksk..', '..bbbb..', '.bbbbbb.', '..b..b..', '..H..H..'],
+  villager: ['..hhhh..', '.hssssh.', '.hsksk..', '..ssss..', '.rrrrrr.', '.rrrrrr.', '..rrrr..', '..H..H..'],
+  potion:   ['...ww...', '...ee...', '..cccc..', '.cccccc.', '.ccwccc.', '.cccccc.', '..cccc..', '........'],
+  gold:     ['........', '..yyyy..', '.yyooyy.', '.yoyyoy.', '.yyooyy.', '..yyyy..', 'yyyyyyyy', '.yyyyyy.'],
+  stairs:   ['kkkkkkkk', 'kEEEEEEk', 'kkEEEEEk', 'kkkEEEEk', 'kkkkEEEk', 'kkkkkEEk', 'kkkkkkEk', 'kkkkkkkk'],
+  tree:     ['..GGGG..', '.GGgGGG.', 'GGgGGGGG', 'GGGGGgGG', '.GGGGGG.', '..GGGG..', '...HH...', '...HH...'],
+  flower:   ['........', '........', '...P....', '..PwP.y.', '...P.yoy', '...G..y.', '..GG.G..', '........'],
+  lamp:     ['...kk...', '..kyyk..', '..kyyk..', '...kk...', '...kk...', '...kk...', '...kk...', '..kkkk..'],
+};
+const spriteCache = {};
+function sprite(name) {
+  if (spriteCache[name]) return spriteCache[name];
+  const c = document.createElement('canvas'); c.width = c.height = 8;
+  const g = c.getContext('2d');
+  SPRITES[name].forEach((row, y) => [...row].forEach((ch, x) => { if (PAL[ch]) { g.fillStyle = PAL[ch]; g.fillRect(x, y, 1, 1); } }));
+  spriteCache[name] = c;
+  return c;
+}
+function drawSprite(g, name, x, y, size = tileSize, alpha = 1) {
+  g.imageSmoothingEnabled = false;
+  g.globalAlpha = alpha;
+  const pad = Math.floor(size * 0.1);
+  g.drawImage(sprite(name), x * size + pad, y * size + pad, size - pad * 2, size - pad * 2);
+  g.globalAlpha = 1;
+}
+
+// Townsfolk who wander the square and chat when you walk into them.
+const NPC_TYPES = [
+  { sprite: 'guard', name: 'Bren the guard', lines: [
+    'Keep your armor on down there. The orcs on floor three hit like a mule.',
+    'Saw a wraith once. Could not hit it with a stick. Should have bought a better sword.',
+    'The stairs are at the bottom of the square. Mind the step.'] },
+  { sprite: 'elder', name: 'Old Mara', lines: [
+    'Monsters sleep until they notice you. Walk softly and pick your fights.',
+    'The merchant pays half what he charges. Sell him the junk, keep the good blade.',
+    'Every floor has a merchant too, if you survive long enough to find him.'] },
+  { sprite: 'child', name: 'Pip', lines: [
+    'Did you see a skeleton? Are they scary? Can I come?',
+    'I found a dagger once. Dad made me sell it.',
+    'The fountain is lucky. Everyone says so.'] },
+  { sprite: 'villager', name: 'Hilde', lines: [
+    'The inn heals you for free. Rest before you go down.',
+    'Potions are twelve gold. Carry a few; the deeper floors are stingy with them.',
+    'Clear all five floors and you come back up with everything you carried.'] },
+];
+
+const messages = []; // recent lines drawn inside the game view
 function log(text, cls = '') {
+  messages.push({ text, cls, at: performance.now() });
+  while (messages.length > 3) messages.shift();
   const li = document.createElement('li');
   li.textContent = text;
   if (cls) li.className = cls;
@@ -131,17 +197,56 @@ function createTown() {
   // the merchant and the inn on the square, the dungeon entrance at the bottom.
   map = Array.from({ length: rows }, () => new Array(cols).fill(TILE.WALL));
   seen = Array.from({ length: rows }, () => new Array(cols).fill(true));
-  for (let r = 3; r < rows - 3; r++) for (let c = 4; c < cols - 4; c++) map[r][c] = TILE.FLOOR;
-  const house = (x, y, w, h) => { for (let r = y; r < y + h; r++) for (let c = x; c < x + w; c++) map[r][c] = TILE.WALL; };
-  house(6, 5, 6, 4); house(16, 4, 7, 3); house(28, 5, 6, 4);
-  house(6, rows - 9, 6, 4); house(28, rows - 9, 6, 4);
+  ground = Array.from({ length: rows }, () => new Array(cols).fill('grass'));
   const cx = Math.floor(cols / 2), cy = Math.floor(rows / 2);
+  for (let r = 2; r < rows - 2; r++) for (let c = 3; c < cols - 3; c++) map[r][c] = TILE.FLOOR;
+  // Cobbled plaza in the middle, grass around the houses, a cobbled path to the gate.
+  for (let r = cy - 6; r <= cy + 6; r++) for (let c = cx - 11; c <= cx + 11; c++) ground[r][c] = 'cobble';
+  for (let r = cy + 6; r < rows - 2; r++) for (let c = cx - 1; c <= cx + 1; c++) ground[r][c] = 'cobble';
+  for (let r = 2; r < cy - 6; r++) for (let c = cx - 1; c <= cx + 1; c++) ground[r][c] = 'cobble';
+  houses = [];
+  const house = (x, y, w, h, door) => {
+    for (let r = y; r < y + h; r++) for (let c = x; c < x + w; c++) map[r][c] = TILE.WALL;
+    houses.push({ x, y, w, h, door });
+  };
+  house(6, 4, 6, 4, 'shop'); house(16, 3, 8, 3, 'plain'); house(28, 4, 6, 4, 'inn');
+  house(6, rows - 8, 6, 4, 'plain'); house(28, rows - 8, 6, 4, 'plain');
   for (let r = cy - 1; r <= cy; r++) for (let c = cx - 1; c <= cx; c++) map[r][c] = TILE.FOUNTAIN;
-  shops = [{ x: 12, y: 7 }]; map[7][12] = TILE.SHOP;          // merchant outside the top-left house
-  map[7][27] = TILE.INN;                                        // inn outside the top-right house
-  exit = { x: cx, y: rows - 4 }; map[exit.y][exit.x] = TILE.EXIT; // dungeon entrance
+  shops = [{ x: 9, y: 8 }]; map[8][9] = TILE.SHOP;             // merchant at the door of the top-left house
+  map[8][31] = TILE.INN;                                        // innkeeper at the door of the top-right house
+  exit = { x: cx, y: rows - 5 }; map[exit.y][exit.x] = TILE.EXIT; // the gate down into the dungeon (clear of the message strip)
   player.x = cx; player.y = cy + 3;
   monsters = []; potions = []; golds = [];
+  // Townsfolk start on the plaza and wander from there.
+  npcs = [];
+  const spots = floorCells((c, r) => ground[r][c] !== 'cobble' || Math.abs(c - cx) + Math.abs(r - cy) < 4);
+  for (const t of NPC_TYPES) {
+    if (!spots.length) break;
+    const cell = spots.splice(rnd(spots.length), 1)[0];
+    npcs.push({ ...cell, type: t, pause: rnd(3) });
+  }
+  bubble = null;
+}
+
+const getNpcAt = (x, y) => npcs.find((n) => n.x === x && n.y === y);
+
+function talk(n) {
+  const line = n.type.lines[rnd(n.type.lines.length)];
+  log(`${n.type.name}: ${line}`);
+  bubble = { x: n.x, y: n.y, text: line, until: performance.now() + 4000 };
+}
+
+function stepNpcs() {
+  for (const n of npcs) {
+    if (n.pause-- > 0) continue;
+    n.pause = 1 + rnd(4);
+    const [dx, dy] = [[1, 0], [-1, 0], [0, 1], [0, -1]][rnd(4)];
+    const nx = n.x + dx, ny = n.y + dy;
+    if (map[ny][nx] !== TILE.FLOOR || getNpcAt(nx, ny) || (nx === player.x && ny === player.y)) continue;
+    if (Math.abs(nx - Math.floor(cols / 2)) > 13 || Math.abs(ny - Math.floor(rows / 2)) > 9) continue; // stay near the square
+    n.x = nx; n.y = ny;
+    if (bubble && bubble.x === n.x - dx && bubble.y === n.y - dy) { bubble.x = n.x; bubble.y = n.y; }
+  }
 }
 
 const inTown = () => floor === TOWN;
@@ -227,6 +332,7 @@ function placeItems() {
 
 // ---------- visibility ----------
 function updateVisibility() {
+  bgDirty = true;
   if (inTown()) { visible = Array.from({ length: rows }, () => new Array(cols).fill(true)); return; }
   visible = Array.from({ length: rows }, () => new Array(cols).fill(false));
   const d = bfs(player.x, player.y, false);
@@ -245,81 +351,234 @@ function updateVisibility() {
 }
 
 // ---------- drawing ----------
-function draw() {
-  if (!map) return;
+// The map (ground, walls, houses, stairs) is rendered once per turn into an
+// offscreen layer; sprites and animations are drawn over it every frame.
+const bg = document.createElement('canvas');
+bg.width = canvas.width; bg.height = canvas.height;
+const bgx = bg.getContext('2d');
+let bgDirty = true;
+
+// Deterministic per-tile noise so textures do not shimmer between frames.
+function noise(x, y, salt = 0) {
+  let h = (x * 374761393 + y * 668265263 + salt * 1442695041) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+}
+
+function tileRect(g, c, r, color) { g.fillStyle = color; g.fillRect(c * tileSize, r * tileSize, tileSize, tileSize); }
+
+function drawBrick(g, c, r) {
+  const X = c * tileSize, Y = r * tileSize, n = noise(c, r);
+  g.fillStyle = n < 0.5 ? '#2a3b4d' : '#273749';
+  g.fillRect(X, Y, tileSize, tileSize);
+  g.fillStyle = '#1b2733';
+  const half = tileSize / 2;
+  g.fillRect(X, Y + half - 1, tileSize, 1); g.fillRect(X, Y + tileSize - 1, tileSize, 1);
+  g.fillRect(X + half - 1, Y, 1, half); g.fillRect(X + (n < 0.5 ? 2 : tileSize - 3), Y + half, 1, half);
+  g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(X, Y, tileSize, 1);
+}
+
+function drawStone(g, c, r, base, dark) {
+  const X = c * tileSize, Y = r * tileSize;
+  g.fillStyle = base; g.fillRect(X, Y, tileSize, tileSize);
+  g.fillStyle = dark;
+  const n = noise(c, r, 7);
+  if (n < 0.25) g.fillRect(X + 3, Y + 4, 2, 2);
+  else if (n < 0.5) g.fillRect(X + 12, Y + 13, 3, 1);
+  else if (n < 0.6) g.fillRect(X + 7, Y + 10, 1, 1);
+  g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(X, Y + tileSize - 1, tileSize, 1); g.fillRect(X + tileSize - 1, Y, 1, tileSize);
+}
+
+function drawCobble(g, c, r) {
+  const X = c * tileSize, Y = r * tileSize;
+  g.fillStyle = '#4b5563'; g.fillRect(X, Y, tileSize, tileSize);
+  const q = tileSize / 2;
+  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
+    const n = noise(c * 2 + i, r * 2 + j, 3);
+    g.fillStyle = n < 0.33 ? '#6b7280' : n < 0.66 ? '#5e6672' : '#737b88';
+    g.fillRect(X + i * q + 1, Y + j * q + 1, q - 2, q - 2);
+  }
+}
+
+function drawGrass(g, c, r) {
+  const X = c * tileSize, Y = r * tileSize, n = noise(c, r, 11);
+  g.fillStyle = n < 0.5 ? '#3f7d3a' : '#448a3f'; g.fillRect(X, Y, tileSize, tileSize);
+  g.fillStyle = '#5aa352';
+  if (n < 0.3) { g.fillRect(X + 4, Y + 6, 1, 3); g.fillRect(X + 12, Y + 11, 1, 3); }
+  else if (n < 0.6) { g.fillRect(X + 9, Y + 3, 1, 3); g.fillRect(X + 15, Y + 14, 1, 2); }
+}
+
+function drawHouse(g, h) {
+  const X = h.x * tileSize, Y = h.y * tileSize, W = h.w * tileSize, H = h.h * tileSize;
+  const roofH = Math.floor(H * 0.45);
+  // walls
+  g.fillStyle = '#d9b382'; g.fillRect(X, Y + roofH, W, H - roofH);
+  g.fillStyle = 'rgba(0,0,0,0.12)';
+  for (let y = Y + roofH + 4; y < Y + H; y += 6) g.fillRect(X, y, W, 1);
+  // roof with an overhang and shingle lines
+  g.fillStyle = h.door === 'inn' ? '#8b2e2e' : h.door === 'shop' ? '#6d3b8b' : '#7a4a2a';
+  g.fillRect(X - 2, Y, W + 4, roofH);
+  g.fillStyle = 'rgba(0,0,0,0.18)';
+  for (let y = Y + 4; y < Y + roofH; y += 5) g.fillRect(X - 2, y, W + 4, 1);
+  g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(X - 2, Y, W + 4, 2);
+  // windows
+  g.fillStyle = '#7bdfff';
+  for (let wx = X + 8; wx < X + W - 8; wx += 24) { g.fillRect(wx, Y + roofH + 6, 8, 8); g.fillStyle = '#1b2733'; g.fillRect(wx + 3, Y + roofH + 6, 2, 8); g.fillRect(wx, Y + roofH + 9, 8, 2); g.fillStyle = '#7bdfff'; }
+  // door at the bottom middle
+  const dx = X + Math.floor(W / 2) - 6;
+  g.fillStyle = '#5b3a1a'; g.fillRect(dx, Y + H - 14, 12, 14);
+  g.fillStyle = '#ffd86b'; g.fillRect(dx + 9, Y + H - 8, 2, 2);
+  // sign
+  if (h.door !== 'plain') {
+    g.fillStyle = '#f4f4f4'; g.fillRect(dx - 2, Y + roofH - 4, 16, 8);
+    g.fillStyle = '#1b1b2f'; g.font = 'bold 7px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(h.door === 'inn' ? 'INN' : 'SHOP', dx + 6, Y + roofH);
+    g.textAlign = 'start'; g.textBaseline = 'alphabetic';
+  }
+}
+
+function renderBackground() {
+  bgDirty = false;
+  const g = bgx;
+  const cx = Math.floor(cols / 2), cy = Math.floor(rows / 2);
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     const t = map[r][c];
-    // The whole layout is always drawn; the lit area around the player is
-    // brighter, and only monsters and items are hidden outside it.
-    let color;
-    if (t === TILE.FOUNTAIN) color = COLORS.fountain;
-    else if (inTown()) color = t === TILE.WALL ? COLORS.townWall : t === TILE.EXIT ? COLORS.exit : COLORS.townFloor;
-    else if (visible[r][c]) color = t === TILE.WALL ? COLORS.wall : t === TILE.EXIT ? COLORS.exit : COLORS.floor;
-    else color = t === TILE.WALL ? COLORS.wallDim : t === TILE.EXIT ? '#2f7a43' : COLORS.floorDim;
-    ctx.fillStyle = color;
-    ctx.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
-  }
-  if (inTown()) {
-    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-      if (map[r][c] !== TILE.INN) continue;
-      ctx.fillStyle = COLORS.inn;
-      ctx.fillRect(c * tileSize + 2, r * tileSize + 2, tileSize - 4, tileSize - 4);
-      ctx.fillStyle = '#06202c';
-      ctx.font = `bold ${Math.floor(tileSize * 0.8)}px sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('+', c * tileSize + tileSize / 2, r * tileSize + tileSize / 2 + 1);
-      ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+    if (inTown()) {
+      if (ground[r][c] === 'cobble' || t === TILE.FOUNTAIN) drawCobble(g, c, r); else drawGrass(g, c, r);
+      if (t === TILE.WALL && (r < 2 || r >= rows - 2 || c < 3 || c >= cols - 3)) {
+        // the hedge and trees that fence the town in
+        if (noise(c, r, 5) < 0.45) drawSprite(g, 'tree', c, r);
+        else { g.fillStyle = '#2e7d32'; g.fillRect(c * tileSize + 2, r * tileSize + 2, tileSize - 4, tileSize - 4); }
+      } else if (t === TILE.FLOOR && ground[r][c] === 'grass' && noise(c, r, 9) < 0.08) {
+        drawSprite(g, 'flower', c, r);
+      }
+      if (t === TILE.FOUNTAIN) {
+        g.fillStyle = '#9ca3af';
+        g.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
+        g.fillStyle = '#6b7280';
+        g.fillRect(c * tileSize + (c === cx - 1 ? 0 : tileSize - 3), r * tileSize, 3, tileSize);
+        g.fillRect(c * tileSize, r * tileSize + (r === cy - 1 ? 0 : tileSize - 3), tileSize, 3);
+      }
+      if (t === TILE.EXIT) {
+        // the dungeon gate: an archway in the hedge with stairs leading down
+        g.fillStyle = '#374151'; g.fillRect(c * tileSize - 4, r * tileSize - 4, tileSize + 8, tileSize + 8);
+        g.fillStyle = '#9ca3af'; g.fillRect(c * tileSize - 4, r * tileSize - 4, tileSize + 8, 3);
+        drawSprite(g, 'stairs', c, r);
+      }
+    } else {
+      if (t === TILE.WALL) drawBrick(g, c, r);
+      else drawStone(g, c, r, '#1b4a62', '#153a4d');
+      if (t === TILE.EXIT) drawSprite(g, 'stairs', c, r);
+      if (!visible[r][c]) { g.fillStyle = 'rgba(4,10,18,0.62)'; g.fillRect(c * tileSize, r * tileSize, tileSize, tileSize); }
     }
   }
-  for (const sh of shops) {
-    ctx.fillStyle = COLORS.shop;
-    ctx.fillRect(sh.x * tileSize + 2, sh.y * tileSize + 2, tileSize - 4, tileSize - 4);
-    ctx.fillStyle = '#06202c';
-    ctx.font = `bold ${Math.floor(tileSize * 0.75)}px sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('$', sh.x * tileSize + tileSize / 2, sh.y * tileSize + tileSize / 2 + 1);
-    ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+  if (inTown()) {
+    for (const h of houses) drawHouse(g, h);
+    // lamp posts at the plaza corners
+    for (const [lc, lr] of [[cx - 11, cy - 6], [cx + 11, cy - 6], [cx - 11, cy + 6], [cx + 11, cy + 6]]) drawSprite(g, 'lamp', lc, lr);
   }
+}
+
+function drawBubble(g, b) {
+  g.font = '11px sans-serif';
+  const pad = 5, w = Math.min(g.measureText(b.text).width + pad * 2, canvas.width - 8), lines = [];
+  // wrap to the bubble width
+  let line = '';
+  for (const word of b.text.split(' ')) {
+    const test = line ? line + ' ' + word : word;
+    if (g.measureText(test).width + pad * 2 > Math.min(260, w) && line) { lines.push(line); line = word; } else line = test;
+  }
+  lines.push(line);
+  const bw = Math.min(260, Math.max(...lines.map((l) => g.measureText(l).width)) + pad * 2), bh = lines.length * 14 + pad * 2;
+  let bx = b.x * tileSize + tileSize / 2 - bw / 2, by = b.y * tileSize - bh - 6;
+  bx = Math.max(4, Math.min(canvas.width - bw - 4, bx)); if (by < 4) by = b.y * tileSize + tileSize + 6;
+  g.fillStyle = 'rgba(244,244,244,0.95)';
+  g.beginPath(); g.roundRect(bx, by, bw, bh, 6); g.fill();
+  g.fillStyle = '#1b1b2f'; g.textBaseline = 'top';
+  lines.forEach((l, i) => g.fillText(l, bx + pad, by + pad + i * 14));
+  g.textBaseline = 'alphabetic';
+}
+
+function drawHud(g, now) {
+  // Stats strip along the top edge.
+  const text = `${inTown() ? 'Town' : `Floor ${floor}/${FINAL_FLOOR}`}   HP ${player.hp}/${player.maxHp}   ATK ${player.atk + weaponAtk()}   DEF ${armorDef()}   Lv ${player.level}   Gold ${player.gold}`;
+  g.font = 'bold 11px sans-serif';
+  const w = g.measureText(text).width + 16;
+  g.fillStyle = 'rgba(6,12,20,0.78)';
+  g.beginPath(); g.roundRect(6, 6, w, 30, 6); g.fill();
+  g.fillStyle = '#e6eef8'; g.textBaseline = 'top'; g.fillText(text, 14, 11);
+  const ratio = Math.max(0, player.hp / player.maxHp);
+  g.fillStyle = '#06202c'; g.fillRect(14, 26, w - 16, 5);
+  g.fillStyle = ratio > 0.5 ? '#5fe17a' : ratio > 0.25 ? '#f5c542' : '#ff6b6b'; g.fillRect(14, 26, (w - 16) * ratio, 5);
+  // Recent messages along the bottom edge, newest last, fading with age.
+  g.font = '11px sans-serif';
+  const recent = messages.filter((m) => now - m.at < 9000);
+  if (recent.length) {
+    const lh = 15, pad = 6, bw = canvas.width - 12, bh = recent.length * lh + pad * 2;
+    g.fillStyle = 'rgba(6,12,20,0.78)';
+    g.beginPath(); g.roundRect(6, canvas.height - bh - 6, bw, bh, 6); g.fill();
+    recent.forEach((m, i) => {
+      const age = now - m.at;
+      g.globalAlpha = age > 6000 ? 1 - (age - 6000) / 3000 : 1;
+      g.fillStyle = m.cls === 'good' ? '#9ef0b0' : m.cls === 'bad' ? '#ff9b9b' : '#e6eef8';
+      g.fillText(m.text, 14, canvas.height - bh - 6 + pad + i * lh);
+    });
+    g.globalAlpha = 1;
+  }
+  g.textBaseline = 'alphabetic';
+}
+
+function draw() {
+  if (!map) return;
+  if (bgDirty) renderBackground();
+  ctx.drawImage(bg, 0, 0);
   const now = performance.now();
-  for (const g of golds) {
-    if (!visible[g.y][g.x]) continue;
-    const cx = g.x * tileSize + tileSize / 2, cy = g.y * tileSize + tileSize / 2;
-    ctx.fillStyle = COLORS.gold;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - 5); ctx.lineTo(cx + 5, cy); ctx.lineTo(cx, cy + 5); ctx.lineTo(cx - 5, cy);
-    ctx.closePath(); ctx.fill();
+  if (inTown()) {
+    // fountain water, rippling
+    const cx = Math.floor(cols / 2), cy = Math.floor(rows / 2);
+    const X = (cx - 1) * tileSize + 3, Y = (cy - 1) * tileSize + 3, S = tileSize * 2 - 6;
+    ctx.fillStyle = '#3b82f6'; ctx.fillRect(X, Y, S, S);
+    ctx.fillStyle = 'rgba(123,223,255,0.7)';
+    for (let i = 0; i < 3; i++) {
+      const rr = ((now / 900 + i / 3) % 1) * (S / 2);
+      ctx.beginPath(); ctx.arc(X + S / 2, Y + S / 2, rr, 0, Math.PI * 2); ctx.strokeStyle = `rgba(244,244,244,${0.7 - rr / (S / 2) * 0.7})`; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    ctx.fillStyle = '#f4f4f4'; ctx.fillRect(X + S / 2 - 1, Y + S / 2 - 10 + Math.sin(now / 200) * 2, 2, 10);
   }
+  for (const g of golds) if (visible[g.y][g.x]) drawSprite(ctx, 'gold', g.x, g.y);
   for (const p of potions) {
     if (!visible[p.y][p.x]) continue;
-    const cx = p.x * tileSize + tileSize / 2, cy = p.y * tileSize + tileSize / 2;
-    const pulse = 1 + 0.25 * Math.sin(now / 300 + p.x + p.y);
-    const rad = Math.max(3, (tileSize / 4) * pulse);
-    ctx.fillStyle = 'rgba(123,223,255,0.18)';
-    ctx.beginPath(); ctx.arc(cx, cy, rad + 4, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = COLORS.potion; ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.fill();
+    const pulse = 0.35 + 0.25 * Math.sin(now / 300 + p.x + p.y);
+    ctx.fillStyle = `rgba(123,223,255,${pulse * 0.5})`;
+    ctx.beginPath(); ctx.arc(p.x * tileSize + tileSize / 2, p.y * tileSize + tileSize / 2, tileSize * 0.55, 0, Math.PI * 2); ctx.fill();
+    drawSprite(ctx, 'potion', p.x, p.y);
+  }
+  for (const sh of shops) {
+    if (!inTown()) { ctx.fillStyle = 'rgba(192,132,252,0.25)'; ctx.fillRect(sh.x * tileSize, sh.y * tileSize, tileSize, tileSize); }
+    drawSprite(ctx, 'merchant', sh.x, sh.y);
+  }
+  if (inTown()) {
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (map[r][c] === TILE.INN) drawSprite(ctx, 'innkeeper', c, r);
+    for (const n of npcs) drawSprite(ctx, n.type.sprite, n.x, n.y);
   }
   for (const m of monsters) {
     if (!visible[m.y][m.x]) continue;
-    ctx.fillStyle = m.type.color;
-    ctx.fillRect(m.x * tileSize + 2, m.y * tileSize + 2, tileSize - 4, tileSize - 4);
+    drawSprite(ctx, m.type.sprite, m.x, m.y);
     if (m.hp < m.maxHp) {
-      ctx.fillStyle = '#300';
-      ctx.fillRect(m.x * tileSize + 2, m.y * tileSize, tileSize - 4, 2);
-      ctx.fillStyle = '#f33';
-      ctx.fillRect(m.x * tileSize + 2, m.y * tileSize, (tileSize - 4) * (m.hp / m.maxHp), 2);
+      ctx.fillStyle = '#300'; ctx.fillRect(m.x * tileSize + 2, m.y * tileSize, tileSize - 4, 2);
+      ctx.fillStyle = '#f33'; ctx.fillRect(m.x * tileSize + 2, m.y * tileSize, (tileSize - 4) * (m.hp / m.maxHp), 2);
     }
-    ctx.fillStyle = '#06202c';
-    ctx.font = `bold ${Math.floor(tileSize * 0.7)}px sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(m.type.name[0], m.x * tileSize + tileSize / 2, m.y * tileSize + tileSize / 2 + 1);
-    ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
     if (!m.awake) {
-      ctx.fillStyle = '#fff'; ctx.font = '9px sans-serif';
-      ctx.fillText('z', m.x * tileSize + tileSize - 7, m.y * tileSize + 9);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 9px sans-serif';
+      ctx.fillText('z', m.x * tileSize + tileSize - 6, m.y * tileSize + 8);
     }
   }
-  ctx.fillStyle = COLORS.player;
-  ctx.fillRect(player.x * tileSize + 2, player.y * tileSize + 2, tileSize - 4, tileSize - 4);
+  // the hero, with a soft glow so they stand out on any ground
+  ctx.fillStyle = 'rgba(255,216,107,0.18)';
+  ctx.beginPath(); ctx.arc(player.x * tileSize + tileSize / 2, player.y * tileSize + tileSize / 2, tileSize * 0.6, 0, Math.PI * 2); ctx.fill();
+  drawSprite(ctx, 'player', player.x, player.y);
+  if (bubble) { if (now > bubble.until) bubble = null; else drawBubble(ctx, bubble); }
+  drawHud(ctx, now);
   if (inspected) {
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
     ctx.strokeRect(inspected.x * tileSize + 1, inspected.y * tileSize + 1, tileSize - 2, tileSize - 2);
@@ -334,6 +593,8 @@ let inspected = null;
 function describeTile(x, y) {
   if (!map || !inBounds(x, y) || !visible[y][x]) return null;
   if (x === player.x && y === player.y) return `You — ${player.hp}/${player.maxHp} HP, attack ${player.atk}`;
+  const n = inTown() && getNpcAt(x, y);
+  if (n) return `${n.type.name} — walk into them to chat`;
   const m = getMonsterAt(x, y);
   if (m) return `${m.type.name} — ${m.hp}/${m.maxHp} HP, attack ${m.atk}${m.awake ? '' : ' (asleep)'}`;
   if (getPotionAt(x, y)) return 'Potion — restores 5 HP';
@@ -379,24 +640,29 @@ canvas.addEventListener('click', inspect);
 
 function buildLegend() {
   legendEl.innerHTML = '';
-  const add = (swatchStyle, label, detail, glyph = '') => {
+  const add = (spriteName, label, detail, dim = false) => {
     const li = document.createElement('li');
-    li.innerHTML = `<span class="swatch" style="${swatchStyle}">${glyph}</span><b>${label}</b> <span class="muted">${detail}</span>`;
+    const c = document.createElement('canvas'); c.width = c.height = 18; c.className = 'swatch';
+    const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.globalAlpha = dim ? 0.35 : 1;
+    g.drawImage(sprite(spriteName), 1, 1, 16, 16);
+    li.appendChild(c);
+    li.insertAdjacentHTML('beforeend', `<b>${label}</b> <span class="muted">${detail}</span>`);
     legendEl.appendChild(li);
   };
-  add(`background:${COLORS.player}`, 'You', '');
+  add('player', 'You', '');
   for (const t of MONSTER_TYPES) {
     const locked = t.minFloor > Math.max(floor, 1);
-    add(`background:${t.color};${locked ? 'opacity:.35' : ''}`, t.name, locked ? `from floor ${t.minFloor}` : `${t.hp} HP, attack ${t.atk}, ${t.xp} XP`, t.name[0]);
+    add(t.sprite, t.name, locked ? `from floor ${t.minFloor}` : `${t.hp} HP, attack ${t.atk}, ${t.xp} XP`, locked);
   }
-  add(`background:${COLORS.potion};border-radius:50%`, 'Potion', '+5 HP');
-  add(`background:${COLORS.gold};transform:rotate(45deg) scale(.7)`, 'Gold', '');
-  add(`background:${COLORS.shop}`, 'Merchant', 'buy and sell', '$');
+  add('potion', 'Potion', '+5 HP');
+  add('gold', 'Gold', '');
+  add('merchant', 'Merchant', 'buy and sell');
   if (inTown()) {
-    add(`background:${COLORS.inn}`, 'Inn', 'full heal', '+');
-    add(`background:${COLORS.exit}`, 'Entrance', 'into the dungeon');
+    add('innkeeper', 'Innkeeper', 'rest for free');
+    add('guard', 'Townsfolk', 'walk into them to chat');
+    add('stairs', 'Gate', 'into the dungeon');
   } else {
-    add(`background:${COLORS.exit}`, 'Exit', 'stairs down');
+    add('stairs', 'Exit', 'stairs down');
   }
 }
 
@@ -486,7 +752,9 @@ function nextFloor() {
 function tryMove(dx, dy) {
   if (gameOver || !map) return;
   const nx = player.x + dx, ny = player.y + dy;
-  if (!inBounds(nx, ny) || map[ny][nx] === TILE.WALL) return;
+  if (!inBounds(nx, ny) || map[ny][nx] === TILE.WALL || map[ny][nx] === TILE.FOUNTAIN) return;
+  const n = inTown() && getNpcAt(nx, ny);
+  if (n) { talk(n); draw(); return; }
   const m = getMonsterAt(nx, ny);
   if (m) {
     playerAttack(m);
@@ -514,7 +782,7 @@ function tryMove(dx, dy) {
   }
   turn++;
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
-  stepMonsters();
+  if (inTown()) stepNpcs(); else stepMonsters();
   updateVisibility();
   updateStats();
   if (player.hp <= 0) {
@@ -539,6 +807,7 @@ window.addEventListener('keydown', (e) => {
   if (shopOpen) return;
   if (e.key === 'r' || e.key === 'R') { init(); return; }
   if (e.key === 'p' || e.key === 'P') { drinkPotion(); return; }
+  if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); return; }
   if (e.key === '.' || e.key === ' ') { e.preventDefault(); wait(); return; }
   const dir = KEYS[e.key];
   if (dir) { e.preventDefault(); tryMove(dir[0], dir[1]); }
@@ -551,6 +820,36 @@ document.querySelectorAll('[data-move]').forEach((btn) => {
   });
 });
 restartBtn.addEventListener('click', init);
+
+// Fullscreen: the stage (canvas plus its overlays) fills the screen and the
+// canvas is fitted to it keeping its 4:3 shape. F toggles it too.
+const stageEl = canvas.parentElement;
+const fsBtn = document.getElementById('fullscreen');
+function toggleFullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen?.();
+  else stageEl.requestFullscreen?.().catch(() => log('Fullscreen is not available in this browser.', 'bad'));
+}
+function fitCanvas() {
+  if (!document.fullscreenElement) { canvas.style.width = ''; canvas.style.height = ''; return; }
+  const scale = Math.min(window.innerWidth / canvas.width, window.innerHeight / canvas.height);
+  canvas.style.width = `${Math.floor(canvas.width * scale)}px`;
+  canvas.style.height = `${Math.floor(canvas.height * scale)}px`;
+}
+fsBtn?.addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', () => { fitCanvas(); if (fsBtn) fsBtn.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'; });
+window.addEventListener('resize', fitCanvas);
+
+// Swipe to move, tap to inspect (phones in fullscreen have no D-pad).
+let touchStart = null;
+canvas.addEventListener('touchstart', (e) => { if (e.touches.length === 1) touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }, { passive: true });
+canvas.addEventListener('touchend', (e) => {
+  if (!touchStart || shopOpen) return;
+  const dx = e.changedTouches[0].clientX - touchStart.x, dy = e.changedTouches[0].clientY - touchStart.y;
+  touchStart = null;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return; // a tap: the click handler inspects
+  e.preventDefault();
+  if (Math.abs(dx) > Math.abs(dy)) tryMove(Math.sign(dx), 0); else tryMove(0, Math.sign(dy));
+});
 // Save when the tab is closed or backgrounded, so a mid-floor run is not lost.
 window.addEventListener('pagehide', () => { if (!gameOver) saveProgress('progress', true); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && !gameOver) saveProgress('progress', true); });
@@ -702,6 +1001,7 @@ document.getElementById('shop-close')?.addEventListener('click', closeShop);
 
 // ---------- setup ----------
 function buildFloor() {
+  bubble = null;
   if (inTown()) {
     createTown();
   } else {

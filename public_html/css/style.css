@@ -60,7 +60,7 @@ button.primary,a.primary{background:#5fe17a;color:#06202c;border-color:#5fe17a;f
 .legend-box summary{cursor:pointer;color:#cfe9ff;font-size:.9rem}
 .legend{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.9rem}
 .legend li{display:flex;align-items:center;gap:6px}
-.legend .swatch{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:3px;font-size:12px;font-weight:700;color:#06202c;flex:none}
+.legend .swatch{width:18px;height:18px;border-radius:3px;background:#0f1724;flex:none;image-rendering:pixelated}
 .small{font-size:.8rem;margin:6px 0 2px}
 /* --- inventory and shop --- */
 .inventory{display:flex;flex-wrap:wrap;gap:8px 24px;align-items:flex-start;margin-top:8px;padding:8px 10px;background:#06202c;border-radius:6px;font-size:.9rem}
@@ -119,3 +119,9 @@ a.secondary{background:#0b3142;border:1px solid #12384a;color:#d5f0ff;border-rad
 .form textarea{padding:8px 10px;border-radius:6px;border:1px solid #12384a;background:#0f1724;color:#e6eef8;font-size:1rem;resize:vertical}
 .foot{margin:24px 0 8px;text-align:center}
 @media (max-width:720px){.hero-banner,.profile-grid{grid-template-columns:1fr}.hero-copy h2{font-size:1.5rem}}
+/* --- fullscreen stage --- */
+.stage:fullscreen{display:flex;align-items:center;justify-content:center;background:#060c14}
+.stage:fullscreen #game{border:0;border-radius:0}
+.bottom{flex-wrap:wrap}
+.fs{align-self:center}
+@media (max-width:600px){.fs{width:100%}}

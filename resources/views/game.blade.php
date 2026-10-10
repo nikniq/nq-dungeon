@@ -36,6 +36,7 @@
         <button type="button" data-move="1,0" aria-label="Right">&#9654;</button>
         <button type="button" data-move="0,1" aria-label="Down">&#9660;</button>
       </div>
+      <button type="button" id="fullscreen" class="fs">Fullscreen</button>
     </div>
     <div class="inventory" id="inventory">
       <div class="equip"><span class="muted">Weapon</span> <b id="inv-weapon">Bare hands</b></div>
