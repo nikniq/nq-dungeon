@@ -12,7 +12,7 @@ class CharacterTest extends TestCase
 
     public function test_guest_can_play_without_an_account(): void
     {
-        $this->get('/')->assertOk()->assertSee('Playing as a guest');
+        $this->get('/play')->assertOk()->assertSee('Playing as a guest');
     }
 
     public function test_registration_creates_a_character_and_logs_in(): void
@@ -22,11 +22,24 @@ class CharacterTest extends TestCase
             'email' => 'thorin@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
-        ])->assertRedirect('/');
+        ])->assertRedirect('/play');
 
         $this->assertAuthenticated();
         $this->assertDatabaseHas('characters', ['name' => 'Thorin', 'floor' => 0, 'level' => 1]);
-        $this->get('/')->assertOk()->assertSee('Thorin')->assertDontSee('Playing as a guest');
+        $this->get('/play')->assertOk()->assertSee('Thorin')->assertDontSee('Playing as a guest');
+    }
+
+    public function test_hero_names_must_be_unique_and_safe(): void
+    {
+        User::factory()->create()->character()->create(['name' => 'Thorin']);
+
+        $this->from('/register')->post('/register', [
+            'character' => 'thorin', 'email' => 'x@example.com', 'password' => 'password123', 'password_confirmation' => 'password123',
+        ])->assertRedirect('/register')->assertSessionHasErrors('character');
+        $this->from('/register')->post('/register', [
+            'character' => '<script>', 'email' => 'y@example.com', 'password' => 'password123', 'password_confirmation' => 'password123',
+        ])->assertRedirect('/register')->assertSessionHasErrors('character');
+        $this->assertGuest();
     }
 
     public function test_login_with_wrong_password_fails(): void
@@ -115,9 +128,9 @@ class CharacterTest extends TestCase
         $user->character()->create(['name' => 'Ayla', 'floor' => 2, 'level' => 3]);
 
         $this->actingAs($user)->get('/character')->assertOk()->assertSee('Ayla')->assertSee('Floor 2,');
-        $this->actingAs($user)->post('/character', ['name' => 'Ayla the Bold'])->assertRedirect('/');
-        $this->actingAs($user)->post('/character/abandon')->assertRedirect('/');
-        $this->assertDatabaseHas('characters', ['name' => 'Ayla the Bold', 'floor' => 0, 'level' => 1]);
+        $this->actingAs($user)->post('/character', ['name' => 'Ayla the Bold', 'bio' => 'Fears no goblin.'])->assertRedirect('/character');
+        $this->actingAs($user)->post('/character/abandon')->assertRedirect('/character');
+        $this->assertDatabaseHas('characters', ['name' => 'Ayla the Bold', 'bio' => 'Fears no goblin.', 'floor' => 0, 'level' => 1]);
     }
 
     public function test_logout(): void
@@ -125,5 +138,39 @@ class CharacterTest extends TestCase
         $user = User::factory()->create();
         $this->actingAs($user)->post('/logout')->assertRedirect('/');
         $this->assertGuest();
+    }
+
+    public function test_landing_page_shows_leaderboard(): void
+    {
+        $this->get('/')->assertOk()->assertSee('Play now')->assertSee('No heroes yet');
+
+        $a = User::factory()->create(); $a->character()->create(['name' => 'Ayla', 'wins' => 2, 'best_floor' => 5]);
+        $b = User::factory()->create(); $b->character()->create(['name' => 'Bram', 'wins' => 0, 'best_floor' => 3]);
+
+        $this->get('/')->assertOk()->assertSeeInOrder(['Ayla', 'Bram'])->assertSee('All 2 heroes');
+    }
+
+    public function test_public_profile_and_directory(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla', 'bio' => 'Fears no goblin.', 'floor' => 2, 'wins' => 1, 'weapon' => 'mace', 'armor' => 'chain']);
+        User::factory()->create()->character()->create(['name' => 'Bram']);
+
+        $this->get('/heroes/Ayla')->assertOk()
+            ->assertSee('Fears no goblin.')->assertSee('Rank #1')->assertSee('Currently on floor 2')->assertSee('Mace')->assertSee('Chain mail')
+            ->assertDontSee('Edit your profile');
+        $this->get('/heroes/Bram')->assertOk()->assertSee('Rank #2')->assertSee('Resting in town');
+        $this->get('/heroes/Nobody')->assertNotFound();
+        $this->get('/heroes')->assertOk()->assertSeeInOrder(['Ayla', 'Bram']);
+        $this->get('/heroes?q=bra')->assertOk()->assertSee('Bram')->assertDontSee('Ayla');
+
+        $this->actingAs($user)->get('/heroes/Ayla')->assertOk()->assertSee('Edit your profile');
+    }
+
+    public function test_login_redirects_to_intended_page(): void
+    {
+        $user = User::factory()->create(['password' => 'password123']);
+        $this->get('/character')->assertRedirect('/login');
+        $this->post('/login', ['email' => $user->email, 'password' => 'password123'])->assertRedirect('/character');
     }
 }

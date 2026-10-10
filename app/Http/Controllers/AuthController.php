@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Character;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,10 +20,11 @@ class AuthController extends Controller
     public function register(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'character' => ['required', 'string', 'min:2', 'max:24'],
+            'character' => ['required', 'string', 'min:2', 'max:24', 'regex:/^[\pL\pN][\pL\pN _-]*$/u',
+                fn ($attr, $value, $fail) => Character::nameTaken($value) && $fail('That hero name is already taken.')],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-        ]);
+        ], [], ['character' => 'hero name']);
 
         $user = User::create([
             'name' => $data['character'],
@@ -54,7 +56,7 @@ class AuthController extends Controller
         }
         $request->session()->regenerate();
 
-        return redirect()->route('game');
+        return redirect()->intended(route('game'));
     }
 
     public function logout(Request $request): RedirectResponse
@@ -63,6 +65,6 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('game');
+        return redirect()->route('home');
     }
 }

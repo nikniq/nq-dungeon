@@ -8,13 +8,28 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Character extends Model
 {
     protected $fillable = [
-        'name', 'floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk',
+        'name', 'bio', 'floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk',
         'weapon', 'armor', 'bag', 'runs', 'wins', 'best_floor', 'best_gold', 'kills',
     ];
 
     protected $casts = ['bag' => 'array'];
 
     protected $attributes = ['bag' => '[]'];
+
+    /** True when another hero already uses this name, ignoring case. */
+    public static function nameTaken(string $name, ?int $exceptId = null): bool
+    {
+        return static::query()
+            ->whereRaw('lower(name) = ?', [mb_strtolower($name)])
+            ->when($exceptId, fn ($q) => $q->where('id', '!=', $exceptId))
+            ->exists();
+    }
+
+    /** Profiles are looked up by hero name. */
+    public function getRouteKeyName(): string
+    {
+        return 'name';
+    }
 
     public function user(): BelongsTo
     {

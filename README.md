@@ -30,6 +30,9 @@ php artisan serve
 # open http://localhost:8000
 ```
 
+Pages: `/` landing page with leaderboard, `/play` the game, `/heroes` directory,
+`/heroes/{name}` public profile, `/character` your own profile editor.
+
 Game assets live in `public_html/js/script.js` and `public_html/css/style.css`;
-the page is `resources/views/game.blade.php`, routed at `/` in `routes/web.php`.
+the game page is `resources/views/game.blade.php`, routed at `/play` in `routes/web.php`.
 # nq-dungeon

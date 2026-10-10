@@ -6,7 +6,8 @@
   <p class="muted">Your progress is saved as you play, so you can come back later and continue the run.</p>
   <form method="post" action="{{ route('register') }}" class="form">
     @csrf
-    <label>Hero name <input type="text" name="character" value="{{ old('character') }}" required autofocus minlength="2" maxlength="24"></label>
+    <label>Hero name <input type="text" name="character" value="{{ old('character') }}" required autofocus minlength="2" maxlength="24" placeholder="Letters, numbers, spaces, - or _"></label>
+    <p class="muted small">Your hero name is public and becomes your profile address.</p>
     @error('character')<p class="error">{{ $message }}</p>@enderror
     <label>Email <input type="email" name="email" value="{{ old('email') }}" required autocomplete="email"></label>
     @error('email')<p class="error">{{ $message }}</p>@enderror

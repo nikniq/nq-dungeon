@@ -82,3 +82,40 @@ button.primary,a.primary{background:#5fe17a;color:#06202c;border-color:#5fe17a;f
 .shop-cols h3{margin:0 0 6px;font-size:1rem;color:#cfe9ff}
 .gold{color:#f5c542;font-weight:600}
 @media (max-width:600px){.shop-cols{grid-template-columns:1fr}}
+/* --- public site: landing, heroes, profiles --- */
+.hero-banner{display:grid;grid-template-columns:1.1fr 1fr;gap:24px;align-items:center;margin:16px 0 24px}
+.hero-copy h2{font-size:2rem;margin:0 0 8px;line-height:1.15}
+.hero-copy p{font-size:1.05rem;color:#cfe9ff}
+.cta{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:14px 0 6px}
+.big{padding:10px 18px;font-size:1rem}
+a.secondary{background:#0b3142;border:1px solid #12384a;color:#d5f0ff;border-radius:6px;text-decoration:none}
+.hero-shot img{display:block;width:100%;height:auto;border:4px solid #0b3142;border-radius:8px;background:#060c14}
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:0 0 24px}
+.features div{background:#06202c;border-radius:8px;padding:12px 14px}
+.features h3{margin:0 0 4px;font-size:1rem;color:#ffd86b}
+.features p{margin:0;font-size:.92rem;color:#cfe9ff}
+.board{background:#06202c;border-radius:8px;padding:12px 14px;margin:0 0 24px}
+.board-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.board h2{margin:0;font-size:1.3rem}
+.ranks{width:100%;border-collapse:collapse;margin-top:8px;font-size:.95rem}
+.ranks th{text-align:left;color:#a8c0d8;font-weight:500;padding:6px 8px;border-bottom:1px solid #12384a}
+.ranks td{padding:6px 8px;border-bottom:1px solid #0b2230}
+.ranks tr:last-child td{border-bottom:0}
+.ranks td:not(:nth-child(2)):not(:first-child),.ranks th:not(:nth-child(2)):not(:first-child){text-align:right}
+.heroes .ranks td:not(:first-child):not(:nth-child(2)){text-align:right}
+.search{display:flex;gap:6px}
+.search input{padding:6px 10px;border-radius:6px;border:1px solid #12384a;background:#0f1724;color:#e6eef8}
+.pager{margin-top:8px;font-size:.9rem}
+.pager nav{display:flex;gap:12px}
+.howto ul{padding-left:20px;color:#cfe9ff}
+.howto h2{font-size:1.3rem}
+.profile-head{display:flex;gap:16px;align-items:flex-start;margin:16px 0}
+.avatar{width:64px;height:64px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:700;color:#06202c;flex:none}
+.profile-head h2{margin:0;font-size:1.6rem}
+.bio{margin:6px 0 0;color:#cfe9ff;white-space:pre-line}
+.profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.profile-grid .panel{margin:0;max-width:none}
+.profile-grid h3{margin:0 0 6px;font-size:1rem;color:#ffd86b}
+.form textarea{padding:8px 10px;border-radius:6px;border:1px solid #12384a;background:#0f1724;color:#e6eef8;font-size:1rem;resize:vertical}
+.foot{margin:24px 0 8px;text-align:center}
+@media (max-width:720px){.hero-banner,.profile-grid{grid-template-columns:1fr}.hero-copy h2{font-size:1.5rem}}

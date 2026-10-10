@@ -85,10 +85,14 @@ class CharacterController extends Controller
 
     public function update(Request $request): RedirectResponse
     {
-        $data = $request->validate(['name' => ['required', 'string', 'min:2', 'max:24']]);
-        $this->current($request)->update($data);
+        $c = $this->current($request);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'min:2', 'max:24', 'regex:/^[\pL\pN][\pL\pN _-]*$/u', fn ($attr, $value, $fail) => Character::nameTaken($value, $c->id) && $fail('That hero name is already taken.')],
+            'bio' => ['nullable', 'string', 'max:280'],
+        ], [], ['name' => 'hero name']);
+        $c->update($data);
 
-        return redirect()->route('game')->with('status', 'Character renamed.');
+        return redirect()->route('character.edit')->with('status', 'Profile saved.');
     }
 
     public function abandon(Request $request): RedirectResponse
@@ -97,6 +101,6 @@ class CharacterController extends Controller
         $c->resetRun();
         $c->save();
 
-        return redirect()->route('game')->with('status', 'Run abandoned. Your hero starts fresh.');
+        return redirect()->route('character.edit')->with('status', 'Your hero starts fresh in town.');
     }
 }

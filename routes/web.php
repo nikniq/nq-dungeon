@@ -2,12 +2,19 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CharacterController;
+use App\Http\Controllers\HeroController;
+use App\Http\Controllers\HomeController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', fn () => response()
+Route::get('/', [HomeController::class, 'index'])->name('home');
+
+Route::get('/play', fn () => response()
     ->view('game')
     ->header('Cache-Control', 'no-cache, no-store, must-revalidate'))
     ->name('game');
+
+Route::get('/heroes', [HeroController::class, 'index'])->name('heroes.index');
+Route::get('/heroes/{character}', [HeroController::class, 'show'])->name('heroes.show');
 
 Route::middleware('guest')->group(function () {
     Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
