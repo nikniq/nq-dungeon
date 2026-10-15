@@ -15,7 +15,11 @@ grand castle, Castle Aurum, where King Aldric holds court and the Royal Armoury
 sells the realm's best gear. Cities and some towns have a specialist shop: smithy,
 armoury or apothecary. Out in the country stand caves, crypts, warrens and towers,
 short themed dungeons with their own monsters, a danger rating that grows with
-distance from Hearth, and a hoard at the bottom. Press M for the world map, Q for the quest log, N to toggle sound. Captains,
+distance from Hearth, and a hoard at the bottom. Choose a class: Warrior (Shield Wall), Ranger (Arrow, spots traps) or Mage
+(Fireball); press 1 for the ability. Chests hold gold, spike traps hide in
+corridors, spiders poison (potions cure), archers shoot from range, bats flit.
+Falling in battle costs half your gold and your potions, never level or gear.
+Press M for the world map, Q for the quest log, N to toggle sound. Captains,
 castellans and the King hand out site-clearing quests; townsfolk ask for monster
 tallies. A boss seals the stairs on the last floor of every dungeon. Beasts roam
 the wilds and grow bolder at night (a day is 480 turns). Your position, home town

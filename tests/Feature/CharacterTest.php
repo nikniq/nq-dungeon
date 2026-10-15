@@ -22,10 +22,11 @@ class CharacterTest extends TestCase
             'email' => 'thorin@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
+            'class' => 'ranger',
         ])->assertRedirect('/play');
 
         $this->assertAuthenticated();
-        $this->assertDatabaseHas('characters', ['name' => 'Thorin', 'floor' => 0, 'level' => 1]);
+        $this->assertDatabaseHas('characters', ['name' => 'Thorin', 'floor' => 0, 'level' => 1, 'class' => 'ranger']);
         $this->get('/play')->assertOk()->assertSee('Thorin')->assertDontSee('Playing as a guest');
     }
 
@@ -34,10 +35,10 @@ class CharacterTest extends TestCase
         User::factory()->create()->character()->create(['name' => 'Thorin']);
 
         $this->from('/register')->post('/register', [
-            'character' => 'thorin', 'email' => 'x@example.com', 'password' => 'password123', 'password_confirmation' => 'password123',
+            'character' => 'thorin', 'email' => 'x@example.com', 'password' => 'password123', 'password_confirmation' => 'password123', 'class' => 'mage',
         ])->assertRedirect('/register')->assertSessionHasErrors('character');
         $this->from('/register')->post('/register', [
-            'character' => '<script>', 'email' => 'y@example.com', 'password' => 'password123', 'password_confirmation' => 'password123',
+            'character' => '<script>', 'email' => 'y@example.com', 'password' => 'password123', 'password_confirmation' => 'password123', 'class' => 'mage',
         ])->assertRedirect('/register')->assertSessionHasErrors('character');
         $this->assertGuest();
     }
@@ -73,8 +74,9 @@ class CharacterTest extends TestCase
         // Reloading the page resumes from the saved floor.
         $this->actingAs($user)->getJson('/api/character')->assertOk()->assertJson(['floor' => 3, 'name' => 'Ayla']);
 
+        // death keeps level and gear, halves gold, drops potions and active quests
         $this->actingAs($user)->postJson('/api/character', ['event' => 'death', 'kills' => 2] + $state)->assertOk()
-            ->assertJson(['floor' => 0, 'level' => 1, 'gold' => 0, 'best_floor' => 3, 'best_gold' => 40, 'kills' => 8, 'runs' => 1, 'wins' => 0, 'weapon' => null, 'armor' => null, 'bag' => []]);
+            ->assertJson(['floor' => 0, 'level' => 2, 'gold' => 20, 'hp' => 24, 'best_floor' => 3, 'best_gold' => 40, 'kills' => 8, 'runs' => 1, 'wins' => 0, 'weapon' => 'short_sword', 'armor' => 'leather', 'bag' => ['dagger']]);
     }
 
     public function test_win_counts_an_escape(): void
@@ -128,9 +130,9 @@ class CharacterTest extends TestCase
         $user->character()->create(['name' => 'Ayla', 'floor' => 2, 'level' => 3]);
 
         $this->actingAs($user)->get('/character')->assertOk()->assertSee('Ayla')->assertSee('Floor 2,');
-        $this->actingAs($user)->post('/character', ['name' => 'Ayla the Bold', 'bio' => 'Fears no goblin.'])->assertRedirect('/character');
+        $this->actingAs($user)->post('/character', ['name' => 'Ayla the Bold', 'bio' => 'Fears no goblin.', 'class' => 'mage'])->assertRedirect('/character');
         $this->actingAs($user)->post('/character/abandon')->assertRedirect('/character');
-        $this->assertDatabaseHas('characters', ['name' => 'Ayla the Bold', 'bio' => 'Fears no goblin.', 'floor' => 0, 'level' => 1]);
+        $this->assertDatabaseHas('characters', ['name' => 'Ayla the Bold', 'bio' => 'Fears no goblin.', 'class' => 'mage', 'floor' => 0, 'level' => 1]);
     }
 
     public function test_logout(): void

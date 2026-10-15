@@ -39,6 +39,7 @@ class CharacterController extends Controller
             'max_hp' => ['required', 'integer', 'min:1', 'max:9999'],
             'atk' => ['required', 'integer', 'min:1', 'max:999'],
             'kills' => ['required', 'integer', 'min:0'],
+            'class' => ['nullable', Rule::in(Character::CLASSES)],
             'weapon' => ['nullable', Rule::in(array_keys(config('items.weapons')))],
             'armor' => ['nullable', Rule::in(array_keys(config('items.armor')))],
             'bag' => ['present', 'array', 'max:'.config('items.bag_size')],
@@ -72,7 +73,7 @@ class CharacterController extends Controller
             if ($data['floor'] === 1 && $c->floor === 0) {
                 $c->runs++;
             }
-            $c->fill(collect($data)->only(['floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'bag', 'quests', 'quests_done', 'wx', 'wy', 'home'])->filter(fn ($v) => $v !== null)->all());
+            $c->fill(collect($data)->only(['floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'bag', 'quests', 'quests_done', 'wx', 'wy', 'home', 'class'])->filter(fn ($v) => $v !== null)->all());
         } elseif ($data['event'] === 'win') {
             // Back to town with everything earned; only the floor resets.
             if ($c->floor === 0) {
@@ -85,8 +86,9 @@ class CharacterController extends Controller
             if ($c->floor === 0) {
                 $c->runs++;
             }
-            $c->resetRun();
-            $c->quests = [];
+            // death: the client sends the stats as they were at the moment of falling
+            $c->fill(collect($data)->only(['level', 'xp', 'gold', 'max_hp', 'atk', 'weapon', 'armor', 'bag', 'wx', 'wy', 'home', 'class'])->filter(fn ($v) => $v !== null)->all());
+            $c->fallInBattle();
             if (isset($data['quests_done'])) {
                 $c->quests_done = $data['quests_done'];
             }
@@ -107,6 +109,7 @@ class CharacterController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'min:2', 'max:24', 'regex:/^[\pL\pN][\pL\pN _-]*$/u', fn ($attr, $value, $fail) => Character::nameTaken($value, $c->id) && $fail('That hero name is already taken.')],
             'bio' => ['nullable', 'string', 'max:280'],
+            'class' => ['required', Rule::in(Character::CLASSES)],
         ], [], ['name' => 'hero name']);
         $c->update($data);
 

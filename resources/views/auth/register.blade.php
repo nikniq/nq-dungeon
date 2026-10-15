@@ -9,6 +9,13 @@
     <label>Hero name <input type="text" name="character" value="{{ old('character') }}" required autofocus minlength="2" maxlength="24" placeholder="Letters, numbers, spaces, - or _"></label>
     <p class="muted small">Your hero name is public and becomes your profile address.</p>
     @error('character')<p class="error">{{ $message }}</p>@enderror
+    <fieldset class="classes">
+      <legend>Class</legend>
+      @foreach (['warrior' => ['Warrior', 'Sturdy and strong. Shield Wall blunts every blow for a few turns.'], 'ranger' => ['Ranger', 'Quick and sharp-eyed. Shoots arrows at anything in line of sight.'], 'mage' => ['Mage', 'Frail but fierce. Fireball scorches every monster near its target.']] as $id => [$label, $blurb])
+        <label class="class-opt"><input type="radio" name="class" value="{{ $id }}" {{ old('class', 'warrior') === $id ? 'checked' : '' }}> <b>{{ $label }}</b> <span class="muted">{{ $blurb }}</span></label>
+      @endforeach
+    </fieldset>
+    @error('class')<p class="error">{{ $message }}</p>@enderror
     <label>Email <input type="email" name="email" value="{{ old('email') }}" required autocomplete="email"></label>
     @error('email')<p class="error">{{ $message }}</p>@enderror
     <label>Password <input type="password" name="password" required minlength="8" autocomplete="new-password"></label>

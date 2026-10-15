@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Character extends Model
 {
     protected $fillable = [
-        'name', 'bio', 'floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk',
+        'name', 'bio', 'class', 'floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk',
         'weapon', 'armor', 'bag', 'quests', 'quests_done', 'wx', 'wy', 'home', 'runs', 'wins', 'best_floor', 'best_gold', 'kills',
     ];
 
@@ -36,6 +36,8 @@ class Character extends Model
         return $this->belongsTo(User::class);
     }
 
+    public const CLASSES = ['warrior', 'ranger', 'mage'];
+
     /** Reset the in-progress run to a fresh level-1 hero, keeping lifetime records. */
     public function resetRun(): void
     {
@@ -43,5 +45,18 @@ class Character extends Model
             'floor' => 0, 'level' => 1, 'xp' => 0, 'gold' => 0, 'hp' => 20, 'max_hp' => 20, 'atk' => 3,
             'weapon' => null, 'armor' => null, 'bag' => [],
         ]);
+    }
+
+    /**
+     * Death is a setback, not the end: the hero wakes in town with full health,
+     * keeps level and gear, loses half their gold and every potion.
+     */
+    public function fallInBattle(): void
+    {
+        $this->floor = 0;
+        $this->hp = $this->max_hp;
+        $this->gold = intdiv($this->gold, 2);
+        $this->bag = array_values(array_filter($this->bag ?? [], fn ($id) => $id !== 'potion' && $id !== 'elixir'));
+        $this->quests = [];
     }
 }

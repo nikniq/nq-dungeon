@@ -11,6 +11,17 @@
     <div class="stage">
       <canvas id="game" width="960" height="640"></canvas>
       <div id="tip" class="tip" role="status"></div>
+      <div id="classpick" class="overlay shop" hidden>
+        <div class="shop-inner">
+          <div class="shop-head"><h2>Choose your class</h2></div>
+          <ul class="itemlist classlist">
+            <li><b>Warrior</b> <span class="muted">24 HP, attack 3. Shield Wall: 2 less damage from every hit for 6 turns.</span> <button type="button" data-class="warrior">Warrior</button></li>
+            <li><b>Ranger</b> <span class="muted">18 HP, attack 3. Arrow: shoot the nearest monster in a straight line, up to 6 tiles. Spots traps.</span> <button type="button" data-class="ranger">Ranger</button></li>
+            <li><b>Mage</b> <span class="muted">16 HP, attack 2. Fireball: burn every monster within 2 tiles of the nearest one in sight.</span> <button type="button" data-class="mage">Mage</button></li>
+          </ul>
+          <p class="muted small">Press 1 to use your ability. Create a hero to keep your class, level and gear.</p>
+        </div>
+      </div>
       <div id="shop" class="overlay shop" hidden>
         <div class="shop-inner">
           <div class="shop-head"><h2>Merchant</h2><span id="shop-gold" class="gold"></span><button type="button" id="shop-close">Close</button></div>
@@ -36,6 +47,7 @@
         <button type="button" data-move="1,0" aria-label="Right">&#9654;</button>
         <button type="button" data-move="0,1" aria-label="Down">&#9660;</button>
       </div>
+      <button type="button" id="ability" class="fs primary">Ability (1)</button>
       <button type="button" id="worldmap" class="fs">Map (M)</button>
       <button type="button" id="quests" class="fs">Quests (Q)</button>
       <button type="button" id="sound" class="fs">Sound on</button>

@@ -16,7 +16,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 const restartBtn = document.getElementById('restart');
 
-const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9 };
+const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11 };
 const TOWN = 0;           // floor number of the town square
 const FINAL_FLOOR = 5;
 const VIEW_RADIUS = 8;    // how far the hero sees in the dungeon
@@ -30,7 +30,17 @@ const MONSTER_TYPES = [
   { name: 'Skeleton', sprite: 'skeleton', hp: 8,  atk: 3, xp: 7,  minFloor: 2 },
   { name: 'Orc',      sprite: 'orc',      hp: 12, atk: 4, xp: 12, minFloor: 3 },
   { name: 'Wraith',   sprite: 'wraith',   hp: 10, atk: 5, xp: 16, minFloor: 4 },
+  { name: 'Bat',      sprite: 'bat',      hp: 2,  atk: 1, xp: 2,  minFloor: 1, erratic: true },
+  { name: 'Spider',   sprite: 'spider',   hp: 5,  atk: 2, xp: 5,  minFloor: 2, poison: true },
+  { name: 'Archer',   sprite: 'archer',   hp: 4,  atk: 2, xp: 6,  minFloor: 2, ranged: 4 },
 ];
+// Hero classes: base stats, a sprite, and one ability on the 1 key.
+const CLASSES = {
+  warrior: { name: 'Warrior', hp: 24, atk: 3, sprite: 'player', ability: 'Shield Wall', cooldown: 25, blurb: 'Take 2 less damage from every hit for 6 turns.' },
+  ranger:  { name: 'Ranger',  hp: 18, atk: 3, sprite: 'ranger', ability: 'Arrow',       cooldown: 3,  blurb: 'Shoot the nearest monster in a straight line, up to 6 tiles. Rangers also spot traps two tiles away.' },
+  mage:    { name: 'Mage',    hp: 16, atk: 2, sprite: 'mage',   ability: 'Fireball',    cooldown: 8,  blurb: 'Burn every monster within 2 tiles of the nearest one in sight (range 5).' },
+};
+const heroClass = () => CLASSES[player && player.cls] || CLASSES.warrior;
 
 // ---------- state ----------
 let floor, player, gameOver, turn, kills;
@@ -102,7 +112,7 @@ function markSeen(x, y) {
   const cx = Math.floor(x / CHUNK), cy = Math.floor(y / CHUNK);
   getChunk(cx, cy).seen[(y - cy * CHUNK) * CHUNK + (x - cx * CHUNK)] = 1;
 }
-const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE;
+const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST;
 
 // ---------- account save/load ----------
 const ACCOUNT = window.DUNGEON || { user: false };
@@ -123,7 +133,7 @@ async function saveProgress(event, keepalive = false) {
         hp: player.hp, max_hp: player.maxHp, atk: player.atk, kills, weapon: player.weapon, armor: player.armor, bag: player.bag,
         wx: player.wx ?? 20, wy: player.wy ?? 21, home: homeTown,
         quests: (player.quests || []).slice(-12).map((q) => ({ id: q.id, kind: q.kind, label: q.label, need: q.need, have: q.have, done: !!q.done, target: q.target, giver: q.giver, reward: q.reward })),
-        quests_done: player.questsDone || 0 }),
+        quests_done: player.questsDone || 0, class: player.cls }),
     });
     if (!res.ok) throw new Error(res.status);
     kills = 0;
@@ -173,6 +183,12 @@ const sfx = (() => {
     boss: () => { tone(70, 0.7, 'sawtooth', 0.09, -25); tone(105, 0.7, 'sawtooth', 0.05, -35, 0.05); },
     die: () => [330, 262, 196, 131].forEach((f, i) => tone(f, 0.26, 'sawtooth', 0.06, 0, i * 0.18)),
     win: () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.2, 'triangle', 0.065, 0, i * 0.11)),
+    arrow: () => tone(900, 0.12, 'sawtooth', 0.04, -600),
+    fire: () => { tone(90, 0.4, 'sawtooth', 0.08, 120); tone(400, 0.25, 'square', 0.04, -300, 0.05); },
+    shield: () => tone(260, 0.25, 'triangle', 0.07, 140),
+    trap: () => { tone(700, 0.08, 'square', 0.07, -500); tone(140, 0.2, 'sawtooth', 0.07, -60, 0.06); },
+    chest: () => [392, 523, 659].forEach((f, i) => tone(f, 0.14, 'square', 0.05, 0, i * 0.08)),
+    poison: () => tone(200, 0.3, 'sine', 0.05, -120),
   };
   return {
     play: (n) => { try { sounds[n] && sounds[n](); } catch (e) { /* audio is best-effort */ } },
@@ -199,7 +215,7 @@ function nightTint() {
 }
 
 // ---------- bosses ----------
-const BOSS_NAMES = { Rat: 'the Rat King', Goblin: 'the Goblin Chieftain', Skeleton: 'the Bone Lord', Orc: 'the Orc Warchief', Wraith: 'the Lich' };
+const BOSS_NAMES = { Rat: 'the Rat King', Goblin: 'the Goblin Chieftain', Skeleton: 'the Bone Lord', Orc: 'the Orc Warchief', Wraith: 'the Lich', Bat: 'the Bat Matriarch', Spider: 'the Brood Mother', Archer: 'the Goblin Marksman' };
 function placeBoss(room, ox, oy) {
   const def = dungeonDef || { pool: null, danger: 0 };
   const pool = def.pool || MONSTER_TYPES.filter((t) => t.minFloor <= floor);
@@ -352,6 +368,12 @@ BIG_SPRITES.cave = ['................','......EEEE......','....EEEEEEEE....','..
 BIG_SPRITES.warren = ['................','................','.....hhhhhh.....','...hhhkkkkhhh...','..hhkkkkkkkkhh..','.hhkkkkkkkkkkhh.','.hkkkkkkkkkkkkh.','hhkkkkkkkkkkkkhh','hkkkkkkkkkkkkkkh','hkkkkeekkkkeekkh','hhkkkkkkkkkkkkhh','.hkkkkkkkkkkkkh.','.hhhkkkkkkkkhhh.','GGGhhhhhhhhhhGGG','GGGGGGGGGGGGGGGG','................'];
 BIG_SPRITES.crypt = ['....EEEEEEEE....','...EEEEEEEEEE...','..EEEEEwwEEEEE..','..EEEEwwwwEEEE..','..EEEEEwwEEEEE..','..EEEEEwwEEEEE..','..EEEkkkkkkEEE..','..EEkkkkkkkkEE..','..EEkkkkkkkkEE..','..EEkkkkkkkkEE..','..EEkkkkkkkkEE..','..EEkkkkkkkkEE..','..EEkkkkkkkkEE..','.EEEEEEEEEEEEEE.','EEEEEEEEEEEEEEEE','................'];
 BIG_SPRITES.tower = ['......pppp......','.....pppppp.....','....pppppppp....','.....eeeeee.....','.....eEeeEe.....','.....eeeeee.....','.....eeyyee.....','.....eeeeee.....','.....eEeeEe.....','.....eeeeee.....','.....eeeeee.....','....eeeeeeee....','....eeekkeee....','....eeekkeee....','GGGGeeekkeeeGGGG','................'];
+BIG_SPRITES.ranger = ['.....GGGGGG.....', '....GGGGGGGG....', '....GGssssGG....', '....Gsssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....GGGGGGGG....', '...GGGGGGGGGG...', '..sGGGGyyGGGGs..', '..s.GGGGGGGG.s..', '....GGGGGGGG....', '....hhh..hhh....', '....hhh..hhh....', '...HHH....HHH...', '................'];
+BIG_SPRITES.mage = ['.....pppppp.....', '....pppppppp....', '....ppsssspp....', '....psssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....pppppppp....', '...pppppppppp...', '..sppppyypppps..', '..s.pppppppp.s..', '....pppppppp....', '....BBB..BBB....', '....BBB..BBB....', '...HHH....HHH...', '................'];
+BIG_SPRITES.bat = ['................', '................', '................', '..k..........k..', '.kkk........kkk.', '.kkkk..kk..kkkk.', '..kkkkkkkkkkkk..', '...kkkkkkkkkk...', '....kkrkkrkk....', '.....kkkkkk.....', '......kkkk......', '.......kk.......', '................', '................', '................', '................'];
+BIG_SPRITES.spider = ['................', '................', '...k........k...', '..k.k......k.k..', '..k..kkkkkk..k..', '.k..kkkkkkkk..k.', '.k.kkrkkkkrkk.k.', '..kkkkkkkkkkkk..', '.k..kkkkkkkk..k.', '.k...kkkkkk...k.', '..k..k....k..k..', '..k.k......k.k..', '...k........k...', '................', '................', '................'];
+BIG_SPRITES.archer = ['....g......g....', '...gg......gg...', '...gggggggggg...', '..gggggggggggg..', '..ggkgggggkggg..', '..gggggggggggg..', '...ggggwwgggg...', '....gggggggg....', '...hHHHHHHHHh...', '..hhHHHHHHHHhh..', '..h.HHHHHHHH.h..', '.h..HHHHHHHH..h.', '.h..HHH..HHH..h.', '.h..HHH..HHH..h.', '....hhh..hhh....', '................'];
+BIG_SPRITES.trap = ['................', '................', '................', '................', '..e.....e.....e.', '.eee...eee...eee', '.eee...eee...eee', '.EEE...EEE...EEE', '.EEE...EEE...EEE', 'EEEEEEEEEEEEEEEE', 'EEEEEEEEEEEEEEEE', '................', '................', '................', '................', '................'];
 const spriteCache = {};
 function sprite(name) {
   if (spriteCache[name]) return spriteCache[name];
@@ -501,12 +523,14 @@ function xpToNext(level) { return 10 + (level - 1) * 8; }
 // with distance from Hearth and adds to every monster's health and attack.
 const byName = (...names) => MONSTER_TYPES.filter((t) => names.includes(t.name));
 const SITE_TYPES = {
-  cave:   { label: 'Goblin Cave', sprite: 'cave',   floors: [2, 3], pool: byName('Rat', 'Goblin', 'Orc'), gold: 1.6, potions: 1, view: 7, loot: 0.12, treasure: 60, prefixes: ['Mossy', 'Dripping', 'Echoing', 'Low', 'Black'] },
-  warren: { label: 'Orc Warren',  sprite: 'warren', floors: [2, 2], pool: byName('Goblin', 'Orc'),         gold: 1.2, potions: 1, view: 8, loot: 0.3,  treasure: 80, prefixes: ['Bloody', 'Broken-Tusk', 'Red', 'Grim', 'Ironhide'] },
-  crypt:  { label: 'Crypt',       sprite: 'crypt',  floors: [3, 3], pool: byName('Skeleton', 'Wraith'),    gold: 1,   potions: 1, view: 6, loot: 0.15, treasure: 120, prefixes: ['Forgotten', 'Silent', 'Weeping', 'Sunken', 'Nameless'], xp: 1.5 },
-  tower:  { label: "Wizard's Tower", sprite: 'tower', floors: [3, 4], pool: byName('Wraith', 'Skeleton', 'Orc'), gold: 1.3, potions: 2, view: 9, loot: 0.18, treasure: 200, prefixes: ['Leaning', 'Glass', 'Moonlit', 'Shattered', 'Violet'] },
+  cave:   { label: 'Goblin Cave', sprite: 'cave',   floors: [2, 3], pool: byName('Rat', 'Goblin', 'Bat', 'Spider', 'Orc'), gold: 1.6, potions: 1, view: 7, loot: 0.12, treasure: 60, prefixes: ['Mossy', 'Dripping', 'Echoing', 'Low', 'Black'] },
+  warren: { label: 'Orc Warren',  sprite: 'warren', floors: [2, 2], pool: byName('Goblin', 'Archer', 'Orc'),         gold: 1.2, potions: 1, view: 8, loot: 0.3,  treasure: 80, prefixes: ['Bloody', 'Broken-Tusk', 'Red', 'Grim', 'Ironhide'] },
+  crypt:  { label: 'Crypt',       sprite: 'crypt',  floors: [3, 3], pool: byName('Skeleton', 'Spider', 'Wraith'),    gold: 1,   potions: 1, view: 6, loot: 0.15, treasure: 120, prefixes: ['Forgotten', 'Silent', 'Weeping', 'Sunken', 'Nameless'], xp: 1.5 },
+  tower:  { label: "Wizard's Tower", sprite: 'tower', floors: [3, 4], pool: byName('Wraith', 'Skeleton', 'Bat', 'Archer'), gold: 1.3, potions: 2, view: 9, loot: 0.18, treasure: 200, prefixes: ['Leaning', 'Glass', 'Moonlit', 'Shattered', 'Violet'] },
 };
 let dungeonDef = null;   // set when a gate or a site is entered
+let revealedTraps = new Set();   // traps the hero has found, by "x,y"
+let guestRespawn = null;         // a guest's hero after a death, so R does not start from scratch
 function townDungeon(town) {
   const danger = Math.max(Math.abs(town.i), Math.abs(town.j));
   return { kind: 'town', name: `${town.name} dungeon`, floors: 5, pool: null, gold: 1 + danger * 0.15, potions: 1, view: 8, loot: 0.12, treasure: 0, danger, xp: 1, home: town.key };
@@ -935,6 +959,17 @@ function populateChunk(chunk, rand) {
     monstersDirty = true;
   }
   for (let i = 0; i < Math.round((2 + r(3)) * def.potions) && cells.length; i++) potions.push({ ...take(), heal: 5 });
+  // a chest or two in the rooms, and spike traps in the corridors
+  for (let i = 0; i < 1 + r(2) && chunk.rooms.length; i++) {
+    const room = chunk.rooms[r(chunk.rooms.length)];
+    const x = ox + room.x + r(room.w), y = oy + room.y + r(room.h);
+    if (chunk.tiles[(y - oy) * CHUNK + (x - ox)] === TILE.FLOOR && !(spawnChunk && dist({ x, y }, { x: ox + room.cx, y: oy + room.cy }) < 2)) chunk.tiles[(y - oy) * CHUNK + (x - ox)] = TILE.CHEST;
+  }
+  for (let i = 0; i < 1 + r(3) && cells.length; i++) {
+    const c = take();
+    const inRoom = chunk.rooms.some((rm) => c.x >= ox + rm.x && c.x < ox + rm.x + rm.w && c.y >= oy + rm.y && c.y < oy + rm.y + rm.h);
+    if (!inRoom && !(spawnChunk && dist(c, { x: ox + CHUNK / 2, y: oy + CHUNK / 2 }) < 8)) chunk.tiles[(c.y - oy) * CHUNK + (c.x - ox)] = TILE.TRAP;
+  }
   for (let i = 0; i < 5 + floor + r(4) && cells.length; i++) golds.push({ ...take(), amount: Math.round((5 + r(10) + floor * 2) * def.gold) });
   if ((spawnChunk || rand() < 0.2) && chunk.rooms.length) {
     const room = chunk.rooms[spawnChunk ? 0 : r(chunk.rooms.length)];
@@ -949,7 +984,7 @@ function populateChunk(chunk, rand) {
 function createDungeon() {
   scene = 'dungeon';
   bounded = null; ground = null; decor = null; houses = []; npcs = []; interior = null;
-  chunks = new Map(); monsters = []; potions = []; golds = []; shops = []; monstersDirty = true;
+  chunks = new Map(); monsters = []; potions = []; golds = []; shops = []; monstersDirty = true; revealedTraps = new Set();
   floorSeed = hash32(Date.now() & 0xffff, floor, rnd(1e6));
   const spawn = getChunk(0, 0);
   player.x = spawn.rooms[0].cx; player.y = spawn.rooms[0].cy;
@@ -1217,6 +1252,8 @@ function renderBackground() {
       if (t === TILE.FLOOR && noise(c, r, 13) < 0.03) drawSprite(g, 'bones', c, r, 0.8);
       if (t === TILE.EXIT) drawSprite(g, 'stairs', c, r);
       if (t === TILE.SHOP) { g.fillStyle = 'rgba(192,132,252,0.25)'; g.fillRect(c * T - off.x, r * T - off.y, T, T); }
+      if (t === TILE.CHEST) drawSprite(g, 'chest', c, r, 1, 4);
+      if (t === TILE.TRAP && revealedTraps.has(key(c, r))) drawSprite(g, 'trap', c, r, 1, 2);
     }
   }
   // light falls off towards the edge of sight
@@ -1259,12 +1296,22 @@ function drawHud(g, now) {
   const ratio = Math.max(0, player.hp / player.maxHp);
   g.fillStyle = '#06202c'; g.fillRect(18, 32, w - 20, 6);
   g.fillStyle = ratio > 0.5 ? '#5fe17a' : ratio > 0.25 ? '#f5c542' : '#ff6b6b'; g.fillRect(18, 32, (w - 20) * ratio, 6);
+  {
+    const cls = heroClass();
+    const parts = [`1: ${cls.ability} ${player.cooldown > 0 ? `(${player.cooldown})` : '(ready)'}`];
+    if (player.shield > 0) parts.push(`Shield ${player.shield}`);
+    if (player.poison > 0) parts.push(`Poisoned ${player.poison}`);
+    g.font = '12px sans-serif';
+    const at = parts.join('   ');
+    g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(8, 50, g.measureText(at).width + 20, 20, 5); g.fill();
+    g.fillStyle = player.poison > 0 ? '#9ef0b0' : player.cooldown > 0 ? '#a8c0d8' : '#7bdfff'; g.fillText(at, 18, 54);
+  }
   const q = player.quests && questsActive()[0];
   if (q) {
     g.font = '12px sans-serif';
     const qt = `Quest: ${q.label}  ${q.have}/${q.need}${questsActive().length > 1 ? `  (+${questsActive().length - 1} more, Q)` : '  (Q)'}`;
-    g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(8, 50, Math.min(canvas.width - 16, g.measureText(qt).width + 20), 20, 5); g.fill();
-    g.fillStyle = '#9ef0b0'; g.fillText(qt, 18, 54);
+    g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(8, 74, Math.min(canvas.width - 16, g.measureText(qt).width + 20), 20, 5); g.fill();
+    g.fillStyle = '#9ef0b0'; g.fillText(qt, 18, 78);
   }
   // compass: to the stairs in the dungeon, to the next town outdoors
   const target = scene === 'dungeon' ? exit : (inTown() ? (() => { const t = nearestOtherTown(player.x, player.y); return t ? { x: t.cx, y: t.cy, name: t.name } : null; })() : null);
@@ -1398,7 +1445,8 @@ function draw() {
     const lx = (player.rx ?? player.x) + ldx / T, ly = (player.ry ?? player.y) + ldy / T - bob(player);
     shadow(lx, ly);
     ctx.fillStyle = 'rgba(255,216,107,0.16)'; ctx.beginPath(); ctx.arc(lx * T - cam.x + T / 2, ly * T - cam.y + T / 2, T * 0.7, 0, Math.PI * 2); ctx.fill();
-    drawSprite(ctx, 'player', lx, ly, 1, 3, player.face === -1, player.flashUntil > now);
+    if (player.shield > 0) { ctx.strokeStyle = `rgba(123,223,255,${0.5 + 0.3 * Math.sin(now / 120)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(lx * T - cam.x + T / 2, ly * T - cam.y + T / 2, T * 0.62, 0, Math.PI * 2); ctx.stroke(); }
+    drawSprite(ctx, heroClass().sprite, lx, ly, 1, 3, player.face === -1, player.flashUntil > now || player.poison > 0 && Math.floor(now / 300) % 3 === 0);
   }
   for (let i = floats.length - 1; i >= 0; i--) {
     const f = floats[i], age = now - f.at;
@@ -1542,6 +1590,8 @@ function describeTile(x, y) {
     if (g) return `Gold — ${g.amount} pieces`;
   }
   if (t === TILE.SHOP) return 'Merchant — step here to buy and sell gear';
+  if (t === TILE.CHEST) return 'Chest — walk into it to open';
+  if (t === TILE.TRAP && revealedTraps.has(key(x, y))) return 'Spike trap — step around it';
   if (t === TILE.FOUNTAIN) return 'The town fountain';
   if (t === TILE.DOOR) {
     if (scene === 'house') return 'Door — back out to the square';
@@ -1596,7 +1646,7 @@ function buildLegend() {
     li.insertAdjacentHTML('beforeend', `<b>${label}</b> <span class="muted">${detail}</span>`);
     legendEl.appendChild(li);
   };
-  add('player', 'You', '');
+  add(heroClass().sprite, `You, ${heroClass().name}`, `1: ${heroClass().ability}`);
   if (scene === 'house') {
     for (const n of npcs) add(n.type.sprite, n.type.name, n.type.action === 'inn' ? 'rest for free' : n.type.action ? 'buy and sell' : 'chat');
     add('bed', 'Bed', 'rest'); add('counter', 'Counter', 'trade or rest');
@@ -1617,7 +1667,7 @@ function buildLegend() {
     add('tree', 'Forest, water, mountains', 'impassable; roads join the towns');
     add('cave', 'Caves, crypts, towers', 'short dungeons with a boss and a hoard');
     add('rat', 'Beasts of the wilds', 'roam outside the towns, bolder at night');
-  } else add('stairs', 'Stairs', 'follow the compass');
+  } else { add('stairs', 'Stairs', 'follow the compass'); add('chest', 'Chest', 'gold, sometimes gear'); add('trap', 'Spike trap', 'hidden until found'); }
 }
 
 function updateStats() {
@@ -1648,7 +1698,11 @@ function playerAttack(m) {
   m.flashUntil = now + 120;
   floatText(m.x, m.y, `-${dmg}`, '#ffd86b');
   sfx.play('hit');
-  if (m.hp <= 0) {
+  if (m.hp <= 0) killMonster(m);
+  else log(`You hit ${m.boss ? m.name : 'the ' + m.type.name} for ${dmg}.`);
+}
+function killMonster(m) {
+  {
     monsters = monsters.filter((x) => x !== m); monstersDirty = true;
     if (scene === 'world') worldMonsters = monsters;
     kills++;
@@ -1662,11 +1716,13 @@ function playerAttack(m) {
     gainXp(xp);
     questProgress('slay', m.type.name, 1);
     if (m.boss) { const keep = dungeonDef; dungeonDef = { ...(dungeonDef || {}), loot: 1 }; dropLoot(m); dungeonDef = keep; } else dropLoot(m);
-  } else log(`You hit ${m.boss ? m.name : 'the ' + m.type.name} for ${dmg}.`);
+  }
 }
-function monsterAttack(m) {
-  const dmg = Math.max(1, m.atk - armorDef());
+function monsterAttack(m, ranged = false) {
+  const dmg = Math.max(1, m.atk - armorDef() - (player.shield > 0 ? 2 : 0));
   player.hp -= dmg;
+  if (m.type.poison && !player.poison && Math.random() < 0.5) { player.poison = 4; log('You are poisoned! A potion will cure it.', 'bad'); sfx.play('poison'); }
+  if (ranged) { for (let d = 1; d < Math.abs(m.x - player.x) + Math.abs(m.y - player.y); d++) floatText(m.x + Math.sign(player.x - m.x) * d, m.y + Math.sign(player.y - m.y) * d, '➤', '#d9b382'); }
   const now = performance.now();
   m.lunge = { dx: Math.sign(player.x - m.x), dy: Math.sign(player.y - m.y), until: now + 140 };
   if (player.x !== m.x) m.face = Math.sign(player.x - m.x);
@@ -1683,8 +1739,25 @@ function stepMonsters() {
     if (!m.awake && isVisible(m.x, m.y) && dist(m, player) <= wake && Math.random() < 0.7) m.awake = true;
     if (dist(m, player) === 1) { monsterAttack(m); continue; }
     if (!m.awake) continue;
+    if (m.type.ranged && (m.x === player.x || m.y === player.y)) {
+      const dd = Math.abs(m.x - player.x) + Math.abs(m.y - player.y);
+      if (dd <= m.type.ranged) {
+        let clear = true;
+        for (let k = 1; k < dd; k++) if (!walkable(getTile(m.x + Math.sign(player.x - m.x) * k, m.y + Math.sign(player.y - m.y) * k))) clear = false;
+        if (clear) { monsterAttack(m, true); continue; }
+      }
+    }
     let best = null, bestD = d.get(key(m.x, m.y)) ?? Infinity;
     const dirs = DIRS.slice().sort(() => Math.random() - 0.5);
+    if (m.type.erratic && Math.random() < 0.5) bestD = Infinity;   // bats flap about
+    if (m.type.ranged && dist(m, player) <= 2) {
+      // archers back off to shoot again
+      for (const [dx, dy] of dirs) {
+        const nx = m.x + dx, ny = m.y + dy;
+        if (walkable(getTile(nx, ny)) && !getMonsterAt(nx, ny) && dist({ x: nx, y: ny }, player) > dist(m, player)) { best = [nx, ny]; break; }
+      }
+      if (best) { monsterIndex.delete(key(m.x, m.y)); m.x = best[0]; m.y = best[1]; monsterIndex.set(key(m.x, m.y), m); continue; }
+    }
     for (const [dx, dy] of dirs) {
       const nx = m.x + dx, ny = m.y + dy;
       if (!walkable(getTile(nx, ny)) || getMonsterAt(nx, ny) || (nx === player.x && ny === player.y)) continue;
@@ -1752,10 +1825,12 @@ function tryMove(dx, dy) {
     return;
   }
   if (dx) player.face = dx;
+  if (t === TILE.CHEST) { openChest(nx, ny); endTurn(false); return; }
   const m = getMonsterAt(nx, ny);
   if (m) playerAttack(m);
   else {
     player.x = nx; player.y = ny;
+    if (t === TILE.TRAP && (dx || dy)) springTrap(nx, ny);
     const pot = getPotionAt(nx, ny);
     if (pot) {
       const healed = Math.min(pot.heal, player.maxHp - player.hp);
@@ -1763,6 +1838,7 @@ function tryMove(dx, dy) {
       potions = potions.filter((p) => p !== pot);
       log(healed > 0 ? `You drink a potion and heal ${healed} HP.` : 'You drink a potion but were already at full health.', 'good');
       if (healed > 0) floatText(nx, ny, `+${healed}`, '#9ef0b0');
+      if (player.poison > 0) { player.poison = 0; log('The potion purges the poison.', 'good'); }
       sfx.play('potion');
     }
     const g = getGoldAt(nx, ny);
@@ -1790,24 +1866,122 @@ function tryMove(dx, dy) {
     }
     if (inTown()) { player.wx = nx; player.wy = ny; }
   }
+  endTurn(!m && (dx || dy));
+}
+
+// Everything that happens once the hero has acted: the world moves, timers tick.
+function endTurn(moved) {
   turn++;
-  if (!m && (dx || dy) && turn % 2 === 0) sfx.play('step');
+  if (moved && turn % 2 === 0) sfx.play('step');
+  if (player.cooldown > 0) player.cooldown--;
+  if (player.shield > 0 && --player.shield === 0) log('Your shield wall fades.');
+  if (player.poison > 0) {
+    player.poison--; player.hp -= 1; floatText(player.x, player.y, '-1', '#7ad36b');
+    if (player.poison === 0) log('The poison wears off.', 'good');
+  }
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
   if (scene !== 'dungeon') stepNpcs();
   if (scene !== 'house') stepMonsters();
   if (inTown() && (turn % 8 === 0)) refreshTownContext();
+  if (player.cls === 'ranger' && scene === 'dungeon') {
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const k = key(player.x + dx, player.y + dy);
+      if (getTile(player.x + dx, player.y + dy) === TILE.TRAP && !revealedTraps.has(k)) { revealedTraps.add(k); log('Your keen eyes spot a spike trap.', 'good'); bgDirty = true; }
+    }
+  }
   updateCamera();
   updateVisibility();
   updateStats();
-  if (player.hp <= 0) {
-    player.hp = 0; updateStats();
-    endGame('You died', `You fell ${scene === 'world' ? 'in the wilds' : 'on floor ' + floor} after ${turn} turns with ${player.gold} gold. Press R to try again.`);
-    sfx.play('die');
-    { const t = townAt(...homeTown.split(',').map(Number)) || townAt(0, 0); player.wx = t.spawn.x; player.wy = t.spawn.y; }
-    saveProgress('death');
-  }
+  if (player.hp <= 0) die();
   draw();
 }
+
+function die() {
+  player.hp = 0; updateStats();
+  const t = townAt(...homeTown.split(',').map(Number)) || townAt(0, 0);
+  const lost = Math.ceil(player.gold / 2);
+  endGame('You fell', `You fell ${scene === 'world' ? 'in the wilds' : 'on ' + (dungeonDef ? dungeonDef.name : 'the dungeon') + ' floor ' + floor} after ${turn} turns. You wake at the inn in ${t.name}: level and gear kept, ${lost} gold and your potions gone. Press R to carry on.`);
+  player.wx = t.spawn.x; player.wy = t.spawn.y;
+  sfx.play('die');
+  if (!ACCOUNT.user) {
+    guestRespawn = { name: null, floor: 0, level: player.level, xp: player.xp, gold: player.gold - lost, hp: player.maxHp, max_hp: player.maxHp, atk: player.atk,
+      weapon: player.weapon, armor: player.armor, bag: player.bag.filter((id) => itemKind(id) !== 'consumable'), quests: [], quests_done: player.questsDone || 0,
+      wx: t.spawn.x, wy: t.spawn.y, home: t.key, class: player.cls, guest: true };
+  }
+  saveProgress('death');
+}
+
+function openChest(x, y) {
+  const danger = dungeonDef ? dungeonDef.danger : 0;
+  const gold = Math.round((20 + rnd(30)) * (1 + danger * 0.5) * (dungeonDef ? dungeonDef.gold : 1));
+  player.gold += gold;
+  setTile(x, y, TILE.FLOOR); bgDirty = true;
+  log(`You open the chest: ${gold} gold.`, 'good');
+  floatText(x, y, `+${gold}g`, '#f5c542');
+  sfx.play('chest');
+  if (Math.random() < 0.4 && !bagFull()) { const keep = dungeonDef; dungeonDef = { ...(dungeonDef || {}), loot: 1 }; dropLoot({ type: { name: 'chest' } }); dungeonDef = keep; }
+}
+function springTrap(x, y) {
+  const dmg = 3 + floor + (dungeonDef ? dungeonDef.danger : 0);
+  revealedTraps.add(key(x, y)); bgDirty = true;
+  player.hp -= dmg;
+  log(`Spikes shoot up from the floor! You take ${dmg} damage.`, 'bad');
+  floatText(x, y, `-${dmg}`, '#ff6b6b');
+  player.flashUntil = performance.now() + 150;
+  sfx.play('trap');
+}
+
+// ---------- class abilities ----------
+function lineTarget(range) {
+  // the nearest monster along one of the four straight lines, with nothing in between
+  let best = null;
+  for (const [dx, dy] of DIRS) {
+    for (let d = 1; d <= range; d++) {
+      const x = player.x + dx * d, y = player.y + dy * d;
+      if (!walkable(getTile(x, y))) break;
+      const m = getMonsterAt(x, y);
+      if (m) { if (!best || d < best.d) best = { m, d, dx, dy }; break; }
+    }
+  }
+  return best;
+}
+function useAbility() {
+  if (gameOver || !player || shopOpen || scene === 'house') return;
+  const cls = heroClass();
+  if (player.cooldown > 0) { log(`${cls.ability} is not ready (${player.cooldown} turns).`); draw(); return; }
+  if (player.cls === 'warrior') {
+    player.shield = 6; player.cooldown = cls.cooldown;
+    log('You raise your shield wall: 2 less damage from every hit for 6 turns.', 'good');
+    sfx.play('shield'); endTurn(false); return;
+  }
+  if (player.cls === 'ranger') {
+    const t = lineTarget(6);
+    if (!t) { log('No target in a straight line. Arrows fly up, down, left or right.'); draw(); return; }
+    const dmg = player.atk + weaponAtk() + 1 + rnd(2);
+    if (t.dx) player.face = t.dx;
+    t.m.hp -= dmg; t.m.awake = true; t.m.flashUntil = performance.now() + 120;
+    floatText(t.m.x, t.m.y, `-${dmg}`, '#ffd86b');
+    for (let d = 1; d < t.d; d++) floatText(player.x + t.dx * d, player.y + t.dy * d, '➤', '#d9b382');
+    sfx.play('arrow');
+    log(`Your arrow hits ${t.m.boss ? t.m.name : 'the ' + t.m.type.name} for ${dmg}.`);
+    if (t.m.hp <= 0) killMonster(t.m);
+    player.cooldown = cls.cooldown; endTurn(false); return;
+  }
+  if (player.cls === 'mage') {
+    let target = null, bd = Infinity;
+    for (const m of monsters) { const d = cheb(m, player); if (d <= 5 && isVisible(m.x, m.y) && d < bd) { bd = d; target = m; } }
+    if (!target) { log('No monster in sight to aim at.'); draw(); return; }
+    const dmg = 5 + player.level + rnd(3);
+    const hit = monsters.filter((m) => cheb(m, target) <= 2);
+    for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) if (Math.random() < 0.5) floatText(target.x + i, target.y + j, '✸', '#ff9f43');
+    sfx.play('fire');
+    log(`Your fireball bursts over ${hit.length} ${hit.length === 1 ? 'monster' : 'monsters'} for ${dmg} each.`, 'good');
+    for (const m of hit) { m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); }
+    for (const m of hit) if (m.hp <= 0) killMonster(m);
+    player.cooldown = cls.cooldown; endTurn(false); return;
+  }
+}
+
 function wait() { if (!gameOver) tryMove(0, 0); }
 
 // ---------- input ----------
@@ -1824,6 +1998,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'm' || e.key === 'M') { questsOpen = false; toggleMap(); return; }
   if (e.key === 'q' || e.key === 'Q') { mapOpen = false; questsOpen = !questsOpen; draw(); return; }
   if (e.key === 'n' || e.key === 'N') { toggleSound(); return; }
+  if (e.key === '1') { e.preventDefault(); useAbility(); return; }
   if ((mapOpen || questsOpen) && KEYS[e.key]) { mapOpen = false; questsOpen = false; }
   if (e.key === 'r' || e.key === 'R') { init(); return; }
   if (e.key === 'p' || e.key === 'P') { drinkPotion(); return; }
@@ -1857,6 +2032,20 @@ function fitCanvas() {
 fsBtn?.addEventListener('click', toggleFullscreen);
 document.getElementById('worldmap')?.addEventListener('click', toggleMap);
 document.getElementById('quests')?.addEventListener('click', () => { mapOpen = false; questsOpen = !questsOpen; draw(); });
+document.getElementById('ability')?.addEventListener('click', () => { sfx.unlock(); useAbility(); });
+// guests pick a class on their first visit; the choice is remembered in this browser
+const classPick = document.getElementById('classpick');
+function chooseClass(cls) {
+  if (!CLASSES[cls]) return;
+  player.cls = cls;
+  if (player.level === 1 && player.xp === 0) { player.maxHp = CLASSES[cls].hp; player.hp = CLASSES[cls].hp; player.atk = CLASSES[cls].atk; }
+  try { localStorage.setItem('dungeon-class', cls); } catch (e) { /* ignore */ }
+  if (classPick) classPick.hidden = true;
+  const ab = document.getElementById('ability'); if (ab) ab.textContent = `${CLASSES[cls].ability} (1)`;
+  log(`You are a ${CLASSES[cls].name}. ${CLASSES[cls].blurb}`, 'good');
+  buildLegend(); updateStats(); draw();
+}
+classPick?.querySelectorAll('[data-class]').forEach((b) => b.addEventListener('click', () => { sfx.unlock(); chooseClass(b.dataset.class); }));
 const soundBtn = document.getElementById('sound');
 function toggleSound() { const muted = sfx.toggle(); if (soundBtn) soundBtn.textContent = muted ? 'Sound off' : 'Sound on'; log(muted ? 'Sound off.' : 'Sound on.'); }
 if (soundBtn) soundBtn.textContent = sfx.muted ? 'Sound off' : 'Sound on';
@@ -1927,6 +2116,7 @@ function drinkPotion(idx) {
   const healed = Math.min(it.heal, player.maxHp - player.hp);
   player.bag.splice(idx, 1);
   player.hp += healed;
+  if (player.poison > 0) { player.poison = 0; log('The potion purges the poison.', 'good'); }
   log(healed > 0 ? `You drink a potion and heal ${healed} HP.` : 'You drink a potion but were already at full health.', 'good');
   updateStats(); renderShop(); draw();
 }
@@ -2017,8 +2207,8 @@ function afterSceneChange() {
   updateCamera(); updateVisibility(); buildLegend(); updateStats(); draw();
 }
 function startRun(saved) {
-  player = { x: 1, y: 1, hp: 20, maxHp: 20, atk: 3, level: 1, xp: 0, gold: 0, weapon: null, armor: null, bag: [], quests: [], questsDone: 0 };
-  questsOpen = false; mapOpen = false;
+  player = { x: 1, y: 1, hp: 24, maxHp: 24, atk: 3, level: 1, xp: 0, gold: 0, weapon: null, armor: null, bag: [], quests: [], questsDone: 0, cls: 'warrior', cooldown: 0, shield: 0, poison: 0 };
+  questsOpen = false; mapOpen = false; revealedTraps = new Set();
   floor = TOWN; interior = null; gameOver = false; turn = 0; kills = 0;
   overlay.classList.remove('show');
   logEl.innerHTML = ''; messages.length = 0;
@@ -2028,8 +2218,15 @@ function startRun(saved) {
       weapon: itemInfo(saved.weapon) ? saved.weapon : null, armor: itemInfo(saved.armor) ? saved.armor : null,
       bag: (saved.bag || []).filter(itemInfo).slice(0, ITEMS.bag_size),
       quests: Array.isArray(saved.quests) ? saved.quests.filter((q) => q && q.id && q.kind && q.label).slice(-12) : [],
-      questsDone: saved.quests_done || 0 });
+      questsDone: saved.quests_done || 0, cls: CLASSES[saved.class] ? saved.class : 'warrior' });
+    // heroes made before classes existed start with the warrior's numbers; fresh heroes take their class's
+    if (player.level === 1 && player.xp === 0 && player.maxHp === 20) { player.maxHp = heroClass().hp; player.hp = Math.min(player.hp + heroClass().hp - 20, heroClass().hp); player.atk = heroClass().atk; }
+  } else {
+    let remembered = null; try { remembered = localStorage.getItem('dungeon-class'); } catch (e) { /* ignore */ }
+    if (CLASSES[remembered]) { player.cls = remembered; player.maxHp = CLASSES[remembered].hp; player.hp = player.maxHp; player.atk = CLASSES[remembered].atk; }
+    else if (classPick) classPick.hidden = false;
   }
+  { const ab = document.getElementById('ability'); if (ab) ab.textContent = `${heroClass().ability} (1)`; }
   if (saved && saved.home && /^-?\d+,-?\d+$/.test(saved.home)) homeTown = saved.home;
   if (floor === TOWN) {
     createWorld();
@@ -2045,7 +2242,8 @@ function startRun(saved) {
     createDungeon();
   }
   afterSceneChange();
-  if (saved && saved.floor > 0) log(`Welcome back, ${saved.name}. You resume on floor ${floor}. Follow the compass to the stairs.`, 'good');
+  if (saved && saved.guest) log(`You wake at the inn with ${player.gold} gold, your gear and your level. The dungeon is still there.`, 'good');
+  else if (saved && saved.floor > 0) log(`Welcome back, ${saved.name}. You resume on floor ${floor}. Follow the compass to the stairs.`, 'good');
   else if (saved && saved.level > 1) log(`Welcome back, ${saved.name}. ${townContaining(player.x, player.y) ? 'You are in ' + townContaining(player.x, player.y).name + '.' : 'You are out in the wilds.'} Roads lead to other towns.`, 'good');
   else log(`${saved ? saved.name + ' arrives' : 'You arrive'} in Hearth. Step onto a house door to go inside, take the gate at the bottom into the dungeon, or follow a road to the next town.`);
 }
@@ -2053,7 +2251,11 @@ let starting = false;
 async function init() {
   if (starting) return;
   starting = true;
-  try { startRun(await loadProgress()); } finally { starting = false; }
+  try {
+    const saved = await loadProgress();
+    const respawn = guestRespawn; guestRespawn = null;
+    startRun(saved || respawn);
+  } finally { starting = false; }
 }
 function loop() { if (!gameOver) draw(); requestAnimationFrame(loop); }
 requestAnimationFrame(loop);

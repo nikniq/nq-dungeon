@@ -5,7 +5,7 @@
   <h2>{{ $character->name }}</h2>
   <p class="muted">Your public profile is at <a href="{{ route('heroes.show', $character) }}">{{ route('heroes.show', $character) }}</a>.</p>
   <table class="sheet">
-    <tr><th>Hero</th><td>@if ($character->floor > 0) Floor {{ $character->floor }}, @else In town, @endif level {{ $character->level }}, {{ $character->hp }}/{{ $character->max_hp }} HP, attack {{ $character->atk }}, {{ $character->gold }} gold</td></tr>
+    <tr><th>Hero</th><td>{{ ucfirst($character->class) }}. @if ($character->floor > 0) Floor {{ $character->floor }}, @else In town, @endif level {{ $character->level }}, {{ $character->hp }}/{{ $character->max_hp }} HP, attack {{ $character->atk }}, {{ $character->gold }} gold</td></tr>
     <tr><th>Weapon</th><td>{{ $character->weapon ? $items['weapons'][$character->weapon]['name'].' (+'.$items['weapons'][$character->weapon]['atk'].' attack)' : 'Bare hands' }}</td></tr>
     <tr><th>Armor</th><td>{{ $character->armor ? $items['armor'][$character->armor]['name'].' ('.$items['armor'][$character->armor]['def'].' defence)' : 'None' }}</td></tr>
     <tr><th>Bag</th><td>{{ collect($character->bag ?? [])->map(fn ($id) => ($items['weapons'][$id] ?? $items['armor'][$id] ?? $items['consumables'][$id])['name'])->implode(', ') ?: 'Empty' }}</td></tr>
@@ -20,6 +20,13 @@
     <label>Hero name <input type="text" name="name" value="{{ old('name', $character->name) }}" required minlength="2" maxlength="24"></label>
     @error('name')<p class="error">{{ $message }}</p>@enderror
     <label>Bio <textarea name="bio" rows="3" maxlength="280" placeholder="A line or two about your hero">{{ old('bio', $character->bio) }}</textarea></label>
+    <label>Class
+      <select name="class">
+        @foreach (['warrior' => 'Warrior — Shield Wall', 'ranger' => 'Ranger — Arrow', 'mage' => 'Mage — Fireball'] as $id => $label)
+          <option value="{{ $id }}" {{ old('class', $character->class) === $id ? 'selected' : '' }}>{{ $label }}</option>
+        @endforeach
+      </select>
+    </label>
     @error('bio')<p class="error">{{ $message }}</p>@enderror
     <button type="submit" class="primary">Save profile</button>
   </form>

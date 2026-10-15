@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -24,6 +25,7 @@ class AuthController extends Controller
                 fn ($attr, $value, $fail) => Character::nameTaken($value) && $fail('That hero name is already taken.')],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'class' => ['required', Rule::in(Character::CLASSES)],
         ], [], ['character' => 'hero name']);
 
         $user = User::create([
@@ -31,7 +33,7 @@ class AuthController extends Controller
             'email' => $data['email'],
             'password' => $data['password'],
         ]);
-        $user->character()->create(['name' => $data['character']]);
+        $user->character()->create(['name' => $data['character'], 'class' => $data['class']]);
 
         Auth::login($user, remember: true);
         $request->session()->regenerate();

@@ -7,7 +7,7 @@
     <div class="avatar" style="background:{{ ['#ffd86b','#7ad36b','#7bdfff','#c084fc','#ff9ecf','#f5c542'][$character->id % 6] }}">{{ mb_strtoupper(mb_substr($character->name, 0, 1)) }}</div>
     <div>
       <h2>{{ $character->name }}</h2>
-      <p class="muted">Rank #{{ $rank }} · Level {{ $character->level }} · {{ $character->floor > 0 ? 'Currently on floor '.$character->floor : 'Resting in town' }} · Hero since {{ $character->created_at->format('M Y') }}</p>
+      <p class="muted">Rank #{{ $rank }} · Level {{ $character->level }} {{ $character->class }} · {{ $character->floor > 0 ? 'Currently on floor '.$character->floor : 'Resting in town' }} · Hero since {{ $character->created_at->format('M Y') }}</p>
       @if ($character->bio)<p class="bio">{{ $character->bio }}</p>@endif
       @auth
         @if (auth()->id() === $character->user_id)<p><a href="{{ route('character.edit') }}">Edit your profile</a></p>@endif
@@ -29,6 +29,7 @@
     <section class="panel">
       <h3>Hero</h3>
       <table class="sheet">
+        <tr><th>Class</th><td>{{ ucfirst($character->class) }}</td></tr>
         <tr><th>Level</th><td>{{ $character->level }} ({{ $character->xp }} XP)</td></tr>
         <tr><th>Health</th><td>{{ $character->hp }}/{{ $character->max_hp }}</td></tr>
         <tr><th>Attack</th><td>{{ $character->atk }}@if ($character->weapon) +{{ $items['weapons'][$character->weapon]['atk'] }}@endif</td></tr>

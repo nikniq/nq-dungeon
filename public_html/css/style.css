@@ -125,3 +125,13 @@ a.secondary{background:#0b3142;border:1px solid #12384a;color:#d5f0ff;border-rad
 .bottom{flex-wrap:wrap}
 .fs{align-self:center}
 @media (max-width:600px){.fs{width:100%}}
+/* --- class picker --- */
+.classes{border:1px solid #12384a;border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;gap:6px}
+.classes legend{color:#a8c0d8;font-size:.9rem;padding:0 4px}
+.class-opt{flex-direction:row !important;align-items:flex-start !important;gap:8px !important;color:#e6eef8 !important}
+.class-opt input{margin-top:3px}
+.form select{padding:8px 10px;border-radius:6px;border:1px solid #12384a;background:#0f1724;color:#e6eef8;font-size:1rem}
+.classlist li{flex-wrap:wrap}
+.classlist li b{min-width:64px}
+.classlist li .muted{flex:1;min-width:200px}
+button.fs.primary{background:#5fe17a;color:#06202c;border-color:#5fe17a;font-weight:600}
