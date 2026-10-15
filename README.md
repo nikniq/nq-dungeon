@@ -19,7 +19,10 @@ distance from Hearth, and a hoard at the bottom. Choose a class: Warrior (Shield
 (Fireball); press 1 for the ability. Chests hold gold, spike traps hide in
 corridors, spiders poison (potions cure), archers shoot from range, bats flit.
 Falling in battle costs half your gold and your potions, never level or gear.
-Press M for the world map, Q for the quest log, N to toggle sound. Captains,
+Every level up offers a choice of three perks. Achievements grant titles shown
+on profiles and the leaderboard. Smithies and armouries sharpen and reinforce
+worn gear up to +3. New players get one-time tips. Press M for the world map,
+Q for the quest log (with achievements and perks), N to toggle sound. Captains,
 castellans and the King hand out site-clearing quests; townsfolk ask for monster
 tallies. A boss seals the stairs on the last floor of every dungeon. Beasts roam
 the wilds and grow bolder at night (a day is 480 turns). Your position, home town

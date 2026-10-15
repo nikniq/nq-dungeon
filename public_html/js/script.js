@@ -42,6 +42,63 @@ const CLASSES = {
 };
 const heroClass = () => CLASSES[player && player.cls] || CLASSES.warrior;
 
+// Perks: one choice of three at every level up. Some stack, most are once.
+const PERKS = {
+  tough:       { name: 'Tough',       desc: '+6 max HP',                                 max: 99 },
+  brawn:       { name: 'Brawn',       desc: '+1 attack',                                 max: 99 },
+  thick_skin:  { name: 'Thick skin',  desc: '+1 defence, without armor',                 max: 3 },
+  quickened:   { name: 'Quickened',   desc: 'Ability cooldown 20% shorter',              max: 2 },
+  packrat:     { name: 'Packrat',     desc: '+4 bag slots',                              max: 1 },
+  vampiric:    { name: 'Vampiric',    desc: 'Heal 1 HP on every kill',                   max: 1 },
+  hunter:      { name: 'Hunter',      desc: '+50% XP from kills',                        max: 1 },
+  lucky:       { name: 'Lucky',       desc: '+25% gold from the floor and chests',       max: 1 },
+  second_wind: { name: 'Second wind', desc: 'Survive a killing blow at 1 HP, once per dive', max: 1 },
+  nimble:      { name: 'Nimble',      desc: 'Dodge one melee hit in four',               max: 1 },
+};
+const perkCount = (id) => (player && player.perks ? player.perks.filter((p) => p === id).length : 0);
+const bagSize = () => ITEMS.bag_size + 4 * perkCount('packrat');
+let perkChoices = null;   // the three on offer while the picker is open
+
+// Achievements award a title the moment they unlock; the newest title shows on the profile.
+const ACHIEVEMENTS = {
+  first_blood: { label: 'First blood', title: 'the Blooded' },
+  slayer_50:   { label: 'Fifty monsters slain', title: 'the Slayer' },
+  boss_slayer: { label: 'Slew a boss', title: 'Boss-slayer' },
+  delver:      { label: 'Reached floor five', title: 'the Delver' },
+  escapist:    { label: 'Escaped a town dungeon', title: 'the Escapee' },
+  cave:        { label: 'Cleared a goblin cave', title: 'Cave-crawler' },
+  warren:      { label: 'Cleared an orc warren', title: 'Orc-bane' },
+  crypt:       { label: 'Cleared a crypt', title: 'Crypt-breaker' },
+  tower:       { label: "Cleared a wizard's tower", title: 'Tower-topper' },
+  explorer:    { label: 'Visited five settlements', title: 'the Wayfarer' },
+  royal:       { label: 'Spoke with the King', title: 'the Courtier' },
+  rich:        { label: 'Held a thousand gold', title: 'Moneybags' },
+  errands:     { label: 'Completed five quests', title: 'the Errand-runner' },
+  survivor:    { label: 'Cheated death', title: 'the Unkillable' },
+  night_owl:   { label: 'Killed a beast after dark', title: 'the Night Owl' },
+};
+function unlock(id) {
+  if (!player || !ACHIEVEMENTS[id] || player.achievements.includes(id)) return;
+  player.achievements.push(id);
+  player.title = ACHIEVEMENTS[id].title;
+  log(`Achievement: ${ACHIEVEMENTS[id].label}. You are now ${player.title}.`, 'good');
+  floatText(player.x, player.y - 1, '★', '#ffd86b');
+  sfx.play('quest');
+}
+
+// One-time tips for new players, remembered per browser.
+let tipShown = new Set();
+try { tipShown = new Set(JSON.parse(localStorage.getItem('dungeon-tips') || '[]')); } catch (e) { /* ignore */ }
+let toast = null;
+function tip(id, text) {
+  if (tipShown.has(id)) return;
+  tipShown.add(id);
+  try { localStorage.setItem('dungeon-tips', JSON.stringify([...tipShown])); } catch (e) { /* ignore */ }
+  toast = { text, until: performance.now() + 7000 };
+}
+let shake = null;
+function shakeScreen(mag, ms = 220) { shake = { mag, until: performance.now() + ms }; }
+
 // ---------- state ----------
 let floor, player, gameOver, turn, kills;
 let scene = 'world';           // 'world' | 'house' | 'dungeon'
@@ -119,8 +176,8 @@ const ACCOUNT = window.DUNGEON || { user: false };
 const ITEMS = ACCOUNT.items || { weapons: {}, armor: {}, consumables: {}, bag_size: 12 };
 const itemInfo = (id) => ITEMS.weapons[id] || ITEMS.armor[id] || ITEMS.consumables[id] || null;
 const itemKind = (id) => ITEMS.weapons[id] ? 'weapon' : ITEMS.armor[id] ? 'armor' : 'consumable';
-const weaponAtk = () => (player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk : 0;
-const armorDef = () => (player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def : 0;
+const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0);
+const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin');
 const SAVE_EVERY_TURNS = 20;
 
 async function saveProgress(event, keepalive = false) {
@@ -133,7 +190,10 @@ async function saveProgress(event, keepalive = false) {
         hp: player.hp, max_hp: player.maxHp, atk: player.atk, kills, weapon: player.weapon, armor: player.armor, bag: player.bag,
         wx: player.wx ?? 20, wy: player.wy ?? 21, home: homeTown,
         quests: (player.quests || []).slice(-12).map((q) => ({ id: q.id, kind: q.kind, label: q.label, need: q.need, have: q.have, done: !!q.done, target: q.target, giver: q.giver, reward: q.reward })),
-        quests_done: player.questsDone || 0, class: player.cls }),
+        quests_done: player.questsDone || 0, class: player.cls,
+        perks: player.perks, achievements: player.achievements, title: player.title || null,
+        meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind },
+        weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
     if (!res.ok) throw new Error(res.status);
     kills = 0;
@@ -278,6 +338,7 @@ function questProgress(kind, target, amount = 1) {
       q.done = true;
       player.gold += q.reward;
       player.questsDone = (player.questsDone || 0) + 1;
+      if (player.questsDone >= 5) unlock('errands');
       log(`Quest complete: ${q.label}. +${q.reward} gold.`, 'good');
       floatText(player.x, player.y, `+${q.reward}g`, '#f5c542');
       sfx.play('quest');
@@ -305,6 +366,14 @@ function drawQuests(g) {
   }
   if (done.length) { y += 8; g.font = 'bold 14px sans-serif'; g.fillStyle = '#a8c0d8'; g.fillText('Completed', 24, y); y += 24; }
   for (const q of done) { g.fillStyle = '#9ef0b0'; g.font = '13px sans-serif'; g.fillText(`✓ ${q.label}`, 32, y); y += 20; }
+  // achievements and perks down the right
+  let ay = 60; const ax = canvas.width - 300;
+  g.font = 'bold 14px sans-serif'; g.fillStyle = '#ffd86b'; g.fillText(`Achievements ${player.achievements.length}/${Object.keys(ACHIEVEMENTS).length}${player.title ? '  ·  ' + player.title : ''}`, ax, ay); ay += 24;
+  for (const [id, a] of Object.entries(ACHIEVEMENTS)) { const got = player.achievements.includes(id); g.fillStyle = got ? '#9ef0b0' : '#4b5563'; g.font = '12px sans-serif'; g.fillText(`${got ? '★' : '☆'} ${a.label}`, ax, ay); ay += 17; }
+  ay += 10; g.font = 'bold 14px sans-serif'; g.fillStyle = '#ffd86b'; g.fillText('Perks', ax, ay); ay += 22;
+  const counts = {}; for (const pid of player.perks) counts[pid] = (counts[pid] || 0) + 1;
+  if (!player.perks.length) { g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText('None yet. Level up to choose one.', ax, ay); }
+  for (const [pid, n] of Object.entries(counts)) { g.fillStyle = '#cfe9ff'; g.font = '12px sans-serif'; g.fillText(`${PERKS[pid].name}${n > 1 ? ' ×' + n : ''}: ${PERKS[pid].desc}`, ax, ay); ay += 17; }
   g.textBaseline = 'alphabetic';
 }
 
@@ -861,6 +930,7 @@ function leaveBuilding() {
 }
 
 function talk(n) {
+  if (n.type.name === 'King Aldric') unlock('royal');
   const line = n.type.lines[rnd(n.type.lines.length)];
   log(`${n.type.name}: ${line}`);
   bubble = { x: n.x, y: n.y, text: line, until: performance.now() + 4000 };
@@ -1375,6 +1445,13 @@ function draw() {
   if (!player || scene === null) return;
   const now = performance.now();
   animate(now);
+  ctx.save();
+  if (shake && now < shake.until) { const k = (shake.until - now) / 220; ctx.translate((Math.random() - 0.5) * shake.mag * 2 * k, (Math.random() - 0.5) * shake.mag * 2 * k); } else shake = null;
+  drawScene(now);
+  ctx.restore();
+}
+const isRainy = () => cellRand(dayNumber(), 0, 777) < 0.3;
+function drawScene(now) {
   const originX = Math.floor(cam.x / T) * T - T, originY = Math.floor(cam.y / T) * T - T;
   if (originX !== bgOrigin.x || originY !== bgOrigin.y) { bgOrigin = { x: originX, y: originY }; bgDirty = true; }
   if (bgDirty) renderBackground();
@@ -1456,6 +1533,22 @@ function draw() {
     ctx.textAlign = 'start'; ctx.globalAlpha = 1;
   }
   if (scene === 'world') {
+    // shimmer on water in view
+    ctx.fillStyle = 'rgba(191,219,254,0.55)';
+    for (let r = y0; r <= y1; r++) for (let c = x0; c <= x1; c++) {
+      if (groundAt(c, r) !== GROUND.WATER) continue;
+      const ph = (now / 900 + noise(c, r, 31) * 7) % 1;
+      if (ph < 0.35) ctx.fillRect(c * T - cam.x + 6 + ph * 40, r * T - cam.y + 10 + noise(c, r, 33) * 14, 8, 2);
+    }
+    if (isRainy()) {
+      ctx.strokeStyle = 'rgba(190,210,240,0.45)'; ctx.lineWidth = 1; ctx.beginPath();
+      for (let i = 0; i < 90; i++) {
+        const x = (i * 97 + now * 0.9) % (canvas.width + 60) - 30, y = (i * 53 + now * 1.3) % (canvas.height + 40) - 20;
+        ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 12);
+      }
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(30,40,70,0.18)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
     const tint = nightTint();
     if (tint) { ctx.fillStyle = tint; ctx.fillRect(0, 0, canvas.width, canvas.height); }
     if (dayPhase() === 'night' || dayPhase() === 'dusk') {
@@ -1473,8 +1566,23 @@ function draw() {
   if (bubble) { if (now > bubble.until) bubble = null; else drawBubble(ctx, bubble); }
   if (inspected) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(inspected.x * T - cam.x + 1, inspected.y * T - cam.y + 1, T - 2, T - 2); }
   drawHud(ctx, now);
+  if (toast) {
+    if (now > toast.until) toast = null;
+    else {
+      ctx.font = '13px sans-serif'; ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+      const words = toast.text.split(' '), lines = []; let line = '';
+      for (const w of words) { const t = line ? line + ' ' + w : w; if (ctx.measureText(t).width > 520) { lines.push(line); line = w; } else line = t; }
+      lines.push(line);
+      const bw = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 28, bh = lines.length * 18 + 16, bx = canvas.width / 2 - bw / 2, by = 104;
+      ctx.globalAlpha = Math.min(1, (toast.until - now) / 600);
+      ctx.fillStyle = 'rgba(255,216,107,0.95)'; ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 8); ctx.fill();
+      ctx.fillStyle = '#1b1b2f'; lines.forEach((l, i) => ctx.fillText(l, canvas.width / 2, by + 8 + i * 18));
+      ctx.globalAlpha = 1; ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+    }
+  }
   if (mapOpen) drawWorldMap(ctx, now);
   if (questsOpen) drawQuests(ctx);
+  if (perkChoices) drawPerks(ctx);
 }
 
 // ---------- the world map ----------
@@ -1617,8 +1725,17 @@ function tileFromEvent(e) {
   const sx = canvas.width / rect.width, sy = canvas.height / rect.height;
   return { x: Math.floor(((e.clientX - rect.left) * sx + cam.x) / T), y: Math.floor(((e.clientY - rect.top) * sy + cam.y) / T) };
 }
+function perkClick(e) {
+  if (!perkChoices) return false;
+  const rect = canvas.getBoundingClientRect(), sx = canvas.width / rect.width, sy = canvas.height / rect.height;
+  const px = (e.clientX - rect.left) * sx, py = (e.clientY - rect.top) * sy;
+  const w = 260, gap = 24, x0 = (canvas.width - (w * 3 + gap * 2)) / 2;
+  if (py >= 200 && py <= 350) for (let i = 0; i < 3; i++) if (px >= x0 + i * (w + gap) && px <= x0 + i * (w + gap) + w) { choosePerk(i); return true; }
+  return true;
+}
 function inspect(e) {
-  if (mapOpen) { clearInspect(); return; }
+  if (e.type === 'click' && perkClick(e)) return;
+  if (mapOpen || perkChoices) { clearInspect(); return; }
   const t = tileFromEvent(e);
   const text = describeTile(t.x, t.y);
   if (text) {
@@ -1679,7 +1796,48 @@ function updateStats() {
 }
 
 // ---------- combat ----------
+function offerPerks() {
+  if (!player.pendingPerks || perkChoices) return;
+  const avail = Object.keys(PERKS).filter((id) => perkCount(id) < PERKS[id].max);
+  perkChoices = [];
+  while (perkChoices.length < 3 && avail.length) perkChoices.push(avail.splice(rnd(avail.length), 1)[0]);
+  tip('perk', 'Level up! Pick a perk with 1, 2 or 3, or click one. Perks stay with your hero for good.');
+}
+function choosePerk(i) {
+  const id = perkChoices && perkChoices[i];
+  if (!id) return;
+  player.perks.push(id);
+  if (id === 'tough') { player.maxHp += 6; player.hp += 6; }
+  if (id === 'brawn') player.atk += 1;
+  log(`Perk taken: ${PERKS[id].name}, ${PERKS[id].desc}.`, 'good');
+  sfx.play('levelup');
+  player.pendingPerks--; perkChoices = null;
+  updateStats(); buildLegend();
+  if (player.pendingPerks > 0) offerPerks();
+  draw();
+}
+function drawPerks(g) {
+  g.fillStyle = 'rgba(6,12,20,0.9)'; g.fillRect(0, 0, canvas.width, canvas.height);
+  g.textBaseline = 'top'; g.textAlign = 'center';
+  g.fillStyle = '#ffd86b'; g.font = 'bold 22px sans-serif'; g.fillText(`Level ${player.level}! Choose a perk`, canvas.width / 2, 120);
+  g.fillStyle = '#a8c0d8'; g.font = '13px sans-serif'; g.fillText('Press 1, 2 or 3, or click a card', canvas.width / 2, 152);
+  const w = 260, h = 150, gap = 24, x0 = (canvas.width - (w * 3 + gap * 2)) / 2, y0 = 200;
+  perkChoices.forEach((id, i) => {
+    const x = x0 + i * (w + gap);
+    g.fillStyle = '#06202c'; g.beginPath(); g.roundRect(x, y0, w, h, 10); g.fill();
+    g.strokeStyle = '#12384a'; g.lineWidth = 2; g.stroke();
+    g.fillStyle = '#7bdfff'; g.font = 'bold 15px sans-serif'; g.fillText(`${i + 1}`, x + 24, y0 + 16);
+    g.fillStyle = '#e6eef8'; g.font = 'bold 17px sans-serif'; g.fillText(PERKS[id].name, x + w / 2, y0 + 44);
+    g.fillStyle = '#cfe9ff'; g.font = '13px sans-serif';
+    const words = PERKS[id].desc.split(' '); let line = '', ly = y0 + 80;
+    for (const wd of words) { const t = line ? line + ' ' + wd : wd; if (g.measureText(t).width > w - 30) { g.fillText(line, x + w / 2, ly); ly += 18; line = wd; } else line = t; }
+    g.fillText(line, x + w / 2, ly);
+    if (perkCount(id)) { g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText(`taken ×${perkCount(id)}`, x + w / 2, y0 + h - 24); }
+  });
+  g.textAlign = 'start'; g.textBaseline = 'alphabetic';
+}
 function gainXp(n) {
+  n = Math.round(n * (perkCount('hunter') ? 1.5 : 1));
   player.xp += n;
   while (player.xp >= xpToNext(player.level)) {
     player.xp -= xpToNext(player.level);
@@ -1687,6 +1845,7 @@ function gainXp(n) {
     player.maxHp += 4; player.atk += 1; player.hp = player.maxHp;
     log(`Level up! You are now level ${player.level}. HP and attack increased.`, 'good');
     sfx.play('levelup');
+    player.pendingPerks = (player.pendingPerks || 0) + 1;
   }
 }
 function playerAttack(m) {
@@ -1705,7 +1864,12 @@ function killMonster(m) {
   {
     monsters = monsters.filter((x) => x !== m); monstersDirty = true;
     if (scene === 'world') worldMonsters = monsters;
-    kills++;
+    kills++; player.lifetimeKills = (player.lifetimeKills || 0) + 1;
+    if (perkCount('vampiric') && player.hp < player.maxHp) { player.hp += 1; floatText(player.x, player.y, '+1', '#9ef0b0'); }
+    unlock('first_blood');
+    if (player.lifetimeKills >= 50) unlock('slayer_50');
+    if (scene === 'world' && dayPhase() === 'night') unlock('night_owl');
+    if (m.boss) unlock('boss_slayer');
     const xp = Math.round(m.type.xp * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1));
     if (m.boss) {
       log(`You slay ${m.name}! The seal on the stairs breaks.`, 'good');
@@ -1719,9 +1883,15 @@ function killMonster(m) {
   }
 }
 function monsterAttack(m, ranged = false) {
+  if (!ranged && perkCount('nimble') && Math.random() < 0.25) { log(`You dodge ${m.boss ? m.name : 'the ' + m.type.name}.`, 'good'); floatText(player.x, player.y, 'dodge', '#7bdfff'); return; }
   const dmg = Math.max(1, m.atk - armorDef() - (player.shield > 0 ? 2 : 0));
   player.hp -= dmg;
-  if (m.type.poison && !player.poison && Math.random() < 0.5) { player.poison = 4; log('You are poisoned! A potion will cure it.', 'bad'); sfx.play('poison'); }
+  if (dmg >= player.maxHp * 0.25 || m.boss) shakeScreen(m.boss ? 6 : 4);
+  if (player.hp <= 0 && perkCount('second_wind') && !player.meta.second_wind) {
+    player.meta.second_wind = true; player.hp = 1;
+    log('Second wind! You refuse to fall.', 'good'); unlock('survivor'); sfx.play('shield');
+  }
+  if (m.type.poison && !player.poison && Math.random() < 0.5) { player.poison = 4; log('You are poisoned! A potion will cure it.', 'bad'); sfx.play('poison'); tip('poison', 'Poison costs 1 HP a turn for four turns. Any potion cures it. Press P to drink one from your bag.'); }
   if (ranged) { for (let d = 1; d < Math.abs(m.x - player.x) + Math.abs(m.y - player.y); d++) floatText(m.x + Math.sign(player.x - m.x) * d, m.y + Math.sign(player.y - m.y) * d, '➤', '#d9b382'); }
   const now = performance.now();
   m.lunge = { dx: Math.sign(player.x - m.x), dy: Math.sign(player.y - m.y), until: now + 140 };
@@ -1785,7 +1955,7 @@ function nextFloor() {
   if (floor > dungeonDef.floors) {
     const def = dungeonDef;
     sfx.play('win');
-    if (def.kind === 'site') questProgress('clear', def.site.key, 1);
+    if (def.kind === 'site') { questProgress('clear', def.site.key, 1); unlock(def.site.type); } else unlock('escapist');
     if (def.treasure) {
       const hoard = Math.round(def.treasure * (1 + def.danger * 0.5));
       player.gold += hoard;
@@ -1808,12 +1978,15 @@ function nextFloor() {
   createDungeon();
   afterSceneChange();
   sfx.play('stairs');
+  if (floor === 1) { player.meta.second_wind = false; tip('dungeon', 'The compass points to the stairs. Walk into monsters to attack, press 1 for your ability, P for a potion.'); }
+  if (floor >= 5) unlock('delver');
+  if (floor === dungeonDef.floors) tip('boss', 'A boss waits by the stairs on the last floor. Clear the room, use your ability, keep a potion ready.');
   log(floor === 1 ? `You descend into the ${dungeonDef.name}${dungeonDef.danger ? ' (danger ' + stars(dungeonDef.danger) + ')' : ''}. Follow the compass to the stairs.` : `You descend to floor ${floor}.`, 'good');
   saveProgress('progress');
 }
 
 function tryMove(dx, dy) {
-  if (gameOver || !player || shopOpen) return;
+  if (gameOver || !player || shopOpen || perkChoices) return;
   const nx = player.x + dx, ny = player.y + dy;
   const t = getTile(nx, ny);
   if (t === TILE.WALL || t === TILE.FOUNTAIN) return;
@@ -1842,7 +2015,7 @@ function tryMove(dx, dy) {
       sfx.play('potion');
     }
     const g = getGoldAt(nx, ny);
-    if (g) { player.gold += g.amount; golds = golds.filter((x) => x !== g); log(`You pick up ${g.amount} gold.`, 'good'); floatText(nx, ny, `+${g.amount}g`, '#f5c542'); sfx.play('gold'); }
+    if (g) { const amt = Math.round(g.amount * (perkCount('lucky') ? 1.25 : 1)); player.gold += amt; golds = golds.filter((x) => x !== g); log(`You pick up ${amt} gold.`, 'good'); floatText(nx, ny, `+${amt}g`, '#f5c542'); sfx.play('gold'); if (player.gold >= 1000) unlock('rich'); }
     if (t === TILE.SHOP) openShop('shop');
     if (t === TILE.BED) {
       if (interior && interior.house.id === 'inn') restAtInn();
@@ -1893,6 +2066,12 @@ function endTurn(moved) {
   updateVisibility();
   updateStats();
   if (player.hp <= 0) die();
+  if (!gameOver && player.pendingPerks > 0) offerPerks();
+  if (inTown()) {
+    const here = townContaining(player.x, player.y);
+    if (here && !player.meta.visited.includes(here.key)) { player.meta.visited.push(here.key); if (player.meta.visited.length >= 5) unlock('explorer'); }
+    if (dayPhase() === 'night') tip('night', 'Night has fallen. Beasts in the wilds notice you from further away, but towns stay safe.');
+  }
   draw();
 }
 
@@ -1906,17 +2085,19 @@ function die() {
   if (!ACCOUNT.user) {
     guestRespawn = { name: null, floor: 0, level: player.level, xp: player.xp, gold: player.gold - lost, hp: player.maxHp, max_hp: player.maxHp, atk: player.atk,
       weapon: player.weapon, armor: player.armor, bag: player.bag.filter((id) => itemKind(id) !== 'consumable'), quests: [], quests_done: player.questsDone || 0,
-      wx: t.spawn.x, wy: t.spawn.y, home: t.key, class: player.cls, guest: true };
+      wx: t.spawn.x, wy: t.spawn.y, home: t.key, class: player.cls, guest: true,
+      perks: player.perks, achievements: player.achievements, title: player.title, meta: player.meta, weapon_plus: player.weaponPlus, armor_plus: player.armorPlus, kills: player.lifetimeKills };
   }
   saveProgress('death');
 }
 
 function openChest(x, y) {
   const danger = dungeonDef ? dungeonDef.danger : 0;
-  const gold = Math.round((20 + rnd(30)) * (1 + danger * 0.5) * (dungeonDef ? dungeonDef.gold : 1));
+  const gold = Math.round((20 + rnd(30)) * (1 + danger * 0.5) * (dungeonDef ? dungeonDef.gold : 1) * (perkCount('lucky') ? 1.25 : 1));
   player.gold += gold;
   setTile(x, y, TILE.FLOOR); bgDirty = true;
   log(`You open the chest: ${gold} gold.`, 'good');
+  if (player.gold >= 1000) unlock('rich');
   floatText(x, y, `+${gold}g`, '#f5c542');
   sfx.play('chest');
   if (Math.random() < 0.4 && !bagFull()) { const keep = dungeonDef; dungeonDef = { ...(dungeonDef || {}), loot: 1 }; dropLoot({ type: { name: 'chest' } }); dungeonDef = keep; }
@@ -1926,6 +2107,8 @@ function springTrap(x, y) {
   revealedTraps.add(key(x, y)); bgDirty = true;
   player.hp -= dmg;
   log(`Spikes shoot up from the floor! You take ${dmg} damage.`, 'bad');
+  shakeScreen(4);
+  tip('trap', 'Spike traps hide in corridors and show once sprung. Step around them. Rangers see them two tiles away.');
   floatText(x, y, `-${dmg}`, '#ff6b6b');
   player.flashUntil = performance.now() + 150;
   sfx.play('trap');
@@ -1946,11 +2129,12 @@ function lineTarget(range) {
   return best;
 }
 function useAbility() {
-  if (gameOver || !player || shopOpen || scene === 'house') return;
+  if (gameOver || !player || shopOpen || scene === 'house' || perkChoices) return;
   const cls = heroClass();
   if (player.cooldown > 0) { log(`${cls.ability} is not ready (${player.cooldown} turns).`); draw(); return; }
+  const cooldownFor = () => Math.max(1, Math.ceil(cls.cooldown * (1 - 0.2 * perkCount('quickened'))));
   if (player.cls === 'warrior') {
-    player.shield = 6; player.cooldown = cls.cooldown;
+    player.shield = 6; player.cooldown = cooldownFor();
     log('You raise your shield wall: 2 less damage from every hit for 6 turns.', 'good');
     sfx.play('shield'); endTurn(false); return;
   }
@@ -1965,7 +2149,7 @@ function useAbility() {
     sfx.play('arrow');
     log(`Your arrow hits ${t.m.boss ? t.m.name : 'the ' + t.m.type.name} for ${dmg}.`);
     if (t.m.hp <= 0) killMonster(t.m);
-    player.cooldown = cls.cooldown; endTurn(false); return;
+    player.cooldown = cooldownFor(); endTurn(false); return;
   }
   if (player.cls === 'mage') {
     let target = null, bd = Infinity;
@@ -1978,7 +2162,7 @@ function useAbility() {
     log(`Your fireball bursts over ${hit.length} ${hit.length === 1 ? 'monster' : 'monsters'} for ${dmg} each.`, 'good');
     for (const m of hit) { m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); }
     for (const m of hit) if (m.hp <= 0) killMonster(m);
-    player.cooldown = cls.cooldown; endTurn(false); return;
+    player.cooldown = cooldownFor(); endTurn(false); return;
   }
 }
 
@@ -1998,6 +2182,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'm' || e.key === 'M') { questsOpen = false; toggleMap(); return; }
   if (e.key === 'q' || e.key === 'Q') { mapOpen = false; questsOpen = !questsOpen; draw(); return; }
   if (e.key === 'n' || e.key === 'N') { toggleSound(); return; }
+  if (perkChoices) { if (['1', '2', '3'].includes(e.key)) choosePerk(Number(e.key) - 1); return; }
   if (e.key === '1') { e.preventDefault(); useAbility(); return; }
   if ((mapOpen || questsOpen) && KEYS[e.key]) { mapOpen = false; questsOpen = false; }
   if (e.key === 'r' || e.key === 'R') { init(); return; }
@@ -2073,8 +2258,8 @@ const invBag = document.getElementById('inv-bag');
 function itemLabel(id) {
   const it = itemInfo(id);
   if (!it) return id;
-  if (ITEMS.weapons[id]) return `${it.name} (+${it.atk} attack)`;
-  if (ITEMS.armor[id]) return `${it.name} (${it.def} defence)`;
+  if (ITEMS.weapons[id]) return `${it.name}${id === player.weapon && player.weaponPlus ? ' +' + player.weaponPlus : ''} (+${it.atk + (id === player.weapon ? player.weaponPlus || 0 : 0)} attack)`;
+  if (ITEMS.armor[id]) return `${it.name}${id === player.armor && player.armorPlus ? ' +' + player.armorPlus : ''} (${it.def + (id === player.armor ? player.armorPlus || 0 : 0)} defence)`;
   return `${it.name} (+${it.heal} HP)`;
 }
 function renderInventory() {
@@ -2083,7 +2268,7 @@ function renderInventory() {
   invArmor.textContent = player.armor ? itemLabel(player.armor) : 'None';
   invBag.innerHTML = '';
   if (!player.bag.length) {
-    const li = document.createElement('li'); li.className = 'empty'; li.textContent = `empty (0/${ITEMS.bag_size})`; invBag.appendChild(li); return;
+    const li = document.createElement('li'); li.className = 'empty'; li.textContent = `empty (0/${bagSize()})`; invBag.appendChild(li); return;
   }
   player.bag.forEach((id, idx) => {
     const li = document.createElement('li');
@@ -2096,7 +2281,7 @@ function renderInventory() {
     invBag.appendChild(li);
   });
 }
-function bagFull() { return player.bag.length >= ITEMS.bag_size; }
+function bagFull() { return player.bag.length >= bagSize(); }
 function equip(idx) {
   const id = player.bag[idx];
   const kind = itemKind(id);
@@ -2104,6 +2289,8 @@ function equip(idx) {
   const slot = kind === 'weapon' ? 'weapon' : 'armor';
   player.bag.splice(idx, 1);
   if (player[slot]) player.bag.push(player[slot]);
+  if (slot === 'weapon' && player.weaponPlus) { log('Your sharpening stays with the old weapon.'); player.weaponPlus = 0; }
+  if (slot === 'armor' && player.armorPlus) { log('Your reinforcement stays with the old armor.'); player.armorPlus = 0; }
   player[slot] = id;
   log(`You equip the ${itemInfo(id).name}.`, 'good');
   updateStats(); renderShop(); draw();
@@ -2149,16 +2336,39 @@ let shopKind = 'shop';
 const buyPrice = (id) => SHOPS[shopKind].price(itemInfo(id));
 function openShop(kind = 'shop') {
   if (!shopEl) return;
+  tip('shop', 'Buy with the buttons, sell anything at half price. Smithies and armouries also sharpen and reinforce what you wear.');
   shopKind = kind; shopOpen = true; shopEl.hidden = false;
   document.querySelector('#shop h2').textContent = SHOPS[kind].title;
   log(SHOPS[kind].greet);
   renderShop();
 }
 function closeShop() { if (!shopEl) return; shopOpen = false; shopEl.hidden = true; }
+const UPGRADE_COST = (plus) => 100 * (plus + 1) + 50 * plus;
+function upgradeRow(slot) {
+  const id = player[slot], plus = slot === 'weapon' ? (player.weaponPlus || 0) : (player.armorPlus || 0);
+  const li = document.createElement('li');
+  if (!id) { li.className = 'empty'; li.textContent = slot === 'weapon' ? 'Equip a weapon to have it sharpened' : 'Equip armor to have it reinforced'; return li; }
+  const btn = document.createElement('button'); btn.type = 'button';
+  if (plus >= 3) { li.append(`${itemInfo(id).name} +${plus} is as good as it gets`); li.className = 'empty'; return li; }
+  const cost = UPGRADE_COST(plus);
+  btn.textContent = `${slot === 'weapon' ? 'Sharpen' : 'Reinforce'} ${cost}g`;
+  btn.disabled = player.gold < cost;
+  btn.addEventListener('click', () => {
+    if (player.gold < cost) return;
+    player.gold -= cost;
+    if (slot === 'weapon') player.weaponPlus = plus + 1; else player.armorPlus = plus + 1;
+    log(`${itemInfo(id).name} is now +${plus + 1}.`, 'good'); sfx.play('chest');
+    updateStats(); renderShop(); draw();
+  });
+  li.append(`${itemInfo(id).name} +${plus} → +${plus + 1} (${slot === 'weapon' ? '+1 attack' : '+1 defence'})`, btn);
+  return li;
+}
 function renderShop() {
   if (!shopOpen) return;
   shopGold.textContent = `${player.gold} gold`;
   shopBuy.innerHTML = '';
+  if (shopKind === 'smithy' || shopKind === 'royal') shopBuy.appendChild(upgradeRow('weapon'));
+  if (shopKind === 'armoury' || shopKind === 'royal') shopBuy.appendChild(upgradeRow('armor'));
   const stock = Object.entries({ ...ITEMS.weapons, ...ITEMS.armor, ...ITEMS.consumables }).filter(([id, it]) => SHOPS[shopKind].stock(id, it));
   for (const [id] of stock) {
     const li = document.createElement('li');
@@ -2193,8 +2403,9 @@ function buy(id) {
 }
 function sell(o) {
   const price = sellPrice(o.id);
-  if (typeof o.where === 'string') player[o.where] = null; else player.bag.splice(o.where, 1);
+  if (typeof o.where === 'string') { player[o.where] = null; if (o.where === 'weapon') player.weaponPlus = 0; else player.armorPlus = 0; } else player.bag.splice(o.where, 1);
   player.gold += price;
+  if (player.gold >= 1000) unlock('rich');
   log(`You sell the ${itemInfo(o.id).name} for ${price} gold.`, 'good');
   updateStats(); renderShop(); draw();
 }
@@ -2207,8 +2418,9 @@ function afterSceneChange() {
   updateCamera(); updateVisibility(); buildLegend(); updateStats(); draw();
 }
 function startRun(saved) {
-  player = { x: 1, y: 1, hp: 24, maxHp: 24, atk: 3, level: 1, xp: 0, gold: 0, weapon: null, armor: null, bag: [], quests: [], questsDone: 0, cls: 'warrior', cooldown: 0, shield: 0, poison: 0 };
-  questsOpen = false; mapOpen = false; revealedTraps = new Set();
+  player = { x: 1, y: 1, hp: 24, maxHp: 24, atk: 3, level: 1, xp: 0, gold: 0, weapon: null, armor: null, bag: [], quests: [], questsDone: 0, cls: 'warrior', cooldown: 0, shield: 0, poison: 0,
+    perks: [], achievements: [], title: null, meta: { visited: [], second_wind: false }, weaponPlus: 0, armorPlus: 0, lifetimeKills: 0, pendingPerks: 0 };
+  questsOpen = false; mapOpen = false; revealedTraps = new Set(); perkChoices = null; toast = null;
   floor = TOWN; interior = null; gameOver = false; turn = 0; kills = 0;
   overlay.classList.remove('show');
   logEl.innerHTML = ''; messages.length = 0;
@@ -2218,7 +2430,12 @@ function startRun(saved) {
       weapon: itemInfo(saved.weapon) ? saved.weapon : null, armor: itemInfo(saved.armor) ? saved.armor : null,
       bag: (saved.bag || []).filter(itemInfo).slice(0, ITEMS.bag_size),
       quests: Array.isArray(saved.quests) ? saved.quests.filter((q) => q && q.id && q.kind && q.label).slice(-12) : [],
-      questsDone: saved.quests_done || 0, cls: CLASSES[saved.class] ? saved.class : 'warrior' });
+      questsDone: saved.quests_done || 0, cls: CLASSES[saved.class] ? saved.class : 'warrior',
+      perks: Array.isArray(saved.perks) ? saved.perks.filter((id) => PERKS[id]) : [],
+      achievements: Array.isArray(saved.achievements) ? saved.achievements.filter((id) => ACHIEVEMENTS[id]) : [],
+      title: saved.title || null, lifetimeKills: saved.kills || 0,
+      meta: { visited: Array.isArray(saved.meta?.visited) ? saved.meta.visited : [], second_wind: !!saved.meta?.second_wind },
+      weaponPlus: saved.weapon_plus || 0, armorPlus: saved.armor_plus || 0 });
     // heroes made before classes existed start with the warrior's numbers; fresh heroes take their class's
     if (player.level === 1 && player.xp === 0 && player.maxHp === 20) { player.maxHp = heroClass().hp; player.hp = Math.min(player.hp + heroClass().hp - 20, heroClass().hp); player.atk = heroClass().atk; }
   } else {
@@ -2227,6 +2444,7 @@ function startRun(saved) {
     else if (classPick) classPick.hidden = false;
   }
   { const ab = document.getElementById('ability'); if (ab) ab.textContent = `${heroClass().ability} (1)`; }
+  tip('start', 'Arrow keys or WASD to move. Walk into people to talk, into doors to enter. The green gate at the bottom of the square leads into the dungeon.');
   if (saved && saved.home && /^-?\d+,-?\d+$/.test(saved.home)) homeTown = saved.home;
   if (floor === TOWN) {
     createWorld();

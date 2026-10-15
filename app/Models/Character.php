@@ -9,12 +9,12 @@ class Character extends Model
 {
     protected $fillable = [
         'name', 'bio', 'class', 'floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk',
-        'weapon', 'armor', 'bag', 'quests', 'quests_done', 'wx', 'wy', 'home', 'runs', 'wins', 'best_floor', 'best_gold', 'kills',
+        'weapon', 'armor', 'weapon_plus', 'armor_plus', 'bag', 'quests', 'quests_done', 'perks', 'achievements', 'meta', 'title', 'wx', 'wy', 'home', 'runs', 'wins', 'best_floor', 'best_gold', 'kills',
     ];
 
-    protected $casts = ['bag' => 'array', 'quests' => 'array'];
+    protected $casts = ['bag' => 'array', 'quests' => 'array', 'perks' => 'array', 'achievements' => 'array', 'meta' => 'array'];
 
-    protected $attributes = ['bag' => '[]', 'quests' => '[]'];
+    protected $attributes = ['bag' => '[]', 'quests' => '[]', 'perks' => '[]', 'achievements' => '[]', 'meta' => '{}'];
 
     /** True when another hero already uses this name, ignoring case. */
     public static function nameTaken(string $name, ?int $exceptId = null): bool
@@ -43,7 +43,7 @@ class Character extends Model
     {
         $this->fill([
             'floor' => 0, 'level' => 1, 'xp' => 0, 'gold' => 0, 'hp' => 20, 'max_hp' => 20, 'atk' => 3,
-            'weapon' => null, 'armor' => null, 'bag' => [],
+            'weapon' => null, 'armor' => null, 'bag' => [], 'weapon_plus' => 0, 'armor_plus' => 0, 'perks' => [],
         ]);
     }
 

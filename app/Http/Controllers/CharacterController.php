@@ -42,7 +42,7 @@ class CharacterController extends Controller
             'class' => ['nullable', Rule::in(Character::CLASSES)],
             'weapon' => ['nullable', Rule::in(array_keys(config('items.weapons')))],
             'armor' => ['nullable', Rule::in(array_keys(config('items.armor')))],
-            'bag' => ['present', 'array', 'max:'.config('items.bag_size')],
+            'bag' => ['present', 'array', 'max:'.(config('items.bag_size') + 4)],   // +4 for the Packrat perk
             'quests' => ['nullable', 'array', 'max:12'],
             'quests.*.id' => ['required', 'string', 'max:60'],
             'quests.*.kind' => ['required', Rule::in(['clear', 'slay', 'boss'])],
@@ -54,6 +54,17 @@ class CharacterController extends Controller
             'quests.*.giver' => ['nullable', 'string', 'max:60'],
             'quests.*.reward' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'quests_done' => ['nullable', 'integer', 'min:0', 'max:100000'],
+            'perks' => ['nullable', 'array', 'max:60'],
+            'perks.*' => ['string', 'max:24', 'regex:/^[a-z_]+$/'],
+            'achievements' => ['nullable', 'array', 'max:60'],
+            'achievements.*' => ['string', 'max:24', 'regex:/^[a-z_0-9]+$/'],
+            'meta' => ['nullable', 'array', 'max:10'],
+            'meta.visited' => ['nullable', 'array', 'max:80'],
+            'meta.visited.*' => ['string', 'max:16', 'regex:/^-?\d+,-?\d+$/'],
+            'meta.second_wind' => ['nullable', 'boolean'],
+            'title' => ['nullable', 'string', 'max:40'],
+            'weapon_plus' => ['nullable', 'integer', 'min:0', 'max:3'],
+            'armor_plus' => ['nullable', 'integer', 'min:0', 'max:3'],
             'wx' => ['nullable', 'integer', 'between:-100000,100000'],
             'wy' => ['nullable', 'integer', 'between:-100000,100000'],
             'home' => ['nullable', 'string', 'max:16', 'regex:/^-?\d+,-?\d+$/'],
@@ -73,21 +84,21 @@ class CharacterController extends Controller
             if ($data['floor'] === 1 && $c->floor === 0) {
                 $c->runs++;
             }
-            $c->fill(collect($data)->only(['floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'bag', 'quests', 'quests_done', 'wx', 'wy', 'home', 'class'])->filter(fn ($v) => $v !== null)->all());
+            $c->fill(collect($data)->only(['floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'weapon_plus', 'armor_plus', 'bag', 'quests', 'quests_done', 'perks', 'achievements', 'meta', 'title', 'wx', 'wy', 'home', 'class'])->filter(fn ($v) => $v !== null)->all());
         } elseif ($data['event'] === 'win') {
             // Back to town with everything earned; only the floor resets.
             if ($c->floor === 0) {
                 $c->runs++;
             }
             $c->wins++;
-            $c->fill(collect($data)->only(['level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'bag', 'quests', 'quests_done', 'wx', 'wy', 'home'])->filter(fn ($v) => $v !== null)->all());
+            $c->fill(collect($data)->only(['level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'weapon_plus', 'armor_plus', 'bag', 'quests', 'quests_done', 'perks', 'achievements', 'meta', 'title', 'wx', 'wy', 'home', 'class'])->filter(fn ($v) => $v !== null)->all());
             $c->floor = 0;
         } else {
             if ($c->floor === 0) {
                 $c->runs++;
             }
             // death: the client sends the stats as they were at the moment of falling
-            $c->fill(collect($data)->only(['level', 'xp', 'gold', 'max_hp', 'atk', 'weapon', 'armor', 'bag', 'wx', 'wy', 'home', 'class'])->filter(fn ($v) => $v !== null)->all());
+            $c->fill(collect($data)->only(['level', 'xp', 'gold', 'max_hp', 'atk', 'weapon', 'armor', 'weapon_plus', 'armor_plus', 'bag', 'perks', 'achievements', 'meta', 'title', 'wx', 'wy', 'home', 'class'])->filter(fn ($v) => $v !== null)->all());
             $c->fallInBattle();
             if (isset($data['quests_done'])) {
                 $c->quests_done = $data['quests_done'];

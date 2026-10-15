@@ -135,3 +135,4 @@ a.secondary{background:#0b3142;border:1px solid #12384a;color:#d5f0ff;border-rad
 .classlist li b{min-width:64px}
 .classlist li .muted{flex:1;min-width:200px}
 button.fs.primary{background:#5fe17a;color:#06202c;border-color:#5fe17a;font-weight:600}
+.profile-head h2 .title{display:inline-block;margin-left:10px;padding:2px 8px;border-radius:4px;background:#0b3142;color:#ffd86b;font-size:.8rem;vertical-align:middle;font-weight:600}

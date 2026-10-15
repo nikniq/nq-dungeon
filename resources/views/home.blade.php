@@ -43,7 +43,7 @@
       @foreach ($leaders as $i => $h)
         <tr>
           <td>{{ $i + 1 }}</td>
-          <td><a href="{{ route('heroes.show', $h) }}">{{ $h->name }}</a></td>
+          <td><a href="{{ route('heroes.show', $h) }}">{{ $h->name }}</a>@if ($h->title) <span class="muted small">{{ $h->title }}</span>@endif</td>
           <td>{{ $h->wins }}</td><td>{{ $h->best_floor ?: '—' }}</td><td>{{ $h->best_gold }}</td><td>{{ $h->kills }}</td><td>{{ $h->level }}</td>
         </tr>
       @endforeach
