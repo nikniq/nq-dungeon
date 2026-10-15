@@ -19,7 +19,11 @@ distance from Hearth, and a hoard at the bottom. Choose a class: Warrior (Shield
 (Fireball); press 1 for the ability. Chests hold gold, spike traps hide in
 corridors, spiders poison (potions cure), archers shoot from range, bats flit.
 Falling in battle costs half your gold and your potions, never level or gear.
-Every level up offers a choice of three perks. Achievements grant titles shown
+Hire a hound at any inn: it follows, bites, levels up and is patched up free at
+inns. Every town has a waystone for paid fast travel to towns you have visited.
+Bombs (B) blast a 3×3 area; a scroll of return (T) whisks you home. Elite
+monsters (starred: armored, swift, vampiric, explosive) hit harder and pay more.
+Gamepads work. Every level up offers a choice of three perks. Achievements grant titles shown
 on profiles and the leaderboard. Smithies and armouries sharpen and reinforce
 worn gear up to +3. New players get one-time tips. Press M for the world map,
 Q for the quest log (with achievements and perks), N to toggle sound. Captains,

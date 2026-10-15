@@ -16,7 +16,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 const restartBtn = document.getElementById('restart');
 
-const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11 };
+const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12 };
 const TOWN = 0;           // floor number of the town square
 const FINAL_FLOOR = 5;
 const VIEW_RADIUS = 8;    // how far the hero sees in the dungeon
@@ -76,6 +76,9 @@ const ACHIEVEMENTS = {
   errands:     { label: 'Completed five quests', title: 'the Errand-runner' },
   survivor:    { label: 'Cheated death', title: 'the Unkillable' },
   night_owl:   { label: 'Killed a beast after dark', title: 'the Night Owl' },
+  traveller:   { label: 'Travelled by waystone', title: 'the Wanderer' },
+  good_dog:    { label: 'Your hound made ten kills', title: 'Houndmaster' },
+  elite:       { label: 'Slew an elite monster', title: 'the Undaunted' },
 };
 function unlock(id) {
   if (!player || !ACHIEVEMENTS[id] || player.achievements.includes(id)) return;
@@ -169,7 +172,7 @@ function markSeen(x, y) {
   const cx = Math.floor(x / CHUNK), cy = Math.floor(y / CHUNK);
   getChunk(cx, cy).seen[(y - cy * CHUNK) * CHUNK + (x - cx * CHUNK)] = 1;
 }
-const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST;
+const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE;
 
 // ---------- account save/load ----------
 const ACCOUNT = window.DUNGEON || { user: false };
@@ -192,7 +195,7 @@ async function saveProgress(event, keepalive = false) {
         quests: (player.quests || []).slice(-12).map((q) => ({ id: q.id, kind: q.kind, label: q.label, need: q.need, have: q.have, done: !!q.done, target: q.target, giver: q.giver, reward: q.reward })),
         quests_done: player.questsDone || 0, class: player.cls,
         perks: player.perks, achievements: player.achievements, title: player.title || null,
-        meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind },
+        meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState() },
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
     if (!res.ok) throw new Error(res.status);
@@ -275,6 +278,17 @@ function nightTint() {
 }
 
 // ---------- bosses ----------
+const ELITE_MODS = {
+  armored:   { label: 'Armored',   color: '#cbd5e1', desc: 'takes 2 less damage from blows' },
+  swift:     { label: 'Swift',     color: '#7bdfff', desc: 'acts twice a turn' },
+  vampiric:  { label: 'Vampiric',  color: '#ff6b9b', desc: 'heals when it hits' },
+  explosive: { label: 'Explosive', color: '#ff9f43', desc: 'bursts when slain' },
+};
+function makeElite(m, roll) {
+  const ids = Object.keys(ELITE_MODS), id = ids[Math.floor(roll * ids.length) % ids.length];
+  m.mod = id; m.elite = true; m.name = `${ELITE_MODS[id].label} ${m.type.name}`;
+  m.hp = m.maxHp = Math.round(m.maxHp * 1.6);
+}
 const BOSS_NAMES = { Rat: 'the Rat King', Goblin: 'the Goblin Chieftain', Skeleton: 'the Bone Lord', Orc: 'the Orc Warchief', Wraith: 'the Lich', Bat: 'the Bat Matriarch', Spider: 'the Brood Mother', Archer: 'the Goblin Marksman' };
 function placeBoss(room, ox, oy) {
   const def = dungeonDef || { pool: null, danger: 0 };
@@ -443,6 +457,9 @@ BIG_SPRITES.bat = ['................', '................', '................', '
 BIG_SPRITES.spider = ['................', '................', '...k........k...', '..k.k......k.k..', '..k..kkkkkk..k..', '.k..kkkkkkkk..k.', '.k.kkrkkkkrkk.k.', '..kkkkkkkkkkkk..', '.k..kkkkkkkk..k.', '.k...kkkkkk...k.', '..k..k....k..k..', '..k.k......k.k..', '...k........k...', '................', '................', '................'];
 BIG_SPRITES.archer = ['....g......g....', '...gg......gg...', '...gggggggggg...', '..gggggggggggg..', '..ggkgggggkggg..', '..gggggggggggg..', '...ggggwwgggg...', '....gggggggg....', '...hHHHHHHHHh...', '..hhHHHHHHHHhh..', '..h.HHHHHHHH.h..', '.h..HHHHHHHH..h.', '.h..HHH..HHH..h.', '.h..HHH..HHH..h.', '....hhh..hhh....', '................'];
 BIG_SPRITES.trap = ['................', '................', '................', '................', '..e.....e.....e.', '.eee...eee...eee', '.eee...eee...eee', '.EEE...EEE...EEE', '.EEE...EEE...EEE', 'EEEEEEEEEEEEEEEE', 'EEEEEEEEEEEEEEEE', '................', '................', '................', '................', '................'];
+BIG_SPRITES.hound = ['................', '................', '..........HH....', '.........HhhH...', '.........hhhhh..', '.........hkhhhk.', '.H.......hhhhhh.', '..H......hhhh...', '...hhhhhhhhhh...', '...hhhhhhhhhh...', '...hhhhhhhhhh...', '...hh.hh..hh.hh.', '...hh.hh..hh.hh.', '...HH.HH..HH.HH.', '................', '................'];
+BIG_SPRITES.waystone = ['......EEEE......', '.....EeeeeE.....', '....EeeeeeeE....', '....EeeceeeE....', '....EecccceE....', '....EeeceeeE....', '....EeeceeeE....', '....EecccceE....', '....EeeceeeE....', '....EeeeeeeE....', '....EeeeeeeE....', '...EEeeeeeeEE...', '..EEEEEEEEEEEE..', '.GEEEEEEEEEEEEG.', 'GGGGGGGGGGGGGGGG', '................'];
+BIG_SPRITES.bomb = ['................', '..........y.....', '.........o......', '........E.......', '.....kkkEkk.....', '....kkkkkkkk....', '...kkEkkkkkkk...', '...kEkkkkkkkk...', '...kkkkkkkkkk...', '...kkkkkkkkkk...', '...kkkkkkkkkk...', '....kkkkkkkk....', '.....kkkkkk.....', '................', '................', '................'];
 const spriteCache = {};
 // Creatures, items and props get a dark outline so they read on any ground;
 // 16px sprites also get a light top rim and a darker bottom rim for volume.
@@ -771,6 +788,7 @@ function townTile(town, wx, wy) {
     if (wx >= h.x && wx < h.x + h.w && wy >= h.y && wy < h.y + h.h) t = (wx === h.doorX && wy === h.doorY) ? TILE.DOOR : TILE.WALL;
   }
   if (wx === town.gate.x && wy === town.gate.y) t = TILE.EXIT;
+  if (wx === town.cx + 4 && wy === town.cy) { t = TILE.WAYSTONE; g = GROUND.COBBLE; }
   return [t, g];
 }
 // Special dungeons out in the country: one in roughly half the lattice cells,
@@ -959,7 +977,7 @@ function talk(n) {
   const line = n.type.lines[rnd(n.type.lines.length)];
   log(`${n.type.name}: ${line}`);
   bubble = { x: n.x, y: n.y, text: line, until: performance.now() + 4000 };
-  if (n.type.action === 'inn') restAtInn();
+  if (n.type.action === 'inn') openShop('inn');
   else if (n.type.action && SHOPS[n.type.action]) openShop(n.type.action);
   else offerQuest(n);
 }
@@ -980,7 +998,7 @@ function useFurniture(d) {
   const id = interior && interior.house.id;
   const counters = { shop: 'shop', market: 'shop', herbs: 'potions', smithy: 'smithy', armoury: 'armoury', apothecary: 'apothecary', royal: 'royal' };
   if (d.sprite === 'counter' && counters[id]) return openShop(counters[id]);
-  if (d.sprite === 'counter' && id === 'inn') return restAtInn();
+  if (d.sprite === 'counter' && id === 'inn') return openShop('inn');
   const flavour = {
     shelf: id === 'herbs' ? 'Jars of dried roots and something that is still moving.' : 'Neatly labelled stock. Fenwick does not like browsing hands.',
     table: 'A sturdy table. Someone has carved a map of the first floor into it. It is wrong.',
@@ -1051,6 +1069,7 @@ function populateChunk(chunk, rand) {
     const t = pool[r(pool.length)];
     const hp = t.hp + Math.floor(floor / 2) + danger;
     monsters.push({ ...cell, type: t, hp, maxHp: hp, atk: t.atk + Math.floor(danger / 2), awake: false });
+    if (rand() < 0.07 + 0.01 * floor) makeElite(monsters[monsters.length - 1], rand());
     monstersDirty = true;
   }
   for (let i = 0; i < Math.round((2 + r(3)) * def.potions) && cells.length; i++) potions.push({ ...take(), heal: 5 });
@@ -1148,6 +1167,7 @@ function animate(now) {
   ease(player);
   for (const m of monsters) if (cheb(m, player) <= SIM_RADIUS) ease(m);
   for (const n of npcs) ease(n);
+  if (hound) ease(hound);
   updateCamera();
 }
 function updateCamera() {
@@ -1372,6 +1392,7 @@ function renderBackground() {
         drawSprite(g, 'stairs', c, r);
       }
       if (t === TILE.SITE) { const st = siteAtTile(c, r); if (st) drawSprite(g, st.sprite, c, r, 1, 0); }
+      if (t === TILE.WAYSTONE) drawSprite(g, 'waystone', c, r, 1, 0);
     }
     for (const st of nearbySites(player.x, player.y, 1)) {
       if (st.x < x0 || st.x > x1 || st.y < y0 || st.y > y1) continue;
@@ -1649,9 +1670,26 @@ function drawScene(now) {
   const shadow = (x, y) => { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x * T - cam.x + T / 2, y * T - cam.y + T - 4, T * 0.3, 4, 0, 0, Math.PI * 2); ctx.fill(); };
   const bob = (o, idle = true) => (idle ? Math.sin(now / 260 + (o.x * 7 + o.y * 13)) * 0.03 : 0);
   if (scene !== 'dungeon') for (const n of npcs) if (inView(n)) { const [lx, ly] = [n.rx ?? n.x, n.ry ?? n.y]; shadow(lx, ly); drawSprite(ctx, n.type.sprite, lx, ly - bob(n) - hop(n), 1, 3, n.face === -1); }
+  if (hound && !hound.down && scene !== 'house' && inView(hound)) {
+    const [ldx, ldy] = lunge(hound, now);
+    const lx = (hound.rx ?? hound.x) + ldx / T, ly = (hound.ry ?? hound.y) + ldy / T - hop(hound);
+    shadow(lx, (hound.ry ?? hound.y));
+    drawSprite(ctx, 'hound', lx, ly, 1, 3, hound.face === -1, hound.flashUntil > now);
+    if (hound.hp < hound.maxHp) {
+      ctx.fillStyle = '#300'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, T - 6, 3);
+      ctx.fillStyle = '#5fe17a'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, (T - 6) * (hound.hp / hound.maxHp), 3);
+    }
+  }
   for (const m of monsters) {
     if (!inView(m) || !isVisible(m.x, m.y)) continue;
     const [ldx, ldy] = lunge(m, now);
+    if (m.mod) {
+      ctx.globalAlpha = 0.55 + 0.3 * Math.sin(now / 180);
+      ctx.strokeStyle = ELITE_MODS[m.mod].color; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse((m.rx ?? m.x) * T - cam.x + T / 2, (m.ry ?? m.y) * T - cam.y + T - 4, T * 0.44, 7, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+      lights.push({ x: (m.rx ?? m.x) * T - cam.x + T / 2, y: (m.ry ?? m.y) * T - cam.y + T / 2, r: T * 1.6, a: 0.5, glow: 'rgba(255,255,255,0.06)' });
+    }
     const lx = (m.rx ?? m.x) + ldx / T, ly = (m.ry ?? m.y) + ldy / T - bob(m, m.awake) - hop(m);
     shadow(lx, ly);
     drawSprite(ctx, m.type.sprite, lx, ly, 1, m.boss ? -5 : 3, m.face === -1, m.flashUntil > now);
@@ -1668,6 +1706,7 @@ function drawScene(now) {
       ctx.fillStyle = '#f33'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, (T - 6) * (m.hp / m.maxHp), 3);
     }
     if (!m.awake) { ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.fillText('z', lx * T - cam.x + T - 10, ly * T - cam.y + 11 + Math.sin(now / 400) * 2); }
+    if (m.mod) { ctx.fillStyle = ELITE_MODS[m.mod].color; ctx.font = 'bold 12px sans-serif'; ctx.fillText('★', lx * T - cam.x + 1, ly * T - cam.y + 10); }
   }
   {
     const [ldx, ldy] = lunge(player, now);
@@ -1704,6 +1743,10 @@ function drawScene(now) {
           if (lc < x0 - 4 || lc > x1 + 4 || lr < y0 - 4 || lr > y1 + 4) continue;
           night.push({ x: lc * T - cam.x + T / 2, y: lr * T - cam.y + 8, r: T * 3.8, glow: 'rgba(255,210,120,0.3)', gr: T * 2 });
         }
+      }
+      for (const town of nearbyTowns(player.x, player.y, 1)) {
+        if (town.cx + 4 < x0 - 3 || town.cx + 4 > x1 + 3 || town.cy < y0 - 3 || town.cy > y1 + 3) continue;
+        night.push({ x: (town.cx + 4) * T - cam.x + T / 2, y: town.cy * T - cam.y + T / 2, r: T * 2.2, a: 0.8, glow: `rgba(123,223,255,${0.18 + 0.06 * Math.sin(now / 400)})`, gr: T * 1.3 });
       }
       for (const h of houses) {
         if (h.doorX < x0 - 3 || h.doorX > x1 + 3 || h.doorY < y0 - 3 || h.doorY > y1 + 3) continue;
@@ -1873,11 +1916,13 @@ function describeTile(x, y) {
   const t = getTile(x, y);
   if (scene === 'dungeon' && !wasSeen(x, y)) return null;
   if (x === player.x && y === player.y) return `You — ${player.hp}/${player.maxHp} HP, attack ${player.atk + weaponAtk()}`;
+  if (houndAt(x, y)) return `Your hound — ${hound.hp}/${hound.maxHp} HP, bite ${hound.atk}, level ${hound.level}, ${hound.kills} kills`;
+  if (getTile(x, y) === TILE.WAYSTONE) return 'Waystone — walk into it to travel to any town you have visited';
   const n = scene !== 'dungeon' && getNpcAt(x, y);
   if (n) return `${n.type.name} — walk into them to ${n.type.action === 'shop' || n.type.action === 'potions' ? 'trade' : n.type.action === 'inn' ? 'rest' : 'chat'}`;
   if (isVisible(x, y)) {
     const m = getMonsterAt(x, y);
-    if (m) return `${m.boss ? m.name[0].toUpperCase() + m.name.slice(1) + ' (boss)' : m.type.name} — ${m.hp}/${m.maxHp} HP, attack ${m.atk}${m.awake ? '' : ' (asleep)'}`;
+    if (m) return `${m.boss ? m.name[0].toUpperCase() + m.name.slice(1) + ' (boss)' : m.elite ? `${m.name} (elite: ${ELITE_MODS[m.mod].desc})` : m.type.name} — ${m.hp}/${m.maxHp} HP, attack ${m.atk}${m.awake ? '' : ' (asleep)'}`;
     if (getPotionAt(x, y)) return 'Potion — restores 5 HP';
     const g = getGoldAt(x, y);
     if (g) return `Gold — ${g.amount} pieces`;
@@ -1949,6 +1994,7 @@ function buildLegend() {
     legendEl.appendChild(li);
   };
   add(heroClass().sprite, `You, ${heroClass().name}`, `1: ${heroClass().ability}`);
+  if (hound) add('hound', 'Your hound', hound.down ? 'resting at the inn' : `level ${hound.level}, bites ${hound.atk}`);
   if (scene === 'house') {
     for (const n of npcs) add(n.type.sprite, n.type.name, n.type.action === 'inn' ? 'rest for free' : n.type.action ? 'buy and sell' : 'chat');
     add('bed', 'Bed', 'rest'); add('counter', 'Counter', 'trade or rest');
@@ -1965,6 +2011,7 @@ function buildLegend() {
   add('merchant', 'Merchant', 'buy and sell');
   if (inTown()) {
     add('guard', 'Townsfolk', 'walk into them to chat');
+    add('waystone', 'Waystone', 'fast travel between visited towns');
     add('stairs', 'Gate', 'into the dungeon');
     add('tree', 'Forest, water, mountains', 'impassable; roads join the towns');
     add('cave', 'Caves, crypts, towers', 'short dungeons with a boss and a hoard');
@@ -2035,7 +2082,7 @@ function gainXp(n) {
   }
 }
 function playerAttack(m) {
-  const dmg = player.atk + weaponAtk() + rnd(2);
+  const dmg = Math.max(1, player.atk + weaponAtk() + rnd(2) - (m.mod === 'armored' ? 2 : 0));
   m.hp -= dmg; m.awake = true;
   const now = performance.now();
   player.lunge = { dx: Math.sign(m.x - player.x), dy: Math.sign(m.y - player.y), until: now + 140 };
@@ -2045,9 +2092,21 @@ function playerAttack(m) {
   burst(m.x, m.y, '#fff3c4', 7, 140, { glow: true, life: 260, gravity: 0, size: 2 });
   sfx.play('hit');
   if (m.hp <= 0) killMonster(m);
-  else log(`You hit ${m.boss ? m.name : 'the ' + m.type.name} for ${dmg}.`);
+  else log(`You hit ${m.boss ? m.name : 'the ' + mName(m)} for ${dmg}.`);
 }
 function killMonster(m) {
+  if (m.mod === 'explosive') {
+    const blast = 3 + floor;
+    burst(m.x, m.y, '#ff9f43', 36, 180, { glow: true, life: 600, size: 3 }); shakeScreen(5); sfx.play('fire');
+    log(`The ${mName(m)} bursts!`, 'bad');
+    if (cheb(m, player) <= 1) { player.hp -= blast; floatText(player.x, player.y, `-${blast}`, '#ff6b6b'); }
+    if (hound && !hound.down && cheb(m, hound) <= 1) houndHurt(blast);
+  }
+  if (m.elite) {
+    unlock('elite');
+    const purse = 20 + floor * 10 + (dungeonDef ? dungeonDef.danger * 8 : 0);
+    golds.push({ x: m.x, y: m.y, amount: purse });
+  }
   burst(m.x, m.y, '#9ca3af', 14, 60, { gravity: -40, life: 650, size: 4 });
   burst(m.x, m.y, m.boss ? '#ff9b9b' : '#e5e7eb', m.boss ? 40 : 10, m.boss ? 160 : 110, { life: 500, glow: !!m.boss });
   {
@@ -2059,7 +2118,7 @@ function killMonster(m) {
     if (player.lifetimeKills >= 50) unlock('slayer_50');
     if (scene === 'world' && dayPhase() === 'night') unlock('night_owl');
     if (m.boss) unlock('boss_slayer');
-    const xp = Math.round(m.type.xp * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1));
+    const xp = Math.round(m.type.xp * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1) * (m.elite ? 2 : 1));
     if (m.boss) {
       log(`You slay ${m.name}! The seal on the stairs breaks.`, 'good');
       const purse = 40 + 30 * (dungeonDef ? dungeonDef.danger : 0) + floor * 10;
@@ -2075,6 +2134,7 @@ function monsterAttack(m, ranged = false) {
   if (!ranged && perkCount('nimble') && Math.random() < 0.25) { log(`You dodge ${m.boss ? m.name : 'the ' + m.type.name}.`, 'good'); floatText(player.x, player.y, 'dodge', '#7bdfff'); return; }
   const dmg = Math.max(1, m.atk - armorDef() - (player.shield > 0 ? 2 : 0));
   player.hp -= dmg;
+  if (m.mod === 'vampiric' && m.hp < m.maxHp) { const h = Math.min(dmg, m.maxHp - m.hp); m.hp += h; floatText(m.x, m.y, `+${h}`, '#ff6b9b'); }
   if (dmg >= player.maxHp * 0.25 || m.boss) shakeScreen(m.boss ? 6 : 4);
   burst(player.x, player.y, '#ff5a5a', 8, 110, { life: 380, size: 3 });
   if (player.hp <= 0 && perkCount('second_wind') && !player.meta.second_wind) {
@@ -2091,10 +2151,15 @@ function monsterAttack(m, ranged = false) {
   log(`${m.boss ? m.name[0].toUpperCase() + m.name.slice(1) : m.type.name} hits you for ${dmg}.`, 'bad');
   sfx.play('hurt');
 }
-function stepMonsters() {
+function stepMonsters(swiftOnly = false) {
   const d = bfs(player.x, player.y, SIM_RADIUS, false);
   for (const m of monsters) {
+    if (swiftOnly && m.mod !== 'swift') continue;
     if (m.hp <= 0 || cheb(m, player) > SIM_RADIUS) continue;
+    if (hound && !hound.down && scene !== 'house' && dist(m, hound) === 1 && dist(m, player) !== 1) {
+      if (!m.awake && Math.random() < 0.6) m.awake = true;
+      if (m.awake && Math.random() < 0.7) { houndBitten(m); continue; }
+    }
     const wake = scene === 'world' ? (dayPhase() === 'night' ? 10 : 6) : 6;
     if (!m.awake && isVisible(m.x, m.y) && dist(m, player) <= wake && Math.random() < 0.7) m.awake = true;
     if (dist(m, player) === 1) { monsterAttack(m); continue; }
@@ -2114,13 +2179,13 @@ function stepMonsters() {
       // archers back off to shoot again
       for (const [dx, dy] of dirs) {
         const nx = m.x + dx, ny = m.y + dy;
-        if (walkable(getTile(nx, ny)) && !getMonsterAt(nx, ny) && dist({ x: nx, y: ny }, player) > dist(m, player)) { best = [nx, ny]; break; }
+        if (walkable(getTile(nx, ny)) && !getMonsterAt(nx, ny) && !houndAt(nx, ny) && dist({ x: nx, y: ny }, player) > dist(m, player)) { best = [nx, ny]; break; }
       }
       if (best) { monsterIndex.delete(key(m.x, m.y)); m.x = best[0]; m.y = best[1]; monsterIndex.set(key(m.x, m.y), m); continue; }
     }
     for (const [dx, dy] of dirs) {
       const nx = m.x + dx, ny = m.y + dy;
-      if (!walkable(getTile(nx, ny)) || getMonsterAt(nx, ny) || (nx === player.x && ny === player.y)) continue;
+      if (!walkable(getTile(nx, ny)) || getMonsterAt(nx, ny) || (nx === player.x && ny === player.y) || houndAt(nx, ny)) continue;
       if (scene === 'world' && townContaining(nx, ny)) continue;   // beasts keep out of settlements
       const nd = d.get(key(nx, ny));
       if (nd !== undefined && nd < bestD) { bestD = nd; best = [nx, ny]; }
@@ -2128,7 +2193,7 @@ function stepMonsters() {
     if (!best && Math.random() < 0.5) {
       const [dx, dy] = dirs[0];
       const nx = m.x + dx, ny = m.y + dy;
-      if (getTile(nx, ny) === TILE.FLOOR && !getMonsterAt(nx, ny) && !(nx === player.x && ny === player.y) && !(scene === 'world' && townContaining(nx, ny))) best = [nx, ny];
+      if (getTile(nx, ny) === TILE.FLOOR && !getMonsterAt(nx, ny) && !(nx === player.x && ny === player.y) && !houndAt(nx, ny) && !(scene === 'world' && townContaining(nx, ny))) best = [nx, ny];
     }
     if (best) { if (best[0] !== m.x) m.face = Math.sign(best[0] - m.x); monsterIndex.delete(key(m.x, m.y)); m.x = best[0]; m.y = best[1]; monsterIndex.set(key(m.x, m.y), m); }
   }
@@ -2183,12 +2248,14 @@ function tryMove(dx, dy) {
   const n = scene !== 'dungeon' && getNpcAt(nx, ny);
   if (n) { talk(n); draw(); return; }
   if (t === TILE.FURNITURE) { useFurniture(decor[ny][nx]); draw(); return; }
+  if (t === TILE.WAYSTONE) { openShop('travel'); draw(); return; }
   if (t === TILE.DOOR) {
     if (scene === 'house') leaveBuilding(); else enterBuilding(houses.find((h) => h.doorX === nx && h.doorY === ny));
     return;
   }
   if (dx) player.face = dx;
   if (t === TILE.CHEST) { openChest(nx, ny); endTurn(false); return; }
+  if (houndAt(nx, ny)) { hound.x = player.x; hound.y = player.y; }
   const m = getMonsterAt(nx, ny);
   if (m) playerAttack(m);
   else {
@@ -2233,6 +2300,67 @@ function tryMove(dx, dy) {
 }
 
 // Everything that happens once the hero has acted: the world moves, timers tick.
+// ---------- the hound ----------
+let hound = null;   // { x, y, rx, ry, hp, maxHp, atk, level, kills, down, face }
+const HOUND_COST = 80;
+const houndAt = (x, y) => !!hound && !hound.down && scene !== 'house' && hound.x === x && hound.y === y;
+function houndState() { return hound ? { hp: Math.max(0, hound.hp), max_hp: hound.maxHp, atk: hound.atk, level: hound.level, kills: hound.kills, down: !!hound.down } : null; }
+function placeHound() {
+  if (!hound || hound.down || scene === 'house') return;
+  for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+    const x = player.x + dx, y = player.y + dy, t = getTile(x, y);
+    if (walkable(t) && t !== TILE.DOOR && t !== TILE.EXIT && t !== TILE.TRAP && t !== TILE.SITE && !getMonsterAt(x, y) && !getNpcAt(x, y)) { hound.x = x; hound.y = y; settle(hound); return; }
+  }
+  hound.x = player.x; hound.y = player.y; settle(hound);
+}
+function houndHurt(dmg) {
+  hound.hp -= dmg; hound.flashUntil = performance.now() + 120;
+  floatText(hound.x, hound.y, `-${dmg}`, '#ff9b9b');
+  if (hound.hp <= 0) {
+    hound.hp = 0; hound.down = true;
+    log('Your hound is badly hurt and limps off home. An innkeeper can patch it up.', 'bad'); sfx.play('hurt');
+    burst(hound.x, hound.y, '#b9976a', 12, 80, { life: 500 });
+  }
+}
+function houndBitten(m) {
+  const dmg = Math.max(1, m.atk - 1);
+  m.lunge = { dx: Math.sign(hound.x - m.x), dy: Math.sign(hound.y - m.y), until: performance.now() + 140 };
+  houndHurt(dmg);
+}
+// One step for the hound: bite an adjacent foe, chase one near the hero, or follow.
+function stepHound() {
+  if (!hound || hound.down || scene === 'house') return;
+  if (cheb(hound, player) > 14) { placeHound(); return; }
+  const foe = monsters.find((m) => dist(m, hound) === 1 && (m.awake || dist(m, player) <= 2));
+  if (foe) {
+    const dmg = Math.max(1, hound.atk + rnd(2) - (foe.mod === 'armored' ? 2 : 0));
+    foe.hp -= dmg; foe.awake = true; foe.flashUntil = performance.now() + 120;
+    hound.lunge = { dx: Math.sign(foe.x - hound.x), dy: Math.sign(foe.y - hound.y), until: performance.now() + 140 };
+    if (foe.x !== hound.x) hound.face = Math.sign(foe.x - hound.x);
+    floatText(foe.x, foe.y, `-${dmg}`, '#e9c48a');
+    if (foe.hp <= 0) {
+      hound.kills++;
+      if (hound.kills % 8 === 0) { hound.level++; hound.maxHp += 4; hound.atk += 1; hound.hp = hound.maxHp; log(`Your hound grows stronger (level ${hound.level}).`, 'good'); }
+      if (hound.kills >= 10) unlock('good_dog');
+      killMonster(foe);
+    }
+    return;
+  }
+  // a waking foe near the hero: go for it; otherwise stay at heel
+  const target = monsters.filter((m) => m.awake && cheb(m, player) <= 4 && isVisible(m.x, m.y)).sort((a, b) => dist(a, hound) - dist(b, hound))[0];
+  const goal = target || player;
+  if (!target && cheb(hound, player) <= 1) return;
+  const d = bfs(goal.x, goal.y, 16, false);
+  let best = null, bestD = d.get(key(hound.x, hound.y)) ?? Infinity;
+  for (const [dx, dy] of DIRS) {
+    const nx = hound.x + dx, ny = hound.y + dy, nd = d.get(key(nx, ny));
+    if (nd === undefined || nd >= bestD) continue;
+    if (getMonsterAt(nx, ny) || (nx === player.x && ny === player.y) || getNpcAt(nx, ny) || getTile(nx, ny) === TILE.TRAP) continue;
+    bestD = nd; best = [nx, ny];
+  }
+  if (best) { if (best[0] !== hound.x) hound.face = Math.sign(best[0] - hound.x); hound.x = best[0]; hound.y = best[1]; }
+}
+
 function endTurn(moved) {
   turn++;
   if (moved && turn % 2 === 0) sfx.play('step');
@@ -2245,7 +2373,9 @@ function endTurn(moved) {
   }
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
   if (scene !== 'dungeon') stepNpcs();
+  stepHound();
   if (scene !== 'house') stepMonsters();
+  if (scene === 'dungeon' && monsters.some((m) => m.mod === 'swift' && m.awake)) stepMonsters(true);
   if (inTown() && (turn % 8 === 0)) refreshTownContext();
   if (player.cls === 'ranger' && scene === 'dungeon') {
     for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
@@ -2277,7 +2407,7 @@ function die() {
     guestRespawn = { name: null, floor: 0, level: player.level, xp: player.xp, gold: player.gold - lost, hp: player.maxHp, max_hp: player.maxHp, atk: player.atk,
       weapon: player.weapon, armor: player.armor, bag: player.bag.filter((id) => itemKind(id) !== 'consumable'), quests: [], quests_done: player.questsDone || 0,
       wx: t.spawn.x, wy: t.spawn.y, home: t.key, class: player.cls, guest: true,
-      perks: player.perks, achievements: player.achievements, title: player.title, meta: player.meta, weapon_plus: player.weaponPlus, armor_plus: player.armorPlus, kills: player.lifetimeKills };
+      perks: player.perks, achievements: player.achievements, title: player.title, meta: { ...player.meta, hound: houndState() }, weapon_plus: player.weaponPlus, armor_plus: player.armorPlus, kills: player.lifetimeKills };
   }
   saveProgress('death');
 }
@@ -2335,7 +2465,7 @@ function useAbility() {
   if (player.cls === 'ranger') {
     const t = lineTarget(6);
     if (!t) { log('No target in a straight line. Arrows fly up, down, left or right.'); draw(); return; }
-    const dmg = player.atk + weaponAtk() + 1 + rnd(2);
+    const dmg = Math.max(1, player.atk + weaponAtk() + 1 + rnd(2) - (t.m.mod === 'armored' ? 2 : 0));
     if (t.dx) player.face = t.dx;
     t.m.hp -= dmg; t.m.awake = true; t.m.flashUntil = performance.now() + 120;
     floatText(t.m.x, t.m.y, `-${dmg}`, '#ffd86b');
@@ -2382,6 +2512,8 @@ window.addEventListener('keydown', (e) => {
   if ((mapOpen || questsOpen) && KEYS[e.key]) { mapOpen = false; questsOpen = false; }
   if (e.key === 'r' || e.key === 'R') { init(); return; }
   if (e.key === 'p' || e.key === 'P') { drinkPotion(); return; }
+  if (e.key === 'b' || e.key === 'B') { throwBomb(); return; }
+  if (e.key === 't' || e.key === 'T') { readScroll(); return; }
   if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); return; }
   if (e.key === '.' || e.key === ' ') { e.preventDefault(); wait(); return; }
   const dir = KEYS[e.key];
@@ -2455,6 +2587,8 @@ function itemLabel(id) {
   if (!it) return id;
   if (ITEMS.weapons[id]) return `${it.name}${id === player.weapon && player.weaponPlus ? ' +' + player.weaponPlus : ''} (+${it.atk + (id === player.weapon ? player.weaponPlus || 0 : 0)} attack)`;
   if (ITEMS.armor[id]) return `${it.name}${id === player.armor && player.armorPlus ? ' +' + player.armorPlus : ''} (${it.def + (id === player.armor ? player.armorPlus || 0 : 0)} defence)`;
+  if (it.use === 'bomb') return `${it.name} (blasts a 3×3 area)`;
+  if (it.use === 'return') return `${it.name} (back to your home town)`;
   return `${it.name} (+${it.heal} HP)`;
 }
 function renderInventory() {
@@ -2470,8 +2604,9 @@ function renderInventory() {
     const kind = itemKind(id);
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = kind === 'consumable' ? 'Drink' : 'Equip';
-    btn.addEventListener('click', () => kind === 'consumable' ? drinkPotion(idx) : equip(idx));
+    const use = kind === 'consumable' ? (itemInfo(id).use === 'bomb' ? 'Throw' : itemInfo(id).use === 'return' ? 'Read' : 'Drink') : 'Equip';
+    btn.textContent = use;
+    btn.addEventListener('click', () => kind === 'consumable' ? useItem(idx) : equip(idx));
     li.append(itemLabel(id), btn);
     invBag.appendChild(li);
   });
@@ -2490,9 +2625,49 @@ function equip(idx) {
   log(`You equip the ${itemInfo(id).name}.`, 'good');
   updateStats(); renderShop(); draw();
 }
+function useItem(idx) {
+  const it = itemInfo(player.bag[idx]);
+  if (!it) return;
+  if (it.use === 'bomb') throwBomb(idx);
+  else if (it.use === 'return') readScroll(idx);
+  else drinkPotion(idx);
+}
+function throwBomb(idx) {
+  if (gameOver || !player || perkChoices) return;
+  if (idx === undefined) idx = player.bag.indexOf('bomb');
+  if (idx < 0) { log('You have no bombs.'); draw(); return; }
+  if (scene === 'house' || safeZone()) { log('Not here. Bombs are for the dungeon and the wilds.'); draw(); return; }
+  let target = null, bd = Infinity;
+  for (const m of monsters) { const d = cheb(m, player); if (d <= 5 && isVisible(m.x, m.y) && d < bd) { bd = d; target = m; } }
+  if (!target) { log('Nothing in range to throw a bomb at.'); draw(); return; }
+  player.bag.splice(idx, 1);
+  const dmg = 8 + floor * 2 + (dungeonDef ? dungeonDef.danger : 0);
+  const hit = monsters.filter((m) => cheb(m, target) <= 1);
+  burst(target.x, target.y, '#ff9f43', 40, 190, { glow: true, life: 600, size: 3 });
+  burst(target.x, target.y, '#6b7280', 20, 70, { gravity: -40, life: 900, size: 5 });
+  shakeScreen(6); sfx.play('fire');
+  log(`Your bomb blasts ${hit.length} ${hit.length === 1 ? 'monster' : 'monsters'} for ${dmg}.`, 'good');
+  for (const m of hit) { m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); }
+  for (const m of hit) if (m.hp <= 0) killMonster(m);
+  endTurn(false);
+}
+function readScroll(idx) {
+  if (gameOver || !player || perkChoices) return;
+  if (idx === undefined) idx = player.bag.indexOf('scroll');
+  if (idx < 0) { log('You have no scroll of return.'); draw(); return; }
+  if (scene === 'house' || safeZone()) { log('You are already safe in town.'); draw(); return; }
+  player.bag.splice(idx, 1);
+  burst(player.x, player.y, '#7bdfff', 40, 120, { glow: true, gravity: -120, life: 800 });
+  sfx.play('stairs');
+  const from = scene === 'dungeon' ? `the ${dungeonDef ? dungeonDef.name : 'dungeon'}` : 'the wilds';
+  dungeonDef = null;
+  returnHome(); afterSceneChange();
+  log(`The scroll crumbles and whisks you out of ${from} to ${townContaining(player.x, player.y)?.name ?? 'town'}.`, 'good');
+  saveProgress('progress');
+}
 function drinkPotion(idx) {
   if (gameOver || !player) return;
-  if (idx === undefined) idx = player.bag.findIndex((id) => itemKind(id) === 'consumable');
+  if (idx === undefined) idx = player.bag.findIndex((id) => itemKind(id) === 'consumable' && itemInfo(id).heal);
   if (idx < 0) { log('You have no potions in your bag.'); draw(); return; }
   const it = itemInfo(player.bag[idx]);
   const healed = Math.min(it.heal, player.maxHp - player.hp);
@@ -2526,13 +2701,17 @@ const SHOPS = {
   armoury: { title: 'The Armoury', stock: (id, it) => ITEMS.armor[id] && it.floor <= 5, price: (it) => Math.round(it.price * 0.9), greet: 'Racks of mail and plate. The armourer names fair prices.' },
   apothecary: { title: 'The Apothecary', stock: (id) => id === 'potion' || id === 'elixir', price: (it) => it.price, greet: 'Shelves of bottles. Potions, and elixirs for the desperate.' },
   royal: { title: 'The Royal Armoury', stock: () => true, price: (it) => it.price, greet: 'The quartermaster unlocks the cabinet. Everything the realm can forge, at the King\'s prices.' },
+  inn: { title: 'The inn', stock: () => false, price: (it) => it.price, greet: 'The innkeeper wipes the bar. A bed, or a hound for the road?' },
+  travel: { title: 'Waystone', stock: () => false, price: (it) => it.price, greet: 'The runes hum under your hand. Choose a town you have visited.' },
 };
+SHOPS.apothecary.stock = (id) => id === 'potion' || id === 'elixir' || id === 'scroll';
 let shopKind = 'shop';
 const buyPrice = (id) => SHOPS[shopKind].price(itemInfo(id));
 function openShop(kind = 'shop') {
   if (!shopEl) return;
   tip('shop', 'Buy with the buttons, sell anything at half price. Smithies and armouries also sharpen and reinforce what you wear.');
   shopKind = kind; shopOpen = true; shopEl.hidden = false;
+  shopEl.classList.toggle('no-sell', kind === 'travel');
   document.querySelector('#shop h2').textContent = SHOPS[kind].title;
   log(SHOPS[kind].greet);
   renderShop();
@@ -2558,10 +2737,55 @@ function upgradeRow(slot) {
   li.append(`${itemInfo(id).name} +${plus} → +${plus + 1} (${slot === 'weapon' ? '+1 attack' : '+1 defence'})`, btn);
   return li;
 }
+function shopRow(label, button, onClick, disabled = false) {
+  const li = document.createElement('li');
+  if (!button) { li.className = 'empty'; li.textContent = label; return li; }
+  const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = button; btn.disabled = disabled;
+  btn.addEventListener('click', onClick);
+  li.append(label, btn);
+  return li;
+}
+function travelCost(town) { return 10 + Math.round((Math.abs(town.cx - player.x) + Math.abs(town.cy - player.y)) / 12); }
+function travelTo(town) {
+  const cost = travelCost(town);
+  if (player.gold < cost) return;
+  player.gold -= cost;
+  const distance = Math.abs(town.cx - player.x) + Math.abs(town.cy - player.y);
+  closeShop();
+  player.x = town.spawn.x; player.y = town.spawn.y; player.wx = player.x; player.wy = player.y;
+  turn += Math.round(distance / 4);
+  refreshTownContext(); afterSceneChange();
+  burst(player.x, player.y, '#7bdfff', 36, 120, { glow: true, gravity: -100, life: 800 });
+  sfx.play('stairs'); unlock('traveller');
+  log(`The waystone carries you to ${town.name} for ${cost} gold. The journey would have taken half a day.`, 'good');
+  saveProgress('progress');
+}
 function renderShop() {
   if (!shopOpen) return;
   shopGold.textContent = `${player.gold} gold`;
   shopBuy.innerHTML = '';
+  if (shopKind === 'inn') {
+    shopBuy.appendChild(player.hp < player.maxHp ? shopRow('A bed for the night (full health)', 'Rest, free', () => { restAtInn(); renderShop(); draw(); }) : shopRow('You are already in perfect health'));
+    if (!hound) shopBuy.appendChild(shopRow('Hire a hound: 14 HP, bites for 3, follows you and fights', `Hire ${HOUND_COST}g`, () => {
+      if (player.gold < HOUND_COST) return;
+      player.gold -= HOUND_COST; hound = { x: player.x, y: player.y, hp: 14, maxHp: 14, atk: 3, level: 1, kills: 0, down: false };
+      log('A shaggy hound pads over and sits at your feet. It waits outside while you are indoors.', 'good'); sfx.play('quest');
+      tip('hound', 'Your hound follows you, bites anything that comes close, and grows stronger with kills. If it falls, an innkeeper patches it up for free.');
+      updateStats(); buildLegend(); renderShop(); draw();
+    }, player.gold < HOUND_COST));
+    else if (hound.down || hound.hp < hound.maxHp) shopBuy.appendChild(shopRow(hound.down ? 'Your hound is back, bandaged and sorry for itself' : 'Patch up your hound', 'Heal, free', () => { hound.hp = hound.maxHp; hound.down = false; log('The innkeeper patches up your hound. Its tail thumps the floor.', 'good'); buildLegend(); renderShop(); draw(); }));
+    else shopBuy.appendChild(shopRow(`Your hound is in fine fettle (level ${hound.level}, ${hound.kills} kills)`));
+  }
+  if (shopKind === 'travel') {
+    const here = townContaining(player.x, player.y);
+    const dests = player.meta.visited.map((k) => townAt(...k.split(',').map(Number))).filter((t) => t && (!here || t.key !== here.key));
+    if (!dests.length) shopBuy.appendChild(shopRow('No other towns yet. Visit a town on foot and its waystone will answer.'));
+    for (const t of dests.sort((a, b) => travelCost(a) - travelCost(b))) {
+      const cost = travelCost(t);
+      shopBuy.appendChild(shopRow(`${t.name}${t.size === 'grand' ? ' ♛' : t.walled ? ' (castle)' : ''}${t.key === homeTown ? ' (home)' : ''}`, `Travel ${cost}g`, () => travelTo(t), player.gold < cost));
+    }
+    return;
+  }
   if (shopKind === 'smithy' || shopKind === 'royal') shopBuy.appendChild(upgradeRow('weapon'));
   if (shopKind === 'armoury' || shopKind === 'royal') shopBuy.appendChild(upgradeRow('armor'));
   const stock = Object.entries({ ...ITEMS.weapons, ...ITEMS.armor, ...ITEMS.consumables }).filter(([id, it]) => SHOPS[shopKind].stock(id, it));
@@ -2610,12 +2834,15 @@ document.getElementById('shop-close')?.addEventListener('click', closeShop);
 function afterSceneChange() {
   bubble = null; closeShop(); clearInspect(); floats.length = 0; particles.length = 0; mapOpen = false;
   settle(player); for (const n of npcs) settle(n);
+  placeHound();
   updateCamera(); updateVisibility(); buildLegend(); updateStats(); draw();
 }
 function startRun(saved) {
   player = { x: 1, y: 1, hp: 24, maxHp: 24, atk: 3, level: 1, xp: 0, gold: 0, weapon: null, armor: null, bag: [], quests: [], questsDone: 0, cls: 'warrior', cooldown: 0, shield: 0, poison: 0,
     perks: [], achievements: [], title: null, meta: { visited: [], second_wind: false }, weaponPlus: 0, armorPlus: 0, lifetimeKills: 0, pendingPerks: 0 };
   questsOpen = false; mapOpen = false; revealedTraps = new Set(); perkChoices = null; toast = null;
+  hound = null;
+  { const h = saved && saved.meta && saved.meta.hound; if (h && h.max_hp) hound = { x: 0, y: 0, hp: h.hp, maxHp: h.max_hp, atk: h.atk, level: h.level, kills: h.kills, down: !!h.down }; }
   floor = TOWN; interior = null; gameOver = false; turn = 0; kills = 0;
   overlay.classList.remove('show');
   logEl.innerHTML = ''; messages.length = 0;
@@ -2670,6 +2897,34 @@ async function init() {
     startRun(saved || respawn);
   } finally { starting = false; }
 }
-function loop() { if (!gameOver) draw(); requestAnimationFrame(loop); }
+// Gamepad: stick or d-pad moves; A ability, B potion, X wait, Y quests, LB bomb,
+// RB scroll, Start map. In the perk picker A, B and X pick the three cards.
+const pad = { prev: [], lastMove: 0 };
+window.addEventListener('gamepadconnected', (e) => { log(`Gamepad connected. Stick moves; A ability, B potion, X wait, Y quests, Start map.`, 'good'); draw(); });
+function pollGamepad(now) {
+  const gp = navigator.getGamepads ? [...navigator.getGamepads()].find(Boolean) : null;
+  if (!gp) return;
+  const down = (i) => !!(gp.buttons[i] && gp.buttons[i].pressed);
+  const edge = (i) => down(i) && !pad.prev[i];
+  let dx = 0, dy = 0;
+  const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
+  if (down(14) || ax < -0.5) dx = -1; else if (down(15) || ax > 0.5) dx = 1;
+  else if (down(12) || ay < -0.5) dy = -1; else if (down(13) || ay > 0.5) dy = 1;
+  if (perkChoices) { if (edge(0)) choosePerk(0); else if (edge(1)) choosePerk(1); else if (edge(2)) choosePerk(2); }
+  else if (shopOpen) { if (edge(1)) closeShop(); }
+  else if (gameOver) { if (edge(0) || edge(9)) init(); }
+  else {
+    if ((dx || dy) && now - pad.lastMove > 170) { pad.lastMove = now; mapOpen = false; questsOpen = false; tryMove(dx, dy); }
+    if (edge(0)) useAbility();
+    if (edge(1)) drinkPotion();
+    if (edge(2)) wait();
+    if (edge(3)) { mapOpen = false; questsOpen = !questsOpen; draw(); }
+    if (edge(4)) throwBomb();
+    if (edge(5)) readScroll();
+    if (edge(9)) { questsOpen = false; toggleMap(); }
+  }
+  pad.prev = gp.buttons.map((b) => b.pressed);
+}
+function loop(now) { pollGamepad(now || performance.now()); if (!gameOver) draw(); requestAnimationFrame(loop); }
 requestAnimationFrame(loop);
 init();

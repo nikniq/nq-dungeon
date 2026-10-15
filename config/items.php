@@ -23,6 +23,8 @@ return [
     'consumables' => [
         'potion' => ['name' => 'Potion', 'heal' => 5, 'price' => 12, 'floor' => 1],
         'elixir' => ['name' => 'Elixir', 'heal' => 25, 'price' => 45, 'floor' => 7],
+        'bomb' => ['name' => 'Bomb', 'use' => 'bomb', 'price' => 25, 'floor' => 1],
+        'scroll' => ['name' => 'Scroll of return', 'use' => 'return', 'price' => 30, 'floor' => 1],
     ],
     'bag_size' => 12,
 ];
