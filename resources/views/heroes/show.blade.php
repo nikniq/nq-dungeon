@@ -23,6 +23,7 @@
         <tr><th>Deepest floor</th><td>{{ $character->best_floor ?: '—' }}</td></tr>
         <tr><th>Most gold carried</th><td>{{ $character->best_gold }}</td></tr>
         <tr><th>Monsters slain</th><td>{{ $character->kills }}</td></tr>
+        <tr><th>Quests completed</th><td>{{ $character->quests_done }}</td></tr>
       </table>
     </section>
     <section class="panel">

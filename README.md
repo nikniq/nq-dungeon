@@ -15,8 +15,11 @@ grand castle, Castle Aurum, where King Aldric holds court and the Royal Armoury
 sells the realm's best gear. Cities and some towns have a specialist shop: smithy,
 armoury or apothecary. Out in the country stand caves, crypts, warrens and towers,
 short themed dungeons with their own monsters, a danger rating that grows with
-distance from Hearth, and a hoard at the bottom. Press M for the world map. Your
-position and home town are saved; a dive returns you where you went in. Clear all 5 floors to return to town with your level, gold and gear.
+distance from Hearth, and a hoard at the bottom. Press M for the world map, Q for the quest log, N to toggle sound. Captains,
+castellans and the King hand out site-clearing quests; townsfolk ask for monster
+tallies. A boss seals the stairs on the last floor of every dungeon. Beasts roam
+the wilds and grow bolder at night (a day is 480 turns). Your position, home town
+and quests are saved; a dive returns you where you went in. Clear all 5 floors to return to town with your level, gold and gear.
 Death sends you back to town as a fresh hero.
 
 In the dungeon: each floor is endless, generated chunk by chunk as you explore,

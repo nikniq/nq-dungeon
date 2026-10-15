@@ -42,6 +42,17 @@ class CharacterController extends Controller
             'weapon' => ['nullable', Rule::in(array_keys(config('items.weapons')))],
             'armor' => ['nullable', Rule::in(array_keys(config('items.armor')))],
             'bag' => ['present', 'array', 'max:'.config('items.bag_size')],
+            'quests' => ['nullable', 'array', 'max:12'],
+            'quests.*.id' => ['required', 'string', 'max:60'],
+            'quests.*.kind' => ['required', Rule::in(['clear', 'slay', 'boss'])],
+            'quests.*.label' => ['required', 'string', 'max:120'],
+            'quests.*.need' => ['required', 'integer', 'min:1', 'max:999'],
+            'quests.*.have' => ['required', 'integer', 'min:0', 'max:999'],
+            'quests.*.done' => ['required', 'boolean'],
+            'quests.*.target' => ['nullable', 'string', 'max:60'],
+            'quests.*.giver' => ['nullable', 'string', 'max:60'],
+            'quests.*.reward' => ['nullable', 'integer', 'min:0', 'max:100000'],
+            'quests_done' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'wx' => ['nullable', 'integer', 'between:-100000,100000'],
             'wy' => ['nullable', 'integer', 'between:-100000,100000'],
             'home' => ['nullable', 'string', 'max:16', 'regex:/^-?\d+,-?\d+$/'],
@@ -61,20 +72,24 @@ class CharacterController extends Controller
             if ($data['floor'] === 1 && $c->floor === 0) {
                 $c->runs++;
             }
-            $c->fill(collect($data)->only(['floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'bag', 'wx', 'wy', 'home'])->filter(fn ($v) => $v !== null)->all());
+            $c->fill(collect($data)->only(['floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'bag', 'quests', 'quests_done', 'wx', 'wy', 'home'])->filter(fn ($v) => $v !== null)->all());
         } elseif ($data['event'] === 'win') {
             // Back to town with everything earned; only the floor resets.
             if ($c->floor === 0) {
                 $c->runs++;
             }
             $c->wins++;
-            $c->fill(collect($data)->only(['level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'bag', 'wx', 'wy', 'home'])->filter(fn ($v) => $v !== null)->all());
+            $c->fill(collect($data)->only(['level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'bag', 'quests', 'quests_done', 'wx', 'wy', 'home'])->filter(fn ($v) => $v !== null)->all());
             $c->floor = 0;
         } else {
             if ($c->floor === 0) {
                 $c->runs++;
             }
             $c->resetRun();
+            $c->quests = [];
+            if (isset($data['quests_done'])) {
+                $c->quests_done = $data['quests_done'];
+            }
         }
         $c->save();
 

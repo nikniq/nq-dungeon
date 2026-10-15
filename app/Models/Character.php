@@ -9,12 +9,12 @@ class Character extends Model
 {
     protected $fillable = [
         'name', 'bio', 'floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk',
-        'weapon', 'armor', 'bag', 'wx', 'wy', 'home', 'runs', 'wins', 'best_floor', 'best_gold', 'kills',
+        'weapon', 'armor', 'bag', 'quests', 'quests_done', 'wx', 'wy', 'home', 'runs', 'wins', 'best_floor', 'best_gold', 'kills',
     ];
 
-    protected $casts = ['bag' => 'array'];
+    protected $casts = ['bag' => 'array', 'quests' => 'array'];
 
-    protected $attributes = ['bag' => '[]'];
+    protected $attributes = ['bag' => '[]', 'quests' => '[]'];
 
     /** True when another hero already uses this name, ignoring case. */
     public static function nameTaken(string $name, ?int $exceptId = null): bool

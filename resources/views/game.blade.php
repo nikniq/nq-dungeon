@@ -37,6 +37,8 @@
         <button type="button" data-move="0,1" aria-label="Down">&#9660;</button>
       </div>
       <button type="button" id="worldmap" class="fs">Map (M)</button>
+      <button type="button" id="quests" class="fs">Quests (Q)</button>
+      <button type="button" id="sound" class="fs">Sound on</button>
       <button type="button" id="fullscreen" class="fs">Fullscreen</button>
     </div>
     <div class="inventory" id="inventory">
