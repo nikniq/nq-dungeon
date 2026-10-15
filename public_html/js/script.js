@@ -367,13 +367,13 @@ function drawQuests(g) {
   if (done.length) { y += 8; g.font = 'bold 14px sans-serif'; g.fillStyle = '#a8c0d8'; g.fillText('Completed', 24, y); y += 24; }
   for (const q of done) { g.fillStyle = '#9ef0b0'; g.font = '13px sans-serif'; g.fillText(`✓ ${q.label}`, 32, y); y += 20; }
   // achievements and perks down the right
-  let ay = 60; const ax = canvas.width - 300;
+  let ay = 60; const ax = canvas.width - 360;
   g.font = 'bold 14px sans-serif'; g.fillStyle = '#ffd86b'; g.fillText(`Achievements ${player.achievements.length}/${Object.keys(ACHIEVEMENTS).length}${player.title ? '  ·  ' + player.title : ''}`, ax, ay); ay += 24;
   for (const [id, a] of Object.entries(ACHIEVEMENTS)) { const got = player.achievements.includes(id); g.fillStyle = got ? '#9ef0b0' : '#4b5563'; g.font = '12px sans-serif'; g.fillText(`${got ? '★' : '☆'} ${a.label}`, ax, ay); ay += 17; }
   ay += 10; g.font = 'bold 14px sans-serif'; g.fillStyle = '#ffd86b'; g.fillText('Perks', ax, ay); ay += 22;
   const counts = {}; for (const pid of player.perks) counts[pid] = (counts[pid] || 0) + 1;
   if (!player.perks.length) { g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText('None yet. Level up to choose one.', ax, ay); }
-  for (const [pid, n] of Object.entries(counts)) { g.fillStyle = '#cfe9ff'; g.font = '12px sans-serif'; g.fillText(`${PERKS[pid].name}${n > 1 ? ' ×' + n : ''}: ${PERKS[pid].desc}`, ax, ay); ay += 17; }
+  for (const [pid, n] of Object.entries(counts)) { g.fillStyle = '#cfe9ff'; g.font = '12px sans-serif'; let t = `${PERKS[pid].name}${n > 1 ? ' ×' + n : ''}: ${PERKS[pid].desc}`; while (g.measureText(t).width > 340 && t.length > 8) t = t.slice(0, -4) + '…'; g.fillText(t, ax, ay); ay += 17; }
   g.textBaseline = 'alphabetic';
 }
 
@@ -1566,7 +1566,7 @@ function drawScene(now) {
   if (bubble) { if (now > bubble.until) bubble = null; else drawBubble(ctx, bubble); }
   if (inspected) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(inspected.x * T - cam.x + 1, inspected.y * T - cam.y + 1, T - 2, T - 2); }
   drawHud(ctx, now);
-  if (toast) {
+  if (toast && !perkChoices && !questsOpen && !mapOpen) {
     if (now > toast.until) toast = null;
     else {
       ctx.font = '13px sans-serif'; ctx.textBaseline = 'top'; ctx.textAlign = 'center';
