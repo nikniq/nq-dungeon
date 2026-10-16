@@ -54,6 +54,7 @@
       <button type="button" id="sound" class="fs">Sound on</button>
       <button type="button" id="fullscreen" class="fs">Fullscreen</button>
     </div>
+    @if (config('game.multiplayer'))
     @auth
     <form id="chat" class="chat" autocomplete="off">
       <input id="chat-input" maxlength="140" placeholder="Press Enter to talk to heroes nearby" aria-label="Chat message">
@@ -63,6 +64,7 @@
     @else
     <p class="flash muted">Other heroes are out there. <a href="{{ route('register') }}">Create a hero</a> or <a href="{{ route('login') }}">log in</a> to see them, chat, and form a party.</p>
     @endauth
+    @endif
     <div class="inventory" id="inventory">
       <div class="equip"><span class="muted">Weapon</span> <b id="inv-weapon">Bare hands</b></div>
       <div class="equip"><span class="muted">Armor</span> <b id="inv-armor">None</b></div>
@@ -77,7 +79,11 @@
       <b>Keys:</b> arrows, WASD or HJKL move; walking into a monster attacks. Space or <kbd>.</kbd> waits, <kbd>1</kbd> uses your class ability, <kbd>P</kbd> drinks a potion, <kbd>B</kbd> throws a bomb, <kbd>T</kbd> reads a scroll of return, <kbd>M</kbd> world map, <kbd>Q</kbd> quests, <kbd>N</kbd> sound, <kbd>F</kbd> fullscreen, <kbd>R</kbd> restarts.
       <b>Touch:</b> tap or hold anywhere on the map to walk that way; the round buttons on the right use your ability, drink a potion, wait, or open the map. Gamepads work too.
       <b>World:</b> you start in Hearth. Step onto doors to go inside, talk to people for quests, hire a hound at an inn, travel by waystone, and take a town gate or a countryside cave, crypt, warren or tower into a dungeon. A boss seals the stairs on the last floor.
-      @auth<b>Together:</b> walk into another hero to invite them to a party or wave, press <kbd>Enter</kbd> to chat, and take the same gate to share a dungeon. @endauth
+      @if (config('game.multiplayer'))
+        @auth
+          <b>Together:</b> walk into another hero to invite them to a party or wave, press <kbd>Enter</kbd> to chat, and take the same gate to share a dungeon.
+        @endauth
+      @endif
       <button id="restart" type="button">Restart</button>
     </p>
 @endsection
@@ -90,6 +96,7 @@
       csrf: @json(csrf_token()),
       items: @json(config('items')),
       mpUrl: @json(url('/api/mp')),
+      multiplayer: @json((bool) config('game.multiplayer')),
     };
   </script>
   <script src="{{ asset('js/script.js') }}?v={{ filemtime(public_path('js/script.js')) }}"></script>

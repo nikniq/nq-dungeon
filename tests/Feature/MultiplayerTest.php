@@ -146,4 +146,19 @@ class MultiplayerTest extends TestCase
         $this->assertNull($this->sync($b, ['space' => 'world'])['players'][0]['state']);
         $this->assertGreaterThan(0, DB::table('mp_presence')->count());
     }
+
+    public function test_switching_multiplayer_off_removes_it(): void
+    {
+        $a = $this->hero('Ayla');
+        $this->actingAs($a)->get('/play')->assertOk()->assertSee('id="chat"', false)->assertSee('multiplayer: true', false)->assertSee('Together:', false);
+
+        config(['game.multiplayer' => false]);
+        foreach (['sync' => ['space' => 'world', 'x' => 0, 'y' => 0], 'invite' => ['user_id' => 1], 'accept' => ['from' => 1], 'leave' => [], 'enter' => ['dungeon' => 't:0,0'], 'floor' => ['space' => 'x', 'floor' => 1]] as $route => $body) {
+            $this->actingAs($a)->postJson("/api/mp/{$route}", $body)->assertNotFound();
+        }
+        $this->actingAs($a)->get('/play')->assertOk()
+            ->assertDontSee('id="chat"', false)->assertDontSee('id="party"', false)->assertDontSee('Together:', false)
+            ->assertSee('multiplayer: false', false);
+        $this->get('/play')->assertOk()->assertDontSee('Other heroes are out there');
+    }
 }

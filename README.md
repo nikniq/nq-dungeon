@@ -51,7 +51,9 @@ monsters and posts a snapshot, others send their blows to that host and receive
 the monsters' attacks, kills go to whoever landed the blow, and stairs move the
 whole party. The relay is `MultiplayerController` over HTTP polling (every 0.4s
 in a shared dungeon, 0.65s with heroes nearby, 1.5s alone, 4s idle, 15s in a
-background tab), so it runs on shared hosting.
+background tab), so it runs on shared hosting. Turn it off with
+`MULTIPLAYER_ENABLED=false` in `.env` (then `php artisan optimize`): the game
+becomes single-player only and the relay endpoints return 404.
 
 ## Sign in with Google
 

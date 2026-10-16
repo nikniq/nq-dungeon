@@ -16,6 +16,12 @@ use Illuminate\Validation\Rule;
  */
 class MultiplayerController extends Controller
 {
+    public function __construct()
+    {
+        // The whole relay disappears when multiplayer is switched off.
+        abort_unless(config('game.multiplayer'), 404);
+    }
+
     public const MAX_PARTY = 4;
     private const ONLINE_MS = 8000;
     private const EVENT_TTL_MS = 120000;

@@ -231,7 +231,7 @@ function track(name, params = {}) {
 // digs the same floor from the same seed; the hero who has been inside longest
 // runs the monsters and posts a snapshot that the others follow.
 const mp = {
-  on: !!ACCOUNT.user, me: null, cursor: null, entered: 0, players: new Map(), outbox: [], busy: false, timer: null,
+  on: !!ACCOUNT.user && ACCOUNT.multiplayer !== false, me: null, cursor: null, entered: 0, players: new Map(), outbox: [], busy: false, timer: null,
   interval: 1500, party: null, invites: [], instance: null, hostId: null, dead: new Set(), graveyard: new Map(), bubbles: new Map(), target: null,
 };
 let entering = false;
