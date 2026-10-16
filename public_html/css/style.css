@@ -171,3 +171,5 @@ body.wide .chat,body.wide .party{max-width:1400px;margin-left:auto;margin-right:
 .story-body h2{margin:0 0 6px;color:#ffd86b;font-size:1.1rem}
 .story-body p{margin:0 0 12px;color:#e6eef8;line-height:1.5;max-width:none}
 @media (max-width:560px){.story-box{flex-direction:column;align-items:center;text-align:center}.story-box canvas{width:72px;height:72px}}
+.hero-portrait{flex:none;width:112px;height:112px;border-radius:8px;border:1px solid #12384a;image-rendering:pixelated;background:#06202c}
+.inventory .gear{display:flex;flex-direction:column;gap:6px;justify-content:center;min-height:112px}

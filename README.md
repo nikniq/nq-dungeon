@@ -9,6 +9,11 @@ Controls:
 - Mouse: click to walk, attack or use; right-click uses your class ability, aimed at the clicked tile
 - Restart: Click Restart or press `r`
 
+Your hero looks the part. Armour repaints the body: leather, chain, scale, plate
+with a helm, or dragonscale. The weapon is drawn in hand, unarmed rangers carry a
+bow and mages a staff, and the Crown of Aurum sits on your head. A large portrait
+sits beside the inventory, and in multiplayer other heroes see your gear too.
+
 You start in Hearth on an endless seeded overworld (`WORLD_SEED` in `script.js`).
 Settlements sit roughly every 96 tiles (some cells are empty), placed on the best
 land nearby and joined by roads: villages, towns, cities, walled castles, and one

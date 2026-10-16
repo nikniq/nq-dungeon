@@ -316,7 +316,7 @@ async function mpSync() {
   const events = mp.outbox.splice(0, 40);
   const body = {
     space: mpSpace(), x: player.x, y: player.y,
-    me: { face: player.face || 1, hp: player.hp, maxHp: player.maxHp, level: player.level, cls: player.cls, def: armorDef(), shield: player.shield || 0,
+    me: { face: player.face || 1, hp: player.hp, maxHp: player.maxHp, level: player.level, cls: player.cls, look: { w: player.weapon || null, a: player.armor || null, r: player.relic || null }, def: armorDef(), shield: player.shield || 0,
       floor, scene, where: mpWhere(), title: player.title || null,
       hound: hound && !hound.down && scene !== 'house' ? { x: hound.x, y: hound.y, face: hound.face || 1 } : null },
     state: coopHost() ? hostState() : null,
@@ -865,6 +865,70 @@ BIG_SPRITES.well = ['................', '...HHHHHHHHHH...', '...H........H...', 
 BIG_SPRITES.obelisk = ['.......yy.......', '......yppy......', '......pppp......', '......pPpp......', '......pppp......', '......ppPp......', '......pppp......', '......pPpp......', '......pppp......', '.....pppppp.....', '....pppppppp....', '...EEEEEEEEEE...', '..GGGGGGGGGGGG..', '.GGGGGGGGGGGGGG.', '................', '................'];
 BIG_SPRITES.king = ['....y.y..y.y....', '....yyyyyyyy....', '....yrryyrry....', '....hsssssss....', '....sskssks.....', '....ssssssss....', '.....shhhhs.....', '....dddddddd....', '...ddyddddyddd..', '..sddyddddydds..', '..s.dyddddyd.s..', '....dddddddd....', '....ddd..ddd....', '....ddd..ddd....', '...HHH....HHH...', '................'];
 BIG_SPRITES.wayout = ['....EEEEEEEE....', '...EEhhhhhhEE...', '..EEhHhhhhHhEE..', '..EhhHhhhhHhhE..', '..EhhHhhhhHhhE..', '..EhhHhhhhHhhE..', '..EhhHhhhhHhhE..', '..EhhHhhhyHhhE..', '..EhhHhhhyHhhE..', '..EhhHhhhhHhhE..', '..EhhHhhhhHhhE..', '..EhhHhhhhHhhE..', '..EhhHhhhhHhhE..', '..EEEEEEEEEEEE..', '.EEEEEEEEEEEEEE.', '................'];
+// ---------- the hero's look: armour on the body, the weapon in hand ----------
+// Built from the class sprite (hair/hat colour marks the class) by repainting
+// the torso and legs for the armour and drawing the weapon beside the right hand.
+const ARMOR_LOOK = {
+  leather:     { torso: (x, y) => (y === 9 && (x === 7 || x === 8)) ? 'y' : (y === 10 ? 'H' : 'h'), legs: 'H' },
+  chain:       { torso: (x, y) => ((x + y) % 2 ? 'e' : 'E'), legs: 'E' },
+  scale:       { torso: (x, y) => (y % 2 ? ((x % 2) ? 'o' : 'h') : ((x % 2) ? 'h' : 'o')), legs: 'h' },
+  plate:       { torso: (x, y) => (y === 7 || x === 3 || x === 12) ? 'E' : (x === 7 && y < 11 ? 'w' : 'e'), legs: 'e', helm: 'e' },
+  dragonscale: { torso: (x, y) => ((x + y) % 2 ? 'r' : 'd'), legs: 'd', helm: 'd' },
+};
+// Weapon pixels as [x, y, colour], held in the right hand (column 13, rows 9-10).
+const WEAPON_LOOK = {
+  dagger:      [[14, 7, 'w'], [14, 8, 'e'], [14, 9, 'e'], [13, 10, 'y'], [14, 10, 'y'], [14, 11, 'H']],
+  short_sword: [[14, 4, 'w'], [14, 5, 'e'], [14, 6, 'e'], [14, 7, 'e'], [14, 8, 'e'], [13, 9, 'y'], [14, 9, 'y'], [15, 9, 'y'], [14, 10, 'H'], [14, 11, 'H']],
+  mace:        [[13, 3, 'E'], [14, 3, 'e'], [15, 3, 'E'], [13, 4, 'e'], [14, 4, 'E'], [15, 4, 'e'], [13, 5, 'E'], [14, 5, 'e'], [15, 5, 'E'], [14, 6, 'h'], [14, 7, 'h'], [14, 8, 'h'], [14, 9, 'h'], [14, 10, 'H'], [14, 11, 'H']],
+  longsword:   [[14, 0, 'w'], [14, 1, 'w'], [14, 2, 'e'], [14, 3, 'e'], [14, 4, 'e'], [14, 5, 'e'], [14, 6, 'e'], [14, 7, 'e'], [12, 8, 'y'], [13, 8, 'y'], [14, 8, 'y'], [15, 8, 'y'], [14, 9, 'H'], [14, 10, 'H'], [14, 11, 'y']],
+  warhammer:   [[12, 1, 'E'], [13, 1, 'E'], [14, 1, 'E'], [15, 1, 'E'], [12, 2, 'e'], [13, 2, 'e'], [14, 2, 'e'], [15, 2, 'E'], [12, 3, 'E'], [13, 3, 'E'], [14, 3, 'E'], [15, 3, 'E'], [14, 4, 'h'], [14, 5, 'h'], [14, 6, 'h'], [14, 7, 'h'], [14, 8, 'h'], [14, 9, 'h'], [14, 10, 'H'], [14, 11, 'H'], [14, 12, 'H']],
+  greatsword:  [[14, 0, 'w'], [14, 1, 'w'], [15, 1, 'e'], [14, 2, 'w'], [15, 2, 'e'], [14, 3, 'w'], [15, 3, 'e'], [14, 4, 'w'], [15, 4, 'e'], [14, 5, 'w'], [15, 5, 'e'], [14, 6, 'w'], [15, 6, 'e'], [14, 7, 'w'], [15, 7, 'e'], [12, 8, 'y'], [13, 8, 'y'], [14, 8, 'y'], [15, 8, 'y'], [14, 9, 'd'], [14, 10, 'd'], [14, 11, 'y']],
+};
+// Unarmed rangers carry a bow and unarmed mages a staff; warriors fight with their fists.
+const CLASS_IMPLEMENT = {
+  ranger: [[14, 2, 'h'], [15, 3, 'h'], [15, 4, 'h'], [15, 5, 'h'], [15, 6, 'h'], [15, 7, 'h'], [15, 8, 'h'], [14, 9, 'h'], [14, 3, 'w'], [14, 4, 'w'], [14, 5, 'w'], [14, 6, 'w'], [14, 7, 'w'], [14, 8, 'w']],
+  mage: [[14, 1, 'c'], [13, 2, 'c'], [14, 2, 'p'], [15, 2, 'c'], [14, 3, 'c'], [14, 4, 'h'], [14, 5, 'h'], [14, 6, 'h'], [14, 7, 'h'], [14, 8, 'h'], [14, 9, 'h'], [14, 10, 'h'], [14, 11, 'h'], [14, 12, 'H'], [14, 13, 'H']],
+};
+function heroLook(cls, weapon, armor, relic) {
+  const base = (CLASSES[cls] || CLASSES.warrior).sprite;
+  const name = `hero:${base}:${weapon || '-'}:${armor || '-'}:${relic || '-'}`;
+  if (BIG_SPRITES[name]) return name;
+  const rows = BIG_SPRITES[base].map((r) => [...r]);
+  const A = ARMOR_LOOK[armor];
+  if (A) {
+    for (let y = 7; y <= 11; y++) for (let x = 0; x < 16; x++) if (rows[y][x] !== '.' && rows[y][x] !== 's') rows[y][x] = A.torso(x, y);
+    for (let y = 12; y <= 13; y++) for (let x = 0; x < 16; x++) if (rows[y][x] !== '.') rows[y][x] = A.legs;
+    if (A.helm) {
+      // a helm over the hair, keeping a plume in the class colour on top
+      const plume = rows[0][6];
+      for (let y = 0; y <= 2; y++) for (let x = 0; x < 16; x++) if (rows[y][x] !== '.' && rows[y][x] !== 's') rows[y][x] = A.helm;
+      rows[0][7] = plume; rows[0][8] = plume;
+      for (let x = 4; x <= 11; x++) if (rows[3][x] !== '.') rows[3][x] = x === 4 || x === 11 ? A.helm : rows[3][x];
+    }
+  }
+  if (relic === 'crown') { rows[0] = [...'....y.y..y.y....']; for (let x = 4; x <= 11; x++) rows[1][x] = x % 2 ? 'r' : 'y'; }
+  else if (relic && relic !== 'houndcollar') rows[7][7] = relic === 'tideheart' ? 'c' : relic === 'emberbrand' ? 'o' : relic === 'starring' ? 'p' : 'y';   // a glint on the chest
+  for (const [x, y, c] of (WEAPON_LOOK[weapon] || CLASS_IMPLEMENT[cls] || [])) rows[y][x] = c;
+  BIG_SPRITES[name] = rows.map((r) => r.join(''));
+  return name;
+}
+const playerSprite = () => heroLook(player.cls, player.weapon, player.armor, player.relic);
+// A large portrait of the hero in their gear, beside the inventory.
+function drawHeroPortrait() {
+  const pc = document.getElementById('hero-portrait');
+  if (!pc || !player) return;
+  const g = pc.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  g.clearRect(0, 0, pc.width, pc.height);
+  const grad = g.createRadialGradient(pc.width / 2, pc.height * 0.55, 4, pc.width / 2, pc.height * 0.55, pc.width * 0.7);
+  grad.addColorStop(0, '#16384a'); grad.addColorStop(1, '#06202c');
+  g.fillStyle = grad; g.fillRect(0, 0, pc.width, pc.height);
+  g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.ellipse(pc.width / 2, pc.height - 14, pc.width * 0.3, 6, 0, 0, Math.PI * 2); g.fill();
+  const img = sprite(playerSprite()), size = img.width * Math.floor((pc.width - 12) / img.width);
+  g.drawImage(img, (pc.width - size) / 2, pc.height - size - 8, size, size);
+  const plus = (n) => (n ? ` +${n}` : '');
+  pc.title = `${heroClass().name}, level ${player.level}: ${player.weapon ? itemInfo(player.weapon).name + plus(player.weaponPlus) : 'bare hands'}, ${player.armor ? itemInfo(player.armor).name + plus(player.armorPlus) : 'no armour'}${player.relic ? ', ' + itemInfo(player.relic).name : ''}`;
+}
 const spriteCache = {};
 // Creatures, items and props get a dark outline so they read on any ground;
 // 16px sprites also get a light top rim and a darker bottom rim for volume.
@@ -2389,7 +2453,7 @@ function drawScene(now) {
     if (o.hound && inView(o.hound)) { shadow(o.hound.rx ?? o.hound.x, o.hound.ry ?? o.hound.y); drawSprite(ctx, 'hound', o.hound.rx ?? o.hound.x, (o.hound.ry ?? o.hound.y) - hop(o.hound), 1, 3, o.hound.face === -1); }
     const lx = o.rx ?? o.x, ly = (o.ry ?? o.y) - hop(o) - bob(o);
     shadow(lx, o.ry ?? o.y);
-    drawSprite(ctx, (CLASSES[o.data.cls] || CLASSES.warrior).sprite, lx, ly, 1, 3, (o.data.face ?? o.face) === -1);
+    drawSprite(ctx, o.data.look ? heroLook(o.data.cls, o.data.look.w, o.data.look.a, o.data.look.r) : (CLASSES[o.data.cls] || CLASSES.warrior).sprite, lx, ly, 1, 3, (o.data.face ?? o.face) === -1);
     const ally = inMyParty(o.id);
     const label = `${o.data.name || 'Hero'} · ${o.data.level || 1}`;
     ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
@@ -2448,7 +2512,7 @@ function drawScene(now) {
     const lx = (player.rx ?? player.x) + ldx / T, ly = (player.ry ?? player.y) + ldy / T - bob(player) - hop(player);
     shadow(lx, (player.ry ?? player.y) + ldy / T);
     if (player.shield > 0) { ctx.strokeStyle = `rgba(123,223,255,${0.5 + 0.3 * Math.sin(now / 120)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(lx * T - cam.x + T / 2, ly * T - cam.y + T / 2, T * 0.62, 0, Math.PI * 2); ctx.stroke(); }
-    drawSprite(ctx, heroClass().sprite, lx, ly, 1, 3, player.face === -1, player.flashUntil > now || player.poison > 0 && Math.floor(now / 300) % 3 === 0);
+    drawSprite(ctx, playerSprite(), lx, ly, 1, 3, player.face === -1, player.flashUntil > now || player.poison > 0 && Math.floor(now / 300) % 3 === 0);
   }
   const px = (player.rx ?? player.x) * T - cam.x + T / 2, py = (player.ry ?? player.y) * T - cam.y + T / 2;
   if (scene === 'world') {
@@ -2884,7 +2948,7 @@ function buildLegend() {
     li.insertAdjacentHTML('beforeend', `<b>${label}</b> <span class="muted">${detail}</span>`);
     legendEl.appendChild(li);
   };
-  add(heroClass().sprite, `You, ${heroClass().name}`, `1: ${heroClass().ability}`);
+  add(playerSprite(), `You, ${heroClass().name}`, `1: ${heroClass().ability}`);
   if (hound) add('hound', 'Your hound', hound.down ? 'resting at the inn' : `level ${hound.level}, bites ${hound.atk}`);
   if (scene === 'house') {
     for (const n of npcs) add(n.type.sprite, n.type.name, n.type.action === 'inn' ? 'rest for free' : n.type.action ? 'buy and sell' : 'chat');
@@ -3864,6 +3928,7 @@ function itemLabel(id) {
 }
 function renderInventory() {
   if (!invBag || !player) return;
+  drawHeroPortrait();
   invWeapon.textContent = player.weapon ? itemLabel(player.weapon) : 'Bare hands';
   invArmor.textContent = player.armor ? itemLabel(player.armor) : 'None';
   { const el = document.getElementById('inv-relic'); if (el) { el.textContent = player.relic ? itemInfo(player.relic).name : 'None'; el.title = player.relic ? itemInfo(player.relic).desc : 'Treasures are found, never bought.'; } }

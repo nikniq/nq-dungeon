@@ -96,6 +96,12 @@ class MultiplayerController extends Controller
         // Only a whitelist of display fields is stored; the name always comes from the server.
         $me = collect($data['me'] ?? [])->only(['face', 'hp', 'maxHp', 'level', 'cls', 'def', 'shield', 'floor', 'scene', 'where', 'hound', 'title', 'moving'])->all();
         $me['name'] = $hero?->name ?? $user->name;
+        // what the hero looks like: only real item ids, so nothing odd is relayed
+        $look = $data['me']['look'] ?? null;
+        if (is_array($look)) {
+            $pick = fn ($id, $group) => is_string($id) && array_key_exists($id, config("items.$group")) ? $id : null;
+            $me['look'] = ['w' => $pick($look['w'] ?? null, 'weapons'), 'a' => $pick($look['a'] ?? null, 'armor'), 'r' => $pick($look['r'] ?? null, 'relics')];
+        }
         $me['level'] = $hero?->level ?? ($me['level'] ?? 1);
         $state = isset($data['state']) ? json_encode($data['state']) : null;
         if ($state !== null && strlen($state) > 120000) {

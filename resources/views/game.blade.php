@@ -77,9 +77,12 @@
     @endauth
     @endif
     <div class="inventory" id="inventory">
-      <div class="equip"><span class="muted">Weapon</span> <b id="inv-weapon">Bare hands</b></div>
-      <div class="equip"><span class="muted">Armor</span> <b id="inv-armor">None</b></div>
-      <div class="equip"><span class="muted">Relic</span> <b id="inv-relic">None</b></div>
+      <canvas id="hero-portrait" class="hero-portrait" width="112" height="112" aria-label="Your hero in their gear"></canvas>
+      <div class="gear">
+        <div class="equip"><span class="muted">Weapon</span> <b id="inv-weapon">Bare hands</b></div>
+        <div class="equip"><span class="muted">Armor</span> <b id="inv-armor">None</b></div>
+        <div class="equip"><span class="muted">Relic</span> <b id="inv-relic">None</b></div>
+      </div>
       <div class="bag"><span class="muted">Bag</span> <ul id="inv-bag" class="itemlist compact"></ul></div>
     </div>
     <details class="legend-box" open>

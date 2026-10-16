@@ -47,6 +47,15 @@ class MultiplayerTest extends TestCase
         $this->assertCount(0, $r['players']);
     }
 
+    public function test_a_heroes_gear_is_shown_to_others_with_real_items_only(): void
+    {
+        $a = $this->hero('Ayla');
+        $b = $this->hero('Bram');
+        $this->sync($a, ['x' => 10, 'y' => 10, 'me' => ['cls' => 'ranger', 'look' => ['w' => 'longsword', 'a' => '<script>', 'r' => 'crown', 'x' => 'y']]]);
+        $r = $this->sync($b, ['x' => 11, 'y' => 10]);
+        $this->assertSame(['w' => 'longsword', 'a' => null, 'r' => 'crown'], $r['players'][0]['data']['look']);
+    }
+
     public function test_chat_reaches_the_space_once_and_is_cleaned(): void
     {
         $a = $this->hero('Ayla');
