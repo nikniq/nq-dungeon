@@ -389,6 +389,7 @@ function drawQuests(g) {
   if (done.length) { y += 8; g.font = 'bold 14px sans-serif'; g.fillStyle = '#a8c0d8'; g.fillText('Completed', 24, y); y += 24; }
   for (const q of done) { g.fillStyle = '#9ef0b0'; g.font = '13px sans-serif'; g.fillText(`✓ ${q.label}`, 32, y); y += 20; }
   // achievements and perks down the right
+  if (canvas.width < 760) { g.textBaseline = 'alphabetic'; return; }
   let ay = 60; const ax = canvas.width - 360;
   g.font = 'bold 14px sans-serif'; g.fillStyle = '#ffd86b'; g.fillText(`Achievements ${player.achievements.length}/${Object.keys(ACHIEVEMENTS).length}${player.title ? '  ·  ' + player.title : ''}`, ax, ay); ay += 24;
   for (const [id, a] of Object.entries(ACHIEVEMENTS)) { const got = player.achievements.includes(id); g.fillStyle = got ? '#9ef0b0' : '#4b5563'; g.font = '12px sans-serif'; g.fillText(`${got ? '★' : '☆'} ${a.label}`, ax, ay); ay += 17; }
@@ -1466,8 +1467,11 @@ function drawBubble(g, b) {
 
 function drawHud(g, now) {
   const where = scene === 'house' ? interior.house.name : inTown() ? `${townContaining(player.x, player.y)?.name ?? 'The wilds'} · day ${dayNumber()}, ${dayPhase()}` : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floor}/${dungeonDef ? dungeonDef.floors : FINAL_FLOOR}`;
-  const text = `${where}   HP ${player.hp}/${player.maxHp}   ATK ${player.atk + weaponAtk()}   DEF ${armorDef()}   Lv ${player.level}   Gold ${player.gold}`;
-  g.font = 'bold 13px sans-serif';
+  const compact = canvas.width < 560;
+  const text = compact
+    ? `HP ${player.hp}/${player.maxHp}  ATK ${player.atk + weaponAtk()}  DEF ${armorDef()}  Lv ${player.level}  ${player.gold}g`
+    : `${where}   HP ${player.hp}/${player.maxHp}   ATK ${player.atk + weaponAtk()}   DEF ${armorDef()}   Lv ${player.level}   Gold ${player.gold}`;
+  g.font = compact ? 'bold 11px sans-serif' : 'bold 13px sans-serif';
   const w = g.measureText(text).width + 20;
   g.fillStyle = 'rgba(6,12,20,0.78)';
   g.beginPath(); g.roundRect(8, 8, w, 36, 6); g.fill();
@@ -1489,8 +1493,10 @@ function drawHud(g, now) {
   if (q) {
     g.font = '12px sans-serif';
     const qt = `Quest: ${q.label}  ${q.have}/${q.need}${questsActive().length > 1 ? `  (+${questsActive().length - 1} more, Q)` : '  (Q)'}`;
-    g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(8, 74, Math.min(canvas.width - 16, g.measureText(qt).width + 20), 20, 5); g.fill();
-    g.fillStyle = '#9ef0b0'; g.fillText(qt, 18, 78);
+    const qy = canvas.width < 560 ? 84 : 74;
+    let qtext = qt; while (g.measureText(qtext).width > canvas.width - 40 && qtext.length > 12) qtext = qtext.slice(0, -4) + '…';
+    g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(8, qy, Math.min(canvas.width - 16, g.measureText(qtext).width + 20), 20, 5); g.fill();
+    g.fillStyle = '#9ef0b0'; g.fillText(qtext, 18, qy + 4);
   }
   // compass: to the stairs in the dungeon, to the next town outdoors
   const target = scene === 'dungeon' ? exit : (inTown() ? (() => { const t = nearestOtherTown(player.x, player.y); return t ? { x: t.cx, y: t.cy, name: t.name } : null; })() : null);
@@ -1498,19 +1504,19 @@ function drawHud(g, now) {
     const dx = target.x - player.x, dy = target.y - player.y, d = Math.abs(dx) + Math.abs(dy);
     const what = scene === 'dungeon' ? (bossAlive() ? 'Stairs (sealed)' : 'Stairs') : target.name;
     const label = d === 0 ? `${what}: here` : `${what} ${Math.abs(dy) > Math.abs(dx) / 2 ? (dy < 0 ? 'N' : 'S') : ''}${Math.abs(dx) > Math.abs(dy) / 2 ? (dx < 0 ? 'W' : 'E') : ''}  ${d} tiles`;
-    g.font = 'bold 12px sans-serif';
+    g.font = canvas.width < 560 ? 'bold 11px sans-serif' : 'bold 12px sans-serif';
     const cw = g.measureText(label).width + 36;
-    const bx = canvas.width - cw - 8;
-    g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(bx, 8, cw, 28, 6); g.fill();
-    g.fillStyle = '#5fe17a'; g.fillText(label, bx + 30, 15);
+    const bx = canvas.width - cw - 8, cy0 = canvas.width < 560 ? 50 : 8;   // second row on narrow screens
+    g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(bx, cy0, cw, 28, 6); g.fill();
+    g.fillStyle = '#5fe17a'; g.fillText(label, bx + 30, cy0 + 7);
     // arrow
-    const ang = Math.atan2(dy, dx), ax = bx + 16, ay = 22;
+    const ang = Math.atan2(dy, dx), ax = bx + 16, ay = cy0 + 14;
     g.strokeStyle = '#5fe17a'; g.lineWidth = 2; g.beginPath();
     g.moveTo(ax - Math.cos(ang) * 7, ay - Math.sin(ang) * 7); g.lineTo(ax + Math.cos(ang) * 7, ay + Math.sin(ang) * 7); g.stroke();
     g.beginPath(); g.moveTo(ax + Math.cos(ang) * 7, ay + Math.sin(ang) * 7);
     g.lineTo(ax + Math.cos(ang + 2.5) * 5, ay + Math.sin(ang + 2.5) * 5); g.lineTo(ax + Math.cos(ang - 2.5) * 5, ay + Math.sin(ang - 2.5) * 5); g.closePath(); g.fillStyle = '#5fe17a'; g.fill();
   }
-  if (scene === 'dungeon' || inTown()) drawMinimap(g);
+  if ((scene === 'dungeon' || inTown()) && canvas.width >= 480) drawMinimap(g);
   g.font = '13px sans-serif';
   const recent = messages.filter((m) => now - m.at < 9000);
   if (recent.length) {
@@ -1531,7 +1537,9 @@ function drawHud(g, now) {
 // Explored tiles around the hero, dungeon only.
 const WORLD_MAP_COLORS = ['#448a3f', '#336a30', '#dfc78f', '#1d4ed8', '#6b7280', '#a8865a', '#6b7280', '#2e7d32', '#94a3b8'];
 function drawMinimap(g) {
-  const px = scene === 'world' ? 2 : 3, hw = scene === 'world' ? 48 : 30, hh = scene === 'world' ? 32 : 20;
+  // the minimap shrinks on small screens so it never hides the view
+  const small = canvas.width < 640;
+  const px = small ? 1 : scene === 'world' ? 2 : 3, hw = small ? 40 : scene === 'world' ? 48 : 30, hh = small ? 28 : scene === 'world' ? 32 : 20;
   const W = (hw * 2 + 1) * px, H = (hh * 2 + 1) * px, X = canvas.width - W - 8, Y = 44;
   g.fillStyle = 'rgba(6,12,20,0.78)'; g.fillRect(X - 2, Y - 2, W + 4, H + 4);
   for (let dy = -hh; dy <= hh; dy++) for (let dx = -hw; dx <= hw; dx++) {
@@ -1605,14 +1613,16 @@ function drawParticles(g, now) {
   }
   g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
 }
-const vignette = (() => {
+let vignette = null;
+function buildVignette() {
   const c = document.createElement('canvas'); c.width = canvas.width; c.height = canvas.height;
   const g = c.getContext('2d');
   const grd = g.createRadialGradient(c.width / 2, c.height / 2, c.height * 0.35, c.width / 2, c.height / 2, c.width * 0.62);
   grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, 'rgba(0,0,0,0.42)');
   g.fillStyle = grd; g.fillRect(0, 0, c.width, c.height);
   return c;
-})();
+}
+vignette = buildVignette();
 // A small hop while gliding from one tile to the next.
 const hop = (o) => { const d = Math.hypot(o.x - (o.rx ?? o.x), o.y - (o.ry ?? o.y)); return d > 0.02 && d <= 1.05 ? Math.sin(Math.min(1, d) * Math.PI) * 0.12 : 0; };
 
@@ -1967,8 +1977,8 @@ function perkClick(e) {
   if (!perkChoices) return false;
   const rect = canvas.getBoundingClientRect(), sx = canvas.width / rect.width, sy = canvas.height / rect.height;
   const px = (e.clientX - rect.left) * sx, py = (e.clientY - rect.top) * sy;
-  const w = 260, gap = 24, x0 = (canvas.width - (w * 3 + gap * 2)) / 2;
-  if (py >= 200 && py <= 350) for (let i = 0; i < 3; i++) if (px >= x0 + i * (w + gap) && px <= x0 + i * (w + gap) + w) { choosePerk(i); return true; }
+  const { w, h, gap, x0, y0 } = perkLayout();
+  if (py >= y0 && py <= y0 + h) for (let i = 0; i < 3; i++) if (px >= x0 + i * (w + gap) && px <= x0 + i * (w + gap) + w) { choosePerk(i); return true; }
   return true;
 }
 function inspect(e) {
@@ -2056,12 +2066,17 @@ function choosePerk(i) {
   if (player.pendingPerks > 0) offerPerks();
   draw();
 }
+function perkLayout() {
+  const gap = canvas.width < 640 ? 10 : 24, w = Math.min(260, Math.floor((canvas.width - 32 - gap * 2) / 3)), h = 150;
+  return { w, h, gap, x0: Math.floor((canvas.width - (w * 3 + gap * 2)) / 2), y0: Math.max(170, Math.floor(canvas.height / 2 - 90)) };
+}
 function drawPerks(g) {
   g.fillStyle = 'rgba(6,12,20,0.9)'; g.fillRect(0, 0, canvas.width, canvas.height);
   g.textBaseline = 'top'; g.textAlign = 'center';
-  g.fillStyle = '#ffd86b'; g.font = 'bold 22px sans-serif'; g.fillText(`Level ${player.level}! Choose a perk`, canvas.width / 2, 120);
-  g.fillStyle = '#a8c0d8'; g.font = '13px sans-serif'; g.fillText('Press 1, 2 or 3, or click a card', canvas.width / 2, 152);
-  const w = 260, h = 150, gap = 24, x0 = (canvas.width - (w * 3 + gap * 2)) / 2, y0 = 200;
+  const top = perkLayout().y0;
+  g.fillStyle = '#ffd86b'; g.font = 'bold 22px sans-serif'; g.fillText(`Level ${player.level}! Choose a perk`, canvas.width / 2, top - 80);
+  g.fillStyle = '#a8c0d8'; g.font = '13px sans-serif'; g.fillText('Press 1, 2 or 3, or click a card', canvas.width / 2, top - 48);
+  const { w, h, gap, x0, y0 } = perkLayout();
   perkChoices.forEach((id, i) => {
     const x = x0 + i * (w + gap);
     g.fillStyle = '#06202c'; g.beginPath(); g.roundRect(x, y0, w, h, 10); g.fill();
@@ -2548,12 +2563,33 @@ function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen?.();
   else stageEl.requestFullscreen?.().catch(() => log('Fullscreen is not available in this browser.', 'bad'));
 }
+// The canvas matches the space it is shown in, one canvas pixel per CSS pixel:
+// a wider window shows more of the world at the same crisp tile size. Very
+// large windows are capped and scaled up, to keep each frame cheap.
+const MAX_W = 2400, MAX_H = 1400, MIN_H = 360;
 function fitCanvas() {
-  if (!document.fullscreenElement) { canvas.style.width = ''; canvas.style.height = ''; return; }
-  const scale = Math.min(window.innerWidth / canvas.width, window.innerHeight / canvas.height);
-  canvas.style.width = `${Math.floor(canvas.width * scale)}px`;
-  canvas.style.height = `${Math.floor(canvas.height * scale)}px`;
+  let cssW, cssH;
+  if (document.fullscreenElement) { cssW = window.innerWidth; cssH = window.innerHeight; }
+  else {
+    const border = 8;
+    cssW = Math.max(240, stageEl.clientWidth - border);
+    const top = stageEl.getBoundingClientRect().top + window.scrollY;
+    // landscape screens keep a 4:3 ceiling; portrait phones may run taller than wide
+    cssH = Math.max(MIN_H, Math.min(window.innerHeight - top - 12 - border, Math.round(cssW * (cssW >= 700 ? 0.75 : 1.35))));
+  }
+  const w = Math.min(MAX_W, Math.round(cssW)), h = Math.min(MAX_H, Math.round(cssH));
+  canvas.style.width = `${Math.round(cssW)}px`; canvas.style.height = `${Math.round(cssH)}px`;
+  if (canvas.width === w && canvas.height === h) return;
+  canvas.width = w; canvas.height = h;
+  bg.width = w + T * 2; bg.height = h + T * 2;
+  lightCanvas.width = w; lightCanvas.height = h;
+  vignette = buildVignette();
+  mapCache.ox = null; bgDirty = true;
+  ctx.imageSmoothingEnabled = false;
+  if (player) { updateCamera(); draw(); }
 }
+let fitQueued = false;
+const queueFit = () => { if (fitQueued) return; fitQueued = true; requestAnimationFrame(() => { fitQueued = false; fitCanvas(); }); };
 fsBtn?.addEventListener('click', toggleFullscreen);
 document.getElementById('worldmap')?.addEventListener('click', toggleMap);
 document.getElementById('quests')?.addEventListener('click', () => { mapOpen = false; questsOpen = !questsOpen; draw(); });
@@ -2578,7 +2614,10 @@ if (soundBtn) soundBtn.textContent = sfx.muted ? 'Sound off' : 'Sound on';
 soundBtn?.addEventListener('click', () => { sfx.unlock(); toggleSound(); });
 canvas.addEventListener('pointerdown', () => sfx.unlock(), { passive: true });
 document.addEventListener('fullscreenchange', () => { fitCanvas(); if (fsBtn) fsBtn.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'; });
-window.addEventListener('resize', fitCanvas);
+window.addEventListener('resize', queueFit);
+window.addEventListener('orientationchange', queueFit);
+if (window.ResizeObserver) new ResizeObserver(queueFit).observe(stageEl);
+fitCanvas();
 let touchStart = null;
 canvas.addEventListener('touchstart', (e) => { if (e.touches.length === 1) touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }, { passive: true });
 canvas.addEventListener('touchend', (e) => {

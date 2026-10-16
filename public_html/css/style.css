@@ -8,7 +8,7 @@ h1{margin:0 0 8px;font-size:1.5rem}
 .hp-track{height:8px;background:#06202c;border-radius:4px;margin-top:6px;overflow:hidden}
 .hp-fill{height:100%;width:100%;background:#5fe17a;transition:width .15s ease,background .15s ease}
 .stage{position:relative}
-#game{display:block;width:100%;height:auto;background:#060c14;border:4px solid #0b3142;border-radius:6px;image-rendering:pixelated}
+#game{display:block;background:#060c14;border:4px solid #0b3142;border-radius:6px;image-rendering:pixelated;max-width:100%}
 .overlay{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:rgba(6,12,20,.82);border-radius:6px;cursor:pointer;padding:16px}
 .overlay.show{display:flex}
 .overlay h2{margin:0 0 8px;font-size:2rem;color:#ffd86b}
@@ -144,3 +144,8 @@ button.fs.primary{background:#5fe17a;color:#06202c;border-color:#5fe17a;font-wei
 .divider{display:flex;align-items:center;gap:10px;margin:12px 0 0}
 .divider::before,.divider::after{content:'';flex:1;height:1px;background:#12384a}
 img.avatar{object-fit:cover}
+/* --- full-width play page --- */
+body.wide{padding:12px}
+body.wide .container{max-width:none}
+body.wide .hud,body.wide .bottom,body.wide .inventory,body.wide .legend-box,body.wide .help,body.wide .flash{max-width:1400px;margin-left:auto;margin-right:auto}
+body.wide .bottom{width:100%}

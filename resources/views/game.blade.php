@@ -1,5 +1,6 @@
 @extends('layouts.app')
 @section('title', 'Play — Dungeon Adventure')
+@section('body-class', 'wide')
 @section('content')
     @guest
       <p class="flash muted">Playing as a guest. <a href="{{ route('register') }}">Create a hero</a> or <a href="{{ route('login') }}">log in</a> to save your hero and continue runs later.</p>
