@@ -30,7 +30,7 @@
             <li><b>Ranger</b> <span class="muted">18 HP, attack 3. Arrow: shoot the nearest monster in a straight line, up to 6 tiles. Spots traps.</span> <button type="button" data-class="ranger">Ranger</button></li>
             <li><b>Mage</b> <span class="muted">16 HP, attack 2. Fireball: burn every monster within 2 tiles of the nearest one in sight.</span> <button type="button" data-class="mage">Mage</button></li>
           </ul>
-          <p class="muted small">Press 1 to use your ability. Create a hero to keep your class, level and gear.</p>
+          <p class="muted small">Press 1 or right-click to use your ability. Create a hero to keep your class, level and gear.</p>
         </div>
       </div>
       <div id="shop" class="overlay shop" hidden>
@@ -89,7 +89,7 @@
     </details>
     <p class="help">
       <b>Keys:</b> arrows, WASD or HJKL move; walking into a monster attacks. Space or <kbd>.</kbd> waits, <kbd>1</kbd> uses your class ability, <kbd>P</kbd> drinks a potion, <kbd>B</kbd> throws a bomb, <kbd>T</kbd> reads a scroll of return, <kbd>M</kbd> world map, <kbd>Q</kbd> quests, <kbd>J</kbd> journal, <kbd>N</kbd> sound, <kbd>F</kbd> fullscreen, <kbd>R</kbd> restarts.
-      <b>Mouse:</b> click a spot to walk there, click a monster to attack it until it falls, click people, doors, shops, chests or waystones to use them, and hold and drag to steer. Hover to see the path; right-click or any key stops.
+      <b>Mouse:</b> right-click uses your ability, aimed where you click (a Ranger's arrow flies along that row or column, a Mage's fireball bursts there); click a spot to walk there, click a monster to attack it until it falls, click people, doors, shops, chests or waystones to use them, and hold and drag to steer. Hover to see the path; right-click or any key stops.
       <b>Touch:</b> tap or hold anywhere on the map to walk that way; the round buttons on the right use your ability, drink a potion, wait, or open the map. Gamepads work too.
       <b>Dungeons:</b> every dungeon shows a recommended level and how hard it is for you (Easy, Fair, Hard, Very hard, Deadly). Every floor has a golden door by the entrance: walk into it twice to leave early and keep your loot.
       <b>Story:</b> King Aldric needs the five shards of the Crown of Aurum. Follow the gold ★ on your compass and map. Along the way, discover standing stones, shrines, ruins, hermits, battlefields and wells, and collect the realm's unique treasures.

@@ -6,6 +6,7 @@ A small browser-based dungeon game, served by Laravel. The web root is `public_h
 Controls:
 - Move / attack: Arrow keys, WASD or HJKL (or the on-screen D-pad)
 - Wait a turn: Space or `.`
+- Mouse: click to walk, attack or use; right-click uses your class ability, aimed at the clicked tile
 - Restart: Click Restart or press `r`
 
 You start in Hearth on an endless seeded overworld (`WORLD_SEED` in `script.js`).

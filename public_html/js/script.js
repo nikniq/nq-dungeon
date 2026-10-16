@@ -2833,7 +2833,17 @@ canvas.addEventListener('mousemove', (e) => {
   if (walk.holding && walk.active && !walk.monster && performance.now() - walk.downAt > 220) { const t = tileFromEvent(e); walk.tx = t.x; walk.ty = t.y; }
 });
 window.addEventListener('mouseup', () => { walk.holding = false; });
-canvas.addEventListener('contextmenu', (e) => { if (walk.active) { e.preventDefault(); stopWalk(); } });
+// Right-click: the hero's ability, aimed at the tile under the pointer.
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  if (isTouch || !player || gameOver || perkChoices || shopOpen || journalOpen || mapOpen || questsOpen || storyOpen()) return;
+  const wasWalking = walk.active;
+  stopWalk();
+  if (wasWalking) { draw(); return; }   // the first right-click only stops a walk
+  sfx.unlock(); clearInspect();
+  const t = tileFromEvent(e);
+  useAbility(player.cls === 'warrior' ? null : t);
+});
 
 function perkClick(e) {
   if (!perkChoices) return false;
@@ -3571,8 +3581,22 @@ function lineTarget(range) {
   }
   return best;
 }
-function useAbility() {
-  if (gameOver || !player || shopOpen || scene === 'house' || perkChoices) return;
+// A target the hero aimed at with the right mouse button: the arrow flies along that
+// line, the fireball bursts there. Without one, the ability picks the nearest monster.
+function aimedLine(aim, range) {
+  const ddx = aim.x - player.x, ddy = aim.y - player.y;
+  if ((ddx && ddy) || (!ddx && !ddy)) return null;
+  const dx = Math.sign(ddx), dy = Math.sign(ddy);
+  for (let d = 1; d <= range; d++) {
+    const x = player.x + dx * d, y = player.y + dy * d;
+    if (!walkable(getTile(x, y))) return null;
+    const m = getMonsterAt(x, y);
+    if (m) return { m, d, dx, dy };
+  }
+  return null;
+}
+function useAbility(aim = null) {
+  if (gameOver || !player || shopOpen || scene === 'house' || perkChoices || storyOpen()) return;
   const cls = heroClass();
   if (player.cooldown > 0) { log(`${cls.ability} is not ready (${player.cooldown} turns).`); draw(); return; }
   const cooldownFor = () => Math.max(1, Math.ceil(cls.cooldown * (1 - 0.2 * perkCount('quickened')) * (wearing('starring') ? 0.5 : 1)));
@@ -3583,8 +3607,8 @@ function useAbility() {
     sfx.play('shield'); endTurn(false); return;
   }
   if (player.cls === 'ranger') {
-    const t = lineTarget(6);
-    if (!t) { log('No target in a straight line. Arrows fly up, down, left or right.'); draw(); return; }
+    const t = aim ? aimedLine(aim, 6) : lineTarget(6);
+    if (!t) { log(aim ? 'No clear shot there. Arrows fly straight up, down, left or right, up to 6 tiles.' : 'No target in a straight line. Arrows fly up, down, left or right.'); draw(); return; }
     const dmg = Math.max(1, player.atk + weaponAtk() + 1 + rnd(2) - (t.m.mod === 'armored' ? 2 : 0));
     if (t.dx) player.face = t.dx;
     t.m.hp -= dmg; t.m.awake = true; t.m.flashUntil = performance.now() + 120;
@@ -3597,7 +3621,12 @@ function useAbility() {
   }
   if (player.cls === 'mage') {
     let target = null, bd = Infinity;
-    for (const m of monsters) { const d = cheb(m, player); if (d <= 5 && isVisible(m.x, m.y) && d < bd) { bd = d; target = m; } }
+    if (aim) {
+      if (cheb(aim, player) > 5 || !isVisible(aim.x, aim.y)) { log('Too far, or out of sight. A fireball reaches 5 tiles.'); draw(); return; }
+      if (!monsters.some((m) => cheb(m, aim) <= 2)) { log('Nothing there to burn.'); draw(); return; }
+      target = aim;
+    }
+    else for (const m of monsters) { const d = cheb(m, player); if (d <= 5 && isVisible(m.x, m.y) && d < bd) { bd = d; target = m; } }
     if (!target) { log('No monster in sight to aim at.'); draw(); return; }
     const dmg = 5 + player.level + rnd(3);
     const hit = monsters.filter((m) => cheb(m, target) <= 2);
