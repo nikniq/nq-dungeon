@@ -79,6 +79,7 @@ const ACHIEVEMENTS = {
   traveller:   { label: 'Travelled by waystone', title: 'the Wanderer' },
   good_dog:    { label: 'Your hound made ten kills', title: 'Houndmaster' },
   elite:       { label: 'Slew an elite monster', title: 'the Undaunted' },
+  fellowship:  { label: 'Joined a party', title: 'the Companion' },
 };
 function unlock(id) {
   if (!player || !ACHIEVEMENTS[id] || player.achievements.includes(id)) return;
@@ -223,6 +224,261 @@ function track(name, params = {}) {
   try { if (typeof window.gtag === 'function') window.gtag('event', name, { hero_class: player && player.cls, hero_level: player && player.level, ...params }); } catch (e) { /* never let analytics break play */ }
 }
 
+// ---------- multiplayer ----------
+// Logged-in heroes post where they are every few hundred milliseconds and get
+// back who else shares their space (the open world, a building, or a party's
+// dungeon run) plus chat and combat messages. In a shared dungeon every client
+// digs the same floor from the same seed; the hero who has been inside longest
+// runs the monsters and posts a snapshot that the others follow.
+const mp = {
+  on: !!ACCOUNT.user, me: null, cursor: null, entered: 0, players: new Map(), outbox: [], busy: false, timer: null,
+  interval: 1500, party: null, invites: [], instance: null, hostId: null, dead: new Set(), graveyard: new Map(), bubbles: new Map(), target: null,
+};
+let entering = false;
+async function mpApi(path, body) {
+  const res = await fetch(path, {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': ACCOUNT.csrf },
+    body: JSON.stringify(body || {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.message || `HTTP ${res.status}`), { status: res.status });
+  return data;
+}
+function mpSpace() {
+  if (gameOver || !player) return `limbo:${mp.me || 0}`;
+  if (scene === 'house' && interior) return `house:${interior.house.town}:${interior.house.id}`;
+  if (scene === 'dungeon') return mp.instance ? mp.instance.space : `solo:${mp.me || 0}`;
+  return 'world';
+}
+function mpWhere() {
+  if (scene === 'house' && interior) return interior.house.name;
+  if (scene === 'dungeon') return `${dungeonDef ? dungeonDef.name : 'a dungeon'}, floor ${floor}`;
+  return townContaining(player.x, player.y)?.name ?? 'the wilds';
+}
+// Heroes I can see: same space, and in a dungeon, the same floor.
+const mpHere = () => [...mp.players.values()].filter((o) => scene !== 'dungeon' || o.data.floor === floor);
+const mpPlayerAt = (x, y) => mpHere().find((o) => o.x === x && o.y === y) || null;
+const inMyParty = (id) => !!mp.party && mp.party.members.some((m) => m.id === id);
+const coopActive = () => scene === 'dungeon' && !!mp.instance && mp.instance.shared && mpHere().length > 0;
+const coopHost = () => coopActive() && mp.hostId === mp.me;
+const coopMember = () => coopActive() && mp.hostId !== mp.me;
+function mpSend(ev) { if (mp.on) mp.outbox.push(ev); }
+function mpKick() { if (!mp.on) return; clearTimeout(mp.timer); mp.timer = setTimeout(mpTick, 30); }
+function mpStart() { if (!mp.on || mp.started) return; mp.started = true; mpTick(); setInterval(coopTick, 650); }
+async function mpTick() {
+  if (mp.busy) { mp.timer = setTimeout(mpTick, 120); return; }
+  mp.busy = true;
+  try { await mpSync(); } catch (e) { /* the next tick tries again */ }
+  mp.busy = false;
+  // fast when others are around, slow when alone, slower still when idle, paused when hidden
+  const idle = performance.now() - (mp.lastActive || 0) > 20000;
+  mp.interval = document.hidden ? 15000 : mpHere().length ? (scene === 'dungeon' ? 400 : 650) : idle ? 4000 : 1500;
+  mp.timer = setTimeout(mpTick, mp.interval);
+}
+async function mpSync() {
+  if (!player) return;
+  const events = mp.outbox.splice(0, 40);
+  const body = {
+    space: mpSpace(), x: player.x, y: player.y,
+    me: { face: player.face || 1, hp: player.hp, maxHp: player.maxHp, level: player.level, cls: player.cls, def: armorDef(), shield: player.shield || 0,
+      floor, scene, where: mpWhere(), title: player.title || null,
+      hound: hound && !hound.down && scene !== 'house' ? { x: hound.x, y: hound.y, face: hound.face || 1 } : null },
+    state: coopHost() ? hostState() : null,
+    events,
+  };
+  if (mp.cursor !== null) body.since = mp.cursor;
+  let res;
+  try { res = await mpApi(ACCOUNT.mpUrl + '/sync', body); }
+  catch (e) { mp.outbox.unshift(...events.filter((ev) => ev.type === 'chat')); throw e; }
+  mp.me = res.me; mp.cursor = res.cursor; mp.entered = res.entered;
+  const seen = new Set();
+  for (const p of res.players) {
+    seen.add(p.id);
+    const o = mp.players.get(p.id) || { id: p.id, rx: p.x, ry: p.y };
+    if (o.x !== undefined && o.x !== p.x) o.face = Math.sign(p.x - o.x);
+    if (Math.abs((o.rx ?? p.x) - p.x) > 4 || Math.abs((o.ry ?? p.y) - p.y) > 4) { o.rx = p.x; o.ry = p.y; }
+    Object.assign(o, { x: p.x, y: p.y, data: p.data || {}, entered: p.entered, state: p.state });
+    if (o.data.hound) { const h = o.hound || { rx: o.data.hound.x, ry: o.data.hound.y }; o.hound = Object.assign(h, o.data.hound); } else o.hound = null;
+    mp.players.set(p.id, o);
+  }
+  for (const id of [...mp.players.keys()]) if (!seen.has(id)) mp.players.delete(id);
+  const hadParty = !!mp.party;
+  mp.party = res.party;
+  if (!hadParty && mp.party) unlock('fellowship');
+  for (const ev of res.events) mpEvent(ev);
+  // whoever has been in this dungeon run longest runs the monsters
+  const here = mpHere();
+  let host = { id: mp.me, entered: mp.entered };
+  for (const o of here) if (o.entered < host.entered || (o.entered === host.entered && o.id < host.id)) host = o;
+  mp.hostId = host.id;
+  if (coopMember()) { const h = mp.players.get(mp.hostId); if (h && h.state) applyHostState(h.state); }
+  renderParty();
+  monstersDirty = true;
+}
+function mpEvent(ev) {
+  const p = ev.payload || {}, name = p.name || 'Someone';
+  const known = mp.players.get(ev.from);
+  if (ev.type === 'chat') {
+    if (mpSpace() === 'world' && !known) return;   // out of earshot
+    log(`${name}: ${p.text}`, 'chat');
+    mp.bubbles.set(ev.from, { text: p.text, until: performance.now() + 5000 });
+  } else if (ev.type === 'wave') {
+    log(`${name} waves at you.`, 'chat');
+    mp.bubbles.set(ev.from, { text: '*waves*', until: performance.now() + 3000 });
+  } else if (ev.type === 'invite') {
+    mp.invites = mp.invites.filter((i) => i.from !== ev.from).concat({ from: ev.from, name, at: Date.now() });
+    log(`${name} invites you to their party. Press Y or use the party panel to accept.`, 'good');
+    sfx.play('quest');
+  } else if (ev.type === 'party') {
+    log(p.text, 'chat');
+  } else if (ev.type === 'hit') {
+    if (coopHost() || (scene === 'dungeon' && mp.instance)) coopReceiveHit(ev.from, p);
+  } else if (ev.type === 'killed') {
+    coopKilled(p);
+  } else if (ev.type === 'attack') {
+    coopAttacked(p);
+  } else if (ev.type === 'stairs') {
+    if (scene === 'dungeon' && mp.instance && !bossAlive()) { log(`${name} leads the party down the stairs.`, 'good'); nextFloor(); }
+  } else if (ev.type === 'floor') {
+    if (scene === 'dungeon' && mp.instance && p.floor > floor) memberFollowFloor(p.floor);
+  } else if (ev.type === 'escape') {
+    if (scene === 'dungeon' && mp.instance && dungeonDef) { log(`${name} leads the party out of the ${dungeonDef.name}.`, 'good'); floor = dungeonDef.floors; nextFloor(); }
+  }
+}
+// The snapshot the host shares: monsters near any hero, and everything that has died on this floor.
+function hostState() {
+  const heroes = [player, ...mpHere()];
+  const mobs = [];
+  for (const m of monsters) {
+    if (!m.id || !heroes.some((h) => cheb(m, h) <= 36)) continue;
+    mobs.push([m.id, m.x, m.y, m.hp, m.maxHp, m.awake ? 1 : 0, m.face || 0]);
+  }
+  return { floor, mobs, dead: [...mp.dead].slice(-500) };
+}
+const monsterById = (id) => monsters.find((m) => m.id === id);
+function removeQuietly(m) {
+  monsters = monsters.filter((x) => x !== m); monstersDirty = true;
+  mp.graveyard.set(m.id, m); mp.dead.add(m.id);
+  burst(m.x, m.y, '#9ca3af', 10, 60, { gravity: -40, life: 600, size: 4 });
+}
+function applyHostState(st) {
+  if (!st || st.floor !== floor) { if (st && st.floor > floor) memberFollowFloor(st.floor); return; }
+  for (const id of st.dead || []) { if (mp.dead.has(id)) continue; const m = monsterById(id); if (m) removeQuietly(m); else mp.dead.add(id); }
+  for (const [id, x, y, hp, maxHp, aw, face] of st.mobs || []) {
+    const m = monsterById(id);
+    if (!m) continue;
+    if (m.x !== x || m.y !== y) { m.face = face || Math.sign(x - m.x) || m.face; m.x = x; m.y = y; }
+    m.hp = hp; m.maxHp = maxHp; m.awake = !!aw;
+  }
+  monstersDirty = true;
+}
+function memberFollowFloor(f) {
+  if (!dungeonDef) return;
+  if (f > dungeonDef.floors) { floor = dungeonDef.floors; nextFloor(); return; }
+  floor = f - 1; nextFloor();
+}
+// A party member's blow: shown at once, settled by the host.
+function coopHit(m, dmg, src) { mpSend({ to: mp.hostId, type: 'hit', payload: { id: m.id, dmg, src } }); mpKick(); }
+function coopReceiveHit(from, p) {
+  const m = monsterById(p.id);
+  if (!m) return;
+  m.hp -= p.dmg; m.awake = true; m.flashUntil = performance.now() + 120;
+  floatText(m.x, m.y, `-${p.dmg}`, '#e9c48a');
+  if (m.hp > 0) return;
+  if (m.mod === 'explosive') {
+    burst(m.x, m.y, '#ff9f43', 30, 170, { glow: true, life: 600, size: 3 });
+    if (cheb(m, player) <= 1) { const blast = 3 + floor; player.hp -= blast; floatText(player.x, player.y, `-${blast}`, '#ff6b6b'); if (player.hp <= 0) die(); }
+  }
+  if (m.boss) log(`${p.name || 'Your ally'} slays ${m.name}! The seal on the stairs breaks.`, 'good');
+  removeQuietly(m);
+  mpSend({ to: from, type: 'killed', payload: { id: m.id, src: p.src } }); mpKick();
+}
+function coopKilled(p) {
+  const m = monsterById(p.id) || mp.graveyard.get(p.id);
+  if (!m || m.rewarded) return;
+  m.rewarded = true;
+  if (p.src === 'hound' && hound) houndScored();
+  killMonster(m);
+}
+function coopAttacked(p) {
+  if (gameOver || !player) return;
+  const local = monsterById(p.id);
+  const type = (local && local.type) || MONSTER_TYPES.find((t) => t.name === p.type) || MONSTER_TYPES[0];
+  const m = local || { x: player.x + 1, y: player.y, type, hp: 1, maxHp: 1 };
+  monsterAttack({ ...m, atk: p.atk, type, name: m.name, boss: m.boss, mod: m.mod }, !!p.ranged);
+  if (local) local.lunge = { dx: Math.sign(player.x - local.x), dy: Math.sign(player.y - local.y), until: performance.now() + 140 };
+  updateStats();
+  if (player.hp <= 0) die();
+  draw();
+}
+// The host moves the monsters on a steady beat while the party is together.
+function coopTick() {
+  if (!coopHost() || gameOver || !player) return;
+  const heroes = [{ x: player.x, y: player.y, me: true }];
+  for (const o of mpHere()) {
+    heroes.push({ x: o.x, y: o.y, id: o.id, def: o.data.def || 0 });
+    const cx = Math.floor(o.x / CHUNK), cy = Math.floor(o.y / CHUNK);
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) getChunk(cx + dx, cy + dy);
+  }
+  stepMonsters(false, heroes);
+  if (monsters.some((m) => m.mod === 'swift' && m.awake)) stepMonsters(true, heroes);
+  updateVisibility(); updateStats();
+  if (player.hp <= 0) die();
+  draw();
+}
+async function enterDungeon(dkey) {
+  entering = true;
+  mp.instance = null;
+  if (mp.on) {
+    try {
+      const r = await mpApi(ACCOUNT.mpUrl + '/enter', { dungeon: dkey });
+      mp.instance = { space: r.space, seed: r.seed, shared: r.shared };
+      floor = Math.max(0, r.floor - 1);
+    } catch (e) { mp.instance = null; }
+  }
+  entering = false;
+  const joining = mp.instance && mp.instance.shared && floor > 0;
+  nextFloor();
+  if (mp.instance && mp.instance.shared) log(joining ? `You rejoin your party on floor ${floor}.` : 'Your party can follow you down this same gate.', 'good');
+  mpKick();
+}
+function openPlayerMenu(o) { mp.target = o; openShop('player'); }
+function renderParty() {
+  const el = document.getElementById('party');
+  if (!el) return;
+  const nearby = mpHere().length;
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let html = `<div class="party-head"><b>Party</b> <span class="muted">${nearby ? `${nearby} ${nearby === 1 ? 'hero' : 'heroes'} nearby` : 'No other heroes nearby'}</span>`;
+  if (mp.party) html += ` <button type="button" id="party-leave">Leave party</button>`;
+  html += '</div>';
+  if (mp.party) {
+    html += '<ul class="party-list">' + mp.party.members.map((m) => `<li><span class="dot ${m.online ? 'on' : ''}"></span>${esc(m.name)}${m.id === mp.party.leader ? ' ♛' : ''} <span class="muted">Lv ${m.level} ${esc(m.cls)}${m.where ? ' · ' + esc(m.where) : ''}${m.id === mp.me ? ' (you)' : ''}</span></li>`).join('') + '</ul>';
+    html += '<p class="muted small">Take the same gate or site entrance as your party to share the dungeon. Stairs take everyone down together.</p>';
+  } else {
+    html += '<p class="muted small">Walk into another hero to invite them to a party of up to four.</p>';
+  }
+  for (const i of mp.invites.filter((i) => Date.now() - i.at < 110000)) {
+    html += `<div class="invite">${esc(i.name)} invites you to their party <button type="button" data-accept="${i.from}" class="primary">Accept (Y)</button> <button type="button" data-decline="${i.from}">Decline</button></div>`;
+  }
+  if (el.innerHTML !== html) {
+    el.innerHTML = html;
+    el.querySelector('#party-leave')?.addEventListener('click', async () => { try { await mpApi(ACCOUNT.mpUrl + '/leave'); mp.party = null; log('You left the party.'); renderParty(); } catch (e) { log(e.message, 'bad'); } });
+    el.querySelectorAll('[data-accept]').forEach((b) => b.addEventListener('click', () => acceptInvite(Number(b.dataset.accept))));
+    el.querySelectorAll('[data-decline]').forEach((b) => b.addEventListener('click', () => { mp.invites = mp.invites.filter((i) => i.from !== Number(b.dataset.decline)); renderParty(); }));
+  }
+}
+async function acceptInvite(from) {
+  const inv = from ? mp.invites.find((i) => i.from === from) : mp.invites[mp.invites.length - 1];
+  if (!inv) return;
+  try {
+    const r = await mpApi(ACCOUNT.mpUrl + '/accept', { from: inv.from });
+    mp.party = r.party; mp.invites = mp.invites.filter((i) => i.from !== inv.from);
+    log(`You joined ${inv.name}'s party.`, 'good'); sfx.play('quest'); unlock('fellowship'); track('join_group', { group_id: String(r.party.id) });
+  } catch (e) { log(e.message, 'bad'); mp.invites = mp.invites.filter((i) => i.from !== inv.from); }
+  renderParty(); mpKick();
+}
+
 // ---------- sound (synthesised, no files) ----------
 const sfx = (() => {
   let ctx = null, muted = false;
@@ -297,7 +553,7 @@ function makeElite(m, roll) {
   m.hp = m.maxHp = Math.round(m.maxHp * 1.6);
 }
 const BOSS_NAMES = { Rat: 'the Rat King', Goblin: 'the Goblin Chieftain', Skeleton: 'the Bone Lord', Orc: 'the Orc Warchief', Wraith: 'the Lich', Bat: 'the Bat Matriarch', Spider: 'the Brood Mother', Archer: 'the Goblin Marksman' };
-function placeBoss(room, ox, oy) {
+function placeBoss(room, ox, oy, R = Math.random) {
   const def = dungeonDef || { pool: null, danger: 0 };
   const pool = def.pool || MONSTER_TYPES.filter((t) => t.minFloor <= floor);
   const type = pool.reduce((a, b) => (b.xp > a.xp ? b : a));
@@ -307,10 +563,10 @@ function placeBoss(room, ox, oy) {
     const wx = ox + x, wy = oy + y;
     if (getTile(wx, wy) === TILE.FLOOR && !getMonsterAt(wx, wy) && dist({ x: wx, y: wy }, exit) <= 2) cells.push({ x: wx, y: wy });
   }
-  const cell = cells[rnd(cells.length)] || { x: exit.x + 1, y: exit.y };
+  const cell = cells[Math.floor(R() * cells.length)] || { x: exit.x + 1, y: exit.y };
   if (getTile(cell.x, cell.y) === TILE.WALL) setTile(cell.x, cell.y, TILE.FLOOR);
   const hp = type.hp * 4 + danger * 4 + floor * 2;
-  monsters.push({ ...cell, type, name: BOSS_NAMES[type.name], hp, maxHp: hp, atk: type.atk + 1 + Math.ceil(danger / 2), awake: false, boss: true });
+  monsters.push({ ...cell, id: 'boss', type, name: BOSS_NAMES[type.name], hp, maxHp: hp, atk: type.atk + 1 + Math.ceil(danger / 2), awake: false, boss: true });
   monstersDirty = true;
 }
 const bossAlive = () => scene === 'dungeon' && monsters.some((m) => m.boss);
@@ -927,6 +1183,7 @@ function refreshTownContext() {
 }
 function createWorld() {
   scene = 'world';
+  mp.instance = null;
   bounded = null; ground = null; decor = null; interior = null;
   chunks = worldChunks;
   shops = []; monsters = worldMonsters; potions = []; golds = []; exit = null; monstersDirty = true;
@@ -1077,7 +1334,7 @@ function populateChunk(chunk, rand) {
     if (spawnChunk && dist(cell, { x: ox + CHUNK / 2, y: oy + CHUNK / 2 }) < 7) continue;
     const t = pool[r(pool.length)];
     const hp = t.hp + Math.floor(floor / 2) + danger;
-    monsters.push({ ...cell, type: t, hp, maxHp: hp, atk: t.atk + Math.floor(danger / 2), awake: false });
+    monsters.push({ ...cell, id: `${chunk.cx},${chunk.cy}#${i}`, type: t, hp, maxHp: hp, atk: t.atk + Math.floor(danger / 2), awake: false });
     if (rand() < 0.07 + 0.01 * floor) makeElite(monsters[monsters.length - 1], rand());
     monstersDirty = true;
   }
@@ -1108,18 +1365,21 @@ function createDungeon() {
   scene = 'dungeon';
   bounded = null; ground = null; decor = null; houses = []; npcs = []; interior = null;
   chunks = new Map(); monsters = []; potions = []; golds = []; shops = []; monstersDirty = true; revealedTraps = new Set();
-  floorSeed = hash32(Date.now() & 0xffff, floor, rnd(1e6));
+  // a party's run digs every floor from the same seed, so all of them see the same cave
+  floorSeed = mp.instance ? hash32(mp.instance.seed, floor, 7) : hash32(Date.now() & 0xffff, floor, rnd(1e6));
+  mp.dead = new Set(); mp.graveyard = new Map();
+  const R = seededRandom(hash32(floorSeed, 4242));
   const spawn = getChunk(0, 0);
   player.x = spawn.rooms[0].cx; player.y = spawn.rooms[0].cy;
-  // The stairs down: a few chunks away in a random direction, in that chunk's first room.
-  const angle = Math.random() * Math.PI * 2, far = 2 + rnd(2);
+  // The stairs down: a few chunks away in a direction fixed by the seed, in that chunk's first room.
+  const angle = R() * Math.PI * 2, far = 2 + Math.floor(R() * 2);
   const ex = Math.round(Math.cos(angle) * far) || 2, ey = Math.round(Math.sin(angle) * far);
   const target = getChunk(ex, ey);
   exit = { x: ex * CHUNK + target.rooms[0].cx, y: ey * CHUNK + target.rooms[0].cy };
   setTile(exit.x, exit.y, TILE.EXIT);
   monsters = monsters.filter((m) => !(m.x === exit.x && m.y === exit.y)); monstersDirty = true;
   if (floor === (dungeonDef ? dungeonDef.floors : FINAL_FLOOR)) {
-    placeBoss(target.rooms[0], ex * CHUNK, ey * CHUNK);
+    placeBoss(target.rooms[0], ex * CHUNK, ey * CHUNK, R);
     setTimeout(() => { log(`Something large guards the stairs on this floor. Kill it to break the seal.`, 'bad'); sfx.play('boss'); }, 50);
   }
 }
@@ -1177,6 +1437,7 @@ function animate(now) {
   for (const m of monsters) if (cheb(m, player) <= SIM_RADIUS) ease(m);
   for (const n of npcs) ease(n);
   if (hound) ease(hound);
+  for (const o of mp.players.values()) { ease(o); if (o.hound) ease(o.hound); }
   updateCamera();
 }
 function updateCamera() {
@@ -1555,6 +1816,11 @@ function drawMinimap(g) {
     g.fillStyle = t === TILE.WALL ? '#2b3a4a' : t === TILE.EXIT ? '#5fe17a' : t === TILE.SHOP ? '#c084fc' : '#4b7f99';
     g.fillRect(X + (dx + hw) * px, Y + (dy + hh) * px, px, px);
   }
+  for (const o of mpHere()) {
+    const dx = o.x - player.x, dy = o.y - player.y;
+    if (Math.abs(dx) > hw || Math.abs(dy) > hh) continue;
+    g.fillStyle = inMyParty(o.id) ? '#5fe17a' : '#7bdfff'; g.fillRect(X + (dx + hw) * px - 1, Y + (dy + hh) * px - 1, px + 2, px + 2);
+  }
   g.fillStyle = '#ffd86b'; g.fillRect(X + hw * px, Y + hh * px, px, px);
 }
 
@@ -1688,6 +1954,27 @@ function drawScene(now) {
   const shadow = (x, y) => { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x * T - cam.x + T / 2, y * T - cam.y + T - 4, T * 0.3, 4, 0, 0, Math.PI * 2); ctx.fill(); };
   const bob = (o, idle = true) => (idle ? Math.sin(now / 260 + (o.x * 7 + o.y * 13)) * 0.03 : 0);
   if (scene !== 'dungeon') for (const n of npcs) if (inView(n)) { const [lx, ly] = [n.rx ?? n.x, n.ry ?? n.y]; shadow(lx, ly); drawSprite(ctx, n.type.sprite, lx, ly - bob(n) - hop(n), 1, 3, n.face === -1); }
+  for (const o of mpHere()) {
+    if (!inView(o)) continue;
+    if (o.hound && inView(o.hound)) { shadow(o.hound.rx ?? o.hound.x, o.hound.ry ?? o.hound.y); drawSprite(ctx, 'hound', o.hound.rx ?? o.hound.x, (o.hound.ry ?? o.hound.y) - hop(o.hound), 1, 3, o.hound.face === -1); }
+    const lx = o.rx ?? o.x, ly = (o.ry ?? o.y) - hop(o) - bob(o);
+    shadow(lx, o.ry ?? o.y);
+    drawSprite(ctx, (CLASSES[o.data.cls] || CLASSES.warrior).sprite, lx, ly, 1, 3, (o.data.face ?? o.face) === -1);
+    const ally = inMyParty(o.id);
+    const label = `${o.data.name || 'Hero'} · ${o.data.level || 1}`;
+    ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+    const lw = ctx.measureText(label).width + 10, tx = lx * T - cam.x + T / 2, ty = ly * T - cam.y - 8;
+    ctx.fillStyle = 'rgba(6,12,20,0.72)'; ctx.beginPath(); ctx.roundRect(tx - lw / 2, ty - 13, lw, 15, 4); ctx.fill();
+    ctx.fillStyle = ally ? '#9ef0b0' : '#e6eef8'; ctx.fillText(label, tx, ty - 2);
+    ctx.textAlign = 'start';
+    if (ally && o.data.maxHp) {
+      ctx.fillStyle = '#300'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y - 3, T - 6, 3);
+      ctx.fillStyle = '#5fe17a'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y - 3, (T - 6) * Math.max(0, o.data.hp / o.data.maxHp), 3);
+    }
+    const b = mp.bubbles.get(o.id);
+    if (b && performance.now() < b.until) drawBubble(ctx, { x: lx, y: ly - 0.5, text: b.text });
+    if (scene === 'dungeon') lights.push({ x: tx, y: ly * T - cam.y + T / 2, r: T * 4, a: 0.85 });
+  }
   if (hound && !hound.down && scene !== 'house' && inView(hound)) {
     const [ldx, ldy] = lunge(hound, now);
     const lx = (hound.rx ?? hound.x) + ldx / T, ly = (hound.ry ?? hound.y) + ldy / T - hop(hound);
@@ -1810,8 +2097,10 @@ function drawScene(now) {
   }
   ctx.drawImage(vignette, 0, 0);
   if (bubble) { if (now > bubble.until) bubble = null; else drawBubble(ctx, bubble); }
+  { const mine = mp.bubbles.get('me'); if (mine && now < mine.until) drawBubble(ctx, { x: player.rx ?? player.x, y: (player.ry ?? player.y) - 0.5, text: mine.text }); }
   if (inspected) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(inspected.x * T - cam.x + 1, inspected.y * T - cam.y + 1, T - 2, T - 2); }
   drawHud(ctx, now);
+  if (isTouch && !mapOpen && !questsOpen && !perkChoices) drawTouchButtons(ctx);
   if (toast && !perkChoices && !questsOpen && !mapOpen) {
     if (now > toast.until) toast = null;
     else {
@@ -1934,6 +2223,8 @@ function describeTile(x, y) {
   const t = getTile(x, y);
   if (scene === 'dungeon' && !wasSeen(x, y)) return null;
   if (x === player.x && y === player.y) return `You — ${player.hp}/${player.maxHp} HP, attack ${player.atk + weaponAtk()}`;
+  const other = mpPlayerAt(x, y);
+  if (other) return `${other.data.name}${other.data.title ? ' ' + other.data.title : ''} — level ${other.data.level} ${other.data.cls}${inMyParty(other.id) ? ', in your party' : ''}${scene !== 'dungeon' ? '. Walk into them to invite or wave' : ''}`;
   if (houndAt(x, y)) return `Your hound — ${hound.hp}/${hound.maxHp} HP, bite ${hound.atk}, level ${hound.level}, ${hound.kills} kills`;
   if (getTile(x, y) === TILE.WAYSTONE) return 'Waystone — walk into it to travel to any town you have visited';
   const n = scene !== 'dungeon' && getNpcAt(x, y);
@@ -1982,6 +2273,7 @@ function perkClick(e) {
   return true;
 }
 function inspect(e) {
+  if (isTouch && e.type === 'click') return;   // touch taps walk instead
   if (e.type === 'click' && perkClick(e)) return;
   if (mapOpen || perkChoices) { clearInspect(); return; }
   const t = tileFromEvent(e);
@@ -2115,10 +2407,12 @@ function playerAttack(m) {
   floatText(m.x, m.y, `-${dmg}`, '#ffd86b');
   burst(m.x, m.y, '#fff3c4', 7, 140, { glow: true, life: 260, gravity: 0, size: 2 });
   sfx.play('hit');
-  if (m.hp <= 0) killMonster(m);
+  if (coopMember()) { coopHit(m, dmg, 'hero'); log(`You hit ${m.boss ? m.name : 'the ' + mName(m)} for ${dmg}.`); }
+  else if (m.hp <= 0) killMonster(m);
   else log(`You hit ${m.boss ? m.name : 'the ' + mName(m)} for ${dmg}.`);
 }
 function killMonster(m) {
+  if (m.id) { mp.dead.add(m.id); mp.graveyard.set(m.id, m); }
   if (m.mod === 'explosive') {
     const blast = 3 + floor;
     burst(m.x, m.y, '#ff9f43', 36, 180, { glow: true, life: 600, size: 3 }); shakeScreen(5); sfx.play('fire');
@@ -2161,6 +2455,7 @@ function monsterAttack(m, ranged = false) {
   if (m.mod === 'vampiric' && m.hp < m.maxHp) { const h = Math.min(dmg, m.maxHp - m.hp); m.hp += h; floatText(m.x, m.y, `+${h}`, '#ff6b9b'); }
   if (dmg >= player.maxHp * 0.25 || m.boss) shakeScreen(m.boss ? 6 : 4);
   burst(player.x, player.y, '#ff5a5a', 8, 110, { life: 380, size: 3 });
+  if (isTouch && navigator.vibrate) { try { navigator.vibrate(dmg >= player.maxHp * 0.25 ? 60 : 25); } catch (e) { /* not allowed */ } }
   if (player.hp <= 0 && perkCount('second_wind') && !player.meta.second_wind) {
     player.meta.second_wind = true; player.hp = 1;
     log('Second wind! You refuse to fall.', 'good'); unlock('survivor'); sfx.play('shield');
@@ -2175,41 +2470,52 @@ function monsterAttack(m, ranged = false) {
   log(`${m.boss ? m.name[0].toUpperCase() + m.name.slice(1) : m.type.name} hits you for ${dmg}.`, 'bad');
   sfx.play('hurt');
 }
-function stepMonsters(swiftOnly = false) {
-  const d = bfs(player.x, player.y, SIM_RADIUS, false);
+// Monsters act for one beat. heroes defaults to just you; in a shared dungeon
+// the host passes every hero present and each monster goes for the nearest.
+function stepMonsters(swiftOnly = false, heroes = null) {
+  heroes = heroes || [{ x: player.x, y: player.y, me: true }];
+  const fields = new Map();
+  const field = (i) => { if (!fields.has(i)) fields.set(i, bfs(heroes[i].x, heroes[i].y, SIM_RADIUS, false)); return fields.get(i); };
+  const heroAt = (x, y) => heroes.some((h) => h.x === x && h.y === y);
   for (const m of monsters) {
     if (swiftOnly && m.mod !== 'swift') continue;
-    if (m.hp <= 0 || cheb(m, player) > SIM_RADIUS) continue;
-    if (hound && !hound.down && scene !== 'house' && dist(m, hound) === 1 && dist(m, player) !== 1) {
+    if (m.hp <= 0) continue;
+    let hi = 0, hd = Infinity;
+    heroes.forEach((h, i) => { const dd = cheb(m, h); if (dd < hd) { hd = dd; hi = i; } });
+    if (hd > SIM_RADIUS) continue;
+    const H = heroes[hi];
+    if (hound && !hound.down && scene !== 'house' && dist(m, hound) === 1 && !heroes.some((h) => dist(m, h) === 1)) {
       if (!m.awake && Math.random() < 0.6) m.awake = true;
       if (m.awake && Math.random() < 0.7) { houndBitten(m); continue; }
     }
     const wake = scene === 'world' ? (dayPhase() === 'night' ? 10 : 6) : 6;
-    if (!m.awake && isVisible(m.x, m.y) && dist(m, player) <= wake && Math.random() < 0.7) m.awake = true;
-    if (dist(m, player) === 1) { monsterAttack(m); continue; }
+    if (!m.awake && dist(m, H) <= wake && (H.me ? isVisible(m.x, m.y) : true) && Math.random() < 0.7) m.awake = true;
+    const adjacent = heroes.find((h) => dist(m, h) === 1);
+    if (adjacent) { strike(m, adjacent, false); continue; }
     if (!m.awake) continue;
-    if (m.type.ranged && (m.x === player.x || m.y === player.y)) {
-      const dd = Math.abs(m.x - player.x) + Math.abs(m.y - player.y);
+    if (m.type.ranged && (m.x === H.x || m.y === H.y)) {
+      const dd = Math.abs(m.x - H.x) + Math.abs(m.y - H.y);
       if (dd <= m.type.ranged) {
         let clear = true;
-        for (let k = 1; k < dd; k++) if (!walkable(getTile(m.x + Math.sign(player.x - m.x) * k, m.y + Math.sign(player.y - m.y) * k))) clear = false;
-        if (clear) { monsterAttack(m, true); continue; }
+        for (let k = 1; k < dd; k++) if (!walkable(getTile(m.x + Math.sign(H.x - m.x) * k, m.y + Math.sign(H.y - m.y) * k))) clear = false;
+        if (clear) { strike(m, H, true); continue; }
       }
     }
+    const d = field(hi);
     let best = null, bestD = d.get(key(m.x, m.y)) ?? Infinity;
     const dirs = DIRS.slice().sort(() => Math.random() - 0.5);
     if (m.type.erratic && Math.random() < 0.5) bestD = Infinity;   // bats flap about
-    if (m.type.ranged && dist(m, player) <= 2) {
+    if (m.type.ranged && dist(m, H) <= 2) {
       // archers back off to shoot again
       for (const [dx, dy] of dirs) {
         const nx = m.x + dx, ny = m.y + dy;
-        if (walkable(getTile(nx, ny)) && !getMonsterAt(nx, ny) && !houndAt(nx, ny) && dist({ x: nx, y: ny }, player) > dist(m, player)) { best = [nx, ny]; break; }
+        if (walkable(getTile(nx, ny)) && !getMonsterAt(nx, ny) && !houndAt(nx, ny) && !heroAt(nx, ny) && dist({ x: nx, y: ny }, H) > dist(m, H)) { best = [nx, ny]; break; }
       }
       if (best) { monsterIndex.delete(key(m.x, m.y)); m.x = best[0]; m.y = best[1]; monsterIndex.set(key(m.x, m.y), m); continue; }
     }
     for (const [dx, dy] of dirs) {
       const nx = m.x + dx, ny = m.y + dy;
-      if (!walkable(getTile(nx, ny)) || getMonsterAt(nx, ny) || (nx === player.x && ny === player.y) || houndAt(nx, ny)) continue;
+      if (!walkable(getTile(nx, ny)) || getMonsterAt(nx, ny) || heroAt(nx, ny) || houndAt(nx, ny)) continue;
       if (scene === 'world' && townContaining(nx, ny)) continue;   // beasts keep out of settlements
       const nd = d.get(key(nx, ny));
       if (nd !== undefined && nd < bestD) { bestD = nd; best = [nx, ny]; }
@@ -2217,10 +2523,18 @@ function stepMonsters(swiftOnly = false) {
     if (!best && Math.random() < 0.5) {
       const [dx, dy] = dirs[0];
       const nx = m.x + dx, ny = m.y + dy;
-      if (getTile(nx, ny) === TILE.FLOOR && !getMonsterAt(nx, ny) && !(nx === player.x && ny === player.y) && !houndAt(nx, ny) && !(scene === 'world' && townContaining(nx, ny))) best = [nx, ny];
+      if (getTile(nx, ny) === TILE.FLOOR && !getMonsterAt(nx, ny) && !heroAt(nx, ny) && !houndAt(nx, ny) && !(scene === 'world' && townContaining(nx, ny))) best = [nx, ny];
     }
     if (best) { if (best[0] !== m.x) m.face = Math.sign(best[0] - m.x); monsterIndex.delete(key(m.x, m.y)); m.x = best[0]; m.y = best[1]; monsterIndex.set(key(m.x, m.y), m); }
   }
+}
+// A monster's blow lands on you directly, or is sent to the ally it hit.
+function strike(m, hero, ranged) {
+  if (hero.me) { monsterAttack(m, ranged); return; }
+  m.lunge = { dx: Math.sign(hero.x - m.x), dy: Math.sign(hero.y - m.y), until: performance.now() + 140 };
+  if (hero.x !== m.x) m.face = Math.sign(hero.x - m.x);
+  mpSend({ to: hero.id, type: 'attack', payload: { id: m.id, atk: m.atk, ranged: !!ranged, type: m.type.name } });
+  if (m.mod === 'vampiric') m.hp = Math.min(m.maxHp, m.hp + Math.max(1, m.atk - (hero.def || 0)));
 }
 function endGame(title, text) {
   gameOver = true;
@@ -2229,10 +2543,13 @@ function endGame(title, text) {
   overlay.classList.add('show');
 }
 function nextFloor() {
+  const leading = coopHost() || (scene === 'dungeon' && mp.instance && mp.instance.shared && !coopMember());
+  const runSpace = mp.instance && mp.instance.space;
   floor++;
   if (!dungeonDef) dungeonDef = townDungeon(townAt(...homeTown.split(',').map(Number)) || townAt(0, 0));
   if (floor > dungeonDef.floors) {
     const def = dungeonDef;
+    if (leading && runSpace && mp.on) { mpApi(ACCOUNT.mpUrl + '/sync', { space: runSpace, x: player.x, y: player.y, events: [{ type: 'escape' }] }).catch(() => {}); }
     sfx.play('win');
     track('dungeon_cleared', { dungeon: def.kind === 'site' ? def.site.type : 'town', danger: def.danger, floors: def.floors });
     if (def.kind === 'site') { questProgress('clear', def.site.key, 1); unlock(def.site.type); } else unlock('escapist');
@@ -2258,6 +2575,7 @@ function nextFloor() {
   createDungeon();
   afterSceneChange();
   sfx.play('stairs');
+  if (leading && floor > 1 && mp.on) { mpSend({ type: 'floor', payload: { floor } }); mpApi(ACCOUNT.mpUrl + '/floor', { space: runSpace, floor }).catch(() => {}); mpKick(); }
   if (floor === 1) track('dungeon_enter', { dungeon: dungeonDef.kind === 'site' ? dungeonDef.site.type : 'town', danger: dungeonDef.danger });
   else track('floor_reached', { floor, dungeon: dungeonDef.kind === 'site' ? dungeonDef.site.type : 'town' });
   if (floor === 1) { player.meta.second_wind = false; tip('dungeon', 'The compass points to the stairs. Walk into monsters to attack, press 1 for your ability, P for a potion.'); }
@@ -2268,7 +2586,7 @@ function nextFloor() {
 }
 
 function tryMove(dx, dy) {
-  if (gameOver || !player || shopOpen || perkChoices) return;
+  if (gameOver || !player || shopOpen || perkChoices || entering) return;
   const nx = player.x + dx, ny = player.y + dy;
   const t = getTile(nx, ny);
   if (t === TILE.WALL || t === TILE.FOUNTAIN) return;
@@ -2276,6 +2594,8 @@ function tryMove(dx, dy) {
   if (n) { talk(n); draw(); return; }
   if (t === TILE.FURNITURE) { useFurniture(decor[ny][nx]); draw(); return; }
   if (t === TILE.WAYSTONE) { openShop('travel'); draw(); return; }
+  const other = mpPlayerAt(nx, ny);
+  if (other) { if (scene !== 'dungeon') openPlayerMenu(other); draw(); return; }
   if (t === TILE.DOOR) {
     if (scene === 'house') leaveBuilding(); else enterBuilding(houses.find((h) => h.doorX === nx && h.doorY === ny));
     return;
@@ -2309,7 +2629,11 @@ function tryMove(dx, dy) {
       const b = monsters.find((m) => m.boss);
       log(`The stairs are sealed while ${b.name} lives.`, 'bad');
     } else if (t === TILE.EXIT) {
-      if (inTown()) { const here = townContaining(nx, ny) || nearestTownTo(nx, ny); homeTown = here.key; player.wx = nx; player.wy = ny + 1; dungeonDef = townDungeon(here); }
+      if (inTown()) {
+        const here = townContaining(nx, ny) || nearestTownTo(nx, ny); homeTown = here.key; player.wx = nx; player.wy = ny + 1; dungeonDef = townDungeon(here);
+        enterDungeon('t:' + here.key); return;
+      }
+      if (coopMember()) { mpSend({ to: mp.hostId, type: 'stairs' }); mpKick(); log('You call the party down the stairs.'); draw(); return; }
       nextFloor(); return;
     }
     if (t === TILE.SITE && inTown()) {
@@ -2318,7 +2642,7 @@ function tryMove(dx, dy) {
         homeTown = nearestTownTo(nx, ny).key; player.wx = nx; player.wy = ny;
         dungeonDef = siteDungeon(site);
         log(`You enter the ${site.name}: ${site.floors} floors, danger ${stars(site.danger)}.`, 'good');
-        nextFloor(); return;
+        enterDungeon('s:' + site.key); return;
       }
     }
     if (inTown()) { player.wx = nx; player.wy = ny; }
@@ -2354,6 +2678,11 @@ function houndBitten(m) {
   m.lunge = { dx: Math.sign(hound.x - m.x), dy: Math.sign(hound.y - m.y), until: performance.now() + 140 };
   houndHurt(dmg);
 }
+function houndScored() {
+  hound.kills++;
+  if (hound.kills % 8 === 0) { hound.level++; hound.maxHp += 4; hound.atk += 1; hound.hp = hound.maxHp; log(`Your hound grows stronger (level ${hound.level}).`, 'good'); }
+  if (hound.kills >= 10) unlock('good_dog');
+}
 // One step for the hound: bite an adjacent foe, chase one near the hero, or follow.
 function stepHound() {
   if (!hound || hound.down || scene === 'house') return;
@@ -2365,12 +2694,8 @@ function stepHound() {
     hound.lunge = { dx: Math.sign(foe.x - hound.x), dy: Math.sign(foe.y - hound.y), until: performance.now() + 140 };
     if (foe.x !== hound.x) hound.face = Math.sign(foe.x - hound.x);
     floatText(foe.x, foe.y, `-${dmg}`, '#e9c48a');
-    if (foe.hp <= 0) {
-      hound.kills++;
-      if (hound.kills % 8 === 0) { hound.level++; hound.maxHp += 4; hound.atk += 1; hound.hp = hound.maxHp; log(`Your hound grows stronger (level ${hound.level}).`, 'good'); }
-      if (hound.kills >= 10) unlock('good_dog');
-      killMonster(foe);
-    }
+    if (coopMember()) { coopHit(foe, dmg, 'hound'); return; }
+    if (foe.hp <= 0) { houndScored(); killMonster(foe); }
     return;
   }
   // a waking foe near the hero: go for it; otherwise stay at heel
@@ -2390,6 +2715,7 @@ function stepHound() {
 
 function endTurn(moved) {
   turn++;
+  mp.lastActive = performance.now();
   if (moved && turn % 2 === 0) sfx.play('step');
   if (moved && scene === 'world') { const gnd = groundAt(player.x, player.y); if (gnd === GROUND.ROAD || gnd === GROUND.SAND) burst(player.x, player.y, gnd === GROUND.SAND ? '#e7d3a1' : '#b9976a', 3, 25, { foot: true, gravity: -10, life: 380, size: 2 }); }
   if (player.cooldown > 0) player.cooldown--;
@@ -2401,8 +2727,11 @@ function endTurn(moved) {
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
   if (scene !== 'dungeon') stepNpcs();
   stepHound();
-  if (scene !== 'house') stepMonsters();
-  if (scene === 'dungeon' && monsters.some((m) => m.mod === 'swift' && m.awake)) stepMonsters(true);
+  // in a shared dungeon the host moves monsters on a steady beat instead of per turn
+  if (scene !== 'house' && !coopActive()) {
+    stepMonsters();
+    if (scene === 'dungeon' && monsters.some((m) => m.mod === 'swift' && m.awake)) stepMonsters(true);
+  }
   if (inTown() && (turn % 8 === 0)) refreshTownContext();
   if (player.cls === 'ranger' && scene === 'dungeon') {
     for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
@@ -2500,7 +2829,7 @@ function useAbility() {
     for (let d = 1; d < t.d; d++) floatText(player.x + t.dx * d, player.y + t.dy * d, '➤', '#d9b382');
     sfx.play('arrow');
     log(`Your arrow hits ${t.m.boss ? t.m.name : 'the ' + t.m.type.name} for ${dmg}.`);
-    if (t.m.hp <= 0) killMonster(t.m);
+    if (coopMember()) coopHit(t.m, dmg, 'hero'); else if (t.m.hp <= 0) killMonster(t.m);
     player.cooldown = cooldownFor(); endTurn(false); return;
   }
   if (player.cls === 'mage') {
@@ -2514,7 +2843,7 @@ function useAbility() {
     log(`Your fireball bursts over ${hit.length} ${hit.length === 1 ? 'monster' : 'monsters'} for ${dmg} each.`, 'good');
     for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) burst(target.x + i, target.y + j, Math.random() < 0.5 ? '#ff9f43' : '#ffd86b', 3, 70, { glow: true, gravity: -80, life: 600, size: 3 });
     for (const m of hit) { m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); }
-    for (const m of hit) if (m.hp <= 0) killMonster(m);
+    for (const m of hit) { if (coopMember()) coopHit(m, dmg, 'hero'); else if (m.hp <= 0) killMonster(m); }
     player.cooldown = cooldownFor(); endTurn(false); return;
   }
 }
@@ -2529,7 +2858,11 @@ const KEYS = {
   ArrowRight: [1, 0], d: [1, 0], D: [1, 0], l: [1, 0],
 };
 window.addEventListener('keydown', (e) => {
+  // typing in a form field never moves the hero
+  if (e.target && e.target.closest && e.target.closest('input, textarea, select')) { if (e.key === 'Escape') e.target.blur(); return; }
   sfx.unlock();
+  if (e.key === 'Enter' && chatInput) { e.preventDefault(); chatInput.focus(); return; }
+  if ((e.key === 'y' || e.key === 'Y') && mp.invites.length) { acceptInvite(); return; }
   if (e.key === 'Escape') { closeShop(); if (mapOpen || questsOpen) { mapOpen = false; questsOpen = false; draw(); } return; }
   if (shopOpen) return;
   if (e.key === 'm' || e.key === 'M') { questsOpen = false; toggleMap(); return; }
@@ -2555,6 +2888,16 @@ document.querySelectorAll('[data-move]').forEach((btn) => {
   });
 });
 restartBtn.addEventListener('click', init);
+const chatForm = document.getElementById('chat'), chatInput = document.getElementById('chat-input');
+chatForm?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = chatInput.value.trim().slice(0, 140);
+  if (!text) { chatInput.blur(); return; }
+  mpSend({ type: 'chat', payload: { text } }); mpKick();
+  mp.bubbles.set('me', { text, until: performance.now() + 5000 });
+  log(`You: ${text}`, 'chat');
+  chatInput.value = ''; chatInput.blur(); draw();
+});
 overlay.addEventListener('click', init);
 
 const stageEl = canvas.parentElement;
@@ -2618,18 +2961,90 @@ window.addEventListener('resize', queueFit);
 window.addEventListener('orientationchange', queueFit);
 if (window.ResizeObserver) new ResizeObserver(queueFit).observe(stageEl);
 fitCanvas();
-let touchStart = null;
-canvas.addEventListener('touchstart', (e) => { if (e.touches.length === 1) touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }, { passive: true });
-canvas.addEventListener('touchend', (e) => {
-  if (!touchStart || shopOpen) return;
-  const dx = e.changedTouches[0].clientX - touchStart.x, dy = e.changedTouches[0].clientY - touchStart.y;
-  touchStart = null;
-  if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+// ---------- touch: tap or hold to walk ----------
+// A tap walks one step toward the spot you touched; holding keeps walking
+// toward it (re-aimed from wherever the hero now stands). Tapping a monster
+// next to you attacks it. Round buttons on the right edge cover the rest.
+let isTouch = false;
+const touch = { id: null, sx: 0, sy: 0, timer: null };
+function touchButtons() {
+  if (!isTouch) return [];
+  const r = canvas.width < 560 ? 24 : 28, x = canvas.width - r - 12, gap = r * 2 + 12;
+  const y0 = Math.max(110, Math.round(canvas.height / 2 - gap * 1.5));
+  const cls = heroClass();
+  return [
+    { id: 'ability', label: player.cooldown > 0 ? String(player.cooldown) : '✦', sub: cls.ability, x, y: y0, r, active: player.cooldown <= 0 },
+    { id: 'potion', label: '♥', sub: 'Potion', x, y: y0 + gap, r, active: player.bag.some((id) => itemKind(id) === 'consumable' && itemInfo(id).heal) },
+    { id: 'wait', label: '⏸', sub: 'Wait', x, y: y0 + gap * 2, r, active: true },
+    { id: 'map', label: scene === 'world' ? 'M' : 'Q', sub: scene === 'world' ? 'Map' : 'Quests', x, y: y0 + gap * 3, r, active: true },
+  ];
+}
+function drawTouchButtons(g) {
+  for (const b of touchButtons()) {
+    g.globalAlpha = b.active ? 0.9 : 0.5;
+    g.fillStyle = 'rgba(6,12,20,0.7)'; g.beginPath(); g.arc(b.x, b.y, b.r, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = b.id === 'ability' && b.active ? '#7bdfff' : '#3b5b70'; g.lineWidth = 2; g.stroke();
+    g.fillStyle = '#e6eef8'; g.font = `bold ${Math.round(b.r * 0.75)}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(b.label, b.x, b.y - 2);
+    g.font = '9px sans-serif'; g.fillStyle = '#a8c0d8'; g.fillText(b.sub, b.x, b.y + b.r - 7);
+    g.globalAlpha = 1; g.textAlign = 'start'; g.textBaseline = 'alphabetic';
+  }
+}
+function canvasPoint(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  return { px: (clientX - rect.left) * canvas.width / rect.width, py: (clientY - rect.top) * canvas.height / rect.height };
+}
+function touchStep() {
+  if (touch.id === null || gameOver || !player || shopOpen || perkChoices || mapOpen || questsOpen) return;
+  const { px, py } = canvasPoint(touch.sx, touch.sy);
+  const tx = Math.floor((px + cam.x) / T), ty = Math.floor((py + cam.y) / T);
+  const dx = tx - player.x, dy = ty - player.y;
+  if (!dx && !dy) { stopTouchWalk(); return; }
+  // walk the shortest path when the spot can be reached, so obstacles are skirted
+  if (walkable(getTile(tx, ty)) && Math.abs(dx) + Math.abs(dy) <= 40) {
+    const d = bfs(tx, ty, 48, false), here = d.get(key(player.x, player.y));
+    if (here !== undefined) {
+      let best = null, bd = here;
+      for (const [ax, ay] of DIRS) { const nd = d.get(key(player.x + ax, player.y + ay)); if (nd !== undefined && nd < bd) { bd = nd; best = [ax, ay]; } }
+      if (best) { tryMove(best[0], best[1]); return; }
+    }
+  }
+  // otherwise step along the longer axis; if that way is blocked, try the other
+  const primary = Math.abs(dx) >= Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)];
+  const secondary = primary[0] ? (dy ? [0, Math.sign(dy)] : null) : (dx ? [Math.sign(dx), 0] : null);
+  const blocked = ([ax, ay]) => !walkable(getTile(player.x + ax, player.y + ay)) && getTile(player.x + ax, player.y + ay) !== TILE.DOOR && !getMonsterAt(player.x + ax, player.y + ay) && !getNpcAt(player.x + ax, player.y + ay);
+  const step = blocked(primary) && secondary && !blocked(secondary) ? secondary : primary;
+  tryMove(step[0], step[1]);
+}
+function stopTouchWalk() { touch.id = null; clearInterval(touch.timer); touch.timer = null; }
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'mouse') return;
+  isTouch = true;
   e.preventDefault();
-  if (Math.abs(dx) > Math.abs(dy)) tryMove(Math.sign(dx), 0); else tryMove(0, Math.sign(dy));
-});
+  sfx.unlock();
+  if (perkChoices) { perkClick(e); return; }
+  if (mapOpen || questsOpen) { mapOpen = false; questsOpen = false; draw(); return; }
+  if (gameOver) { init(); return; }
+  if (shopOpen) return;
+  const { px, py } = canvasPoint(e.clientX, e.clientY);
+  const btn = touchButtons().find((b) => Math.hypot(px - b.x, py - b.y) <= b.r + 6);
+  if (btn) {
+    if (btn.id === 'ability') useAbility();
+    else if (btn.id === 'potion') drinkPotion();
+    else if (btn.id === 'wait') wait();
+    else if (btn.id === 'map') { if (scene === 'world') toggleMap(); else { questsOpen = true; draw(); } }
+    return;
+  }
+  stopTouchWalk();
+  touch.id = e.pointerId; touch.sx = e.clientX; touch.sy = e.clientY;
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
+  touchStep();
+  touch.timer = setInterval(touchStep, 190);
+}, { passive: false });
+canvas.addEventListener('pointermove', (e) => { if (e.pointerId === touch.id) { touch.sx = e.clientX; touch.sy = e.clientY; } });
+for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) canvas.addEventListener(ev, (e) => { if (e.pointerId === touch.id) stopTouchWalk(); });
 window.addEventListener('pagehide', () => { if (!gameOver) saveProgress('progress', true); });
-document.addEventListener('visibilitychange', () => { if (document.hidden && !gameOver) saveProgress('progress', true); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && !gameOver) saveProgress('progress', true); if (!document.hidden) { mp.lastActive = performance.now(); mpKick(); } });
 
 // ---------- inventory ----------
 const invWeapon = document.getElementById('inv-weapon');
@@ -2701,7 +3116,7 @@ function throwBomb(idx) {
   shakeScreen(6); sfx.play('fire');
   log(`Your bomb blasts ${hit.length} ${hit.length === 1 ? 'monster' : 'monsters'} for ${dmg}.`, 'good');
   for (const m of hit) { m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); }
-  for (const m of hit) if (m.hp <= 0) killMonster(m);
+  for (const m of hit) { if (coopMember()) coopHit(m, dmg, 'hero'); else if (m.hp <= 0) killMonster(m); }
   endTurn(false);
 }
 function readScroll(idx) {
@@ -2756,6 +3171,7 @@ const SHOPS = {
   royal: { title: 'The Royal Armoury', stock: () => true, price: (it) => it.price, greet: 'The quartermaster unlocks the cabinet. Everything the realm can forge, at the King\'s prices.' },
   inn: { title: 'The inn', stock: () => false, price: (it) => it.price, greet: 'The innkeeper wipes the bar. A bed, or a hound for the road?' },
   travel: { title: 'Waystone', stock: () => false, price: (it) => it.price, greet: 'The runes hum under your hand. Choose a town you have visited.' },
+  player: { title: 'Hero', stock: () => false, price: (it) => it.price, greet: '' },
 };
 SHOPS.apothecary.stock = (id) => id === 'potion' || id === 'elixir' || id === 'scroll';
 let shopKind = 'shop';
@@ -2764,9 +3180,9 @@ function openShop(kind = 'shop') {
   if (!shopEl) return;
   tip('shop', 'Buy with the buttons, sell anything at half price. Smithies and armouries also sharpen and reinforce what you wear.');
   shopKind = kind; shopOpen = true; shopEl.hidden = false;
-  shopEl.classList.toggle('no-sell', kind === 'travel');
-  document.querySelector('#shop h2').textContent = SHOPS[kind].title;
-  log(SHOPS[kind].greet);
+  shopEl.classList.toggle('no-sell', kind === 'travel' || kind === 'player');
+  document.querySelector('#shop h2').textContent = kind === 'player' && mp.target ? `${mp.target.data.name}, level ${mp.target.data.level} ${mp.target.data.cls}` : SHOPS[kind].title;
+  if (SHOPS[kind].greet) log(SHOPS[kind].greet);
   renderShop();
 }
 function closeShop() { if (!shopEl) return; shopOpen = false; shopEl.hidden = true; }
@@ -2830,6 +3246,19 @@ function renderShop() {
     else if (hound.down || hound.hp < hound.maxHp) shopBuy.appendChild(shopRow(hound.down ? 'Your hound is back, bandaged and sorry for itself' : 'Patch up your hound', 'Heal, free', () => { hound.hp = hound.maxHp; hound.down = false; log('The innkeeper patches up your hound. Its tail thumps the floor.', 'good'); buildLegend(); renderShop(); draw(); }));
     else shopBuy.appendChild(shopRow(`Your hound is in fine fettle (level ${hound.level}, ${hound.kills} kills)`));
   }
+  if (shopKind === 'player') {
+    const o = mp.target;
+    if (!o) return;
+    if (inMyParty(o.id)) shopBuy.appendChild(shopRow(`${o.data.name} is in your party`));
+    else if (mp.party && mp.party.members.length >= 4) shopBuy.appendChild(shopRow('Your party is full (four heroes)'));
+    else shopBuy.appendChild(shopRow(`Invite ${o.data.name} to ${mp.party ? 'your' : 'a'} party`, 'Invite', async () => {
+      try { await mpApi(ACCOUNT.mpUrl + '/invite', { user_id: o.id }); log(`You invite ${o.data.name} to your party.`, 'good'); } catch (e) { log(e.message, 'bad'); }
+      closeShop(); draw();
+    }));
+    shopBuy.appendChild(shopRow(`Wave at ${o.data.name}`, 'Wave', () => { mpSend({ to: o.id, type: 'wave' }); mp.bubbles.set('me', { text: '*waves*', until: performance.now() + 3000 }); mpKick(); closeShop(); draw(); }));
+    shopBuy.appendChild(shopRow(`See ${o.data.name}'s profile`, 'Open', () => { window.open(`/heroes/${encodeURIComponent(o.data.name)}`, '_blank', 'noopener'); }));
+    return;
+  }
   if (shopKind === 'travel') {
     const here = townContaining(player.x, player.y);
     const dests = player.meta.visited.map((k) => townAt(...k.split(',').map(Number))).filter((t) => t && (!here || t.key !== here.key));
@@ -2887,6 +3316,7 @@ document.getElementById('shop-close')?.addEventListener('click', closeShop);
 // ---------- setup ----------
 function afterSceneChange() {
   bubble = null; closeShop(); clearInspect(); floats.length = 0; particles.length = 0; mapOpen = false;
+  mp.players.clear(); mpKick();
   settle(player); for (const n of npcs) settle(n);
   placeHound();
   updateCamera(); updateVisibility(); buildLegend(); updateStats(); draw();
@@ -2948,7 +3378,9 @@ async function init() {
   try {
     const saved = await loadProgress();
     const respawn = guestRespawn; guestRespawn = null;
+    mp.instance = null;
     startRun(saved || respawn);
+    mpStart(); mpKick();
   } finally { starting = false; }
 }
 // Gamepad: stick or d-pad moves; A ability, B potion, X wait, Y quests, LB bomb,

@@ -40,6 +40,19 @@ Each floor has a merchant (`$`) who buys and sells weapons, armor and potions;
 the item catalog lives in `config/items.php`. Hover or tap anything on the map
 to see what it is. Create a hero to save runs and gear between visits.
 
+## Multiplayer
+
+Logged-in heroes see each other live in the open world, inside buildings and in
+shared dungeons. Walk into another hero to invite them to a party (up to four) or
+wave; press Enter to chat with heroes nearby. Party members who take the same
+gate or site entrance share the run: every client digs the same floor from a
+seed the server hands out, the hero who has been inside longest runs the
+monsters and posts a snapshot, others send their blows to that host and receive
+the monsters' attacks, kills go to whoever landed the blow, and stairs move the
+whole party. The relay is `MultiplayerController` over HTTP polling (every 0.4s
+in a shared dungeon, 0.65s with heroes nearby, 1.5s alone, 4s idle, 15s in a
+background tab), so it runs on shared hosting.
+
 ## Sign in with Google
 
 Optional. Create an OAuth client (Web application) in the Google Cloud console

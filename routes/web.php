@@ -5,6 +5,7 @@ use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\HeroController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\MultiplayerController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -33,4 +34,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/character/abandon', [CharacterController::class, 'abandon'])->name('character.abandon');
     Route::get('/api/character', [CharacterController::class, 'show'])->name('character.show');
     Route::post('/api/character', [CharacterController::class, 'save'])->name('character.save');
+    // multiplayer relay
+    Route::middleware('throttle:400,1')->post('/api/mp/sync', [MultiplayerController::class, 'sync'])->name('mp.sync');
+    Route::post('/api/mp/invite', [MultiplayerController::class, 'invite'])->name('mp.invite');
+    Route::post('/api/mp/accept', [MultiplayerController::class, 'accept'])->name('mp.accept');
+    Route::post('/api/mp/leave', [MultiplayerController::class, 'leave'])->name('mp.leave');
+    Route::post('/api/mp/enter', [MultiplayerController::class, 'enter'])->name('mp.enter');
+    Route::post('/api/mp/floor', [MultiplayerController::class, 'floor'])->name('mp.floor');
 });

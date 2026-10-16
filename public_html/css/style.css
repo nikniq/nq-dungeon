@@ -149,3 +149,16 @@ body.wide{padding:12px}
 body.wide .container{max-width:none}
 body.wide .hud,body.wide .bottom,body.wide .inventory,body.wide .legend-box,body.wide .help,body.wide .flash{max-width:1400px;margin-left:auto;margin-right:auto}
 body.wide .bottom{width:100%}
+/* --- multiplayer: chat and party --- */
+.chat{display:flex;gap:8px;margin-top:8px}
+body.wide .chat,body.wide .party{max-width:1400px;margin-left:auto;margin-right:auto}
+.chat input{flex:1;padding:8px 10px;border-radius:6px;border:1px solid #12384a;background:#0f1724;color:#e6eef8;font-size:.95rem}
+.chat input:focus{outline:2px solid #7bdfff;border-color:#7bdfff}
+.party{margin-top:8px;padding:8px 10px;background:#06202c;border-radius:6px;font-size:.9rem}
+.party-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.party-list{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 16px}
+.party-list .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#4b5563;margin-right:6px}
+.party-list .dot.on{background:#5fe17a}
+.party .invite{margin-top:6px;padding:6px 8px;background:#0b3142;border-radius:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.log li.chat{color:#9fd4ff}
+#game{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
