@@ -63,6 +63,13 @@ town names, paving, roofs and border colours on the world map:
 | Ka'thar Clans | Tribal | Kar Thuldun | Spirit blessings from shamans. The chieftain's blood oath gives +6 HP and halves the shamans' prices. |
 | Goldspire League | Oligarchy | Goldspire | The Exchange: a bank whose deposits survive death (5% fee), and a 1000g guild seat for 15% off everywhere. Shops charge 15% more but pay 60% on sales. |
 
+Every dungeon has a recommended level, from its danger and the strongest monster
+on its first floor (`recLevel` in `script.js`). Labels, tooltips and the world map
+rate it Easy, Fair, Hard, Very hard or Deadly for your level. Entering a Very hard
+or Deadly dungeon needs a second step. Every floor also has a golden way-out door
+in the arrival room: walk into it twice to leave early, keeping your loot but
+skipping the hoard.
+
 Landmarks in the wilds are discovered by walking near them. Standing stones heal you and
 reveal another place. Shrines give a blessing. Ruins and battlefields can be searched
 once. Hermits tell tales and sell maps. Wells take a coin for a random boon. Press J for

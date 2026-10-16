@@ -16,7 +16,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 const restartBtn = document.getElementById('restart');
 
-const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14 };
+const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15 };
 const TOWN = 0;           // floor number of the town square
 const FINAL_FLOOR = 5;
 const VIEW_RADIUS = 8;    // how far the hero sees in the dungeon
@@ -197,7 +197,7 @@ function markSeen(x, y) {
   const cx = Math.floor(x / CHUNK), cy = Math.floor(y / CHUNK);
   getChunk(cx, cy).seen[(y - cy * CHUNK) * CHUNK + (x - cx * CHUNK)] = 1;
 }
-const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE;
+const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE && t !== TILE.WAYOUT;
 const hazard = (x, y) => getTile(x, y) === TILE.LAVA || (getTile(x, y) === TILE.TRAP && revealedTraps.has(key(x, y)));
 
 // ---------- account save/load ----------
@@ -864,6 +864,7 @@ BIG_SPRITES.battle = ['................', '...e.......e....', '...e.......e....'
 BIG_SPRITES.well = ['................', '...HHHHHHHHHH...', '...H........H...', '...H........H...', '...H....k...H...', '...H....k...H...', '...H....k...H...', '..EEEEEEEEEEEE..', '..EeeeeeeeeeeE..', '..EeccccccccecE.', '..EeeeeeeeeeeE..', '..EEEEEEEEEEEE..', 'GGGGGGGGGGGGGGGG', '.GGGGGGGGGGGGGG.', '................', '................'];
 BIG_SPRITES.obelisk = ['.......yy.......', '......yppy......', '......pppp......', '......pPpp......', '......pppp......', '......ppPp......', '......pppp......', '......pPpp......', '......pppp......', '.....pppppp.....', '....pppppppp....', '...EEEEEEEEEE...', '..GGGGGGGGGGGG..', '.GGGGGGGGGGGGGG.', '................', '................'];
 BIG_SPRITES.king = ['....y.y..y.y....', '....yyyyyyyy....', '....yrryyrry....', '....hsssssss....', '....sskssks.....', '....ssssssss....', '.....shhhhs.....', '....dddddddd....', '...ddyddddyddd..', '..sddyddddydds..', '..s.dyddddyd.s..', '....dddddddd....', '....ddd..ddd....', '....ddd..ddd....', '...HHH....HHH...', '................'];
+BIG_SPRITES.wayout = ['....EEEEEEEE....', '...EEhhhhhhEE...', '..EEhHhhhhHhEE..', '..EhhHhhhhHhhE..', '..EhhHhhhhHhhE..', '..EhhHhhhhHhhE..', '..EhhHhhhhHhhE..', '..EhhHhhhyHhhE..', '..EhhHhhhyHhhE..', '..EhhHhhhhHhhE..', '..EhhHhhhhHhhE..', '..EhhHhhhhHhhE..', '..EhhHhhhhHhhE..', '..EEEEEEEEEEEE..', '.EEEEEEEEEEEEEE.', '................'];
 const spriteCache = {};
 // Creatures, items and props get a dark outline so they read on any ground;
 // 16px sprites also get a light top rim and a darker bottom rim for volume.
@@ -1066,6 +1067,8 @@ const SITE_TYPES = {
   tower:  { label: "Wizard's Tower", sprite: 'tower', floors: [3, 4], pool: byName('Wraith', 'Skeleton', 'Bat', 'Archer'), gold: 1.3, potions: 2, view: 9, loot: 0.18, treasure: 200, prefixes: ['Leaning', 'Glass', 'Moonlit', 'Shattered', 'Violet'] },
 };
 let dungeonDef = null;   // set when a gate or a site is entered
+let entryWarned = null;  // { key, turn } after a warning that a dungeon is too hard
+let wayoutWarned = -99;  // the turn the hero last bumped the way-out door
 let revealedTraps = new Set();   // traps the hero has found, by "x,y"
 let guestRespawn = null;         // a guest's hero after a death, so R does not start from scratch
 function townDungeon(town) {
@@ -1078,6 +1081,26 @@ function siteDungeon(site) {
   if (site.story) { const S = STORY_SITES[site.story]; Object.assign(def, { story: site.story, theme: S.theme, boss: S.boss, treasure: 150 + 60 * S.danger, xp: 1.5 }); }
   return def;
 }
+// The level a hero should be to take a dungeon on: danger adds two levels a
+// step, and dungeons whose first floor already holds orcs or wraiths add more.
+function recLevel(def) {
+  if (!def) return 1;
+  const pool = def.pool || MONSTER_TYPES.filter((t) => t.minFloor <= 1);
+  const hardest = Math.max(...pool.map((t) => t.atk));
+  return Math.max(1, 1 + 2 * (def.danger || 0) + Math.max(0, hardest - 2));
+}
+const RATINGS = [
+  { min: 3, label: 'Easy', color: '#9ca3af' },
+  { min: 0, label: 'Fair', color: '#5fe17a' },
+  { min: -2, label: 'Hard', color: '#fbbf24' },
+  { min: -5, label: 'Very hard', color: '#f97316' },
+  { min: -Infinity, label: 'Deadly', color: '#ef4444' },
+];
+function rating(def) {
+  const rec = recLevel(def), diff = (player ? player.level : 1) - rec;
+  return { rec, ...RATINGS.find((r) => diff >= r.min) };
+}
+const ratingText = (def) => { const r = rating(def); return `level ${r.rec}+ · ${r.label} for you`; };
 const stars = (danger) => '★'.repeat(Math.min(5, 1 + danger)) + '☆'.repeat(Math.max(0, 4 - danger));
 
 // ---------- the four realms ----------
@@ -1704,6 +1727,8 @@ function createDungeon() {
   const R = seededRandom(hash32(floorSeed, 4242));
   const spawn = getChunk(0, 0);
   player.x = spawn.rooms[0].cx; player.y = spawn.rooms[0].cy;
+  wayoutWarned = -99;
+  { const room = spawn.rooms[0]; setTile(room.x, room.y, TILE.WAYOUT); monsters = monsters.filter((m) => !(m.x === room.x && m.y === room.y)); }
   // The stairs down: a few chunks away in a direction fixed by the seed, in that chunk's first room.
   const angle = R() * Math.PI * 2, far = 2 + Math.floor(R() * 2);
   const ex = Math.round(Math.cos(angle) * far) || 2, ey = Math.round(Math.sin(angle) * far);
@@ -1748,7 +1773,7 @@ function updateVisibility() {
     const [x, y] = k.split(',').map(Number);
     markSeen(x, y);
     for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
-      if (getTile(x + dx, y + dy) === TILE.WALL) { visible.add(key(x + dx, y + dy)); markSeen(x + dx, y + dy); }
+      if (!walkable(getTile(x + dx, y + dy))) { visible.add(key(x + dx, y + dy)); markSeen(x + dx, y + dy); }
     }
   }
 }
@@ -2030,9 +2055,11 @@ function renderBackground() {
     for (const st of nearbySites(player.x, player.y, 1)) {
       if (st.x < x0 || st.x > x1 || st.y < y0 || st.y > y1) continue;
       g.font = 'bold 12px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom';
-      const w = g.measureText(st.name).width + 12;
-      g.fillStyle = 'rgba(6,12,20,0.65)'; g.fillRect(st.x * T - off.x + T / 2 - w / 2, st.y * T - off.y - 20, w, 16);
-      g.fillStyle = '#c084fc'; g.fillText(st.name, st.x * T - off.x + T / 2, st.y * T - off.y - 6);
+      const rt = rating(siteDungeon(st)), sub = `Lv ${rt.rec}+ · ${rt.label}`;
+      const w = Math.max(g.measureText(st.name).width, g.measureText(sub).width) + 12;
+      g.fillStyle = 'rgba(6,12,20,0.7)'; g.fillRect(st.x * T - off.x + T / 2 - w / 2, st.y * T - off.y - 34, w, 30);
+      g.fillStyle = '#c084fc'; g.fillText(st.name, st.x * T - off.x + T / 2, st.y * T - off.y - 20);
+      g.fillStyle = rt.color; g.fillText(sub, st.x * T - off.x + T / 2, st.y * T - off.y - 6);
       g.textAlign = 'start'; g.textBaseline = 'alphabetic';
     }
     for (const h of houses) if (h.x <= x1 && h.x + h.w >= x0 && h.y <= y1 && h.y + h.h >= y0) drawHouse(g, h);
@@ -2059,6 +2086,7 @@ function renderBackground() {
       floorShade(g, c, r, (x, y) => getTile(x, y) === TILE.WALL);
       if (t === TILE.FLOOR && noise(c, r, 13) < thm().bones) drawSprite(g, 'bones', c, r, 0.8);
       if (t === TILE.EXIT) drawSprite(g, 'stairs', c, r);
+      if (t === TILE.WAYOUT) { g.fillStyle = 'rgba(255,216,107,0.18)'; g.fillRect(c * T - off.x - 4, r * T - off.y - 4, T + 8, T + 8); drawSprite(g, 'wayout', c, r); }
       if (t === TILE.SHOP) { g.fillStyle = 'rgba(192,132,252,0.25)'; g.fillRect(c * T - off.x, r * T - off.y, T, T); }
       if (t === TILE.CHEST) drawSprite(g, 'chest', c, r, 1, 4);
       if (t === TILE.TRAP && revealedTraps.has(key(c, r))) drawSprite(g, 'trap', c, r, 1, 2);
@@ -2091,7 +2119,7 @@ function drawBubble(g, b) {
 }
 
 function drawHud(g, now) {
-  const where = scene === 'house' ? interior.house.name : inTown() ? `${townContaining(player.x, player.y)?.name ?? 'The wilds'}, ${REALMS[realmOfTile(player.x, player.y)].short} · day ${dayNumber()}, ${dayPhase()}` : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floor}/${dungeonDef ? dungeonDef.floors : FINAL_FLOOR}`;
+  const where = scene === 'house' ? interior.house.name : inTown() ? `${townContaining(player.x, player.y)?.name ?? 'The wilds'}, ${REALMS[realmOfTile(player.x, player.y)].short} · day ${dayNumber()}, ${dayPhase()}` : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floor}/${dungeonDef ? dungeonDef.floors : FINAL_FLOOR}${dungeonDef ? ` · Lv ${recLevel(dungeonDef)}+` : ''}`;
   const compact = canvas.width < 560;
   const text = compact
     ? `HP ${player.hp}/${player.maxHp}  ATK ${player.atk + weaponAtk()}  DEF ${armorDef()}  Lv ${player.level}  ${player.gold}g`
@@ -2189,7 +2217,7 @@ function drawMinimap(g) {
     }
     if (!wasSeen(x, y)) continue;
     const t = getTile(x, y);
-    g.fillStyle = t === TILE.WALL ? '#2b3a4a' : t === TILE.EXIT ? '#5fe17a' : t === TILE.SHOP ? '#c084fc' : '#4b7f99';
+    g.fillStyle = t === TILE.WALL ? '#2b3a4a' : t === TILE.EXIT ? '#5fe17a' : t === TILE.WAYOUT ? '#ffd86b' : t === TILE.SHOP ? '#c084fc' : '#4b7f99';
     g.fillRect(X + (dx + hw) * px, Y + (dy + hh) * px, px, px);
   }
   for (const o of mpHere()) {
@@ -2580,7 +2608,7 @@ function renderWorldMap() {
     if (!st) continue;
     const [sx, sy] = toPx(st.x, st.y);
     g.fillStyle = '#c084fc'; g.fillRect(sx - 4, sy - 4, 8, 8); g.fillStyle = '#1b1b2f'; g.fillRect(sx - 2, sy - 2, 4, 4);
-    g.font = '10px sans-serif'; g.fillStyle = '#e9d5ff'; g.fillText(`${st.name} ${stars(st.danger).replace(/☆/g, '')}`, sx, sy - 6); g.font = 'bold 11px sans-serif';
+    g.font = '10px sans-serif'; const rt = rating(siteDungeon(st)); g.fillStyle = '#e9d5ff'; g.fillText(st.name, sx, sy - 16); g.fillStyle = rt.color; g.fillText(`Lv ${rt.rec}+ ${rt.label}`, sx, sy - 6); g.font = 'bold 11px sans-serif';
   }
   for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
     const t = townAt(i, j);
@@ -2686,8 +2714,10 @@ function describeTile(x, y) {
   }
   if (scene === 'house' && decor[y] && decor[y][x]) return decor[y][x].sprite === 'bed' ? 'Bed — lie down to rest' : `${decor[y][x].name} — walk into it`;
   if (inTown() && t === TILE.WALL) { const h = houses.find((hh) => x >= hh.x && x < hh.x + hh.w && y >= hh.y && y < hh.y + hh.h); if (h) return `${h.name} — the door is at the bottom`; if (groundAt(x, y) === GROUND.RAMPART) return 'Castle wall — the gates are in the middle of each side'; }
-  if (t === TILE.EXIT) return inTown() ? 'Dungeon gate — step here to begin your descent' : 'Stairs down — the exit from this floor';
-  if (t === TILE.SITE && inTown()) { const st = siteAtTile(x, y); if (st) return st.story && !storySiteOpen(st.story) ? `${st.name} — sealed with old gold` : `${st.name} — ${st.floors} floors, danger ${stars(st.danger)}${st.story ? ', a shard lies within' : ''}, step in to explore`; }
+  if (t === TILE.EXIT && inTown()) { const tw = townContaining(x, y) || nearestTownTo(x, y); return `Dungeon gate — ${tw ? `${townDungeon(tw).floors} floors, ${ratingText(townDungeon(tw))}` : 'step here to begin your descent'}`; }
+  if (t === TILE.EXIT) return 'Stairs down — the exit from this floor';
+  if (t === TILE.WAYOUT) return 'Way out — walk into it twice to leave the dungeon early, keeping your loot';
+  if (t === TILE.SITE && inTown()) { const st = siteAtTile(x, y); if (st) return st.story && !storySiteOpen(st.story) ? `${st.name} — sealed with old gold` : `${st.name} — ${st.floors} floors, ${ratingText(siteDungeon(st))}${st.story ? ', a shard lies within' : ''}, step in to explore`; }
   if (t === TILE.PLACE && inTown()) { const pl = placeAtTile(x, y); if (pl) return discovered(pl) ? `${pl.name[0].toUpperCase() + pl.name.slice(1)} — ${PLACE_TYPES[pl.type].label}, walk into it` : 'Something old stands here — walk into it'; }
   if (inTown()) {
     const gnd = groundAt(x, y);
@@ -2714,7 +2744,7 @@ const hover = { x: null, y: null, path: [], sig: '' };
 const occupiedBy = (x, y) => getMonsterAt(x, y) || getNpcAt(x, y) || mpPlayerAt(x, y) || null;
 function interactive(x, y) {
   const t = getTile(x, y);
-  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE].includes(t);
+  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT].includes(t);
 }
 // The tiles from the hero to a target (not including the hero's own tile), shortest first.
 function pathTo(tx, ty, limit = 60) {
@@ -2930,7 +2960,7 @@ function gainXp(n) {
   while (player.xp >= xpToNext(player.level)) {
     player.xp -= xpToNext(player.level);
     player.level++;
-    player.maxHp += 4; player.atk += 1; player.hp = player.maxHp;
+    player.maxHp += 4; player.atk += 1; player.hp = player.maxHp; mapCache.ox = null;
     log(`Level up! You are now level ${player.level}. HP and attack increased.`, 'good');
     sfx.play('levelup');
     burst(player.x, player.y, '#ffd86b', 40, 170, { glow: true, gravity: -40, life: 900, size: 3 });
@@ -3128,10 +3158,37 @@ function nextFloor() {
   if (floor === 1) { player.meta.second_wind = false; tip('dungeon', 'The compass points to the stairs. Walk into monsters to attack, press 1 for your ability, P for a potion.'); }
   if (floor >= 5) unlock('delver');
   if (floor === dungeonDef.floors) tip('boss', 'A boss waits by the stairs on the last floor. Clear the room, use your ability, keep a potion ready.');
-  log(floor === 1 ? `You descend into the ${dungeonDef.name}${dungeonDef.danger ? ' (danger ' + stars(dungeonDef.danger) + ')' : ''}. Follow the compass to the stairs.` : `You descend to floor ${floor}.`, 'good');
+  log(floor === 1 ? `You descend into the ${dungeonDef.name} (${ratingText(dungeonDef)}). Follow the compass to the stairs. The golden door beside you leads back up if you want out.` : `You descend to floor ${floor}. A golden door here leads back to the surface.`, 'good');
   saveProgress('progress');
 }
 
+// A dungeon well above the hero's level asks for a second step before it lets them in.
+function confirmEntry(def, k) {
+  const r = rating(def);
+  if (r.label !== 'Very hard' && r.label !== 'Deadly') return true;
+  if (entryWarned && entryWarned.key === k && turn - entryWarned.turn <= 10) { entryWarned = null; return true; }
+  entryWarned = { key: k, turn };
+  log(`Warning: ${def.name} is meant for level ${r.rec} and up, and you are level ${player.level}. ${r.label === 'Deadly' ? 'You will very likely be defeated.' : 'Expect a hard fight.'} Step in again to enter anyway.`, 'bad');
+  sfx.play('boss');
+  return false;
+}
+// Leaving early through the door by the entrance: keep everything, skip the hoard.
+function leaveDungeon() {
+  const def = dungeonDef;
+  sfx.play('stairs');
+  track('dungeon_left', { dungeon: def ? (def.kind === 'site' ? def.site.type : 'town') : 'town', floor });
+  floor = TOWN; createWorld();
+  if (def && def.kind === 'site') { player.x = def.site.x; player.y = def.site.y + 1; }
+  else {
+    const t = townAt(...homeTown.split(',').map(Number)) || townAt(0, 0);
+    player.x = t.gate.x; player.y = t.gate.y - 1;
+  }
+  player.wx = player.x; player.wy = player.y; settle(player); refreshTownContext();
+  dungeonDef = null;
+  afterSceneChange();
+  log(`You slip out through the door and climb back up to daylight${def ? ` from the ${def.name}` : ''}. You keep everything you found.`, 'good');
+  saveProgress('progress');
+}
 function tryMove(dx, dy) {
   if (gameOver || !player || shopOpen || perkChoices || entering || storyOpen()) return;
   const nx = player.x + dx, ny = player.y + dy;
@@ -3141,6 +3198,12 @@ function tryMove(dx, dy) {
   if (n) { talk(n); draw(); return; }
   if (t === TILE.FURNITURE) { useFurniture(decor[ny][nx]); draw(); return; }
   if (t === TILE.WAYSTONE) { openShop('travel'); draw(); return; }
+  if (t === TILE.WAYOUT) {
+    if (turn - wayoutWarned <= 5) { wayoutWarned = -99; leaveDungeon(); return; }
+    wayoutWarned = turn;
+    log(`A door back to the surface. Walk into it again to leave the ${dungeonDef ? dungeonDef.name : 'dungeon'} now: you keep what you carry, but skip ${dungeonDef && dungeonDef.treasure ? 'the hoard at the bottom' : 'the rest of the floors'}.`);
+    draw(); return;
+  }
   if (t === TILE.PLACE) { usePlace(placeAtTile(nx, ny)); draw(); return; }
   const other = mpPlayerAt(nx, ny);
   if (other) { if (scene !== 'dungeon') openPlayerMenu(other); draw(); return; }
@@ -3185,7 +3248,9 @@ function tryMove(dx, dy) {
       log(`The stairs are sealed while ${b.name} lives.`, 'bad');
     } else if (t === TILE.EXIT) {
       if (inTown()) {
-        const here = townContaining(nx, ny) || nearestTownTo(nx, ny); homeTown = here.key; player.wx = nx; player.wy = ny + 1; dungeonDef = townDungeon(here);
+        const here = townContaining(nx, ny) || nearestTownTo(nx, ny);
+        if (!confirmEntry(townDungeon(here), 't:' + here.key)) { draw(); return; }
+        homeTown = here.key; player.wx = nx; player.wy = ny + 1; dungeonDef = townDungeon(here);
         enterDungeon('t:' + here.key); return;
       }
       if (coopMember()) { mpSend({ to: mp.hostId, type: 'stairs' }); mpKick(); log('You call the party down the stairs.'); draw(); return; }
@@ -3195,9 +3260,10 @@ function tryMove(dx, dy) {
       const site = siteAtTile(nx, ny);
       if (site && site.story && !storySiteOpen(site.story)) { player.x -= dx; player.y -= dy; log(`An old seal of gold bars the way into ${site.name.replace(/^The /, 'the ')}. King Aldric will know how to break it.`, 'bad'); draw(); return; }
       if (site) {
+        if (!confirmEntry(siteDungeon(site), 's:' + site.key)) { player.x -= dx; player.y -= dy; draw(); return; }
         homeTown = nearestTownTo(nx, ny).key; player.wx = nx; player.wy = ny;
         dungeonDef = siteDungeon(site);
-        log(`You enter the ${site.name}: ${site.floors} floors, danger ${stars(site.danger)}.`, 'good');
+        log(`You enter the ${site.name}: ${site.floors} floors, danger ${stars(site.danger)}, ${ratingText(dungeonDef)}.`, 'good');
         enterDungeon('s:' + site.key); return;
       }
     }
