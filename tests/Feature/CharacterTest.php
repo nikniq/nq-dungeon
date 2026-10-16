@@ -175,4 +175,30 @@ class CharacterTest extends TestCase
         $this->get('/character')->assertRedirect('/login');
         $this->post('/login', ['email' => $user->email, 'password' => 'password123'])->assertRedirect('/character');
     }
+
+    public function test_emptying_an_equipment_slot_is_saved(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla', 'weapon' => 'mace', 'armor' => 'chain', 'relic' => 'sunstone']);
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 1, 'xp' => 0, 'gold' => 0, 'hp' => 20, 'max_hp' => 20, 'atk' => 3, 'kills' => 0, 'bag' => []];
+
+        $this->actingAs($user)->postJson('/api/character', $state + ['weapon' => null, 'armor' => null, 'relic' => null])->assertOk()
+            ->assertJson(['weapon' => null, 'armor' => null, 'relic' => null]);
+        $this->actingAs($user)->postJson('/api/character', $state + ['weapon' => null, 'armor' => null, 'relic' => 'not-a-relic'])->assertUnprocessable();
+        $this->actingAs($user)->postJson('/api/character', $state + ['weapon' => null, 'armor' => null, 'relic' => 'crown', 'meta' => ['story' => ['ch' => 2, 'phase' => 'seek'], 'found' => ['sunstone'], 'places' => ['1,2'], 'bestiary' => ['Rat' => 4]]])->assertOk()
+            ->assertJson(['relic' => 'crown', 'meta' => ['story' => ['ch' => 2, 'phase' => 'seek'], 'found' => ['sunstone']]]);
+    }
+
+    public function test_realm_standing_and_bank_survive_a_fall(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla']);
+        $realm = ['rank' => 2, 'standing' => 1200, 'oath' => true, 'guild' => false, 'bank' => 900];
+        $state = ['floor' => 3, 'level' => 4, 'xp' => 0, 'gold' => 400, 'hp' => 0, 'max_hp' => 30, 'atk' => 3, 'kills' => 0, 'bag' => []];
+
+        $this->actingAs($user)->postJson('/api/character', $state + ['event' => 'death', 'meta' => ['realm' => $realm, 'blessing' => ['atk' => 0, 'def' => 3, 'turns' => 200, 'name' => 'bear spirit']]])->assertOk()
+            ->assertJson(['gold' => 200, 'meta' => ['realm' => $realm]]);
+        $this->actingAs($user)->postJson('/api/character', $state + ['event' => 'progress', 'meta' => ['realm' => ['rank' => 9] + $realm]])->assertUnprocessable();
+        $this->actingAs($user)->postJson('/api/character', $state + ['event' => 'progress', 'meta' => ['realm' => ['bank' => -5] + $realm]])->assertUnprocessable();
+    }
 }

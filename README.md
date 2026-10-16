@@ -25,7 +25,7 @@ Bombs (B) blast a 3×3 area; a scroll of return (T) whisks you home. Elite
 monsters (starred: armored, swift, vampiric, explosive) hit harder and pay more.
 Gamepads work. Every level up offers a choice of three perks. Achievements grant titles shown
 on profiles and the leaderboard. Smithies and armouries sharpen and reinforce
-worn gear up to +3. New players get one-time tips. Press M for the world map,
+worn gear up to +3. New players get one-time tips. Press M for the world map, J for the journal,
 Q for the quest log (with achievements and perks), N to toggle sound. Captains,
 castellans and the King hand out site-clearing quests; townsfolk ask for monster
 tallies. A boss seals the stairs on the last floor of every dungeon. Beasts roam
@@ -39,6 +39,35 @@ notice you and then chase. Kill them for XP to level up, grab gold and potions.
 Each floor has a merchant (`$`) who buys and sells weapons, armor and potions;
 the item catalog lives in `config/items.php`. Hover or tap anything on the map
 to see what it is. Create a hero to save runs and gear between visits.
+
+## Story, realms and treasures
+
+The game is built mainly for one player. **The Shattered Crown** is the main story.
+A herald's prologue sends you to King Aldric at Castle Aurum. He sends you after five
+crown shards, one at a time, each in a sealed story dungeon with its own theme and a
+named boss: the Sunken Chapel, Drowned Grotto, Barrow of Kings, Ember Deeps and Star Tower.
+A gold ★ on the HUD, compass and world map always points at the current objective.
+Each shard comes with a relic, and the finale grants the Crown of Aurum.
+
+Relics go in a separate slot and have unique effects. They are listed in
+`config/items.php` under `relics` and cannot be sold. Dungeon floors have themes:
+stone, moss, flooded, bone, lava and arcane. Lava burns, and monsters avoid it.
+
+The land is split by nearest capital into four realms, each with its own government,
+town names, paving, roofs and border colours on the world map:
+
+| Realm | Government | Capital | Gold sink |
+| --- | --- | --- | --- |
+| Free Cantons of Hearth | Democracy | Hearth | Donations at the Council or Town Hall build civic standing: Citizen (half-price waystones), Alderman (10% off), Hero of the Cantons. Shops are 10% cheaper. |
+| Kingdom of Aurum | Monarchy | Castle Aurum | Titles from the King or a royal herald: Squire (+5 HP), Knight (+1 DEF), Baron (+1 ATK). |
+| Ka'thar Clans | Tribal | Kar Thuldun | Spirit blessings from shamans. The chieftain's blood oath gives +6 HP and halves the shamans' prices. |
+| Goldspire League | Oligarchy | Goldspire | The Exchange: a bank whose deposits survive death (5% fee), and a 1000g guild seat for 15% off everywhere. Shops charge 15% more but pay 60% on sales. |
+
+Landmarks in the wilds are discovered by walking near them. Standing stones heal you and
+reveal another place. Shrines give a blessing. Ruins and battlefields can be searched
+once. Hermits tell tales and sell maps. Wells take a coin for a random boon. Press J for
+the Journal, which has Story, Places, Treasures and Bestiary pages. Realm progress is kept
+in `characters.meta.realm`, and the server validates it.
 
 ## Multiplayer
 

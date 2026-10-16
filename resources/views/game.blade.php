@@ -12,6 +12,16 @@
     <div class="stage">
       <canvas id="game" width="960" height="640"></canvas>
       <div id="tip" class="tip" role="status"></div>
+      <div id="story" class="overlay story" hidden>
+        <div class="story-box">
+          <canvas id="story-portrait" width="96" height="96" aria-hidden="true"></canvas>
+          <div class="story-body">
+            <h2 id="story-title"></h2>
+            <p id="story-text"></p>
+            <button type="button" id="story-next" class="primary">Continue</button>
+          </div>
+        </div>
+      </div>
       <div id="classpick" class="overlay shop" hidden>
         <div class="shop-inner">
           <div class="shop-head"><h2>Choose your class</h2></div>
@@ -51,6 +61,7 @@
       <button type="button" id="ability" class="fs primary">Ability (1)</button>
       <button type="button" id="worldmap" class="fs">Map (M)</button>
       <button type="button" id="quests" class="fs">Quests (Q)</button>
+      <button type="button" id="journal" class="fs">Journal (J)</button>
       <button type="button" id="sound" class="fs">Sound on</button>
       <button type="button" id="fullscreen" class="fs">Fullscreen</button>
     </div>
@@ -68,6 +79,7 @@
     <div class="inventory" id="inventory">
       <div class="equip"><span class="muted">Weapon</span> <b id="inv-weapon">Bare hands</b></div>
       <div class="equip"><span class="muted">Armor</span> <b id="inv-armor">None</b></div>
+      <div class="equip"><span class="muted">Relic</span> <b id="inv-relic">None</b></div>
       <div class="bag"><span class="muted">Bag</span> <ul id="inv-bag" class="itemlist compact"></ul></div>
     </div>
     <details class="legend-box" open>
@@ -76,9 +88,10 @@
       <p class="muted small">Hover over or tap anything on the map to see what it is.</p>
     </details>
     <p class="help">
-      <b>Keys:</b> arrows, WASD or HJKL move; walking into a monster attacks. Space or <kbd>.</kbd> waits, <kbd>1</kbd> uses your class ability, <kbd>P</kbd> drinks a potion, <kbd>B</kbd> throws a bomb, <kbd>T</kbd> reads a scroll of return, <kbd>M</kbd> world map, <kbd>Q</kbd> quests, <kbd>N</kbd> sound, <kbd>F</kbd> fullscreen, <kbd>R</kbd> restarts.
+      <b>Keys:</b> arrows, WASD or HJKL move; walking into a monster attacks. Space or <kbd>.</kbd> waits, <kbd>1</kbd> uses your class ability, <kbd>P</kbd> drinks a potion, <kbd>B</kbd> throws a bomb, <kbd>T</kbd> reads a scroll of return, <kbd>M</kbd> world map, <kbd>Q</kbd> quests, <kbd>J</kbd> journal, <kbd>N</kbd> sound, <kbd>F</kbd> fullscreen, <kbd>R</kbd> restarts.
       <b>Mouse:</b> click a spot to walk there, click a monster to attack it until it falls, click people, doors, shops, chests or waystones to use them, and hold and drag to steer. Hover to see the path; right-click or any key stops.
       <b>Touch:</b> tap or hold anywhere on the map to walk that way; the round buttons on the right use your ability, drink a potion, wait, or open the map. Gamepads work too.
+      <b>Story:</b> King Aldric needs the five shards of the Crown of Aurum. Follow the gold ★ on your compass and map. Along the way, discover standing stones, shrines, ruins, hermits, battlefields and wells, and collect the realm's unique treasures.
       <b>World:</b> you start in Hearth. Step onto doors to go inside, talk to people for quests, hire a hound at an inn, travel by waystone, and take a town gate or a countryside cave, crypt, warren or tower into a dungeon. A boss seals the stairs on the last floor.
       @if (config('game.multiplayer'))
         @auth

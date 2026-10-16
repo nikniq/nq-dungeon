@@ -58,10 +58,33 @@ class CharacterController extends Controller
             'perks.*' => ['string', 'max:24', 'regex:/^[a-z_]+$/'],
             'achievements' => ['nullable', 'array', 'max:60'],
             'achievements.*' => ['string', 'max:24', 'regex:/^[a-z_0-9]+$/'],
-            'meta' => ['nullable', 'array', 'max:10'],
+            'meta' => ['nullable', 'array', 'max:20'],
             'meta.visited' => ['nullable', 'array', 'max:80'],
             'meta.visited.*' => ['string', 'max:16', 'regex:/^-?\d+,-?\d+$/'],
             'meta.second_wind' => ['nullable', 'boolean'],
+            // story and exploration progress
+            'meta.story' => ['nullable', 'array'],
+            'meta.story.ch' => ['required_with:meta.story', 'integer', 'min:0', 'max:5'],
+            'meta.story.phase' => ['required_with:meta.story', Rule::in(['summons', 'seek', 'return', 'done'])],
+            'meta.places' => ['nullable', 'array', 'max:400'],
+            'meta.places.*' => ['string', 'max:24', 'regex:/^-?\d+,-?\d+$/'],
+            'meta.looted' => ['nullable', 'array', 'max:400'],
+            'meta.looted.*' => ['string', 'max:24', 'regex:/^-?\d+,-?\d+$/'],
+            'meta.found' => ['nullable', 'array', 'max:20'],
+            'meta.found.*' => [Rule::in(array_keys(config('items.relics')))],
+            'meta.bestiary' => ['nullable', 'array', 'max:40'],
+            'meta.bestiary.*' => ['integer', 'min:0', 'max:1000000'],
+            'meta.blessing' => ['nullable', 'array'],
+            'meta.blessing.turns' => ['required_with:meta.blessing', 'integer', 'min:0', 'max:5000'],
+            'meta.blessing.atk' => ['required_with:meta.blessing', 'integer', 'min:0', 'max:10'],
+            'meta.blessing.def' => ['nullable', 'integer', 'min:0', 'max:10'],
+            'meta.blessing.name' => ['nullable', 'string', 'max:40'],
+            'meta.realm' => ['nullable', 'array'],
+            'meta.realm.rank' => ['required_with:meta.realm', 'integer', 'min:0', 'max:3'],
+            'meta.realm.standing' => ['required_with:meta.realm', 'integer', 'min:0', 'max:100000000'],
+            'meta.realm.oath' => ['required_with:meta.realm', 'boolean'],
+            'meta.realm.guild' => ['required_with:meta.realm', 'boolean'],
+            'meta.realm.bank' => ['required_with:meta.realm', 'integer', 'min:0', 'max:100000000'],
             'meta.hound' => ['nullable', 'array'],
             'meta.hound.hp' => ['required_with:meta.hound', 'integer', 'min:0', 'max:999'],
             'meta.hound.max_hp' => ['required_with:meta.hound', 'integer', 'min:1', 'max:999'],
@@ -79,7 +102,9 @@ class CharacterController extends Controller
                 array_keys(config('items.weapons')),
                 array_keys(config('items.armor')),
                 array_keys(config('items.consumables')),
+                array_keys(config('items.relics')),
             ))],
+            'relic' => ['nullable', Rule::in(array_keys(config('items.relics')))],
         ]);
 
         $c = $this->current($request);
@@ -91,21 +116,21 @@ class CharacterController extends Controller
             if ($data['floor'] === 1 && $c->floor === 0) {
                 $c->runs++;
             }
-            $c->fill(collect($data)->only(['floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'weapon_plus', 'armor_plus', 'bag', 'quests', 'quests_done', 'perks', 'achievements', 'meta', 'title', 'wx', 'wy', 'home', 'class'])->filter(fn ($v) => $v !== null)->all());
+            $c->fill(collect($data)->only(['floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'relic', 'weapon_plus', 'armor_plus', 'bag', 'quests', 'quests_done', 'perks', 'achievements', 'meta', 'title', 'wx', 'wy', 'home', 'class'])->filter(fn ($v, $k) => $v !== null || in_array($k, ['weapon', 'armor', 'relic'], true))->all());
         } elseif ($data['event'] === 'win') {
             // Back to town with everything earned; only the floor resets.
             if ($c->floor === 0) {
                 $c->runs++;
             }
             $c->wins++;
-            $c->fill(collect($data)->only(['level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'weapon_plus', 'armor_plus', 'bag', 'quests', 'quests_done', 'perks', 'achievements', 'meta', 'title', 'wx', 'wy', 'home', 'class'])->filter(fn ($v) => $v !== null)->all());
+            $c->fill(collect($data)->only(['level', 'xp', 'gold', 'hp', 'max_hp', 'atk', 'weapon', 'armor', 'relic', 'weapon_plus', 'armor_plus', 'bag', 'quests', 'quests_done', 'perks', 'achievements', 'meta', 'title', 'wx', 'wy', 'home', 'class'])->filter(fn ($v, $k) => $v !== null || in_array($k, ['weapon', 'armor', 'relic'], true))->all());
             $c->floor = 0;
         } else {
             if ($c->floor === 0) {
                 $c->runs++;
             }
             // death: the client sends the stats as they were at the moment of falling
-            $c->fill(collect($data)->only(['level', 'xp', 'gold', 'max_hp', 'atk', 'weapon', 'armor', 'weapon_plus', 'armor_plus', 'bag', 'perks', 'achievements', 'meta', 'title', 'wx', 'wy', 'home', 'class'])->filter(fn ($v) => $v !== null)->all());
+            $c->fill(collect($data)->only(['level', 'xp', 'gold', 'max_hp', 'atk', 'weapon', 'armor', 'relic', 'weapon_plus', 'armor_plus', 'bag', 'perks', 'achievements', 'meta', 'title', 'wx', 'wy', 'home', 'class'])->filter(fn ($v, $k) => $v !== null || in_array($k, ['weapon', 'armor', 'relic'], true))->all());
             $c->fallInBattle();
             if (isset($data['quests_done'])) {
                 $c->quests_done = $data['quests_done'];

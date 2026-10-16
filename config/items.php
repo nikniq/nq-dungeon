@@ -26,5 +26,18 @@ return [
         'bomb' => ['name' => 'Bomb', 'use' => 'bomb', 'price' => 25, 'floor' => 1],
         'scroll' => ['name' => 'Scroll of return', 'use' => 'return', 'price' => 30, 'floor' => 1],
     ],
+    // Unique treasures: never sold in shops or dropped at random. Each is found in
+    // one particular place and has its own effect (implemented in script.js).
+    'relics' => [
+        'sunstone' => ['name' => 'Sunstone Amulet', 'desc' => 'Your light reaches three tiles further and nearby traps show themselves.', 'found' => 'the Sunken Chapel', 'price' => 400, 'floor' => 99],
+        'tideheart' => ['name' => 'Tideheart Pearl', 'desc' => 'You heal 1 HP every six turns.', 'found' => 'the Drowned Grotto', 'price' => 400, 'floor' => 99],
+        'bonecharm' => ['name' => 'Charm of the Barrow King', 'desc' => '+2 defence.', 'found' => 'the Barrow of Kings', 'price' => 400, 'floor' => 99],
+        'emberbrand' => ['name' => 'Emberbrand Ring', 'desc' => 'Your blows burn for 2 extra damage.', 'found' => 'the Ember Deeps', 'price' => 400, 'floor' => 99],
+        'starring' => ['name' => 'Ring of Falling Stars', 'desc' => 'Your class ability recharges twice as fast.', 'found' => 'the Star Tower', 'price' => 400, 'floor' => 99],
+        'luckycoin' => ['name' => "Gambler's Coin", 'desc' => '+40% gold from the floor and from chests.', 'found' => "a hermit's hut", 'price' => 250, 'floor' => 99],
+        'houndcollar' => ['name' => 'Gilded Collar', 'desc' => 'Your hound bites 3 harder and has 6 more HP.', 'found' => 'an old ruin', 'price' => 250, 'floor' => 99],
+        'wardstone' => ['name' => 'Wardstone', 'desc' => 'Monsters notice you only from up close.', 'found' => 'an old battlefield', 'price' => 250, 'floor' => 99],
+        'crown' => ['name' => 'Crown of Aurum', 'desc' => '+2 attack, +2 defence and +10 max HP. The King\'s own gift.', 'found' => 'the end of the story', 'price' => 1000, 'floor' => 99],
+    ],
     'bag_size' => 12,
 ];
