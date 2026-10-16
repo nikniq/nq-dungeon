@@ -138,3 +138,9 @@ button.fs.primary{background:#5fe17a;color:#06202c;border-color:#5fe17a;font-wei
 .profile-head h2 .title{display:inline-block;margin-left:10px;padding:2px 8px;border-radius:4px;background:#0b3142;color:#ffd86b;font-size:.8rem;vertical-align:middle;font-weight:600}
 .shop.no-sell .shop-cols{grid-template-columns:1fr}
 .shop.no-sell .shop-cols section:last-child{display:none}
+/* --- sign in with Google --- */
+.google-btn{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px;padding:9px 12px;border-radius:6px;background:#fff;color:#1f1f1f;font-weight:600;text-decoration:none;border:1px solid #dadce0}
+.google-btn:hover{background:#f6f8fb}
+.divider{display:flex;align-items:center;gap:10px;margin:12px 0 0}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:#12384a}
+img.avatar{object-fit:cover}

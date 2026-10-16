@@ -21,6 +21,7 @@ class HeroController extends Controller
 
     public function show(Character $character): View
     {
+        $character->loadMissing('user');
         $rank = Character::query()
             ->where(function ($q) use ($character) {
                 $q->where('wins', '>', $character->wins)

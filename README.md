@@ -40,6 +40,15 @@ Each floor has a merchant (`$`) who buys and sells weapons, armor and potions;
 the item catalog lives in `config/items.php`. Hover or tap anything on the map
 to see what it is. Create a hero to save runs and gear between visits.
 
+## Sign in with Google
+
+Optional. Create an OAuth client (Web application) in the Google Cloud console
+with the authorised redirect URI `https://<your-domain>/auth/google/callback`,
+then set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REDIRECT_URI` in
+`.env` and run `php artisan optimize`. The button stays hidden until both the ID
+and secret are set. New Google users get a hero automatically; an existing
+account is linked only when Google reports the email as verified.
+
 ## Setup
 
 Requires PHP 8.2 or newer (Laravel 12). Sessions and cache use the file driver, so no database is needed.

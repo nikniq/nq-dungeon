@@ -4,7 +4,11 @@
 @section('content')
 <div class="profile">
   <div class="profile-head">
-    <div class="avatar" style="background:{{ ['#ffd86b','#7ad36b','#7bdfff','#c084fc','#ff9ecf','#f5c542'][$character->id % 6] }}">{{ mb_strtoupper(mb_substr($character->name, 0, 1)) }}</div>
+    @if ($character->user?->avatar)
+      <img class="avatar" src="{{ $character->user->avatar }}" alt="" referrerpolicy="no-referrer" width="64" height="64">
+    @else
+      <div class="avatar" style="background:{{ ['#ffd86b','#7ad36b','#7bdfff','#c084fc','#ff9ecf','#f5c542'][$character->id % 6] }}">{{ mb_strtoupper(mb_substr($character->name, 0, 1)) }}</div>
+    @endif
     <div>
       <h2>{{ $character->name }}@if ($character->title) <span class="title">{{ $character->title }}</span>@endif</h2>
       <p class="muted">Rank #{{ $rank }} · Level {{ $character->level }} {{ $character->class }} · {{ $character->floor > 0 ? 'Currently on floor '.$character->floor : 'Resting in town' }} · Hero since {{ $character->created_at->format('M Y') }}</p>
