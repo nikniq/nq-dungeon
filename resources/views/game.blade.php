@@ -77,6 +77,7 @@
     </details>
     <p class="help">
       <b>Keys:</b> arrows, WASD or HJKL move; walking into a monster attacks. Space or <kbd>.</kbd> waits, <kbd>1</kbd> uses your class ability, <kbd>P</kbd> drinks a potion, <kbd>B</kbd> throws a bomb, <kbd>T</kbd> reads a scroll of return, <kbd>M</kbd> world map, <kbd>Q</kbd> quests, <kbd>N</kbd> sound, <kbd>F</kbd> fullscreen, <kbd>R</kbd> restarts.
+      <b>Mouse:</b> click a spot to walk there, click a monster to attack it until it falls, click people, doors, shops, chests or waystones to use them, and hold and drag to steer. Hover to see the path; right-click or any key stops.
       <b>Touch:</b> tap or hold anywhere on the map to walk that way; the round buttons on the right use your ability, drink a potion, wait, or open the map. Gamepads work too.
       <b>World:</b> you start in Hearth. Step onto doors to go inside, talk to people for quests, hire a hound at an inn, travel by waystone, and take a town gate or a countryside cave, crypt, warren or tower into a dungeon. A boss seals the stairs on the last floor.
       @if (config('game.multiplayer'))

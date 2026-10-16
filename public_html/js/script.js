@@ -1951,6 +1951,22 @@ function drawScene(now) {
       }
     }
   }
+  {
+    const path = hoverPath();
+    if (path.length) {
+      const target = path[path.length - 1];
+      const hostile = getMonsterAt(hover.x, hover.y) && isVisible(hover.x, hover.y);
+      ctx.fillStyle = hostile ? 'rgba(255,107,107,0.55)' : 'rgba(255,255,255,0.4)';
+      for (let i = 0; i < path.length - 1; i++) { const p = path[i]; ctx.beginPath(); ctx.arc(p.x * T - cam.x + T / 2, p.y * T - cam.y + T / 2, 3, 0, Math.PI * 2); ctx.fill(); }
+      ctx.strokeStyle = hostile ? 'rgba(255,107,107,0.8)' : 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2;
+      ctx.strokeRect(target.x * T - cam.x + 3, target.y * T - cam.y + 3, T - 6, T - 6);
+    }
+    if (walk.active) {
+      const pulse = 0.5 + 0.5 * Math.sin(now / 150), tx = walk.tx * T - cam.x + T / 2, ty = walk.ty * T - cam.y + T / 2;
+      ctx.strokeStyle = walk.monster ? `rgba(255,107,107,${0.5 + 0.4 * pulse})` : `rgba(255,216,107,${0.5 + 0.4 * pulse})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(tx, ty + T / 2 - 6, T * (0.32 + 0.08 * pulse), 6, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
   const shadow = (x, y) => { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x * T - cam.x + T / 2, y * T - cam.y + T - 4, T * 0.3, 4, 0, 0, Math.PI * 2); ctx.fill(); };
   const bob = (o, idle = true) => (idle ? Math.sin(now / 260 + (o.x * 7 + o.y * 13)) * 0.03 : 0);
   if (scene !== 'dungeon') for (const n of npcs) if (inView(n)) { const [lx, ly] = [n.rx ?? n.x, n.ry ?? n.y]; shadow(lx, ly); drawSprite(ctx, n.type.sprite, lx, ly - bob(n) - hop(n), 1, 3, n.face === -1); }
@@ -2264,6 +2280,105 @@ function tileFromEvent(e) {
   const sx = canvas.width / rect.width, sy = canvas.height / rect.height;
   return { x: Math.floor(((e.clientX - rect.left) * sx + cam.x) / T), y: Math.floor(((e.clientY - rect.top) * sy + cam.y) / T) };
 }
+// ---------- mouse: click to walk, click to act ----------
+// Click a spot to walk there by the shortest path; click a monster to walk up
+// to it and keep swinging until it falls; click a person, door, shop, chest or
+// waystone to walk over and use it. Hold the button and drag to steer.
+// Walking stops on a key press, when you are hurt, or when a new foe closes in.
+const walk = { active: false, tx: 0, ty: 0, monster: null, timer: null, holding: false, downAt: 0, hp: 0, near: new Set() };
+const hover = { x: null, y: null, path: [], sig: '' };
+const occupiedBy = (x, y) => getMonsterAt(x, y) || getNpcAt(x, y) || mpPlayerAt(x, y) || null;
+function interactive(x, y) {
+  const t = getTile(x, y);
+  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE].includes(t);
+}
+// The tiles from the hero to a target (not including the hero's own tile), shortest first.
+function pathTo(tx, ty, limit = 60) {
+  const d = bfs(tx, ty, limit, false);
+  if (d.get(key(player.x, player.y)) === undefined) return null;
+  const path = []; let x = player.x, y = player.y;
+  for (let i = 0; i < limit; i++) {
+    const here = d.get(key(x, y));
+    if (here === 0) break;
+    let best = null;
+    for (const [ax, ay] of DIRS) {
+      const nd = d.get(key(x + ax, y + ay));
+      if (nd !== undefined && nd < here && (!best || nd < best.d) && (nd === 0 || !getNpcAt(x + ax, y + ay))) best = { x: x + ax, y: y + ay, d: nd };
+    }
+    if (!best) break;
+    path.push(best); x = best.x; y = best.y;
+    if (best.d === 0) break;
+  }
+  return path;
+}
+function stopWalk() { walk.active = false; walk.monster = null; clearInterval(walk.timer); walk.timer = null; }
+function startWalk(t) {
+  stopWalk();
+  if (t.x === player.x && t.y === player.y) { wait(); return; }   // clicking yourself waits a turn
+  const m = isVisible(t.x, t.y) ? getMonsterAt(t.x, t.y) : null;
+  Object.assign(walk, { active: true, tx: t.x, ty: t.y, monster: m, hp: player.hp, near: new Set(monsters.filter((mm) => dist(mm, player) <= 2)) });
+  walkTick();
+  if (walk.active) walk.timer = setInterval(walkTick, 125);
+}
+function walkTick() {
+  if (!walk.active) return;
+  if (gameOver || !player || shopOpen || perkChoices || mapOpen || questsOpen || entering) { stopWalk(); return; }
+  if (player.hp < walk.hp && !walk.monster) { stopWalk(); log('You stop: something is hurting you.', 'bad'); return; }
+  walk.hp = player.hp;
+  const fresh = monsters.find((m) => m.awake && dist(m, player) <= 2 && !walk.near.has(m) && m !== walk.monster && isVisible(m.x, m.y));
+  if (fresh && !safeZone()) { stopWalk(); log(`You stop: ${fresh.boss ? fresh.name : 'a ' + fresh.type.name.toLowerCase()} is close.`, 'bad'); return; }
+  walk.near = new Set(monsters.filter((m) => dist(m, player) <= 2));
+  if (walk.monster) {
+    const m = walk.monster;
+    if (!monsters.includes(m) || m.hp <= 0 || !isVisible(m.x, m.y) || cheb(m, player) > 20) { stopWalk(); return; }
+    walk.tx = m.x; walk.ty = m.y;
+    if (dist(m, player) === 1) { tryMove(m.x - player.x, m.y - player.y); return; }   // keep swinging
+  }
+  const dx = walk.tx - player.x, dy = walk.ty - player.y;
+  if (!dx && !dy) { stopWalk(); return; }
+  const sceneBefore = scene;
+  if (Math.abs(dx) + Math.abs(dy) === 1) {
+    const bump = interactive(walk.tx, walk.ty);
+    tryMove(dx, dy);
+    if (bump || scene !== sceneBefore) stopWalk();
+    return;
+  }
+  const path = pathTo(walk.tx, walk.ty);
+  if (!path || !path.length) { stopWalk(); return; }
+  const next = path[0];
+  const ox = player.x, oy = player.y;
+  tryMove(next.x - player.x, next.y - player.y);
+  if (scene !== sceneBefore || (player.x === ox && player.y === oy && !getMonsterAt(next.x, next.y))) stopWalk();
+}
+function hoverAt(t) {
+  hover.x = t.x; hover.y = t.y;
+  const occ = occupiedBy(t.x, t.y), tile = getTile(t.x, t.y);
+  canvas.style.cursor = (occ && getMonsterAt(t.x, t.y) && isVisible(t.x, t.y)) ? 'crosshair' : (occ || interactive(t.x, t.y) || tile === TILE.EXIT || tile === TILE.SITE) ? 'pointer' : '';
+}
+function hoverPath() {
+  if (hover.x === null || walk.active || isTouch || scene === 'dungeon' && !wasSeen(hover.x, hover.y)) return [];
+  const sig = `${hover.x},${hover.y},${player.x},${player.y},${scene},${turn}`;
+  if (sig !== hover.sig) { hover.sig = sig; hover.path = pathTo(hover.x, hover.y) || []; }
+  return hover.path;
+}
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button !== 0 || isTouch) return;
+  if (perkChoices || shopOpen) return;
+  if (mapOpen || questsOpen) { mapOpen = false; questsOpen = false; draw(); return; }
+  if (gameOver) return;
+  e.preventDefault();
+  sfx.unlock();
+  clearInspect();
+  startWalk(tileFromEvent(e));
+  walk.holding = true; walk.downAt = performance.now();
+});
+canvas.addEventListener('mousemove', (e) => {
+  // holding and dragging steers the walk toward the pointer
+  if (walk.holding && walk.active && !walk.monster && performance.now() - walk.downAt > 220) { const t = tileFromEvent(e); walk.tx = t.x; walk.ty = t.y; }
+});
+window.addEventListener('mouseup', () => { walk.holding = false; });
+canvas.addEventListener('contextmenu', (e) => { if (walk.active) { e.preventDefault(); stopWalk(); } });
+
 function perkClick(e) {
   if (!perkChoices) return false;
   const rect = canvas.getBoundingClientRect(), sx = canvas.width / rect.width, sy = canvas.height / rect.height;
@@ -2273,10 +2388,10 @@ function perkClick(e) {
   return true;
 }
 function inspect(e) {
-  if (isTouch && e.type === 'click') return;   // touch taps walk instead
-  if (e.type === 'click' && perkClick(e)) return;
-  if (mapOpen || perkChoices) { clearInspect(); return; }
+  if (e.type === 'click') { if (!isTouch) perkClick(e); return; }   // clicks walk; they only pick perk cards here
+  if (mapOpen || perkChoices || questsOpen) { clearInspect(); return; }
   const t = tileFromEvent(e);
+  hoverAt(t);
   const text = describeTile(t.x, t.y);
   if (text) {
     inspected = t;
@@ -2289,7 +2404,7 @@ function inspect(e) {
 }
 function clearInspect() { inspected = null; tipEl.classList.remove('show'); }
 canvas.addEventListener('mousemove', inspect);
-canvas.addEventListener('mouseleave', clearInspect);
+canvas.addEventListener('mouseleave', () => { clearInspect(); hover.x = null; hover.path = []; canvas.style.cursor = ''; });
 canvas.addEventListener('click', inspect);
 
 function buildLegend() {
@@ -2861,6 +2976,7 @@ window.addEventListener('keydown', (e) => {
   // typing in a form field never moves the hero
   if (e.target && e.target.closest && e.target.closest('input, textarea, select')) { if (e.key === 'Escape') e.target.blur(); return; }
   sfx.unlock();
+  if (walk.active && !['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) stopWalk();   // any key takes back control
   if (e.key === 'Enter' && chatInput) { e.preventDefault(); chatInput.focus(); return; }
   if ((e.key === 'y' || e.key === 'Y') && mp.invites.length) { acceptInvite(); return; }
   if (e.key === 'Escape') { closeShop(); if (mapOpen || questsOpen) { mapOpen = false; questsOpen = false; draw(); } return; }
@@ -3315,6 +3431,7 @@ document.getElementById('shop-close')?.addEventListener('click', closeShop);
 
 // ---------- setup ----------
 function afterSceneChange() {
+  stopWalk(); hover.path = []; hover.sig = '';
   bubble = null; closeShop(); clearInspect(); floats.length = 0; particles.length = 0; mapOpen = false;
   mp.players.clear(); mpKick();
   settle(player); for (const n of npcs) settle(n);
