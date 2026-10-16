@@ -7,6 +7,19 @@
   <meta name="description" content="@yield('description', 'Dungeon Adventure: a free browser roguelike. Gear up in town, descend five floors, and escape with the gold.')">
   <title>@yield('title', 'Dungeon Adventure')</title>
   <link rel="stylesheet" href="{{ asset('css/style.css') }}?v={{ filemtime(public_path('css/style.css')) }}">
+  @php($gaId = config('services.google_analytics.measurement_id'))
+  @if ($gaId && preg_match('/^G-[A-Z0-9]{4,16}$/', $gaId))
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ $gaId }}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', @json($gaId));
+      @if (session('ga_event'))
+        gtag('event', @json(session('ga_event')), @json(session('ga_params', (object) [])));
+      @endif
+    </script>
+  @endif
 </head>
 <body class="@yield('body-class')">
   <div class="container">

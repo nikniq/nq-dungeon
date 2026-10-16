@@ -85,6 +85,7 @@ function unlock(id) {
   player.achievements.push(id);
   player.title = ACHIEVEMENTS[id].title;
   log(`Achievement: ${ACHIEVEMENTS[id].label}. You are now ${player.title}.`, 'good');
+  track('unlock_achievement', { achievement_id: id });
   floatText(player.x, player.y - 1, '★', '#ffd86b');
   sfx.play('quest');
 }
@@ -214,6 +215,12 @@ async function loadProgress() {
     log('Could not load your hero (' + e.message + ').', 'bad');
     return null;
   }
+}
+
+// ---------- analytics ----------
+// Sends a Google Analytics event when the page loaded the tag; a no-op otherwise.
+function track(name, params = {}) {
+  try { if (typeof window.gtag === 'function') window.gtag('event', name, { hero_class: player && player.cls, hero_level: player && player.level, ...params }); } catch (e) { /* never let analytics break play */ }
 }
 
 // ---------- sound (synthesised, no files) ----------
@@ -354,6 +361,7 @@ function questProgress(kind, target, amount = 1) {
       player.questsDone = (player.questsDone || 0) + 1;
       if (player.questsDone >= 5) unlock('errands');
       log(`Quest complete: ${q.label}. +${q.reward} gold.`, 'good');
+      track('quest_complete', { kind: q.kind, reward: q.reward });
       floatText(player.x, player.y, `+${q.reward}g`, '#f5c542');
       sfx.play('quest');
     } else if (kind === 'slay') log(`${q.have}/${q.need} ${target.toLowerCase()}s slain for ${q.giver}.`);
@@ -2078,6 +2086,7 @@ function gainXp(n) {
     log(`Level up! You are now level ${player.level}. HP and attack increased.`, 'good');
     sfx.play('levelup');
     burst(player.x, player.y, '#ffd86b', 40, 170, { glow: true, gravity: -40, life: 900, size: 3 });
+    track('level_up', { level: player.level });
     player.pendingPerks = (player.pendingPerks || 0) + 1;
   }
 }
@@ -2117,7 +2126,7 @@ function killMonster(m) {
     unlock('first_blood');
     if (player.lifetimeKills >= 50) unlock('slayer_50');
     if (scene === 'world' && dayPhase() === 'night') unlock('night_owl');
-    if (m.boss) unlock('boss_slayer');
+    if (m.boss) { unlock('boss_slayer'); track('boss_killed', { boss: m.name, floor }); }
     const xp = Math.round(m.type.xp * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1) * (m.elite ? 2 : 1));
     if (m.boss) {
       log(`You slay ${m.name}! The seal on the stairs breaks.`, 'good');
@@ -2210,6 +2219,7 @@ function nextFloor() {
   if (floor > dungeonDef.floors) {
     const def = dungeonDef;
     sfx.play('win');
+    track('dungeon_cleared', { dungeon: def.kind === 'site' ? def.site.type : 'town', danger: def.danger, floors: def.floors });
     if (def.kind === 'site') { questProgress('clear', def.site.key, 1); unlock(def.site.type); } else unlock('escapist');
     if (def.treasure) {
       const hoard = Math.round(def.treasure * (1 + def.danger * 0.5));
@@ -2233,6 +2243,8 @@ function nextFloor() {
   createDungeon();
   afterSceneChange();
   sfx.play('stairs');
+  if (floor === 1) track('dungeon_enter', { dungeon: dungeonDef.kind === 'site' ? dungeonDef.site.type : 'town', danger: dungeonDef.danger });
+  else track('floor_reached', { floor, dungeon: dungeonDef.kind === 'site' ? dungeonDef.site.type : 'town' });
   if (floor === 1) { player.meta.second_wind = false; tip('dungeon', 'The compass points to the stairs. Walk into monsters to attack, press 1 for your ability, P for a potion.'); }
   if (floor >= 5) unlock('delver');
   if (floor === dungeonDef.floors) tip('boss', 'A boss waits by the stairs on the last floor. Clear the room, use your ability, keep a potion ready.');
@@ -2403,6 +2415,7 @@ function die() {
   endGame('You fell', `You fell ${scene === 'world' ? 'in the wilds' : 'on ' + (dungeonDef ? dungeonDef.name : 'the dungeon') + ' floor ' + floor} after ${turn} turns. You wake at the inn in ${t.name}: level and gear kept, ${lost} gold and your potions gone. Press R to carry on.`);
   player.wx = t.spawn.x; player.wy = t.spawn.y;
   sfx.play('die');
+  track('hero_died', { where: scene === 'world' ? 'wilds' : (dungeonDef ? (dungeonDef.kind === 'site' ? dungeonDef.site.type : 'town') : 'dungeon'), floor, turns: turn });
   if (!ACCOUNT.user) {
     guestRespawn = { name: null, floor: 0, level: player.level, xp: player.xp, gold: player.gold - lost, hp: player.maxHp, max_hp: player.maxHp, atk: player.atk,
       weapon: player.weapon, armor: player.armor, bag: player.bag.filter((id) => itemKind(id) !== 'consumable'), quests: [], quests_done: player.questsDone || 0,
@@ -2555,6 +2568,7 @@ function chooseClass(cls) {
   if (classPick) classPick.hidden = true;
   const ab = document.getElementById('ability'); if (ab) ab.textContent = `${CLASSES[cls].ability} (1)`;
   log(`You are a ${CLASSES[cls].name}. ${CLASSES[cls].blurb}`, 'good');
+  track('select_class', { chosen: cls, guest: true });
   buildLegend(); updateStats(); draw();
 }
 classPick?.querySelectorAll('[data-class]').forEach((b) => b.addEventListener('click', () => { sfx.unlock(); chooseClass(b.dataset.class); }));
@@ -2757,6 +2771,7 @@ function travelTo(town) {
   refreshTownContext(); afterSceneChange();
   burst(player.x, player.y, '#7bdfff', 36, 120, { glow: true, gravity: -100, life: 800 });
   sfx.play('stairs'); unlock('traveller');
+  track('waystone_travel', { cost });
   log(`The waystone carries you to ${town.name} for ${cost} gold. The journey would have taken half a day.`, 'good');
   saveProgress('progress');
 }

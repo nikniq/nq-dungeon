@@ -68,10 +68,10 @@ class GoogleAuthController extends Controller
         request()->session()->regenerate();
 
         if ($isNew) {
-            return redirect()->route('character.edit')->with('status', "Welcome, {$user->character->name}! Pick your hero's name and class, then head to Play.");
+            return redirect()->route('character.edit')->with(['status' => "Welcome, {$user->character->name}! Pick your hero's name and class, then head to Play.", 'ga_event' => 'sign_up', 'ga_params' => ['method' => 'google']]);
         }
 
-        return redirect()->intended(route('game'));
+        return redirect()->intended(route('game'))->with(['ga_event' => 'login', 'ga_params' => ['method' => 'google']]);
     }
 
     /** A safe, unused hero name built from the Google display name. */

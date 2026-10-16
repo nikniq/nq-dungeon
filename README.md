@@ -49,6 +49,15 @@ then set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REDIRECT_URI` in
 and secret are set. New Google users get a hero automatically; an existing
 account is linked only when Google reports the email as verified.
 
+## Analytics
+
+Set `GOOGLE_ANALYTICS_ID` (a GA4 measurement ID like `G-XXXXXXXXXX`) in `.env` to
+load the Google tag on every page; leave it blank for no tracking. Besides page
+views it sends `sign_up`, `login`, `select_class`, `dungeon_enter`,
+`floor_reached`, `dungeon_cleared`, `boss_killed`, `level_up`, `hero_died`,
+`quest_complete`, `unlock_achievement` and `waystone_travel`, each tagged with
+the hero's class and level.
+
 ## Setup
 
 Requires PHP 8.2 or newer (Laravel 12). Sessions and cache use the file driver, so no database is needed.

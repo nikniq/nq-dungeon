@@ -38,7 +38,7 @@ class AuthController extends Controller
         Auth::login($user, remember: true);
         $request->session()->regenerate();
 
-        return redirect()->route('game');
+        return redirect()->route('game')->with(['ga_event' => 'sign_up', 'ga_params' => ['method' => 'email', 'hero_class' => $data['class']]]);
     }
 
     public function showLogin(): View
@@ -58,7 +58,7 @@ class AuthController extends Controller
         }
         $request->session()->regenerate();
 
-        return redirect()->intended(route('game'));
+        return redirect()->intended(route('game'))->with(['ga_event' => 'login', 'ga_params' => ['method' => 'email']]);
     }
 
     public function logout(Request $request): RedirectResponse
