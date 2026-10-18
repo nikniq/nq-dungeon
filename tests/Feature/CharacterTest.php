@@ -233,4 +233,16 @@ class CharacterTest extends TestCase
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['horse' => true, 'arena' => 12]])->assertOk()->assertJson(['meta' => ['horse' => true, 'arena' => 12]]);
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['arena' => -3]])->assertUnprocessable();
     }
+
+    public function test_bounties_fish_and_the_rod_are_saved(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla']);
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 3, 'xp' => 0, 'gold' => 10, 'hp' => 30, 'max_hp' => 30, 'atk' => 4, 'kills' => 0];
+        $bounty = ['id' => 'bounty:0,0', 'kind' => 'bounty', 'label' => 'Hunt Old Gnasher', 'target' => '0,0', 'need' => 1, 'have' => 0, 'done' => false, 'giver' => 'Captain Orla', 'reward' => 80];
+
+        $this->actingAs($user)->postJson('/api/character', $state + ['bag' => ['fish', 'stew', 'goldcarp'], 'quests' => [$bounty], 'meta' => ['rod' => true]])->assertOk()
+            ->assertJson(['bag' => ['fish', 'stew', 'goldcarp'], 'quests' => [['kind' => 'bounty']], 'meta' => ['rod' => true]]);
+        $this->actingAs($user)->postJson('/api/character', $state + ['bag' => [], 'quests' => [['kind' => 'heist'] + $bounty]])->assertUnprocessable();
+    }
 }

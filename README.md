@@ -113,6 +113,13 @@ some with local price breaks), a landmark in its square, and a named local leade
 who talks about the town and points to nearby dungeons and places. Arriving shows
 a description, and towns near each other never share a name.
 
+Watch captains and castellans post a bounty for each town: a named beast prowling
+the wilds nearby, marked with a skull on the map and in the world. Fishing towns
+sell rods (30 gold); walking into water with one casts a line for fish, the odd
+golden carp, or a bottle with a map. Inns cook fish into stew. Pressing C in the
+open wilds makes camp: full health and any fish cooked, at the cost of a long rest,
+and at night something may find you.
+
 New heroes see a short illustrated history of the world before the King's summons.
 It can be skipped with Esc and reread from the Journal's World page.
 

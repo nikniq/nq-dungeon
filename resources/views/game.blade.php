@@ -22,7 +22,7 @@
                 <li><kbd>↑ ↓ ← →</kbd> <kbd>WASD</kbd> <kbd>HJKL</kbd> move; walk into a monster to attack</li>
                 <li><kbd>Space</kbd> or <kbd>.</kbd> wait a turn</li>
                 <li><kbd>1</kbd> class ability · <kbd>P</kbd> potion · <kbd>B</kbd> bomb · <kbd>T</kbd> scroll of return</li>
-                <li><kbd>M</kbd> world map · <kbd>Q</kbd> quests · <kbd>J</kbd> journal · <kbd>N</kbd> sound</li>
+                <li><kbd>M</kbd> world map · <kbd>Q</kbd> quests · <kbd>J</kbd> journal · <kbd>N</kbd> sound · <kbd>C</kbd> make camp in the wilds</li>
                 <li><kbd>Esc</kbd> closes menus and skips story scenes · <kbd>?</kbd> this screen</li>
               </ul>
             </div>
@@ -42,6 +42,8 @@
                 <li>Every weapon has a trait. Compare them in the shop: ▲ is better than what you wear</li>
                 <li>Bosses wind up heavy blows on the red tiles. Step out of them</li>
                 <li>Every dungeon floor has a golden door back to the surface</li>
+                <li>Walk into water with a fishing rod to fish; eat with <kbd>P</kbd>, or cook stew at an inn or camp</li>
+                <li>Watch captains post bounties on named beasts, marked with a skull on your map</li>
               </ul>
             </div>
           </div>

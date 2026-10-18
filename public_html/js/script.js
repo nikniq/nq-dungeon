@@ -88,6 +88,9 @@ const ACHIEVEMENTS = {
   wanderer10:  { label: 'Discovered ten places', title: 'the Pathfinder' },
   collector:   { label: 'Found five treasures', title: 'the Treasure-seeker' },
   crownbearer: { label: 'Restored the Crown of Aurum', title: 'Crownbearer' },
+  hunter:      { label: 'Collected three bounties', title: 'the Bounty Hunter' },
+  angler:      { label: 'Caught a golden carp', title: 'the Angler' },
+  camper:      { label: 'Made camp in the wilds', title: 'the Wanderer' },
   rider:       { label: 'Bought a horse', title: 'the Rider' },
   champion:    { label: 'Survived ten waves in the Grand Arena', title: 'Champion of Aurum' },
   four_realms: { label: 'Finished every realm questline', title: 'Friend of Four Realms' },
@@ -244,7 +247,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, arena: player.meta.arena || 0 },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, arena: player.meta.arena || 0, rod: !!player.meta.rod },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -624,6 +627,58 @@ const bossAlive = () => scene === 'dungeon' && monsters.some((m) => m.boss);
 // ask for a tally of a monster. Rewards pay out the moment a quest completes.
 const QUEST_MAX = 3;
 const QUEST_GIVERS_CLEAR = ['Captain Orla', 'Bren the guard', 'The Castellan', 'King Aldric'];
+// Each town's watch posts one bounty: a named beast prowling the wilds nearby.
+const BOUNTY_GIVERS = ['Captain Orla', 'The Castellan'];
+const BOUNTY_NAMES = ['Old Gnasher', 'the Widowmaker', 'Three-Toes', 'the Grey Terror', 'Mossback', 'Red Jaw', 'Crookback', 'Night-Eye', 'the Terror of the Ford', 'Ironhide'];
+function bountyFor(town) {
+  const i = town.i, j = town.j, d = Math.max(Math.abs(i), Math.abs(j));
+  const names = d < 2 ? ['Goblin', 'Spider', 'Orc'] : d < 4 ? ['Orc', 'Spider', 'Skeleton'] : ['Orc', 'Wraith', 'Skeleton'];
+  const type = MONSTER_TYPES.find((t) => t.name === names[Math.floor(cellRand(i, j, 511) * names.length)]);
+  const angle = cellRand(i, j, 510) * Math.PI * 2, far = 26 + Math.floor(cellRand(i, j, 513) * 14);
+  return { key: town.key, town, type, name: BOUNTY_NAMES[Math.floor(cellRand(i, j, 512) * BOUNTY_NAMES.length)],
+    x: Math.round(town.cx + Math.cos(angle) * far), y: Math.round(town.cy + Math.sin(angle) * far), reward: 80 + d * 60, danger: d };
+}
+const activeBounties = () => (player.quests || []).filter((q) => q.kind === 'bounty' && !q.done);
+// Put each hunted beast back in the world (they are not saved, so a reload brings them back).
+function spawnBounties() {
+  if (scene !== 'world') return;
+  for (const q of activeBounties()) {
+    if (worldMonsters.some((m) => m.bounty === q.target)) continue;
+    const t = townAt(...q.target.split(',').map(Number)); if (!t) continue;
+    const b = bountyFor(t);
+    let spot = null;
+    for (let r = 0; r <= 8 && !spot; r++) for (let dy = -r; dy <= r && !spot; dy++) for (let dx = -r; dx <= r && !spot; dx++) {
+      const x = b.x + dx, y = b.y + dy;
+      if (getTile(x, y) === TILE.FLOOR && !townContaining(x, y) && !getMonsterAt(x, y) && !(x === player.x && y === player.y)) spot = { x, y };
+    }
+    if (!spot) continue;
+    const hp = (b.type.hp + b.danger) * 3;
+    worldMonsters.push({ ...spot, id: `bounty-${q.target}`, type: b.type, hp, maxHp: hp, atk: b.type.atk + 1 + Math.floor(b.danger / 2), awake: false, wild: true, bounty: q.target, name: b.name });
+    monsters = worldMonsters; monstersDirty = true;
+  }
+}
+function bountyTalk(n) {
+  if (!BOUNTY_GIVERS.includes(n.type.name)) return false;
+  const here = townContaining(player.wx ?? player.x, player.wy ?? player.y) || nearestTownTo(player.wx ?? player.x, player.wy ?? player.y);
+  if (!here) return false;
+  const b = bountyFor(here), id = 'bounty:' + here.key, dir = compassWord(b.x - here.cx, b.y - here.cy).toLowerCase();
+  if (questDoneIds().has(id)) return false;
+  const active = (player.quests || []).find((q) => q.id === id && !q.done);
+  if (active) { log(`${n.type.name}: "${b.name} is still out there, ${dir} of town. Bring us its head and the purse is yours."`); return true; }
+  if (questsActive().length >= QUEST_MAX) return false;
+  showScene([{ who: `WANTED: ${b.name}`, sprite: b.type.sprite,
+    text: `A notice is nailed to the board: a ${b.type.name.toLowerCase()} the size of a cart, called ${b.name}, has been raiding farms and travellers. It was last seen ${dir} of ${here.name}, about ${Math.round(Math.hypot(b.x - here.cx, b.y - here.cy))} paces out. Reward: ${b.reward} gold.`,
+    choices: [
+      { label: 'Take the bounty', run: () => {
+        player.quests.push({ id, kind: 'bounty', label: `Hunt ${b.name}, last seen ${dir} of ${here.name}`, target: here.key, need: 1, have: 0, done: false, giver: n.type.name, reward: b.reward });
+        sfx.play('quest'); track('bounty_taken', { town: here.name });
+        tip('bounty', 'Bounty beasts are marked with a skull, on the map and in the wild. They are tougher than most, so bring potions.');
+        return `"Good hunting," says ${n.type.name}. The beast is marked on your map with a skull.`; } },
+      { label: 'Ask about other work', run: () => { setTimeout(() => { offerQuest(n); draw(); }, 0); return null; } },
+      { label: 'Not now', run: () => 'You leave the notice on the board.' },
+    ] }]);
+  return true;
+}
 function questsActive() { return player.quests.filter((q) => !q.done); }
 function questDoneIds() { return new Set(player.quests.filter((q) => q.done).map((q) => q.id)); }
 function offerQuest(n) {
@@ -1890,7 +1945,7 @@ function talk(n) {
   bubble = { x: n.x, y: n.y, text: line, until: performance.now() + 4000 };
   if (n.type.action === 'inn') openShop('inn');
   else if (n.type.action && SHOPS[n.type.action]) openShop(n.type.action);
-  else offerQuest(n);
+  else if (!bountyTalk(n)) offerQuest(n);
 }
 function stepNpcs() {
   for (const n of npcs) {
@@ -2821,6 +2876,7 @@ function drawScene(now) {
         ctx.strokeStyle = 'rgba(255,120,120,0.9)'; ctx.lineWidth = 2; ctx.strokeRect(x * T - cam.x + 2, y * T - cam.y + 2, T - 4, T - 4);
       }
     }
+    if (m.bounty) { ctx.fillStyle = '#ef4444'; ctx.font = 'bold 14px sans-serif'; ctx.fillText('☠', lx * T - cam.x + T / 2 - 6, ly * T - cam.y - 4); }
     if (m.mod) { ctx.fillStyle = ELITE_MODS[m.mod].color; ctx.font = 'bold 12px sans-serif'; ctx.fillText('★', lx * T - cam.x + 1, ly * T - cam.y + 10); }
   }
   {
@@ -3068,6 +3124,14 @@ function drawWorldMap(g, now) {
     g.fillText('★', cx2, cy2 + Math.sin(now / 250) * 2);
     g.font = 'bold 11px sans-serif'; g.fillText(inside ? obj.short : `${obj.short} →`, cx2, cy2 + 16);
     g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  }
+  // bounties you have taken
+  for (const q of activeBounties()) {
+    const t = townAt(...q.target.split(',').map(Number)); if (!t) continue;
+    const b = bountyFor(t), bx = X + ((b.x - mapCache.ox) / MAP_STEP) * MAP_PX, by = Y + ((b.y - mapCache.oy) / MAP_STEP) * MAP_PX;
+    if (bx < X || by < Y || bx > X + c.width || by > Y + c.height) continue;
+    g.fillStyle = '#ef4444'; g.font = 'bold 16px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('☠', bx, by);
+    g.font = 'bold 11px sans-serif'; g.fillStyle = '#ffd1d1'; g.fillText(b.name, bx, by + 14); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   }
   // your pin
   if (mapPin) {
@@ -3493,6 +3557,11 @@ function killMonster(m) {
     } else log(`You slay the ${mName(m)} (+${xp} XP).`, 'good');
     gainXp(xp);
     questProgress('slay', m.type.name, 1);
+    if (m.bounty) {
+      questProgress('bounty', m.bounty, 1);
+      log(`${m.name} is dead. The watch will want to hear about it.`, 'good');
+      if ((player.quests || []).filter((q) => q.kind === 'bounty' && q.done).length >= 3) unlock('hunter');
+    }
     rqProgress('slay', m.type.name);
     if (m.elite) rqProgress('elite');
     if (m.boss) rqProgress('boss');
@@ -3841,6 +3910,7 @@ function tryMove(dx, dy) {
   if (gameOver || !player || shopOpen || perkChoices || entering || storyOpen() || controlsOpen()) return;
   const nx = player.x + dx, ny = player.y + dy;
   const t = getTile(nx, ny);
+  if (t === TILE.WALL && scene === 'world' && groundAt(nx, ny) === GROUND.WATER) { fishAt(nx, ny); return; }
   if (t === TILE.WALL || t === TILE.FOUNTAIN) return;
   const n = scene !== 'dungeon' && getNpcAt(nx, ny);
   if (n) { talk(n); draw(); return; }
@@ -4336,6 +4406,55 @@ function startEncounter() {
   showScene([ENCOUNTERS[id]()]);
 }
 
+// ---------- fishing and camping ----------
+let fishHintShown = false, campedAt = -9999;
+function fishAt(x, y) {
+  if (!player.meta.rod) {
+    if (!fishHintShown) { log('Fish dart about in the shallows. With a rod you could catch some; the shops of fishing towns sell them.'); fishHintShown = true; }
+    draw(); return;
+  }
+  if (bagFull()) { log('Your bag is too full to keep a catch.'); draw(); return; }
+  if (dx2(x) !== 0) player.face = Math.sign(x - player.x);
+  const r = Math.random();
+  burst(x, y, '#9fd4ff', 8, 50, { gravity: 60, life: 400 });
+  if (r < 0.4) log(Math.random() < 0.5 ? 'You cast your line. Nothing bites.' : 'A nibble, but it gets away.');
+  else if (r < 0.78) { player.bag.push('fish'); log('You catch a fresh fish!', 'good'); sfx.play('gold'); }
+  else if (r < 0.86) log('You reel in an old boot. It is not even your size.');
+  else if (r < 0.95) { player.bag.push('fish'); log('A fat fish! It fights all the way in.', 'good'); sfx.play('gold'); }
+  else if (r < 0.985) { player.bag.push('goldcarp'); log('A golden carp! Merchants pay well for these.', 'good'); sfx.play('win'); unlock('angler'); }
+  else {
+    const unknown = nearbyPlaces(player.x, player.y, 2).filter((p) => !discovered(p)).slice(0, 2);
+    for (const p of unknown) player.meta.places.push(p.key);
+    mapCache.ox = null; bgDirty = true;
+    log(unknown.length ? `You fish out a bottle with a map inside. It marks ${unknown.map((p) => p.name).join(' and ')}.` : 'You fish out a bottle with a map inside, of places you already know.', 'good');
+  }
+  endTurn(false);
+}
+const dx2 = (x) => x - player.x;
+// Make camp in the open wilds: rest to full and cook your catch, at the cost of time.
+// At night something may find you.
+function makeCamp() {
+  if (gameOver || !player || shopOpen || storyOpen() || perkChoices) return;
+  if (scene !== 'world' || townContaining(player.x, player.y)) { log(scene === 'world' ? 'You are in town. The inn has better beds.' : 'There is no making camp down here.'); draw(); return; }
+  if (monsters.some((m) => cheb(m, player) <= 6)) { log('Not with monsters this close.', 'bad'); draw(); return; }
+  if (turn - campedAt < DAY_LENGTH / 2) { log('You rested not long ago. Better to keep moving while it is light.'); draw(); return; }
+  campedAt = turn;
+  const night = dayPhase() === 'night';
+  turn += 120;
+  const healed = player.maxHp - player.hp;
+  player.hp = player.maxHp; player.poison = 0;
+  if (hound) { hound.down = false; hound.hp = hound.maxHp; }
+  const fish = player.bag.filter((id) => id === 'fish').length;
+  if (fish) { player.bag = player.bag.map((id) => (id === 'fish' ? 'stew' : id)); }
+  burst(player.x, player.y, '#ff9f43', 30, 70, { glow: true, gravity: -60, life: 1000 });
+  sfx.play('potion');
+  log(`You make camp and rest by the fire${healed ? `, recovering ${healed} HP` : ''}.${fish ? ` You cook ${fish === 1 ? 'your fish' : `${fish} fish`} into hearty stew.` : ''} The hours slip by.`, 'good');
+  unlock('camper'); track('camp', { night });
+  mapCache.ox = null; bgDirty = true;
+  if (night && Math.random() < 0.3) setTimeout(() => { showScene([ENCOUNTERS.ambush()]); }, 200);
+  endTurn(false);
+}
+
 // ---------- the hound ----------
 let hound = null;   // { x, y, rx, ry, hp, maxHp, atk, level, kills, down, face }
 const HOUND_COST = 80;
@@ -4433,6 +4552,7 @@ function endTurn(moved) {
   else arenaTurn();
   if (!gameOver && player.pendingPerks > 0) offerPerks();
   if (inTown()) for (const pl of nearbyPlaces(player.x, player.y, 1)) if (!discovered(pl) && cheb(pl, player) <= 3) discoverPlace(pl);
+  if (scene === 'world' && turn % 5 === 0) spawnBounties();
   if (mapPin && scene === 'world' && cheb(mapPin, player) <= 3) { mapPin = null; savePin(); log('You reach the spot you pinned on your map.', 'good'); }
   if (scene === 'world' && moved && !gameOver && !storyOpen() && !perkChoices && !townContaining(player.x, player.y) && !coopActive()
       && !monsters.some((m) => m.awake && cheb(m, player) <= 6)) {
@@ -4656,6 +4776,7 @@ window.addEventListener('keydown', (e) => {
   if (shopOpen) return;
   if (e.key === 'm' || e.key === 'M') { questsOpen = false; toggleMap(); return; }
   if (e.key === 'q' || e.key === 'Q') { mapOpen = false; questsOpen = !questsOpen; draw(); return; }
+  if (e.key === 'c' || e.key === 'C') { makeCamp(); return; }
   if (e.key === 'j' || e.key === 'J') { mapOpen = false; questsOpen = false; journalOpen = true; draw(); return; }
   if (e.key === 'n' || e.key === 'N') { toggleSound(); return; }
   if (perkChoices) { if (['1', '2', '3'].includes(e.key)) choosePerk(Number(e.key) - 1); return; }
@@ -4957,9 +5078,10 @@ function drinkPotion(idx) {
   if (gameOver || !player) return;
   if (idx === undefined) idx = player.bag.findIndex((id) => itemKind(id) === 'consumable' && itemInfo(id).heal);
   if (idx < 0) { log('You have no potions in your bag.'); draw(); return; }
-  const it = itemInfo(player.bag[idx]);
-  const healed = Math.min(potionHeal(it.heal), player.maxHp - player.hp);
+  const it = itemInfo(player.bag[idx]), food = !['potion', 'elixir'].includes(player.bag[idx]);
+  const healed = Math.min(food ? it.heal : potionHeal(it.heal), player.maxHp - player.hp);
   player.bag.splice(idx, 1);
+  if (food) { player.hp += healed; log(`You eat the ${it.name.toLowerCase()}${healed ? ` and recover ${healed} HP` : ''}.`, 'good'); updateStats(); renderShop(); draw(); return; }
   player.hp += healed;
   if (player.poison > 0) { player.poison = 0; log('The potion purges the poison.', 'good'); }
   log(healed > 0 ? `You drink a potion and heal ${healed} HP.` : 'You drink a potion but were already at full health.', 'good');
@@ -5003,7 +5125,7 @@ const SHOPS = {
   smithy: { title: 'The Smithy', stock: (id, it) => ITEMS.weapons[id] && it.floor <= 5, price: (it) => Math.round(it.price * 0.9), greet: 'The smith wipes his hands. Every blade on the wall is for sale, a tenth off.' },
   armoury: { title: 'The Armoury', stock: (id, it) => ITEMS.armor[id] && it.floor <= 5, price: (it) => Math.round(it.price * 0.9), greet: 'Racks of mail and plate. The armourer names fair prices.' },
   apothecary: { title: 'The Apothecary', stock: (id) => id === 'potion' || id === 'elixir', price: (it) => it.price, greet: 'Shelves of bottles. Potions, and elixirs for the desperate.' },
-  royal: { title: 'The Royal Armoury', stock: () => true, price: (it) => it.price, greet: 'The quartermaster unlocks the cabinet. Everything the realm can forge, at the King\'s prices.' },
+  royal: { title: 'The Royal Armoury', stock: (id, it) => it.floor < 99, price: (it) => it.price, greet: 'The quartermaster unlocks the cabinet. Everything the realm can forge, at the King\'s prices.' },
   inn: { title: 'The inn', stock: () => false, price: (it) => it.price, greet: 'The innkeeper wipes the bar. A bed, or a hound for the road?' },
   travel: { title: 'Waystone', stock: () => false, price: (it) => it.price, greet: 'The runes hum under your hand. Choose a town you have visited.' },
   player: { title: 'Hero', stock: () => false, price: (it) => it.price, greet: '' },
@@ -5017,7 +5139,7 @@ Object.assign(SHOPS, {
   chieftain: { title: 'The Clan Fire', stock: () => false, price: (it) => it.price, greet: 'The chieftain looks you up and down. "Outsiders may swear the clan oath. Few do. It asks more than gold, but gold first: a gift for the clan hall."' },
   shaman: { title: 'The Spirits', stock: () => false, price: (it) => it.price, greet: 'The shaman throws herbs on the fire. "Which spirit would you walk with?"' },
   bank: { title: 'The Goldspire Exchange', stock: () => false, price: (it) => it.price, greet: 'The banker steeples her fingers. "Deposits are safe from death itself. There is a small fee."' },
-  caravan: { title: 'The merchant caravan', stock: (id, it) => !!ITEMS.consumables[id] || (it.floor >= 3 && it.floor <= 7), price: (it) => Math.round(it.price * 0.95), greet: 'The caravan master throws back a tarp. Goods from every corner of the four realms.' },
+  caravan: { title: 'The merchant caravan', stock: (id, it) => (!!ITEMS.consumables[id] && it.floor < 99) || (it.floor >= 3 && it.floor <= 7), price: (it) => Math.round(it.price * 0.95), greet: 'The caravan master throws back a tarp. Goods from every corner of the four realms.' },
   hermit: { title: "The hermit's maps", stock: () => false, price: (it) => it.price, greet: 'The hermit spreads out a bundle of hand-drawn maps. "Places I have been. Places I would not go again."' },
 });
 function openShop(kind = 'shop') {
@@ -5147,6 +5269,11 @@ function renderShop() {
     }, player.gold < HOUND_COST));
     else if (hound.down || hound.hp < hound.maxHp) shopBuy.appendChild(shopRow(hound.down ? 'Your hound is back, bandaged and sorry for itself' : 'Patch up your hound', 'Heal, free', () => { hound.hp = hound.maxHp; hound.down = false; log('The innkeeper patches up your hound. Its tail thumps the floor.', 'good'); buildLegend(); renderShop(); draw(); }));
     else shopBuy.appendChild(shopRow(`Your hound is in fine fettle (level ${hound.level}, ${hound.kills} kills)`));
+    { const fish = player.bag.filter((id) => id === 'fish').length;
+      if (fish) shopBuy.appendChild(shopRow(`Have the cook make your ${fish} fish into hearty stew (+15 HP each)`, `Cook ${fish * 2}g`, () => {
+        if (player.gold < fish * 2) return; player.gold -= fish * 2; player.bag = player.bag.map((id) => (id === 'fish' ? 'stew' : id));
+        log(`The cook turns your catch into ${fish} bowls of steaming stew.`, 'good'); sfx.play('potion'); updateStats(); renderShop(); draw();
+      }, player.gold < fish * 2)); }
     for (const row of horseRows()) shopBuy.appendChild(row);
     for (const row of stashRows()) shopBuy.appendChild(row);
   }
@@ -5174,6 +5301,13 @@ function renderShop() {
     return;
   }
   if (SERVICE_SHOPS.has(shopKind)) { for (const row of serviceRows(shopKind)) shopBuy.appendChild(row); return; }
+  { const st = shopTown(); const trade = st && townIdentity(st).tradeId;
+    if ((shopKind === 'shop' || shopKind === 'potions') && (trade === 'fishing' || trade === 'salt') && !player.meta.rod) shopBuy.appendChild(shopRow('Fishing rod: walk into water anywhere in the wilds to fish', 'Buy 30g', () => {
+      if (player.gold < 30) return; player.gold -= 30; player.meta.rod = true; sfx.play('chest');
+      log('You buy a fishing rod. Walk into any water in the wilds to cast a line.', 'good');
+      tip('fish', 'Walk into water to fish. Eat a fish with P, or cook it into stew at an inn or a camp (C).');
+      updateStats(); renderShop(); draw(); saveProgress('progress');
+    }, player.gold < 30)); }
   if (shopKind === 'smithy' || shopKind === 'royal') shopBuy.appendChild(upgradeRow('weapon'));
   if (shopKind === 'armoury' || shopKind === 'royal') shopBuy.appendChild(upgradeRow('armor'));
   const stock = Object.entries({ ...ITEMS.weapons, ...ITEMS.armor, ...ITEMS.consumables }).filter(([id, it]) => SHOPS[shopKind].stock(id, it));
@@ -5403,7 +5537,7 @@ function startRun(saved) {
         story: saved.meta?.story && saved.meta.story.phase ? saved.meta.story : null, blessing: saved.meta?.blessing || null,
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
-        rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0 },
+        rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod },
       relic: ITEMS.relics[saved.relic] ? saved.relic : null,
       weaponPlus: saved.weapon_plus || 0, armorPlus: saved.armor_plus || 0 });
     // heroes made before classes existed start with the warrior's numbers; fresh heroes take their class's

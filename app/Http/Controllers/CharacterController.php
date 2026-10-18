@@ -45,7 +45,7 @@ class CharacterController extends Controller
             'bag' => ['present', 'array', 'max:'.(config('items.bag_size') + 4)],   // +4 for the Packrat perk
             'quests' => ['nullable', 'array', 'max:12'],
             'quests.*.id' => ['required', 'string', 'max:60'],
-            'quests.*.kind' => ['required', Rule::in(['clear', 'slay', 'boss'])],
+            'quests.*.kind' => ['required', Rule::in(['clear', 'slay', 'boss', 'bounty'])],
             'quests.*.label' => ['required', 'string', 'max:120'],
             'quests.*.need' => ['required', 'integer', 'min:1', 'max:999'],
             'quests.*.have' => ['required', 'integer', 'min:0', 'max:999'],
@@ -85,6 +85,7 @@ class CharacterController extends Controller
             'meta.stash.*' => [Rule::in(array_merge(array_keys(config('items.weapons')), array_keys(config('items.armor')), array_keys(config('items.consumables')), array_keys(config('items.relics'))))],
             'meta.deepest' => ['nullable', 'integer', 'min:0', 'max:99'],
             'meta.horse' => ['nullable', 'boolean'],
+            'meta.rod' => ['nullable', 'boolean'],
             'meta.arena' => ['nullable', 'integer', 'min:0', 'max:1000'],
             'meta.rq' => ['nullable', 'array:cantons,aurum,kathar,league'],
             'meta.rq.*.s' => ['required', 'integer', 'min:0', 'max:5'],

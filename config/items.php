@@ -25,6 +25,10 @@ return [
         'elixir' => ['name' => 'Elixir', 'heal' => 25, 'price' => 45, 'floor' => 7],
         'bomb' => ['name' => 'Bomb', 'use' => 'bomb', 'price' => 25, 'floor' => 1],
         'scroll' => ['name' => 'Scroll of return', 'use' => 'return', 'price' => 30, 'floor' => 1],
+        // caught and cooked, never stocked by merchants (floor 99)
+        'fish' => ['name' => 'Fresh fish', 'heal' => 4, 'price' => 8, 'floor' => 99],
+        'stew' => ['name' => 'Fish stew', 'heal' => 15, 'price' => 24, 'floor' => 99],
+        'goldcarp' => ['name' => 'Golden carp', 'heal' => 4, 'price' => 80, 'floor' => 99],
     ],
     // Unique treasures: never sold in shops or dropped at random. Each is found in
     // one particular place and has its own effect (implemented in script.js).
