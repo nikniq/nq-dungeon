@@ -96,7 +96,7 @@ const ACHIEVEMENTS = {
   knighted:    { label: 'Knighted by the King', title: 'Knight of Aurum' },
   baron:       { label: 'Bought a barony', title: 'Baron of Aurum' },
   civic:       { label: 'Became a Hero of the Cantons', title: 'Hero of the Cantons' },
-  clansworn:   { label: 'Swore the blood oath', title: 'Clan-sworn' },
+  clansworn:   { label: 'Swore the clan oath', title: 'Clan-sworn' },
   guild:       { label: 'Joined the Merchants\' Guild', title: 'the Guildsman' },
   banker:      { label: 'Banked five thousand gold', title: 'the Magnate' },
 };
@@ -223,7 +223,7 @@ const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armo
   + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.def || 0) : 0) + (realmState().rank >= 2 ? 1 : 0);
 const SAVE_EVERY_TURNS = 20;
 // What the hero has bought into in each realm: noble rank in Aurum, civic
-// standing in the Cantons, a blood oath with the Clans, a League guild seat and bank account.
+// standing in the Cantons, a clan oath with the Clans, a League guild seat and bank account.
 const realmState = () => (player && player.meta) ? (player.meta.realm || (player.meta.realm = { rank: 0, standing: 0, oath: false, guild: false, bank: 0 })) : { rank: 0, standing: 0, oath: false, guild: false, bank: 0 };
 
 async function saveProgress(event, keepalive = false) {
@@ -1055,7 +1055,7 @@ const INDOOR_NPCS = {
   speaker: { sprite: 'elder', name: 'Speaker Maren', action: 'council', lines: ['The Cantons answer to their people, and the people answer to their purses. Help us build.'] },
   councillor: { sprite: 'villager', name: 'The town councillor', action: 'council', lines: ['Every coin for the public works is written in the ledger, with your name beside it.'] },
   herald: { sprite: 'guard', name: 'The royal herald', action: 'court', lines: ['By the King\'s leave, titles of the realm may be granted to those who serve it. And pay for it.'] },
-  chieftain: { sprite: 'guard', name: 'Chieftain Ulrek Stonehand', action: 'chieftain', lines: ['Kings buy loyalty. Merchants rent it. Among the clans, it is sworn in blood.'] },
+  chieftain: { sprite: 'guard', name: 'Chieftain Ulrek Stonehand', action: 'chieftain', lines: ['Kings buy loyalty. Merchants rent it. Among the clans, it is sworn over bread and salt at the fire.'] },
   shaman: { sprite: 'elder', name: 'The clan shaman', action: 'shaman', lines: ['The spirits listen to those who bring gifts. Gold will do. They are not proud.'] },
   banker: { sprite: 'merchant', name: 'Banker Vessa Orlov', action: 'bank', lines: ['Gold in a pocket is lost to the first goblin. Gold in my vault outlives you.'] },
   fenwick: { sprite: 'merchant', name: 'Fenwick the merchant', action: 'shop', lines: ['Finest steel this side of the dungeon. Come to the counter.'] },
@@ -3986,16 +3986,16 @@ const ENCOUNTERS = {
         return win ? `Heads! He pays out ${bet * 2} gold with a pained smile.` : `Tails. He pockets your ${bet} gold. "Better luck next time, friend."`; } })),
       { label: 'Keep your gold', run: () => 'He shrugs and goes back to flipping the coin. It lands tails, every time.' },
     ] }),
-  altar: () => ({ who: 'A forgotten altar', sprite: 'obelisk',
-    text: 'Half sunk in the grass is an altar to a god whose name has worn away. The stone is stained dark. It feels hungry, and it feels like it would pay.',
+  altar: () => ({ who: 'A wayside altar', sprite: 'obelisk',
+    text: 'Half sunk in the grass is an old wayside altar, its saint\'s name worn away by centuries of rain. The stone is smooth from the hands of travellers who stopped here to pray.',
     choices: [
-      { label: 'Offer your blood (-5 max HP, +1 attack for good)', disabled: player.maxHp <= 15, run: () => {
-        player.maxHp -= 5; player.hp = Math.min(player.hp, player.maxHp); player.atk += 1;
-        burst(player.x, player.y, '#ef4444', 24, 100, { glow: true, gravity: -40, life: 800 });
-        return 'You cut your palm and press it to the stone. Something drinks. Your arm feels stronger, and your heart a little colder.'; } },
+      { label: 'Leave an offering of 150 gold (+1 attack for good)', disabled: player.gold < 150, run: () => {
+        player.gold -= 150; player.atk += 1;
+        burst(player.x, player.y, '#ffd86b', 24, 100, { glow: true, gravity: -40, life: 800 });
+        return 'You lay the coins on the stone for the poor travellers who come after you. When you rise, your sword arm feels steadier than it has in years.'; } },
       { label: 'Kneel and pray', run: () => {
-        if (Math.random() < 0.6) { player.meta.blessing = { name: "old god's favour", atk: 2, def: 1, turns: 300 }; return 'Warmth spreads through you. The old god is pleased: +2 attack and +1 defence for 300 turns.'; }
-        player.poison = 5; return 'The stone is cold. Something in the air disagrees with you, and you feel sick.'; } },
+        if (Math.random() < 0.6) { player.meta.blessing = { name: "wayfarer's blessing", atk: 2, def: 1, turns: 300 }; return 'Warmth spreads through you, and the road ahead looks kinder: +2 attack and +1 defence for 300 turns.'; }
+        player.poison = 5; return 'You kneel on a patch of nettles and stand up itching and queasy. Not every prayer is answered the way you hoped.'; } },
       { label: 'Leave it alone', run: () => 'Some gods are best left forgotten. You walk on.' },
     ] }),
   wolf: () => ({ who: 'An injured wolf', sprite: 'hound',
@@ -4732,7 +4732,7 @@ const buyPrice = (id) => Math.max(1, Math.round(SHOPS[shopKind].price(itemInfo(i
 Object.assign(SHOPS, {
   court: { title: 'The Court of Aurum', stock: () => false, price: (it) => it.price, greet: 'The herald unrolls a long scroll of titles. Each comes with a seal, a ribbon, and a price.' },
   council: { title: 'The Council of the Cantons', stock: () => false, price: (it) => it.price, greet: 'The councillor opens the ledger of public works. Every donation is recorded by name.' },
-  chieftain: { title: 'The Clan Fire', stock: () => false, price: (it) => it.price, greet: 'The chieftain looks you up and down. "Outsiders may swear the blood oath. Few do. It costs more than gold, but gold first."' },
+  chieftain: { title: 'The Clan Fire', stock: () => false, price: (it) => it.price, greet: 'The chieftain looks you up and down. "Outsiders may swear the clan oath. Few do. It asks more than gold, but gold first: a gift for the clan hall."' },
   shaman: { title: 'The Spirits', stock: () => false, price: (it) => it.price, greet: 'The shaman throws herbs on the fire. "Which spirit would you walk with?"' },
   bank: { title: 'The Goldspire Exchange', stock: () => false, price: (it) => it.price, greet: 'The banker steeples her fingers. "Deposits are safe from death itself. There is a small fee."' },
   caravan: { title: 'The merchant caravan', stock: (id, it) => !!ITEMS.consumables[id] || (it.floor >= 3 && it.floor <= 7), price: (it) => Math.round(it.price * 0.95), greet: 'The caravan master throws back a tarp. Goods from every corner of the four realms.' },
@@ -4971,10 +4971,10 @@ function serviceRows(kind) {
     }, player.gold < amt));
   } else if (kind === 'chieftain') {
     if (rs.oath) rows.push(shopRow('You are clan-sworn. The shamans ask half price of you'));
-    else rows.push(shopRow('Swear the blood oath: +6 max HP for good, the title Clan-sworn, and spirits at half price', '800g', () => {
+    else rows.push(shopRow('Swear the clan oath: +6 max HP for good, the title Clan-sworn, and spirits at half price', '800g', () => {
       if (!spend(800)) return;
       rs.oath = true; player.maxHp += 6; player.hp += 6; player.title = 'Clan-sworn';
-      log('You cut your palm and clasp the chieftain\'s hand over the fire. The clan roars. You are Clan-sworn.', 'good');
+      log('You share bread and salt with the chieftain at the clan fire, and clasp his hand. The clan roars. You are Clan-sworn.', 'good');
       burst(player.x, player.y, '#e0763a', 30, 100, { glow: true, gravity: -60, life: 900 });
       unlock('clansworn'); track('realm_spend', { realm: 'kathar', what: 'oath', cost: 800 });
       afterSpend();

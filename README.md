@@ -74,7 +74,7 @@ rooms have a healing spring that restores full health once.
 
 Walking the wilds brings roadside encounters with choices: a merchant caravan
 with rare stock, bandits demanding a toll, a wounded knight, a gambler, a
-forgotten altar, an injured wolf that may join you, a hooded stranger, a bard and
+wayside altar, an injured wolf that may join you, a hooded stranger, a bard and
 an abandoned camp, plus ambushes at night. Number keys pick a choice; Esc takes
 the last one, which is always the way out.
 
@@ -120,7 +120,7 @@ town names, paving, roofs and border colours on the world map:
 | --- | --- | --- | --- |
 | Free Cantons of Hearth | Democracy | Hearth | Donations at the Council or Town Hall build civic standing: Citizen (half-price waystones), Alderman (10% off), Hero of the Cantons. Shops are 10% cheaper. |
 | Kingdom of Aurum | Monarchy | Castle Aurum | Titles from the King or a royal herald: Squire (+5 HP), Knight (+1 DEF), Baron (+1 ATK). |
-| Ka'thar Clans | Tribal | Kar Thuldun | Spirit blessings from shamans. The chieftain's blood oath gives +6 HP and halves the shamans' prices. |
+| Ka'thar Clans | Tribal | Kar Thuldun | Spirit blessings from shamans. The chieftain's clan oath, sworn over bread and salt, gives +6 HP and halves the shamans' prices. |
 | Goldspire League | Oligarchy | Goldspire | The Exchange: a bank whose deposits survive death (5% fee), and a 1000g guild seat for 15% off everywhere. Shops charge 15% more but pay 60% on sales. |
 
 Every dungeon has a recommended level, from its danger and the strongest monster
