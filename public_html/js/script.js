@@ -1522,7 +1522,7 @@ function guideSuggestions() {
   if (!player.meta.rod) out.push(['Go fishing', 'Shops in fishing towns sell rods. Walk into water to cast a line.']);
   if (player.level >= 5 && !player.meta.arena) out.push(['Test your mettle', 'The Grand Arena at Castle Aurum pays gold for every wave you survive.']);
   if (ACCOUNT.user && player.gold >= BUILD.costs[0]) out.push(['Help other heroes', `Pay an innkeeper ${BUILD.costs[0]} gold to build a monument in the square that every hero can use.`]);
-  if (player.gold >= 150 && !war().armies.some((a) => a.mine)) out.push(['Raise an army', 'Orc warcamps threaten every realm. Recruit soldiers at a realm\'s seat (the King, a council or town hall, the clan longhouse or a League bank) and send them to raze a camp.']);
+  if (armiesUnlocked() && player.gold >= 150 && !war().armies.some((a) => a.mine)) out.push(['Raise an army', 'Orc warcamps threaten every realm. Recruit soldiers at a realm\'s seat (the King, a council or town hall, the clan longhouse or a League bank) and send them to raze a camp.']);
   if (rs.rank === 0 && player.gold >= 300) out.push(['A title', 'The King or his heralds will make you a Squire of Aurum for 300 gold.']);
   if (!player.relic && player.meta.found.length) out.push(['Wear your treasure', 'You have a treasure in your bag. Wear it from the inventory.']);
   return out.slice(0, 9);
@@ -3399,7 +3399,7 @@ function drawWorldMap(g, now) {
       g.fillStyle = razed ? '#6b7280' : '#dc2626'; g.beginPath(); g.moveTo(qx, qy - 5); g.lineTo(qx + 5, qy + 4); g.lineTo(qx - 5, qy + 4); g.fill();
       if (!razed) { g.font = '9px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fca5a5'; g.fillText(`camp ${wc.strength}`, qx, qy + 13); g.textAlign = 'left'; }
     }
-    for (const a of war().armies) {
+    for (const a of armiesUnlocked() ? war().armies : []) {
       const ax = X + ((a.x - mapCache.ox) / MAP_STEP) * MAP_PX, ay = Y + ((a.y - mapCache.oy) / MAP_STEP) * MAP_PX;
       const tx = X + ((a.tx - mapCache.ox) / MAP_STEP) * MAP_PX, ty = Y + ((a.ty - mapCache.oy) / MAP_STEP) * MAP_PX;
       g.strokeStyle = REALMS[a.realm].color; g.setLineDash([4, 4]); g.lineWidth = 1.5; g.beginPath(); g.moveTo(ax, ay); g.lineTo(tx, ty); g.stroke(); g.setLineDash([]);
@@ -3457,7 +3457,7 @@ function describeTile(x, y) {
   const other = mpPlayerAt(x, y);
   if (other) return `${other.data.name}${other.data.title ? ' ' + other.data.title : ''} — level ${other.data.level} ${other.data.cls}${inMyParty(other.id) ? ', in your party' : ''}${scene !== 'dungeon' ? '. Walk into them to invite or wave' : ''}`;
   if (houndAt(x, y)) return `Your hound — ${hound.hp}/${hound.maxHp} HP, bite ${hound.atk}, level ${hound.level}, ${hound.kills} kills`;
-  if (t === TILE.WARCAMP) { const wc = campAtTile(x, y); if (wc) return campRazed(wc) ? `${wc.name} — razed` : `${wc.name} — orc warcamp, strength ${wc.strength}. Send a realm's army`; }
+  if (t === TILE.WARCAMP) { const wc = campAtTile(x, y); if (wc) return campRazed(wc) ? `${wc.name} — razed` : `${wc.name} — orc warcamp, strength ${wc.strength}. ${armiesUnlocked() ? 'Send a realm\'s army' : `Armies open at level ${ARMY_LEVEL}`}`; }
   if (t === TILE.PLOT) { const tw = townContaining(x, y); if (tw) { const b = buildingAt(tw, plotSlot(tw, x, y)); return b ? `${b.builder}'s ${monumentName(b)}, level ${b.level}${b.upgrader && b.upgrader !== b.builder ? ` (upgraded by ${b.upgrader})` : ''} — ${levelDesc(b.type, b.level)}. Walk into it to use it${monumentUsed(tw, plotSlot(tw, x, y)) ? ' (used recently)' : ''}` : 'Empty building plot — pay an innkeeper here to build a monument for every hero'; } }
   if (t === TILE.MONUMENT) { const tw = townContaining(x, y); if (tw) { const L = townIdentity(tw).landmark; return `${L.name[0].toUpperCase() + L.name.slice(1)} — the pride of ${tw.name}. Walk into it to look closer`; } }
   if (getTile(x, y) === TILE.WAYSTONE) return 'Waystone — walk into it to travel to any town you have visited';
@@ -4214,7 +4214,7 @@ function tryMove(dx, dy) {
   }
   if (t === TILE.PLACE) { usePlace(placeAtTile(nx, ny)); draw(); return; }
   if (t === TILE.PLOT) { const tw = townContaining(nx, ny); if (tw) useMonument(tw, plotSlot(tw, nx, ny)); draw(); return; }
-  if (t === TILE.WARCAMP) { const wc = campAtTile(nx, ny); if (wc) log(campRazed(wc) ? `The burnt-out remains of ${wc.name}. The realm's soldiers did their work.` : `${wc.name[0].toUpperCase() + wc.name.slice(1)}: palisades, drums and far too many orcs (strength ${wc.strength}). No single hero can take it. Recruit an army at a realm's seat and send it here.`, campRazed(wc) ? '' : 'bad'); draw(); return; }
+  if (t === TILE.WARCAMP) { const wc = campAtTile(nx, ny); if (wc) log(campRazed(wc) ? `The burnt-out remains of ${wc.name}. The realm's soldiers did their work.` : `${wc.name[0].toUpperCase() + wc.name.slice(1)}: palisades, drums and far too many orcs (strength ${wc.strength}). No single hero can take it. ${armiesUnlocked() ? 'Recruit an army at a realm\'s seat and send it here.' : `Heroes of level ${ARMY_LEVEL} can raise a realm's army against it.`}`, campRazed(wc) ? '' : 'bad'); draw(); return; }
   if (t === TILE.MONUMENT) { const tw = townContaining(nx, ny); if (tw) { const L = townIdentity(tw).landmark; log(`${L.name[0].toUpperCase() + L.name.slice(1)}. ${L.lore}`); } draw(); return; }
   const other = mpPlayerAt(nx, ny);
   if (other) { if (scene !== 'dungeon') openPlayerMenu(other); draw(); return; }
@@ -4776,6 +4776,10 @@ const ARMY = {
   kathar:  { label: 'clan warriors', cost: 45, power: 1.1 },
   league:  { label: 'mercenaries', cost: 55, power: 1.0 },
 };
+// Armies are for heroes of renown: below this level the realms will not follow you,
+// raise no armies of their own, and any army already raised waits where it stands.
+const ARMY_LEVEL = 50;
+const armiesUnlocked = () => !!player && player.level >= ARMY_LEVEL;
 const CAMP_NAMES = ['Bonegrinder', 'Redtusk', 'Skullhill', 'Black Banner', 'Gutripper', 'Ashfang', 'Broken Tooth', 'Mudhollow'];
 const camps = new Map();
 function campAt(i, j) {
@@ -4815,7 +4819,7 @@ function sendArmy(realm, from, camp, troops, mine) {
 // One step every few hundred milliseconds of real time, wherever the hero is.
 let armyClock = 0, aiWarClock = 0;
 function armyTick(now) {
-  if (!player || !player.meta || gameOver || document.hidden) return;
+  if (!player || !player.meta || gameOver || document.hidden || !armiesUnlocked()) return;
   if (now - armyClock < 320) return;
   armyClock = now;
   const W = war();
@@ -4888,6 +4892,11 @@ function resolveBattle(a) {
 }
 // The muster at each realm's seat: recruit squads and send them out.
 function armyRows(realm) {
+  if (!armiesUnlocked()) {
+    const li = document.createElement('li'); li.className = 'empty stash-head';
+    li.textContent = `The marshals of ${REALMS[realm].short} raise armies only for heroes of renown. Reach level ${ARMY_LEVEL} (you are level ${player.level}) to recruit soldiers and send them against the orc warcamps.`;
+    return [li];
+  }
   const rows = [], A = ARMY[realm], W = war(), troops = W.troops[realm] || 0;
   const head = document.createElement('li'); head.className = 'empty stash-head';
   const marching = W.armies.filter((a) => a.mine && a.realm === realm);
@@ -4918,7 +4927,7 @@ function armyRows(realm) {
   return rows;
 }
 function drawArmies(ctx, now) {
-  if (scene !== 'world' || !player.meta) return;
+  if (scene !== 'world' || !player.meta || !armiesUnlocked()) return;
   for (const a of war().armies) {
     if (Math.abs(a.x - player.x) > 40 || Math.abs(a.y - player.y) > 30) continue;
     const n = Math.max(2, Math.min(7, Math.ceil(a.troops / 10))), col = REALMS[a.realm].color;
