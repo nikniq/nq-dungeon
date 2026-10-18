@@ -120,6 +120,13 @@ golden carp, or a bottle with a map. Inns cook fish into stew. Pressing C in the
 open wilds makes camp: full health and any fish cooked, at the cost of a long rest,
 and at night something may find you.
 
+Heroes can build for each other. Every town square has three plots; at any inn a
+signed-in hero pays 300 gold to build a monument there (Hero's Fountain, Shrine of
+Valour, Adventurers' Cache or Signal Beacon), and any hero can pay 600 and then
+1200 to upgrade it to levels 2 and 3. Monuments are stored on the server
+(`town_buildings`, `TownBuildingController`), carry their builder's name, and can
+be used by every hero once every 20 minutes. The server checks and deducts the gold.
+
 New heroes see a short illustrated history of the world before the King's summons.
 It can be skipped with Esc and reread from the Journal's World page.
 

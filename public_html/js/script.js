@@ -16,7 +16,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 const restartBtn = document.getElementById('restart');
 
-const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15, CRACK: 16, SPRING: 17, MONUMENT: 18 };
+const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15, CRACK: 16, SPRING: 17, MONUMENT: 18, PLOT: 19 };
 const TOWN = 0;           // floor number of the town square
 const FINAL_FLOOR = 5;
 const VIEW_RADIUS = 8;    // how far the hero sees in the dungeon
@@ -88,6 +88,8 @@ const ACHIEVEMENTS = {
   wanderer10:  { label: 'Discovered ten places', title: 'the Pathfinder' },
   collector:   { label: 'Found five treasures', title: 'the Treasure-seeker' },
   crownbearer: { label: 'Restored the Crown of Aurum', title: 'Crownbearer' },
+  builder:     { label: 'Built a monument for other heroes', title: 'the Builder' },
+  patron:      { label: 'Upgraded a monument', title: 'the Patron' },
   hunter:      { label: 'Collected three bounties', title: 'the Bounty Hunter' },
   angler:      { label: 'Caught a golden carp', title: 'the Angler' },
   camper:      { label: 'Made camp in the wilds', title: 'the Wanderer' },
@@ -211,7 +213,7 @@ function markSeen(x, y) {
   const cx = Math.floor(x / CHUNK), cy = Math.floor(y / CHUNK);
   getChunk(cx, cy).seen[(y - cy * CHUNK) * CHUNK + (x - cx * CHUNK)] = 1;
 }
-const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE && t !== TILE.WAYOUT && t !== TILE.CRACK && t !== TILE.SPRING && t !== TILE.MONUMENT;
+const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE && t !== TILE.WAYOUT && t !== TILE.CRACK && t !== TILE.SPRING && t !== TILE.MONUMENT && t !== TILE.PLOT;
 const hazard = (x, y) => getTile(x, y) === TILE.LAVA || (getTile(x, y) === TILE.TRAP && revealedTraps.has(key(x, y)));
 
 // ---------- account save/load ----------
@@ -1039,6 +1041,11 @@ BIG_SPRITES.belltower = ['.......dd.......', '......dddd......', '.....dddddd...
 BIG_SPRITES.bonfire = ['................', '.......yy.......', '......yooy......', '.....yoryoy.....', '.....orrroo.....', '....yorryroy....', '....orrrrrro....', '....orryyrro....', '.....orrrro.....', '...hHhorroHhh...', '..hhHHhhhHHhh...', '...HhhHHHhhH....', '..EEe....eEE....', '..EeEE..EEeE....', '................', '................'];
 BIG_SPRITES.darkknight = ['.....kkkkkk.....', '....kEEEEEEk....', '....kEkkkkEk....', '....kEkrrkEk....', '....kEEEEEEk....', '.....kEEEEk.....', '....kkkkkkkk....', '...kEEEyyEEEk.w.', '..kEEEEEEEEEEkw.', '..EkEEEEEEEEkEw.', '..E.kEEEEEEk.Ey.', '....kEEEEEEk..H.', '....kEEk.kEEk...', '....kEEk.kEEk...', '...kkkk...kkkk..', '................'];
 BIG_SPRITES.letter = ['................', '................', '..tttttttttttt..', '..twwwwwwwwwwt..', '..twkkkkkkkwwt..', '..twwwwwwwwwwt..', '..twkkkkkkwwwt..', '..twwwwwwwwwwt..', '..twkkkkkkkkwt..', '..twwwwwwwwwwt..', '..twkkkkwwwwwt..', '..twwwwwwwwrrt..', '..twwwwwwwwrrt..', '..tttttttttttt..', '................', '................'];
+BIG_SPRITES.plot = ['................', '................', '..h..........h..', '..H..........H..', '..hEEEEEEEEEEh..', '...E.e....e.E...', '...E........E...', '...E..e.....E...', '...E.....e..E...', '...E........E...', '...E.e....e.E...', '..hEEEEEEEEEEh..', '..H..........H..', '................', '................', '................'];
+BIG_SPRITES.herofountain = ['.......cc.......', '......cwwc......', '.......cc.......', '......eEEe......', '.......ee.......', '.......ee.......', '..EEEEEEEEEEEE..', '.EeccccccccccEE.', '.EcwccccccwcccE.', '.EccccccccccccE.', '.EEEEEEEEEEEEEE.', '..EeeeeeeeeeeE..', '..EEEEEEEEEEEE..', '.EEEEEEEEEEEEEE.', '................', '................'];
+BIG_SPRITES.valorshrine = ['.......yy.......', '......yrry......', '.......yy.......', '....EEEEEEEE....', '....EeeeeeeE....', '....Ee.rr.eE....', '....Ee.rr.eE....', '....Ee.yy.eE....', '....EeeeeeeE....', '...EEEEEEEEEE...', '..EEeeeeeeeeEE..', '..EEEEEEEEEEEE..', '.EEEEEEEEEEEEEE.', '................', '................', '................'];
+BIG_SPRITES.cache = ['......rr........', '......rrrr......', '......rr........', '......H.........', '..hhhhHhhhhhhh..', '..hHHHHHHHHHHh..', '..hHyyHHHHyyHh..', '..hhhhhhhhhhhh..', '..hHHHHyyHHHHh..', '..hHHHHyyHHHHh..', '..hHHHHHHHHHHh..', '..hhhhhhhhhhhh..', '..H..........H..', '................', '................', '................'];
+BIG_SPRITES.beacon = ['......yoy.......', '.....yoroy......', '......yoy.......', '.....EEEEE......', '.....EeeeE......', '.....EEEEE......', '......EeE.......', '......EEE.......', '......EeE.......', '......EEE.......', '.....EEeEE......', '.....EEEEE......', '....EEeEEEE.....', '...EEEEEEEEE....', '................', '................'];
 const spriteCache = {};
 // Creatures, items and props get a dark outline so they read on any ground;
 // 16px sprites also get a light top rim and a darker bottom rim for volume.
@@ -1698,6 +1705,106 @@ function leaderNpc(town) {
   if (I.trade.deal) lines.push(`${DEAL_TEXT[I.trade.deal]}. Tell them ${I.leader} sent you.`);
   return { sprite: I.realm === 'league' ? 'merchant' : I.realm === 'aurum' ? 'guard' : 'elder', name: `${I.leader} of ${town.name}`, lines, leader: true };
 }
+// ---------- monuments heroes build for each other ----------
+// Every square has building plots. Heroes pay at an inn to build a monument on
+// one, or to upgrade one that stands; the server keeps them, so every hero sees
+// and can use them. Each hero can use each monument once every 20 minutes.
+const BUILD = (window.DUNGEON && window.DUNGEON.buildings) || { slots: 3, costs: [300, 600, 1200], types: {} };
+const PLOT_SPOTS = [[6, -2], [-6, 2], [6, 2]];
+const PLOT_NAMES = ['north-east', 'south-west', 'south-east'];
+const MONUMENT_SPRITES = { fountain: 'herofountain', shrine: 'valorshrine', cache: 'cache', beacon: 'beacon' };
+const MONUMENT_COOLDOWN_MS = 20 * 60 * 1000;
+const plotSlot = (town, x, y) => PLOT_SPOTS.slice(0, BUILD.slots).findIndex(([dx, dy]) => x === town.cx + dx && y === town.cy + dy);
+const townBuildings = new Map();   // town key -> { at, list }
+const buildingAt = (town, slot) => { const e = townBuildings.get(town.key); return e ? e.list.find((b) => b.slot === slot) || null : null; };
+async function fetchBuildings(keys, force = false) {
+  if (!ACCOUNT.buildingsUrl) return;
+  const now = performance.now();
+  const want = keys.filter((k) => force || !townBuildings.has(k) || now - townBuildings.get(k).at > 60000);
+  if (!want.length) return;
+  for (const k of want) if (!townBuildings.has(k)) townBuildings.set(k, { at: now, list: [] }); else townBuildings.get(k).at = now;
+  try {
+    const r = await fetch(`${ACCOUNT.buildingsUrl}?towns=${encodeURIComponent(want.join('|'))}`, { headers: { Accept: 'application/json' } });
+    if (!r.ok) return;
+    const { buildings } = await r.json();
+    for (const k of want) townBuildings.set(k, { at: now, list: buildings.filter((b) => b.town === k) });
+    bgDirty = true; if (shopOpen) renderShop(); draw();
+  } catch (e) { /* offline: keep what we had */ }
+}
+const aOrAn = (w) => (/^[aeiou]/i.test(w) ? 'an' : 'a');
+const monumentName = (b) => `${BUILD.types[b.type] ? BUILD.types[b.type].name : b.type}`;
+const levelDesc = (type, level) => (BUILD.types[type] ? BUILD.types[type].levels[level - 1] : '');
+function monumentUsed(town, slot) { try { const m = JSON.parse(localStorage.getItem('dungeon-monuments') || '{}'); return Date.now() - (m[`${town.key}:${slot}`] || 0) < MONUMENT_COOLDOWN_MS; } catch (e) { return false; } }
+function markMonumentUsed(town, slot) { try { const m = JSON.parse(localStorage.getItem('dungeon-monuments') || '{}'); m[`${town.key}:${slot}`] = Date.now(); localStorage.setItem('dungeon-monuments', JSON.stringify(m)); } catch (e) { /* ignore */ } }
+function useMonument(town, slot) {
+  const b = buildingAt(town, slot);
+  if (!b) { log(`An empty building plot, staked out and waiting. Any innkeeper in ${town.name} will take your gold to build a monument here for every hero who passes.`); return; }
+  const who = `${b.builder}'s ${monumentName(b)}`;
+  if (monumentUsed(town, slot)) { log(`${who} has helped you recently. Give it a little while.`); return; }
+  markMonumentUsed(town, slot);
+  const L = b.level;
+  if (b.type === 'fountain') {
+    const heal = L >= 3 ? player.maxHp : Math.ceil(player.maxHp * (L === 2 ? 0.6 : 0.3));
+    const got = Math.min(heal, player.maxHp - player.hp); player.hp += got; if (L >= 3) player.poison = 0;
+    burst(player.x, player.y, '#7bdfff', 24, 80, { glow: true, gravity: -60, life: 800 });
+    log(`You drink from ${who}${got ? ` and recover ${got} HP` : ''}.`, 'good');
+  } else if (b.type === 'shrine') {
+    player.meta.blessing = { name: `${b.builder}'s shrine`, atk: Math.min(2, L), def: L >= 3 ? 1 : 0, turns: 200 + 100 * L };
+    burst(player.x, player.y, '#ffd86b', 24, 80, { glow: true, gravity: -60, life: 800 });
+    log(`You kneel at ${who}: ${levelDesc('shrine', L)}.`, 'good');
+  } else if (b.type === 'cache') {
+    const gifts = L === 1 ? ['potion'] : L === 2 ? ['potion', 'bomb'] : ['elixir', 'bomb'];
+    const got = []; for (const g of gifts) if (!bagFull()) { player.bag.push(g); got.push(itemInfo(g).name.toLowerCase()); }
+    log(got.length ? `You open ${who} and take ${got.join(' and ')}. A note inside reads: "For whoever needs it. ${b.builder}."` : 'Your bag is too full to take anything.', got.length ? 'good' : '');
+  } else if (b.type === 'beacon') {
+    const found = nearbyPlaces(town.cx, town.cy, L).filter((p) => !discovered(p));
+    for (const p of found) player.meta.places.push(p.key);
+    mapCache.ox = null; bgDirty = true;
+    burst(player.x, player.y, '#ff9f43', 30, 120, { glow: true, gravity: -120, life: 900 });
+    log(found.length ? `You climb ${who} and light the fire. From up here you spot ${found.length} ${found.length === 1 ? 'place' : 'places'}, now marked on your map.` : `You climb ${who}. Everything in sight is already on your map.`, 'good');
+  }
+  sfx.play('quest'); updateStats();
+}
+async function buildMonument(town, slot, type, upgrade = false) {
+  if (!ACCOUNT.user) { log('Create a hero (or log in) to build. Monuments are shared with every hero, so they need a name on them.', 'bad'); return; }
+  const cost = upgrade ? BUILD.costs[(buildingAt(town, slot) || { level: 1 }).level] : BUILD.costs[0];
+  if (player.gold < cost) return;
+  try {
+    const r = await fetch(`${ACCOUNT.buildingsUrl}${upgrade ? '/upgrade' : ''}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': ACCOUNT.csrf }, body: JSON.stringify({ town: town.key, slot, type, gold: player.gold }) });
+    const res = await r.json().catch(() => ({}));
+    if (!r.ok) { log(res.message || 'The innkeeper shakes their head. Try again in a moment.', 'bad'); await fetchBuildings([town.key], true); return; }
+    player.gold = res.gold;
+    const e = townBuildings.get(town.key) || { at: performance.now(), list: [] };
+    e.list = e.list.filter((b) => b.slot !== slot).concat([res.building]); townBuildings.set(town.key, e);
+    bgDirty = true; sfx.play('win');
+    const b = res.building;
+    log(upgrade ? `Masons set to work on the ${monumentName(b)}. It is now level ${b.level}: ${levelDesc(b.type, b.level)}, for every hero who passes.`
+      : `Builders raise ${aOrAn(monumentName(b))} ${monumentName(b)} on the ${PLOT_NAMES[slot]} plot of ${town.name}, with your name carved on it. Every hero who passes can use it: ${levelDesc(b.type, 1)}.`, 'good');
+    unlock(upgrade ? 'patron' : 'builder');
+    track(upgrade ? 'monument_upgrade' : 'monument_build', { type: b.type, level: b.level });
+    updateStats(); renderShop(); draw(); saveProgress('progress');
+  } catch (e) { log('The innkeeper could not reach the builders. Try again in a moment.', 'bad'); }
+}
+function monumentRows() {
+  const town = shopTown(); if (!town) return [];
+  const rows = [], head = document.createElement('li');
+  head.className = 'empty stash-head'; head.textContent = `Monuments of ${town.name}: built by heroes, for every hero`; rows.push(head);
+  const slots = PLOT_SPOTS.slice(0, BUILD.slots).map((_, i) => i);
+  for (const slot of slots) {
+    const b = buildingAt(town, slot);
+    if (!b) continue;
+    const by = `${b.builder}${b.upgrader && b.upgrader !== b.builder ? `, upgraded by ${b.upgrader}` : ''}`;
+    if (b.level >= BUILD.costs.length) { rows.push(shopRow(`${monumentName(b)} (level ${b.level}, by ${by}): ${levelDesc(b.type, b.level)}. As grand as it gets`)); continue; }
+    const cost = BUILD.costs[b.level];
+    rows.push(shopRow(`${monumentName(b)} (level ${b.level}, by ${by}). Upgrade so it gives ${levelDesc(b.type, b.level + 1)}`, `Upgrade ${cost}g`, () => buildMonument(town, slot, b.type, true), player.gold < cost || !ACCOUNT.user));
+  }
+  const free = slots.find((slot) => !buildingAt(town, slot));
+  if (free === undefined) rows.push(shopRow('Every plot in the square is built on'));
+  else for (const [type, T0] of Object.entries(BUILD.types)) {
+    rows.push(shopRow(`Build ${aOrAn(T0.name)} ${T0.name} on the ${PLOT_NAMES[free]} plot: ${T0.levels[0]}${ACCOUNT.user ? '' : ' (create a hero to build)'}`, `Build ${BUILD.costs[0]}g`, () => buildMonument(town, free, type), player.gold < BUILD.costs[0] || !ACCOUNT.user));
+  }
+  return rows;
+}
 // Town layout in local coordinates, shared by the stamp and the renderer.
 function townTile(town, wx, wy) {
   const lx = wx - town.x0, ly = wy - town.y0;
@@ -1719,6 +1826,7 @@ function townTile(town, wx, wy) {
   if (wx === town.gate.x && wy === town.gate.y) t = TILE.EXIT;
   if (wx === town.cx + 4 && wy === town.cy) { t = TILE.WAYSTONE; g = GROUND.COBBLE; }
   if (wx === town.cx - 6 && wy === town.cy - 2) { t = TILE.MONUMENT; g = GROUND.COBBLE; }
+  if (plotSlot(town, wx, wy) >= 0) { t = TILE.PLOT; g = GROUND.COBBLE; }
   return [t, g];
 }
 // Special dungeons out in the country: one in roughly half the lattice cells,
@@ -1877,6 +1985,7 @@ function refreshTownContext() {
   const near = nearbyTowns(player.x, player.y, 1);
   houses = near.flatMap((t) => t.houses);
   npcs = near.flatMap((t) => townNpcs(t));
+  fetchBuildings(near.map((t) => t.key));
 }
 function createWorld() {
   scene = 'world';
@@ -2455,6 +2564,11 @@ function renderBackground() {
       if (t === TILE.WAYSTONE) drawSprite(g, 'waystone', c, r, 1, 0);
       if (t === TILE.PLACE) { const pl = placeAtTile(c, r); if (pl) drawSprite(g, pl.sprite, c, r, 1, 0); }
       if (t === TILE.MONUMENT) { const tw = townContaining(c, r); if (tw) drawSprite(g, townIdentity(tw).landmark.sprite, c, r, 1, 0); }
+      if (t === TILE.PLOT) {
+        const tw = townContaining(c, r), b = tw && buildingAt(tw, plotSlot(tw, c, r));
+        drawSprite(g, b ? MONUMENT_SPRITES[b.type] || 'statue' : 'plot', c, r, 1, 0);
+        if (b) { g.fillStyle = '#ffd86b'; for (let k = 0; k < b.level; k++) g.fillRect(c * T - off.x + 6 + k * 8, r * T - off.y + T - 4, 5, 3); }
+      }
     }
     for (const pl of nearbyPlaces(player.x, player.y, 1)) {
       if (!discovered(pl) || pl.x < x0 || pl.x > x1 || pl.y < y0 || pl.y > y1) continue;
@@ -3174,6 +3288,7 @@ function describeTile(x, y) {
   const other = mpPlayerAt(x, y);
   if (other) return `${other.data.name}${other.data.title ? ' ' + other.data.title : ''} — level ${other.data.level} ${other.data.cls}${inMyParty(other.id) ? ', in your party' : ''}${scene !== 'dungeon' ? '. Walk into them to invite or wave' : ''}`;
   if (houndAt(x, y)) return `Your hound — ${hound.hp}/${hound.maxHp} HP, bite ${hound.atk}, level ${hound.level}, ${hound.kills} kills`;
+  if (t === TILE.PLOT) { const tw = townContaining(x, y); if (tw) { const b = buildingAt(tw, plotSlot(tw, x, y)); return b ? `${b.builder}'s ${monumentName(b)}, level ${b.level}${b.upgrader && b.upgrader !== b.builder ? ` (upgraded by ${b.upgrader})` : ''} — ${levelDesc(b.type, b.level)}. Walk into it to use it${monumentUsed(tw, plotSlot(tw, x, y)) ? ' (used recently)' : ''}` : 'Empty building plot — pay an innkeeper here to build a monument for every hero'; } }
   if (t === TILE.MONUMENT) { const tw = townContaining(x, y); if (tw) { const L = townIdentity(tw).landmark; return `${L.name[0].toUpperCase() + L.name.slice(1)} — the pride of ${tw.name}. Walk into it to look closer`; } }
   if (getTile(x, y) === TILE.WAYSTONE) return 'Waystone — walk into it to travel to any town you have visited';
   const n = scene !== 'dungeon' && getNpcAt(x, y);
@@ -3234,7 +3349,7 @@ const hover = { x: null, y: null, path: [], sig: '' };
 const occupiedBy = (x, y) => getMonsterAt(x, y) || getNpcAt(x, y) || mpPlayerAt(x, y) || null;
 function interactive(x, y) {
   const t = getTile(x, y);
-  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT, TILE.CRACK, TILE.SPRING, TILE.MONUMENT].includes(t);
+  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT, TILE.CRACK, TILE.SPRING, TILE.MONUMENT, TILE.PLOT].includes(t);
 }
 // The tiles from the hero to a target (not including the hero's own tile), shortest first.
 function pathTo(tx, ty, limit = 60) {
@@ -3926,6 +4041,7 @@ function tryMove(dx, dy) {
     draw(); return;
   }
   if (t === TILE.PLACE) { usePlace(placeAtTile(nx, ny)); draw(); return; }
+  if (t === TILE.PLOT) { const tw = townContaining(nx, ny); if (tw) useMonument(tw, plotSlot(tw, nx, ny)); draw(); return; }
   if (t === TILE.MONUMENT) { const tw = townContaining(nx, ny); if (tw) { const L = townIdentity(tw).landmark; log(`${L.name[0].toUpperCase() + L.name.slice(1)}. ${L.lore}`); } draw(); return; }
   const other = mpPlayerAt(nx, ny);
   if (other) { if (scene !== 'dungeon') openPlayerMenu(other); draw(); return; }
@@ -5275,6 +5391,7 @@ function renderShop() {
         log(`The cook turns your catch into ${fish} bowls of steaming stew.`, 'good'); sfx.play('potion'); updateStats(); renderShop(); draw();
       }, player.gold < fish * 2)); }
     for (const row of horseRows()) shopBuy.appendChild(row);
+    for (const row of monumentRows()) shopBuy.appendChild(row);
     for (const row of stashRows()) shopBuy.appendChild(row);
   }
   if (shopKind === 'player') {

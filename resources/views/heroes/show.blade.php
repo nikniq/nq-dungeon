@@ -31,6 +31,10 @@
         <tr><th>Most gold carried</th><td>{{ $character->best_gold }}</td></tr>
         <tr><th>Monsters slain</th><td>{{ $character->kills }}</td></tr>
         <tr><th>Quests completed</th><td>{{ $character->quests_done }}</td></tr>
+        @php($monuments = \App\Models\TownBuilding::where('built_by', $character->user_id)->count())
+        @if ($monuments > 0)
+        <tr><th>Monuments built</th><td>{{ $monuments }}</td></tr>
+        @endif
         <tr><th>Achievements</th><td>{{ count($character->achievements ?? []) }}</td></tr>
       </table>
     </section>

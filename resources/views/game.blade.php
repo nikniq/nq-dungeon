@@ -44,6 +44,7 @@
                 <li>Every dungeon floor has a golden door back to the surface</li>
                 <li>Walk into water with a fishing rod to fish; eat with <kbd>P</kbd>, or cook stew at an inn or camp</li>
                 <li>Watch captains post bounties on named beasts, marked with a skull on your map</li>
+                <li>Pay an innkeeper to build a monument on a plot in the square, or upgrade one: every hero can use them</li>
               </ul>
             </div>
           </div>
@@ -156,6 +157,8 @@
       items: @json(config('items')),
       mpUrl: @json(url('/api/mp')),
       multiplayer: @json((bool) config('game.multiplayer')),
+      buildingsUrl: @json(route('buildings.index')),
+      buildings: @json(['slots' => config('game.building_slots'), 'costs' => config('game.building_costs'), 'types' => config('game.buildings')]),
     };
   </script>
   <script src="{{ asset('js/script.js') }}?v={{ filemtime(public_path('js/script.js')) }}"></script>
