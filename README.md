@@ -127,6 +127,12 @@ Valour, Adventurers' Cache or Signal Beacon), and any hero can pay 600 and then
 (`town_buildings`, `TownBuildingController`), carry their builder's name, and can
 be used by every hero once every 20 minutes. The server checks and deducts the gold.
 
+The game has generative background music made with WebAudio, with a mood for towns,
+night, the wilds, dungeons, the Deep and the arena. O opens Settings: music and
+effects volume, screen shake, and floating numbers, kept in localStorage. The
+Journal's Guide page suggests next steps based on where the hero is and what
+they have.
+
 New heroes see a short illustrated history of the world before the King's summons.
 It can be skipped with Esc and reread from the Journal's World page.
 

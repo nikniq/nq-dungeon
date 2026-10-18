@@ -193,3 +193,7 @@ body.wide .chat,body.wide .party{max-width:1400px;margin-left:auto;margin-right:
 .story-choices button{text-align:left}
 .story-choices button:disabled{opacity:.45;cursor:not-allowed}
 .itemlist .stash-head{color:#ffd86b;font-weight:700;margin-top:6px}
+.settings-box{max-width:460px}
+.setting{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:10px 0;color:#e6eef8}
+.setting input[type=range]{flex:1;max-width:240px}
+.setting.check{justify-content:flex-start;gap:8px}

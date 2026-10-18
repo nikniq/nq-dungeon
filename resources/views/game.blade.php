@@ -12,6 +12,17 @@
     <div class="stage">
       <canvas id="game" width="960" height="640"></canvas>
       <div id="tip" class="tip" role="status"></div>
+      <div id="settings" class="overlay controls-help" hidden>
+        <div class="controls-box settings-box" role="dialog" aria-label="Settings">
+          <h2>Settings</h2>
+          <label class="setting">Music <input type="range" id="set-music" min="0" max="100" step="5"></label>
+          <label class="setting">Sound effects <input type="range" id="set-sfx" min="0" max="100" step="5"></label>
+          <label class="setting check"><input type="checkbox" id="set-shake"> Screen shake</label>
+          <label class="setting check"><input type="checkbox" id="set-numbers"> Floating damage and healing numbers</label>
+          <p class="muted small">N mutes everything. Settings are kept in this browser.</p>
+          <button type="button" id="settings-close" class="primary">Done</button>
+        </div>
+      </div>
       <div id="controls-help" class="overlay controls-help" hidden>
         <div class="controls-box" role="dialog" aria-label="Controls">
           <h2>Controls</h2>
@@ -23,7 +34,8 @@
                 <li><kbd>Space</kbd> or <kbd>.</kbd> wait a turn</li>
                 <li><kbd>1</kbd> class ability · <kbd>P</kbd> potion · <kbd>B</kbd> bomb · <kbd>T</kbd> scroll of return</li>
                 <li><kbd>M</kbd> world map · <kbd>Q</kbd> quests · <kbd>J</kbd> journal · <kbd>N</kbd> sound · <kbd>C</kbd> make camp in the wilds</li>
-                <li><kbd>Esc</kbd> closes menus and skips story scenes · <kbd>?</kbd> this screen</li>
+                <li><kbd>Esc</kbd> closes menus and skips story scenes · <kbd>?</kbd> this screen · <kbd>O</kbd> settings</li>
+                <li>Not sure what to do? The Journal's Guide page (<kbd>J</kbd>, then <kbd>6</kbd>) has ideas</li>
               </ul>
             </div>
             <div>
@@ -104,6 +116,7 @@
       <button type="button" id="quests" class="fs">Quests (Q)</button>
       <button type="button" id="journal" class="fs">Journal (J)</button>
       <button type="button" id="controls" class="fs">Controls (?)</button>
+      <button type="button" id="settings-btn" class="fs">Settings (O)</button>
       <button type="button" id="sound" class="fs">Sound on</button>
       <button type="button" id="fullscreen" class="fs">Fullscreen</button>
     </div>

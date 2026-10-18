@@ -129,7 +129,11 @@ function tip(id, text) {
   toast = { text, until: performance.now() + 7000 };
 }
 let shake = null;
-function shakeScreen(mag, ms = 220) { shake = { mag, until: performance.now() + ms }; }
+// Player settings, kept per browser.
+const settings = { music: 0.5, sfx: 0.8, shake: true, numbers: true };
+try { Object.assign(settings, JSON.parse(localStorage.getItem('dungeon-settings') || '{}')); } catch (e) { /* defaults */ }
+function saveSettings() { try { localStorage.setItem('dungeon-settings', JSON.stringify(settings)); } catch (e) { /* ignore */ } }
+function shakeScreen(mag, ms = 220) { if (!settings.shake) return; shake = { mag, until: performance.now() + ms }; }
 
 // ---------- state ----------
 let floor, player, gameOver, turn, kills;
@@ -534,11 +538,12 @@ async function acceptInvite(from) {
 
 // ---------- sound (synthesised, no files) ----------
 const sfx = (() => {
-  let ctx = null, muted = false;
+  let ctx = null, muted = false, out = null;
   try { muted = localStorage.getItem('dungeon-muted') === '1'; } catch (e) { /* storage may be blocked */ }
   const ensure = () => {
     if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; } }
     if (ctx && ctx.state === 'suspended') ctx.resume();
+    if (ctx && !out) { out = ctx.createGain(); out.gain.value = settings.sfx; out.connect(ctx.destination); }
     return ctx;
   };
   const tone = (freq, dur, type = 'square', vol = 0.08, slide = 0, delay = 0) => {
@@ -547,7 +552,7 @@ const sfx = (() => {
     o.type = type; o.frequency.setValueAtTime(freq, t0);
     if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t0 + dur);
     g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    o.connect(g); g.connect(c.destination); o.start(t0); o.stop(t0 + dur);
+    o.connect(g); g.connect(out); o.start(t0); o.stop(t0 + dur);
   };
   const sounds = {
     step: () => tone(150, 0.04, 'triangle', 0.025),
@@ -571,11 +576,88 @@ const sfx = (() => {
   };
   return {
     play: (n) => { try { sounds[n] && sounds[n](); } catch (e) { /* audio is best-effort */ } },
-    unlock: ensure,
-    toggle: () => { muted = !muted; try { localStorage.setItem('dungeon-muted', muted ? '1' : '0'); } catch (e) { /* ignore */ } return muted; },
+    unlock: () => { const c = ensure(); music.start(); return c; },
+    toggle: () => { muted = !muted; try { localStorage.setItem('dungeon-muted', muted ? '1' : '0'); } catch (e) { /* ignore */ } music.refresh(); return muted; },
+    setVolume: (v) => { if (out) out.gain.value = v; },
+    get ctx() { return ctx; },
     get muted() { return muted; },
   };
 })();
+
+// ---------- music ----------
+// A small generative score: a bass note and a soft pad each bar, and a melody
+// that wanders the mood's scale. Each place has its own mood; the arena adds drums.
+const music = (() => {
+  const MOODS = {
+    town:    { bpm: 84, root: 60, scale: [0, 2, 4, 7, 9], prog: [0, 5, 7, 0], lead: 'triangle', density: 0.55, pad: 0.025 },
+    night:   { bpm: 64, root: 57, scale: [0, 2, 3, 7, 9], prog: [0, 5, 3, 7], lead: 'sine', density: 0.35, pad: 0.03 },
+    wilds:   { bpm: 72, root: 62, scale: [0, 2, 4, 6, 7, 9, 11], prog: [0, 2, 7, 5], lead: 'triangle', density: 0.4, pad: 0.03 },
+    dungeon: { bpm: 60, root: 50, scale: [0, 2, 3, 7, 8], prog: [0, 8, 3, 10], lead: 'sine', density: 0.28, pad: 0.04, drone: true },
+    deep:    { bpm: 52, root: 45, scale: [0, 1, 3, 7, 8], prog: [0, 1, 0, 8], lead: 'sine', density: 0.22, pad: 0.045, drone: true },
+    arena:   { bpm: 120, root: 52, scale: [0, 3, 5, 7, 10], prog: [0, 0, 3, 5], lead: 'square', density: 0.6, pad: 0.02, drums: true },
+  };
+  let gain = null, timer = null, mood = null, next = 0, step = 0, bar = 0, last = 2, noise = null;
+  const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
+  const ctx = () => sfx.ctx;
+  const vol = () => (sfx.muted ? 0 : settings.music * 0.35);
+  function note(n, t, dur, type, v) {
+    const c = ctx(), o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(midi(n), t);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(gain); o.start(t); o.stop(t + dur + 0.05);
+  }
+  function drum(t, kind) {
+    const c = ctx();
+    if (kind === 'kick') { const o = c.createOscillator(), g = c.createGain(); o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.15); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2); o.connect(g); g.connect(gain); o.start(t); o.stop(t + 0.25); return; }
+    if (!noise) { noise = c.createBuffer(1, c.sampleRate * 0.3, c.sampleRate); const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+    const src = c.createBufferSource(), g = c.createGain(), f = c.createBiquadFilter();
+    src.buffer = noise; f.type = kind === 'snare' ? 'bandpass' : 'highpass'; f.frequency.value = kind === 'snare' ? 1800 : 7000;
+    g.gain.setValueAtTime(kind === 'snare' ? 0.25 : 0.06, t); g.gain.exponentialRampToValueAtTime(0.0001, t + (kind === 'snare' ? 0.15 : 0.05));
+    src.connect(f); f.connect(g); g.connect(gain); src.start(t); src.stop(t + 0.2);
+  }
+  function schedule() {
+    const c = ctx(); if (!c || !mood || c.state !== 'running') return;
+    const M = MOODS[mood], eighth = 60 / M.bpm / 2;
+    if (next < c.currentTime) next = c.currentTime + 0.05;
+    while (next < c.currentTime + 0.4) {
+      const chord = M.prog[bar % M.prog.length], base = M.root + chord;
+      if (step === 0) {
+        note(base - 12, next, eighth * 8, 'sine', 0.12);
+        note(base, next, eighth * 8, 'triangle', M.pad); note(base + (M.scale.includes(3) ? 3 : 4), next, eighth * 8, 'triangle', M.pad * 0.8); note(base + 7, next, eighth * 8, 'triangle', M.pad * 0.7);
+        if (M.drone) note(M.root - 24, next, eighth * 8.5, 'sawtooth', 0.012);
+      }
+      if (M.drums) { if (step % 4 === 0) drum(next, 'kick'); if (step % 4 === 2) drum(next, 'snare'); drum(next, 'hat'); }
+      if (Math.random() < M.density) {
+        last = Math.max(0, Math.min(M.scale.length * 2 - 1, last + [-2, -1, -1, 0, 1, 1, 2][Math.floor(Math.random() * 7)]));
+        const n = M.root + 12 + M.scale[last % M.scale.length] + 12 * Math.floor(last / M.scale.length) + (chord > 6 ? chord - 12 : chord) * 0;
+        note(n, next, eighth * (Math.random() < 0.3 ? 3 : 1.6), M.lead, M.lead === 'square' ? 0.035 : 0.07);
+      }
+      next += eighth; step = (step + 1) % 8; if (step === 0) bar++;
+    }
+  }
+  function ensureGain() { const c = ctx(); if (c && !gain) { gain = c.createGain(); gain.gain.value = vol(); gain.connect(c.destination); } return gain; }
+  return {
+    start() { if (!ctx()) return; ensureGain(); if (!timer) timer = setInterval(schedule, 120); },
+    setMood(m) {
+      if (m === mood) return;
+      const c = ctx(); mood = m; bar = 0; step = 0;
+      if (c && gain) { gain.gain.cancelScheduledValues(c.currentTime); gain.gain.setValueAtTime(0.0001, c.currentTime); gain.gain.linearRampToValueAtTime(vol(), c.currentTime + 1.5); }
+      next = c ? c.currentTime + 0.3 : 0;
+    },
+    refresh() { const c = ctx(); if (c && gain) gain.gain.setTargetAtTime(vol(), c.currentTime, 0.1); },
+    get mood() { return mood; },
+  };
+})();
+function currentMood() {
+  if (scene === 'dungeon') return dungeonDef && dungeonDef.arena ? 'arena' : dungeonDef && dungeonDef.endless ? 'deep' : 'dungeon';
+  if (scene === 'house') return 'town';
+  if (!player) return 'town';
+  if (townContaining(player.x, player.y)) return dayPhase() === 'night' ? 'night' : 'town';
+  return dayPhase() === 'night' ? 'night' : 'wilds';
+}
+// Browsers allow sound only after the player does something; any key or tap will do.
+for (const ev of ['keydown', 'pointerdown']) document.addEventListener(ev, () => { if (!sfx.ctx || sfx.ctx.state !== 'running') sfx.unlock(); else music.start(); }, { capture: true, passive: true });
+document.addEventListener('visibilitychange', () => { const c = sfx.ctx; if (!c) return; if (document.hidden) c.suspend(); else c.resume(); });
 
 // ---------- day and night ----------
 // A day is 480 turns. Night darkens the surface, lamps glow, and beasts in
@@ -734,7 +816,7 @@ function questProgress(kind, target, amount = 1) {
 let questsOpen = false;
 let lastRealm = null, lastTownKey = null;
 let journalOpen = false, journalTab = 0;
-const JOURNAL_TABS = ['Story', 'Places', 'Treasures', 'Bestiary', 'World'];
+const JOURNAL_TABS = ['Story', 'Places', 'Treasures', 'Bestiary', 'World', 'Guide'];
 const MONSTER_LORE = {
   Rat: 'Fat, bold and everywhere. Where there are dungeons there are rats, and where there are rats there is something worse further down.',
   Goblin: 'Small, quick and greedy. They rob the dead, and do not always wait for them to be dead.',
@@ -753,7 +835,7 @@ function journalKey(e) {
   if (['j', 'J', 'Escape'].includes(e.key)) journalOpen = false;
   else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') journalTab = (journalTab + 1) % JOURNAL_TABS.length;
   else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') journalTab = (journalTab + JOURNAL_TABS.length - 1) % JOURNAL_TABS.length;
-  else if (['1', '2', '3', '4', '5'].includes(e.key)) journalTab = Number(e.key) - 1;
+  else if (['1', '2', '3', '4', '5', '6'].includes(e.key)) journalTab = Number(e.key) - 1;
   e.preventDefault(); draw();
 }
 function journalTabRects() { const w = Math.min(122, (canvas.width - 48) / JOURNAL_TABS.length - 6); return JOURNAL_TABS.map((t, i) => ({ x: 24 + i * (w + 6), y: 52, w, h: 30 })); }
@@ -772,7 +854,7 @@ function drawJournal(g) {
   g.fillStyle = 'rgba(6,12,20,0.94)'; g.fillRect(0, 0, canvas.width, canvas.height);
   g.textBaseline = 'top'; g.textAlign = 'left';
   g.fillStyle = '#ffd86b'; g.font = 'bold 20px sans-serif'; g.fillText('Journal', 24, 16);
-  g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText('J or Esc closes · ← → or 1-5 change page', 120, 22);
+  g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText('J or Esc closes · ← → or 1-6 change page', 120, 22);
   journalTabRects().forEach((r, i) => {
     g.fillStyle = i === journalTab ? '#0b3142' : 'rgba(11,49,66,0.4)'; g.beginPath(); g.roundRect(r.x, r.y, r.w, r.h, 6); g.fill();
     g.fillStyle = i === journalTab ? '#ffd86b' : '#cfe9ff'; g.font = `bold ${r.w < 90 ? 11 : 13}px sans-serif`; g.fillText(r.w < 90 ? JOURNAL_TABS[i] : `${i + 1} ${JOURNAL_TABS[i]}`, r.x + (r.w < 90 ? 6 : 12), r.y + 8);
@@ -820,6 +902,14 @@ function drawJournal(g) {
       g.fillStyle = got ? '#ffd86b' : '#4b5563'; g.font = 'bold 14px sans-serif'; g.fillText(`${got ? '◆' : '◇'} ${got ? it.name : '???'}${player.relic === id ? '  (worn)' : ''}`, X, y);
       g.fillStyle = got ? '#cfe9ff' : '#6b7280'; g.font = '12px sans-serif'; y = wrapText(g, got ? it.desc : `Said to be found in ${it.found}.`, X + 22, y + 18, W - 22, 16) + 8;
       if (y > canvas.height - 30) break;
+    }
+  } else if (journalTab === 5) {
+    g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.fillText("Adventurer's Guide", X, y); y += 22;
+    g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText('Ideas for what to do next, from where you stand.', X, y); y += 26;
+    for (const [head, text] of guideSuggestions()) {
+      if (y > canvas.height - 40) break;
+      g.fillStyle = '#ffd86b'; g.font = 'bold 14px sans-serif'; g.fillText(`➤ ${head}`, X, y);
+      g.fillStyle = '#cfe9ff'; g.font = '12px sans-serif'; y = wrapText(g, text, X + 18, y + 18, W - 18, 16) + 10;
     }
   } else if (journalTab === 4) {
     g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.fillText('The world', X, y); y += 26;
@@ -1403,6 +1493,34 @@ const SHARD_FOUND = {
   stars: 'At the top of the tower, where the ceiling is open to the sky, the Shard of Stars hangs in the air, turning slowly. Below it lies a ring that seems to hold a falling star.',
 };
 
+// The Adventurer's Guide: a handful of sensible next steps for where the hero is now.
+function guideSuggestions() {
+  const out = [], rs = realmState(), st = story();
+  const obj = storyObjective();
+  if (obj) {
+    const S = st.phase === 'seek' ? STORY_SITES[STORY_ORDER[st.ch]] : null;
+    const need = S ? recLevel(siteDungeon(siteAt(S.i, S.j))) : 0;
+    out.push(['Main story', `${obj.text}. Follow the gold star on your compass.`]);
+    if (S && player.level < need - 1) out.push(['Get stronger first', `${S.title} is meant for level ${need}, and you are level ${player.level}. Town dungeons (Hearth's is level 1+) and bounties are good practice.`]);
+  } else if (st.phase === 'done') out.push(['The Deep', `The Gate of the Deep lies between Hearth and Castle Aurum. Your record: floor ${player.meta.deepest || 0}.`]);
+  if (player.hp < player.maxHp * 0.5) out.push(['Rest', 'Inns heal you for free. In the wilds, press C to make camp.']);
+  if (player.pendingPerks) out.push(['Choose a perk', 'You have a perk to pick.']);
+  const realm = currentRealm(), rq = rqState(realm), Q = REALM_QUESTS[realm];
+  if (rq.s === 0) out.push(['Realm errand', `${Q.ruler} has work for heroes of ${REALMS[realm].short}.`]);
+  else if (rq.s === 4) out.push(['Report back', `${Q.title} is done. Return to ${Q.ruler} for your reward.`]);
+  if (!questsActive().length) out.push(['Find work', 'Watch captains post bounties on named beasts, and townsfolk want monsters cleared.']);
+  if (!hound) out.push(['A companion', `Any inn will hire you a hound for ${HOUND_COST} gold.`]);
+  if (player.bag.length >= bagSize() - 2 && !player.meta.room) out.push(['Your bag is nearly full', `Rent a room at an inn (${ROOM_COST} gold) for a storage chest at every inn.`]);
+  if (!player.meta.horse && player.gold >= HORSE_COST * 0.75) out.push(['Ride', `Inns in cities and castles sell horses (${HORSE_COST} gold): two tiles a step in the wilds.`]);
+  if (player.weapon && (player.weaponPlus || 0) < 3 && player.gold >= UPGRADE_COST(player.weaponPlus || 0)) out.push(['Sharpen your blade', `A smithy can make your ${itemInfo(player.weapon).name} +${(player.weaponPlus || 0) + 1}.`]);
+  if (player.meta.places.length < 5) out.push(['Explore', 'Standing stones, shrines, ruins, hermits and wells lie in the wilds. Walk near them to discover them.']);
+  if (!player.meta.rod) out.push(['Go fishing', 'Shops in fishing towns sell rods. Walk into water to cast a line.']);
+  if (player.level >= 5 && !player.meta.arena) out.push(['Test your mettle', 'The Grand Arena at Castle Aurum pays gold for every wave you survive.']);
+  if (ACCOUNT.user && player.gold >= BUILD.costs[0]) out.push(['Help other heroes', `Pay an innkeeper ${BUILD.costs[0]} gold to build a monument in the square that every hero can use.`]);
+  if (rs.rank === 0 && player.gold >= 300) out.push(['A title', 'The King or his heralds will make you a Squire of Aurum for 300 gold.']);
+  if (!player.relic && player.meta.found.length) out.push(['Wear your treasure', 'You have a treasure in your bag. Wear it from the inventory.']);
+  return out.slice(0, 9);
+}
 // The trail of clues that leads to Prince Edric, one beside each shard.
 const SHARD_CLUE = {
   dawn: { who: 'A torn letter', sprite: 'letter', text: 'Under the altar cloth lies a scrap of a letter in a fine, careful hand: "...the chapel first, where the light is weakest. Once all five lights are scattered, my brother\'s crown is only a hat. E."' },
@@ -2303,7 +2421,10 @@ function updateVisibility() {
 // tile position; the camera follows the hero's render position so the hero
 // stays centred while the world slides underneath.
 const floats = [];
-function floatText(x, y, text, color) { floats.push({ x, y, text, color, at: performance.now() }); }
+function floatText(x, y, text, color) {
+  if (!settings.numbers && /^[-+]\d/.test(String(text))) return;
+  floats.push({ x, y, text, color, at: performance.now() });
+}
 function settle(o) { o.rx = o.x; o.ry = o.y; }
 function animate(now) {
   const ease = (o) => {
@@ -4022,7 +4143,7 @@ function leaveDungeon() {
   saveProgress('progress');
 }
 function tryMove(dx, dy) {
-  if (gameOver || !player || shopOpen || perkChoices || entering || storyOpen() || controlsOpen()) return;
+  if (gameOver || !player || shopOpen || perkChoices || entering || storyOpen() || controlsOpen() || settingsOpen()) return;
   const nx = player.x + dx, ny = player.y + dy;
   const t = getTile(nx, ny);
   if (t === TILE.WALL && scene === 'world' && groundAt(nx, ny) === GROUND.WATER) { fishAt(nx, ny); return; }
@@ -4172,6 +4293,26 @@ document.getElementById('story-next')?.addEventListener('click', () => nextScene
 document.getElementById('story-skip')?.addEventListener('click', () => skipScene());
 // Esc or Skip jumps to the end of a scene; whatever the scene leads to still happens.
 function skipScene() { sceneQueue = []; nextScenePage(); }
+const settingsEl = document.getElementById('settings');
+const settingsOpen = () => !!settingsEl && !settingsEl.hidden;
+function toggleSettings(show = !settingsOpen()) {
+  if (!settingsEl) return;
+  settingsEl.hidden = !show;
+  if (show) {
+    stopWalk?.();
+    document.getElementById('set-music').value = Math.round(settings.music * 100);
+    document.getElementById('set-sfx').value = Math.round(settings.sfx * 100);
+    document.getElementById('set-shake').checked = settings.shake;
+    document.getElementById('set-numbers').checked = settings.numbers;
+  }
+}
+document.getElementById('settings-btn')?.addEventListener('click', () => { sfx.unlock(); toggleSettings(); });
+document.getElementById('settings-close')?.addEventListener('click', () => toggleSettings(false));
+document.getElementById('set-music')?.addEventListener('input', (e) => { settings.music = e.target.value / 100; music.refresh(); saveSettings(); });
+document.getElementById('set-sfx')?.addEventListener('input', (e) => { settings.sfx = e.target.value / 100; sfx.setVolume(settings.sfx); saveSettings(); });
+document.getElementById('set-sfx')?.addEventListener('change', () => sfx.play('gold'));
+document.getElementById('set-shake')?.addEventListener('change', (e) => { settings.shake = e.target.checked; saveSettings(); });
+document.getElementById('set-numbers')?.addEventListener('change', (e) => { settings.numbers = e.target.checked; saveSettings(); });
 const controlsEl = document.getElementById('controls-help');
 const controlsOpen = () => !!controlsEl && !controlsEl.hidden;
 function toggleControls(show = !controlsOpen()) { if (!controlsEl) return; controlsEl.hidden = !show; if (show) stopWalk?.(); }
@@ -4669,6 +4810,7 @@ function endTurn(moved) {
   if (!gameOver && player.pendingPerks > 0) offerPerks();
   if (inTown()) for (const pl of nearbyPlaces(player.x, player.y, 1)) if (!discovered(pl) && cheb(pl, player) <= 3) discoverPlace(pl);
   if (scene === 'world' && turn % 5 === 0) spawnBounties();
+  music.setMood(currentMood());
   if (mapPin && scene === 'world' && cheb(mapPin, player) <= 3) { mapPin = null; savePin(); log('You reach the spot you pinned on your map.', 'good'); }
   if (scene === 'world' && moved && !gameOver && !storyOpen() && !perkChoices && !townContaining(player.x, player.y) && !coopActive()
       && !monsters.some((m) => m.awake && cheb(m, player) <= 6)) {
@@ -4882,6 +5024,8 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (controlsOpen()) { if (['Escape', '?', 'Enter'].includes(e.key)) { e.preventDefault(); toggleControls(false); } return; }
+  if (settingsOpen()) { if (['Escape', 'o', 'O'].includes(e.key)) { e.preventDefault(); toggleSettings(false); } return; }
+  if (e.key === 'o' || e.key === 'O') { e.preventDefault(); toggleSettings(true); return; }
   if (e.key === '?') { e.preventDefault(); toggleControls(true); return; }
   if (journalOpen) { journalKey(e); return; }
   sfx.unlock();
@@ -5621,6 +5765,7 @@ document.getElementById('shop-close')?.addEventListener('click', closeShop);
 
 // ---------- setup ----------
 function afterSceneChange() {
+  music.setMood(currentMood());
   stopWalk(); hover.path = []; hover.sig = '';
   bubble = null; closeShop(); clearInspect(); floats.length = 0; particles.length = 0; mapOpen = false;
   mp.players.clear(); mpKick();
