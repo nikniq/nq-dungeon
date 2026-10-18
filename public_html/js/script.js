@@ -16,7 +16,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 const restartBtn = document.getElementById('restart');
 
-const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15, CRACK: 16, SPRING: 17, MONUMENT: 18, PLOT: 19 };
+const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15, CRACK: 16, SPRING: 17, MONUMENT: 18, PLOT: 19, WARCAMP: 20 };
 const TOWN = 0;           // floor number of the town square
 const FINAL_FLOOR = 5;
 const VIEW_RADIUS = 8;    // how far the hero sees in the dungeon
@@ -88,6 +88,8 @@ const ACHIEVEMENTS = {
   wanderer10:  { label: 'Discovered ten places', title: 'the Pathfinder' },
   collector:   { label: 'Found five treasures', title: 'the Treasure-seeker' },
   crownbearer: { label: 'Restored the Crown of Aurum', title: 'Crownbearer' },
+  general:     { label: 'Your army razed an orc warcamp', title: 'the General' },
+  warlord:     { label: 'Five warcamps razed', title: 'the Warlord' },
   builder:     { label: 'Built a monument for other heroes', title: 'the Builder' },
   patron:      { label: 'Upgraded a monument', title: 'the Patron' },
   hunter:      { label: 'Collected three bounties', title: 'the Bounty Hunter' },
@@ -217,7 +219,7 @@ function markSeen(x, y) {
   const cx = Math.floor(x / CHUNK), cy = Math.floor(y / CHUNK);
   getChunk(cx, cy).seen[(y - cy * CHUNK) * CHUNK + (x - cx * CHUNK)] = 1;
 }
-const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE && t !== TILE.WAYOUT && t !== TILE.CRACK && t !== TILE.SPRING && t !== TILE.MONUMENT && t !== TILE.PLOT;
+const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE && t !== TILE.WAYOUT && t !== TILE.CRACK && t !== TILE.SPRING && t !== TILE.MONUMENT && t !== TILE.PLOT && t !== TILE.WARCAMP;
 const hazard = (x, y) => getTile(x, y) === TILE.LAVA || (getTile(x, y) === TILE.TRAP && revealedTraps.has(key(x, y)));
 
 // ---------- account save/load ----------
@@ -253,7 +255,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, arena: player.meta.arena || 0, rod: !!player.meta.rod },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war() },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -1136,6 +1138,9 @@ BIG_SPRITES.herofountain = ['.......cc.......', '......cwwc......', '.......cc..
 BIG_SPRITES.valorshrine = ['.......yy.......', '......yrry......', '.......yy.......', '....EEEEEEEE....', '....EeeeeeeE....', '....Ee.rr.eE....', '....Ee.rr.eE....', '....Ee.yy.eE....', '....EeeeeeeE....', '...EEEEEEEEEE...', '..EEeeeeeeeeEE..', '..EEEEEEEEEEEE..', '.EEEEEEEEEEEEEE.', '................', '................', '................'];
 BIG_SPRITES.cache = ['......rr........', '......rrrr......', '......rr........', '......H.........', '..hhhhHhhhhhhh..', '..hHHHHHHHHHHh..', '..hHyyHHHHyyHh..', '..hhhhhhhhhhhh..', '..hHHHHyyHHHHh..', '..hHHHHyyHHHHh..', '..hHHHHHHHHHHh..', '..hhhhhhhhhhhh..', '..H..........H..', '................', '................', '................'];
 BIG_SPRITES.beacon = ['......yoy.......', '.....yoroy......', '......yoy.......', '.....EEEEE......', '.....EeeeE......', '.....EEEEE......', '......EeE.......', '......EEE.......', '......EeE.......', '......EEE.......', '.....EEeEE......', '.....EEEEE......', '....EEeEEEE.....', '...EEEEEEEEE....', '................', '................'];
+BIG_SPRITES.warcamp = ['................', '.......d........', '......dd........', '......d.........', '.....rrr....rr..', '....rrrrr..rrrr.', '...rrkrrrr.rkrr.', '..rrrkkrrrrrkkrr', '..rrrkkrrrrrkkrr', '..HHHHHHHHHHHHHH', '....E..oo...E...', '...EEE.oy..EEE..', '....E..oo...E...', '.H..H......H..H.', '................', '................'];
+BIG_SPRITES.razedcamp = ['................', '................', '................', '................', '.....EkE....k...', '....kEkkk..kEk..', '...kkkEkkk.kkkk.', '..kEkkkkEkkkkEkk', '..kkkkEkkkkEkkkk', '..HHkHHHkHHHkHHH', '................', '....E.......E...', '...EEE.....EEE..', '....E.......E...', '................', '................'];
+BIG_SPRITES.soldier = ['.....eeeeee.....', '....eeeeeeee....', '....eessssee....', '....esssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....eeeeeeee....', '...eeeeeeeeee.e.', '..seeeeeeeeeese.', '..s.eeeeeeee.se.', '....eeeeeeee..e.', '....EEE..EEE..e.', '....EEE..EEE..e.', '...HHH....HHH...', '................'];
 const spriteCache = {};
 // Creatures, items and props get a dark outline so they read on any ground;
 // 16px sprites also get a light top rim and a darker bottom rim for volume.
@@ -1517,6 +1522,7 @@ function guideSuggestions() {
   if (!player.meta.rod) out.push(['Go fishing', 'Shops in fishing towns sell rods. Walk into water to cast a line.']);
   if (player.level >= 5 && !player.meta.arena) out.push(['Test your mettle', 'The Grand Arena at Castle Aurum pays gold for every wave you survive.']);
   if (ACCOUNT.user && player.gold >= BUILD.costs[0]) out.push(['Help other heroes', `Pay an innkeeper ${BUILD.costs[0]} gold to build a monument in the square that every hero can use.`]);
+  if (player.gold >= 150 && !war().armies.some((a) => a.mine)) out.push(['Raise an army', 'Orc warcamps threaten every realm. Recruit soldiers at a realm\'s seat (the King, a council or town hall, the clan longhouse or a League bank) and send them to raze a camp.']);
   if (rs.rank === 0 && player.gold >= 300) out.push(['A title', 'The King or his heralds will make you a Squire of Aurum for 300 gold.']);
   if (!player.relic && player.meta.found.length) out.push(['Wear your treasure', 'You have a treasure in your bag. Wear it from the inventory.']);
   return out.slice(0, 9);
@@ -2033,6 +2039,17 @@ function generateWorldChunk(cx, cy) {
       const lx = xx - ox, ly = yy - oy;
       if (lx < 0 || ly < 0 || lx >= CHUNK || ly >= CHUNK) continue;
       gr[ly * CHUNK + lx] = GROUND.GRASS; tiles[ly * CHUNK + lx] = (xx === st.x && yy === st.y) ? TILE.SITE : TILE.FLOOR;
+    }
+  }
+  // orc warcamps on a burnt clearing
+  for (let i = i0 - 1; i <= i0 + 1; i++) for (let j = j0 - 1; j <= j0 + 1; j++) {
+    const wc = campAt(i, j);
+    if (!wc) continue;
+    for (let yy = wc.y - 1; yy <= wc.y + 1; yy++) for (let xx = wc.x - 1; xx <= wc.x + 1; xx++) {
+      const lx = xx - ox, ly = yy - oy;
+      if (lx < 0 || ly < 0 || lx >= CHUNK || ly >= CHUNK) continue;
+      if (xx === wc.x && yy === wc.y) { tiles[ly * CHUNK + lx] = TILE.WARCAMP; gr[ly * CHUNK + lx] = GROUND.SAND; }
+      else if (tiles[ly * CHUNK + lx] === TILE.WALL) { tiles[ly * CHUNK + lx] = TILE.FLOOR; gr[ly * CHUNK + lx] = GROUND.GRASS; }
     }
   }
   // landmarks on a small clearing
@@ -2685,6 +2702,7 @@ function renderBackground() {
       if (t === TILE.WAYSTONE) drawSprite(g, 'waystone', c, r, 1, 0);
       if (t === TILE.PLACE) { const pl = placeAtTile(c, r); if (pl) drawSprite(g, pl.sprite, c, r, 1, 0); }
       if (t === TILE.MONUMENT) { const tw = townContaining(c, r); if (tw) drawSprite(g, townIdentity(tw).landmark.sprite, c, r, 1, 0); }
+      if (t === TILE.WARCAMP) { const wc = campAtTile(c, r); drawSprite(g, wc && campRazed(wc) ? 'razedcamp' : 'warcamp', c, r, 1, 0); }
       if (t === TILE.PLOT) {
         const tw = townContaining(c, r), b = tw && buildingAt(tw, plotSlot(tw, c, r));
         drawSprite(g, b ? MONUMENT_SPRITES[b.type] || 'statue' : 'plot', c, r, 1, 0);
@@ -3114,6 +3132,7 @@ function drawScene(now) {
     if (m.bounty) { ctx.fillStyle = '#ef4444'; ctx.font = 'bold 14px sans-serif'; ctx.fillText('☠', lx * T - cam.x + T / 2 - 6, ly * T - cam.y - 4); }
     if (m.mod) { ctx.fillStyle = ELITE_MODS[m.mod].color; ctx.font = 'bold 12px sans-serif'; ctx.fillText('★', lx * T - cam.x + 1, ly * T - cam.y + 10); }
   }
+  drawArmies(ctx, now);
   {
     const [ldx, ldy] = lunge(player, now);
     const lx = (player.rx ?? player.x) + ldx / T, ly = (player.ry ?? player.y) + ldy / T - bob(player) - hop(player);
@@ -3360,6 +3379,26 @@ function drawWorldMap(g, now) {
     g.font = 'bold 11px sans-serif'; g.fillText(inside ? obj.short : `${obj.short} →`, cx2, cy2 + 16);
     g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   }
+  // warcamps and the armies on the march
+  { const cx0 = mapCache.ox + (c.width / MAP_PX) * MAP_STEP / 2, cy0 = mapCache.oy + (c.height / MAP_PX) * MAP_STEP / 2;
+    const [ci, cj] = cellOf(cx0, cy0);
+    for (let i = ci - 4; i <= ci + 4; i++) for (let j = cj - 3; j <= cj + 3; j++) {
+      const wc = campAt(i, j); if (!wc) continue;
+      const qx = X + ((wc.x - mapCache.ox) / MAP_STEP) * MAP_PX, qy = Y + ((wc.y - mapCache.oy) / MAP_STEP) * MAP_PX;
+      if (qx < X || qy < Y || qx > X + c.width || qy > Y + c.height) continue;
+      const razed = campRazed(wc);
+      g.fillStyle = razed ? '#6b7280' : '#dc2626'; g.beginPath(); g.moveTo(qx, qy - 5); g.lineTo(qx + 5, qy + 4); g.lineTo(qx - 5, qy + 4); g.fill();
+      if (!razed) { g.font = '9px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fca5a5'; g.fillText(`camp ${wc.strength}`, qx, qy + 13); g.textAlign = 'left'; }
+    }
+    for (const a of war().armies) {
+      const ax = X + ((a.x - mapCache.ox) / MAP_STEP) * MAP_PX, ay = Y + ((a.y - mapCache.oy) / MAP_STEP) * MAP_PX;
+      const tx = X + ((a.tx - mapCache.ox) / MAP_STEP) * MAP_PX, ty = Y + ((a.ty - mapCache.oy) / MAP_STEP) * MAP_PX;
+      g.strokeStyle = REALMS[a.realm].color; g.setLineDash([4, 4]); g.lineWidth = 1.5; g.beginPath(); g.moveTo(ax, ay); g.lineTo(tx, ty); g.stroke(); g.setLineDash([]);
+      g.fillStyle = '#1b1b2f'; g.fillRect(ax - 1, ay - 12, 2, 14);
+      g.fillStyle = REALMS[a.realm].color; g.beginPath(); g.moveTo(ax + 1, ay - 12); g.lineTo(ax + 11, ay - 8); g.lineTo(ax + 1, ay - 4); g.fill();
+      g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.fillText(`${a.mine ? 'yours ' : ''}${a.troops}`, ax, ay + 12); g.textAlign = 'left';
+    }
+  }
   // bounties you have taken
   for (const q of activeBounties()) {
     const t = townAt(...q.target.split(',').map(Number)); if (!t) continue;
@@ -3409,6 +3448,7 @@ function describeTile(x, y) {
   const other = mpPlayerAt(x, y);
   if (other) return `${other.data.name}${other.data.title ? ' ' + other.data.title : ''} — level ${other.data.level} ${other.data.cls}${inMyParty(other.id) ? ', in your party' : ''}${scene !== 'dungeon' ? '. Walk into them to invite or wave' : ''}`;
   if (houndAt(x, y)) return `Your hound — ${hound.hp}/${hound.maxHp} HP, bite ${hound.atk}, level ${hound.level}, ${hound.kills} kills`;
+  if (t === TILE.WARCAMP) { const wc = campAtTile(x, y); if (wc) return campRazed(wc) ? `${wc.name} — razed` : `${wc.name} — orc warcamp, strength ${wc.strength}. Send a realm's army`; }
   if (t === TILE.PLOT) { const tw = townContaining(x, y); if (tw) { const b = buildingAt(tw, plotSlot(tw, x, y)); return b ? `${b.builder}'s ${monumentName(b)}, level ${b.level}${b.upgrader && b.upgrader !== b.builder ? ` (upgraded by ${b.upgrader})` : ''} — ${levelDesc(b.type, b.level)}. Walk into it to use it${monumentUsed(tw, plotSlot(tw, x, y)) ? ' (used recently)' : ''}` : 'Empty building plot — pay an innkeeper here to build a monument for every hero'; } }
   if (t === TILE.MONUMENT) { const tw = townContaining(x, y); if (tw) { const L = townIdentity(tw).landmark; return `${L.name[0].toUpperCase() + L.name.slice(1)} — the pride of ${tw.name}. Walk into it to look closer`; } }
   if (getTile(x, y) === TILE.WAYSTONE) return 'Waystone — walk into it to travel to any town you have visited';
@@ -3470,7 +3510,7 @@ const hover = { x: null, y: null, path: [], sig: '' };
 const occupiedBy = (x, y) => getMonsterAt(x, y) || getNpcAt(x, y) || mpPlayerAt(x, y) || null;
 function interactive(x, y) {
   const t = getTile(x, y);
-  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT, TILE.CRACK, TILE.SPRING, TILE.MONUMENT, TILE.PLOT].includes(t);
+  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT, TILE.CRACK, TILE.SPRING, TILE.MONUMENT, TILE.PLOT, TILE.WARCAMP].includes(t);
 }
 // The tiles from the hero to a target (not including the hero's own tile), shortest first.
 function pathTo(tx, ty, limit = 60) {
@@ -4163,6 +4203,7 @@ function tryMove(dx, dy) {
   }
   if (t === TILE.PLACE) { usePlace(placeAtTile(nx, ny)); draw(); return; }
   if (t === TILE.PLOT) { const tw = townContaining(nx, ny); if (tw) useMonument(tw, plotSlot(tw, nx, ny)); draw(); return; }
+  if (t === TILE.WARCAMP) { const wc = campAtTile(nx, ny); if (wc) log(campRazed(wc) ? `The burnt-out remains of ${wc.name}. The realm's soldiers did their work.` : `${wc.name[0].toUpperCase() + wc.name.slice(1)}: palisades, drums and far too many orcs (strength ${wc.strength}). No single hero can take it. Recruit an army at a realm's seat and send it here.`, campRazed(wc) ? '' : 'bad'); draw(); return; }
   if (t === TILE.MONUMENT) { const tw = townContaining(nx, ny); if (tw) { const L = townIdentity(tw).landmark; log(`${L.name[0].toUpperCase() + L.name.slice(1)}. ${L.lore}`); } draw(); return; }
   const other = mpPlayerAt(nx, ny);
   if (other) { if (scene !== 'dungeon') openPlayerMenu(other); draw(); return; }
@@ -4710,6 +4751,182 @@ function makeCamp() {
   mapCache.ox = null; bgDirty = true;
   if (night && Math.random() < 0.3) setTimeout(() => { showScene([ENCOUNTERS.ambush()]); }, 200);
   endTurn(false);
+}
+
+// ---------- the realms' armies and the orc warcamps ----------
+// Orc warcamps dot the wilds, too strong for any one hero. Each realm keeps an army
+// at its seat: heroes pay to recruit squads, then send the army marching on a camp.
+// Armies walk the map in real time under their realm's banner, fight on arrival,
+// and the realms also send their own armies out now and then.
+const ARMY = {
+  cantons: { label: 'militia', cost: 50, power: 1.0 },
+  aurum:   { label: 'knights', cost: 65, power: 1.3 },
+  kathar:  { label: 'clan warriors', cost: 45, power: 1.1 },
+  league:  { label: 'mercenaries', cost: 55, power: 1.0 },
+};
+const CAMP_NAMES = ['Bonegrinder', 'Redtusk', 'Skullhill', 'Black Banner', 'Gutripper', 'Ashfang', 'Broken Tooth', 'Mudhollow'];
+const camps = new Map();
+function campAt(i, j) {
+  const k = key(i, j);
+  if (camps.has(k)) return camps.get(k);
+  let camp = null;
+  const capital = REALM_ORDER.some((id) => REALMS[id].capital[0] === i && REALMS[id].capital[1] === j);
+  if (!(i === 0 && j === 0) && !capital && cellRand(i, j, 600) < 0.2) {
+    const town = townAt(i, j), site = siteAt(i, j), place = placeAt(i, j);
+    for (let n = 0; n < 6 && !camp; n++) {
+      const x = i * TOWN_SPACING + 8 + Math.floor(cellRand(i, j, 601 + n) * 80), y = j * TOWN_SPACING + 6 + Math.floor(cellRand(i, j, 611 + n) * 80);
+      if (town && x >= town.x0 - 12 && x < town.x0 + TW + 12 && y >= town.y0 - 12 && y < town.y0 + TH + 12) continue;
+      if (site && Math.abs(site.x - x) + Math.abs(site.y - y) < 10) continue;
+      if (place && Math.abs(place.x - x) + Math.abs(place.y - y) < 6) continue;
+      const g = terrainAt(x, y);
+      if (g !== GROUND.GRASS && g !== GROUND.FOREST) continue;
+      const danger = Math.max(Math.abs(i), Math.abs(j));
+      camp = { key: k, i, j, x, y, name: `the ${CAMP_NAMES[Math.floor(cellRand(i, j, 620) * CAMP_NAMES.length)]} warcamp`, strength: 20 + danger * 12 + Math.floor(cellRand(i, j, 621) * 10) };
+    }
+  }
+  camps.set(k, camp);
+  return camp;
+}
+const war = () => player.meta.war || (player.meta.war = { troops: { cantons: 0, aurum: 0, kathar: 0, league: 0 }, armies: [], camps: [] });
+const campRazed = (c) => war().camps.includes(c.key);
+const campAtTile = (x, y) => { const [i0, j0] = cellOf(x, y); for (let i = i0 - 1; i <= i0 + 1; i++) for (let j = j0 - 1; j <= j0 + 1; j++) { const c = campAt(i, j); if (c && c.x === x && c.y === y) return c; } return null; };
+function campsNear(x, y, reach) {
+  const [i0, j0] = cellOf(x, y), out = [];
+  for (let i = i0 - reach; i <= i0 + reach; i++) for (let j = j0 - reach; j <= j0 + reach; j++) { const c = campAt(i, j); if (c && !campRazed(c)) out.push(c); }
+  return out.sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
+}
+const armyName = (realm) => `the army of ${REALMS[realm].short.replace(/^the /, 'the ')}`;
+function sendArmy(realm, from, camp, troops, mine) {
+  war().armies.push({ realm, x: from.x, y: from.y, tx: camp.x, ty: camp.y, target: camp.key, troops, mine: !!mine });
+  if (war().armies.length > 12) war().armies.shift();
+}
+// One step every few hundred milliseconds of real time, wherever the hero is.
+let armyClock = 0, aiWarClock = 0;
+function armyTick(now) {
+  if (!player || !player.meta || gameOver || document.hidden) return;
+  if (now - armyClock < 320) return;
+  armyClock = now;
+  const W = war();
+  for (const a of W.armies.slice()) {
+    if (a.fightUntil) { if (now >= a.fightUntil) resolveBattle(a); continue; }
+    const dx = Math.sign(a.tx - a.x), dy = Math.sign(a.ty - a.y);
+    if (Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) <= 1) { startBattle(a, now); continue; }
+    // near the hero, keep to land; far away, nobody is watching the fords
+    const near = scene === 'world' && cheb(a, player) < 50;
+    // only ever step toward the target, so an army never paces back and forth;
+    // when both steps are blocked it fords the stream or pushes through the trees
+    const primary = Math.abs(a.tx - a.x) >= Math.abs(a.ty - a.y) ? [dx, 0] : [0, dy];
+    const secondary = primary[0] ? [0, dy] : [dx, 0];
+    let moved = false;
+    for (const [sx, sy] of [primary, secondary]) {
+      if (!sx && !sy) continue;
+      const nx = a.x + sx, ny = a.y + sy;
+      if (!near || walkable(getTile(nx, ny)) || getTile(nx, ny) === TILE.WARCAMP) { a.x = nx; a.y = ny; moved = true; break; }
+    }
+    if (!moved) { a.x += primary[0]; a.y += primary[1]; }
+  }
+  // now and then a realm near the hero musters an army of its own
+  if (scene === 'world' && now - aiWarClock > 75000) {
+    aiWarClock = now;
+    if (W.armies.filter((a) => !a.mine).length < 2) {
+      const town = nearestOtherTown(player.x, player.y) || townContaining(player.x, player.y);
+      const target = town && campsNear(town.cx, town.cy, 2).find((c) => !W.armies.some((a) => a.target === c.key));
+      if (town && target) {
+        const realm = town.realm || realmAt(town.i, town.j);
+        sendArmy(realm, { x: town.gate.x, y: town.gate.y + 1 }, target, Math.round(target.strength * 1.3 / ARMY[realm].power), false);
+        log(`Drums sound from ${town.name}: ${armyName(realm)} marches on ${target.name}.`, 'good');
+      }
+    }
+  }
+}
+function startBattle(a, now) {
+  a.fightUntil = now + 2200;
+  if (scene === 'world' && cheb(a, player) < 30) { shakeScreen(4); sfx.play('boss'); log(`${armyName(a.realm)[0].toUpperCase() + armyName(a.realm).slice(1)} falls on ${campAt(...a.target.split(',').map(Number)).name}!`, 'bad'); }
+}
+function resolveBattle(a) {
+  const W = war(), camp = campAt(...a.target.split(',').map(Number));
+  W.armies = W.armies.filter((x) => x !== a);
+  if (!camp || campRazed(camp)) { if (a.mine) { W.troops[a.realm] += a.troops; log(`${armyName(a.realm)} finds the camp already razed and marches home.`); } return; }
+  const power = a.troops * ARMY[a.realm].power * (0.8 + Math.random() * 0.45);
+  const seen = scene === 'world' && cheb(a, player) < 30;
+  if (seen) { for (let k = 0; k < 6; k++) burst(camp.x + rnd(3) - 1, camp.y + rnd(3) - 1, k % 2 ? '#ff9f43' : '#e5e7eb', 12, 120, { life: 600, size: 3 }); sfx.play('fire'); }
+  if (power >= camp.strength) {
+    W.camps.push(camp.key);
+    const lost = Math.min(a.troops - 1, Math.round(camp.strength * (0.3 + Math.random() * 0.3) / ARMY[a.realm].power));
+    const home = a.troops - lost;
+    bgDirty = true; mapCache.ox = null;
+    if (a.mine) {
+      W.troops[a.realm] += home;
+      const gold = Math.round(camp.strength * 3 * goldMult()), xp = camp.strength;
+      player.gold += gold; gainXp(xp);
+      log(`Victory! ${armyName(a.realm)} razes ${camp.name}, losing ${lost} of ${a.troops}. Your share of the spoils: ${gold} gold and ${xp} XP. ${home} soldiers return to the muster.`, 'good');
+      toast = { text: `${camp.name[0].toUpperCase() + camp.name.slice(1)} is razed!`, until: performance.now() + 3500 };
+      sfx.play('win'); unlock('general');
+      if (W.camps.length >= 5) unlock('warlord');
+      track('army_victory', { realm: a.realm, strength: camp.strength });
+    } else log(`Word comes: ${armyName(a.realm)} has razed ${camp.name}.`, 'good');
+  } else {
+    if (a.mine) {
+      const back = Math.floor(a.troops * 0.25);
+      W.troops[a.realm] += back;
+      log(`Defeat. ${camp.name[0].toUpperCase() + camp.name.slice(1)} holds, and ${armyName(a.realm)} is driven off. ${back} soldiers limp home. A bigger army might do it.`, 'bad');
+    } else log(`Word comes: ${armyName(a.realm)} was driven back from ${camp.name}.`, 'bad');
+  }
+  updateStats(); saveProgress('progress');
+}
+// The muster at each realm's seat: recruit squads and send them out.
+function armyRows(realm) {
+  const rows = [], A = ARMY[realm], W = war(), troops = W.troops[realm] || 0;
+  const head = document.createElement('li'); head.className = 'empty stash-head';
+  const marching = W.armies.filter((a) => a.mine && a.realm === realm);
+  head.textContent = `The muster of ${REALMS[realm].short}: ${troops} ${A.label} ready${marching.length ? `, ${marching.reduce((n, a) => n + a.troops, 0)} on the march` : ''}`;
+  rows.push(head);
+  for (const n of [10, 30]) {
+    const cost = Math.round(A.cost * n / 10);
+    rows.push(shopRow(`Recruit ${n} ${A.label} for the realm's army`, `Recruit ${cost}g`, () => {
+      if (player.gold < cost) return;
+      player.gold -= cost; W.troops[realm] = (W.troops[realm] || 0) + n; sfx.play('chest');
+      log(`${n} ${A.label} take the realm's coin and fall in behind the banner. ${W.troops[realm]} are ready to march.`, 'good');
+      updateStats(); renderShop(); draw(); saveProgress('progress');
+    }, player.gold < cost));
+  }
+  const seat = shopTown();
+  const origin = seat || townAt(...REALMS[realm].capital);
+  for (const camp of campsNear(origin.cx, origin.cy, 3).filter((c) => !W.armies.some((a) => a.target === c.key)).slice(0, 4)) {
+    const need = Math.ceil(camp.strength / A.power);
+    const dist = Math.round(Math.hypot(camp.x - origin.cx, camp.y - origin.cy));
+    rows.push(shopRow(`March on ${camp.name}, ${compassWord(camp.x - origin.cx, camp.y - origin.cy).toLowerCase()} (${dist} paces). Its strength: ${camp.strength}; about ${need} ${A.label} should do it`, `March ${troops}`, () => {
+      if (!W.troops[realm]) return;
+      sendArmy(realm, { x: origin.gate.x, y: origin.gate.y + 1 }, camp, W.troops[realm], true);
+      log(`${armyName(realm)[0].toUpperCase() + armyName(realm).slice(1)} marches out of ${origin.name}, ${W.troops[realm]} strong, bound for ${camp.name}. Watch for their banner on the road and on your map.`, 'good');
+      W.troops[realm] = 0; sfx.play('boss'); tip('army', 'Your army marches in real time. Follow it, or carry on; it fights when it arrives. A victory pays you a share of the spoils.');
+      closeShop(); updateStats(); draw(); saveProgress('progress');
+    }, !troops));
+  }
+  return rows;
+}
+function drawArmies(ctx, now) {
+  if (scene !== 'world' || !player.meta) return;
+  for (const a of war().armies) {
+    if (Math.abs(a.x - player.x) > 40 || Math.abs(a.y - player.y) > 30) continue;
+    const n = Math.max(2, Math.min(7, Math.ceil(a.troops / 10))), col = REALMS[a.realm].color;
+    const dir = Math.sign(a.tx - a.x) || 1;
+    for (let k = 0; k < n; k++) {
+      const ox = ((k % 3) - 1) * 0.55 - (dir > 0 ? Math.floor(k / 3) * 0.6 : -Math.floor(k / 3) * 0.6), oy = ((k % 2) ? 0.35 : -0.25) + Math.sin(now / 160 + k) * 0.05;
+      const lx = a.x + ox, ly = a.y + oy + (a.fightUntil ? Math.sin(now / 60 + k) * 0.12 : 0);
+      drawSprite(ctx, 'soldier', lx, ly, 1, 4, dir < 0);
+    }
+    // the banner and its label
+    const bx = a.x * T - cam.x + T / 2, by = a.y * T - cam.y - 18;
+    ctx.fillStyle = '#5b3a1a'; ctx.fillRect(bx, by, 2, 26);
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(bx + 2, by); ctx.lineTo(bx + 18, by + 5); ctx.lineTo(bx + 2, by + 11); ctx.fill();
+    ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+    const label = `${a.mine ? 'Your army: ' : ''}${REALMS[a.realm].short.replace(/^the /, '')} (${a.troops})`;
+    const w = ctx.measureText(label).width + 10;
+    ctx.fillStyle = 'rgba(6,12,20,0.7)'; ctx.fillRect(bx - w / 2, by - 18, w, 15);
+    ctx.fillStyle = col; ctx.fillText(label, bx, by - 6); ctx.textAlign = 'start';
+    if (a.fightUntil && Math.random() < 0.3) burst(a.tx, a.ty, Math.random() < 0.5 ? '#fff3c4' : '#ff9f43', 4, 120, { life: 300, size: 2 });
+  }
 }
 
 // ---------- the hound ----------
@@ -5631,6 +5848,11 @@ function spend(cost) {
 }
 function afterSpend() { updateStats(); renderShop(); draw(); saveProgress('progress'); }
 function serviceRows(kind) {
+  const rows0 = serviceRowsInner(kind);
+  const realm = { court: 'aurum', council: 'cantons', chieftain: 'kathar', bank: 'league' }[kind];
+  return realm ? rows0.concat(armyRows(realm)) : rows0;
+}
+function serviceRowsInner(kind) {
   const rs = realmState(), rows = [];
   if (kind === 'court') {
     NOBLE_RANKS.forEach((r, n) => {
@@ -5675,7 +5897,7 @@ function serviceRows(kind) {
       unlock('clansworn'); track('realm_spend', { realm: 'kathar', what: 'oath', cost: 800 });
       afterSpend();
     }, player.gold < 800));
-    for (const r of serviceRows('shaman')) rows.push(r);
+    for (const r of serviceRowsInner('shaman')) rows.push(r);
   } else if (kind === 'shaman') {
     const b = player.meta.blessing;
     if (b && b.turns > 0) rows.push(shopRow(`You walk with the ${b.name || 'shrine\'s blessing'} for ${b.turns} more turns. A new spirit replaces it`));
@@ -5799,7 +6021,8 @@ function startRun(saved) {
         story: saved.meta?.story && saved.meta.story.phase ? saved.meta.story : null, blessing: saved.meta?.blessing || null,
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
-        rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod },
+        rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
+        war: saved.meta?.war && saved.meta.war.troops ? { troops: { cantons: 0, aurum: 0, kathar: 0, league: 0, ...saved.meta.war.troops }, armies: Array.isArray(saved.meta.war.armies) ? saved.meta.war.armies.map((a) => ({ ...a, fightUntil: undefined })) : [], camps: Array.isArray(saved.meta.war.camps) ? saved.meta.war.camps : [] } : null },
       relic: ITEMS.relics[saved.relic] ? saved.relic : null,
       weaponPlus: saved.weapon_plus || 0, armorPlus: saved.armor_plus || 0 });
     // heroes made before classes existed start with the warrior's numbers; fresh heroes take their class's
@@ -5876,6 +6099,6 @@ function pollGamepad(now) {
   }
   pad.prev = gp.buttons.map((b) => b.pressed);
 }
-function loop(now) { pollGamepad(now || performance.now()); if (!gameOver) draw(); requestAnimationFrame(loop); }
+function loop(now) { pollGamepad(now || performance.now()); armyTick(now || performance.now()); if (!gameOver) draw(); requestAnimationFrame(loop); }
 requestAnimationFrame(loop);
 init();

@@ -133,6 +133,15 @@ effects volume, screen shake, and floating numbers, kept in localStorage. The
 Journal's Guide page suggests next steps based on where the hero is and what
 they have.
 
+Orc warcamps dot the wilds, too strong for one hero. At a realm's seat (the King
+or a royal herald, a council or town hall, the clan longhouse, a League bank)
+heroes recruit soldiers for that realm's army, each realm with its own cost and
+strength, and send it to march on a camp. Armies walk the map in real time under
+their realm's banner, shown on the world map with a dashed route, and fight on
+arrival. Victory razes the camp for good and pays the hero a share of the spoils.
+The realms also send armies of their own from towns near the hero. State is kept
+in `meta.war`.
+
 New heroes see a short illustrated history of the world before the King's summons.
 It can be skipped with Esc and reread from the Journal's World page.
 

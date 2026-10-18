@@ -245,4 +245,20 @@ class CharacterTest extends TestCase
             ->assertJson(['bag' => ['fish', 'stew', 'goldcarp'], 'quests' => [['kind' => 'bounty']], 'meta' => ['rod' => true]]);
         $this->actingAs($user)->postJson('/api/character', $state + ['bag' => [], 'quests' => [['kind' => 'heist'] + $bounty]])->assertUnprocessable();
     }
+
+    public function test_armies_and_razed_camps_are_saved_and_checked(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla']);
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 3, 'xp' => 0, 'gold' => 10, 'hp' => 30, 'max_hp' => 30, 'atk' => 4, 'kills' => 0, 'bag' => []];
+        $war = ['troops' => ['cantons' => 30, 'aurum' => 0, 'kathar' => 0, 'league' => 10],
+            'armies' => [['realm' => 'aurum', 'x' => 10, 'y' => 20, 'tx' => 140, 'ty' => -30, 'troops' => 40, 'target' => '1,0', 'mine' => true]],
+            'camps' => ['1,0', '-2,-2']];
+
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['war' => $war]])->assertOk()->assertJson(['meta' => ['war' => $war]]);
+        $bad = $war; $bad['armies'][0]['realm'] = 'orcs';
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['war' => $bad]])->assertUnprocessable();
+        $bad = $war; $bad['troops']['atlantis'] = 5;
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['war' => $bad]])->assertUnprocessable();
+    }
 }

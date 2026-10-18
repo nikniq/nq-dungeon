@@ -57,6 +57,7 @@
                 <li>Walk into water with a fishing rod to fish; eat with <kbd>P</kbd>, or cook stew at an inn or camp</li>
                 <li>Watch captains post bounties on named beasts, marked with a skull on your map</li>
                 <li>Pay an innkeeper to build a monument on a plot in the square, or upgrade one: every hero can use them</li>
+                <li>Recruit soldiers at a realm's seat and send its army to raze an orc warcamp; armies march across the map in real time</li>
               </ul>
             </div>
           </div>
