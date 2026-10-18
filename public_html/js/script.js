@@ -39,10 +39,14 @@ const MONSTER_TYPES = [
   { name: 'Knight',   sprite: 'darkknight', hp: 16, atk: 5, xp: 24, minFloor: 99, noSpawn: true },
 ];
 // Hero classes: base stats, a sprite, and one ability on the 1 key.
+// Abilities run on mana: a pool that grows with level and refills a point a turn.
+const maxMana = () => { const c = CLASSES[player.cls] || CLASSES.warrior; return c.mana + c.manaPerLevel * (player.level - 1); };
+const abilityCost = () => { const c = CLASSES[player.cls] || CLASSES.warrior; return Math.max(1, Math.ceil(c.cost * (1 - 0.2 * perkCount('quickened')) * (wearing('starring') ? 0.5 : 1))); };
+function restoreMana(n = Infinity) { player.mana = Math.min(maxMana(), (player.mana ?? 0) + n); }
 const CLASSES = {
-  warrior: { name: 'Warrior', hp: 24, atk: 3, sprite: 'player', ability: 'Shield Wall', cooldown: 25, blurb: 'Take 2 less damage from every hit for 6 turns.' },
-  ranger:  { name: 'Ranger',  hp: 18, atk: 3, sprite: 'ranger', ability: 'Arrow',       cooldown: 3,  blurb: 'Shoot the nearest monster in a straight line, up to 6 tiles. Rangers also spot traps two tiles away.' },
-  mage:    { name: 'Mage',    hp: 16, atk: 2, sprite: 'mage',   ability: 'Fireball',    cooldown: 8,  blurb: 'Burn every monster within 2 tiles of the nearest one in sight (range 5).' },
+  warrior: { name: 'Warrior', hp: 24, atk: 3, sprite: 'player', ability: 'Shield Wall', mana: 20, manaPerLevel: 1, cost: 18, blurb: 'Take 2 less damage from every hit for 6 turns.' },
+  ranger:  { name: 'Ranger',  hp: 18, atk: 3, sprite: 'ranger', ability: 'Arrow',       mana: 12, manaPerLevel: 1, cost: 3,  blurb: 'Shoot the nearest monster in a straight line, up to 6 tiles. Rangers also spot traps two tiles away.' },
+  mage:    { name: 'Mage',    hp: 16, atk: 2, sprite: 'mage',   ability: 'Fireball',    mana: 24, manaPerLevel: 2, cost: 8,  blurb: 'Burn every monster within 2 tiles of the nearest one in sight (range 5).' },
 };
 const heroClass = () => CLASSES[player && player.cls] || CLASSES.warrior;
 
@@ -51,7 +55,7 @@ const PERKS = {
   tough:       { name: 'Tough',       desc: '+6 max HP',                                 max: 99 },
   brawn:       { name: 'Brawn',       desc: '+1 attack',                                 max: 99 },
   thick_skin:  { name: 'Thick skin',  desc: '+1 defence, without armor',                 max: 3 },
-  quickened:   { name: 'Quickened',   desc: 'Ability cooldown 20% shorter',              max: 2 },
+  quickened:   { name: 'Quickened',   desc: 'Your ability costs 20% less mana',          max: 2 },
   packrat:     { name: 'Packrat',     desc: '+4 bag slots',                              max: 1 },
   vampiric:    { name: 'Vampiric',    desc: 'Heal 1 HP on every kill',                   max: 1 },
   hunter:      { name: 'Hunter',      desc: '+50% XP from kills',                        max: 1 },
@@ -2222,8 +2226,9 @@ function useFurniture(d) {
   log(flavour[d.sprite] || `${d.name}.`);
 }
 function restAtInn() {
-  if (player.hp < player.maxHp) { player.hp = player.maxHp; log('You rest at the inn and recover fully.', 'good'); }
-  else log('You are already in perfect health.');
+  const tired = player.hp < player.maxHp || (player.mana ?? 0) < maxMana();
+  player.hp = player.maxHp; restoreMana();
+  log(tired ? 'You rest at the inn and recover fully.' : 'You are already in perfect health.', tired ? 'good' : '');
   updateStats();
 }
 
@@ -2619,30 +2624,231 @@ function drawRampart(g, c, r) {
   if (groundAt(c, r - 1) !== GROUND.RAMPART) { g.fillStyle = '#94a3b8'; for (let i = 0; i < T; i += 8) g.fillRect(X + i, Y, 4, 5); }
   g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(X, Y + T - 3, T, 3);
 }
+// ---------- buildings ----------
+// Each building is drawn from its realm's style (timber and plaster in the Cantons,
+// stone in the Kingdom, logs in the Clans, marble in the League) with special
+// touches for the important ones: battlements, banners, columns, awnings, forges.
+const shade = (hex, amt) => {
+  const n = parseInt(hex.slice(1), 16);
+  const f = (c) => Math.max(0, Math.min(255, Math.round(c + (amt > 0 ? (255 - c) * amt : c * amt))));
+  return `#${((f(n >> 16) << 16) | (f((n >> 8) & 255) << 8) | f(n & 255)).toString(16).padStart(6, '0')}`;
+};
+const STONE_IDS = new Set(['keep', 'throne', 'royal', 'watch', 'herald', 'arena', 'armoury', 'smithy']);
+const MARBLE_IDS = new Set(['council', 'townhall', 'exchange']);
+const CHIMNEY_IDS = new Set(['inn', 'home', 'cottage', 'herbs', 'smithy', 'apothecary', 'longhouse', 'shamanhut', 'shop']);
+const BANNER_IDS = new Set(['throne', 'keep', 'herald', 'arena', 'royal']);
+const PARAPET_IDS = new Set(['keep', 'arena', 'watch']);
+const SIGN_ICON = { shop: 'gold', market: 'gold', inn: 'bed', herbs: 'potion', apothecary: 'potion', exchange: 'gold', smithy: 'rack', armoury: 'rack', royal: 'rack', watch: 'lamp' };
+function houseStyle(h) {
+  const town = h.town ? townAt(...h.town.split(',').map(Number)) : null, realm = town ? town.realm || 'cantons' : 'cantons';
+  let wall = { cantons: 'timber', aurum: 'stone', kathar: 'log', league: 'marble' }[realm];
+  if (realm !== 'kathar' && STONE_IDS.has(h.id)) wall = 'stone';
+  if (realm !== 'kathar' && MARBLE_IDS.has(h.id)) wall = 'marble';
+  if (h.id === 'longhouse' || h.id === 'shamanhut') wall = 'log';
+  const roof = wall === 'log' ? 'thatch' : PARAPET_IDS.has(h.id) && wall === 'stone' ? 'parapet' : MARBLE_IDS.has(h.id) && wall === 'marble' ? 'pediment' : wall === 'stone' ? 'slate' : 'tiles';
+  return { realm, wall, roof, accent: REALMS[realm] ? REALMS[realm].color : '#5fe17a' };
+}
+// Window centres along the front wall, kept clear of the door.
+function houseWindows(h) {
+  const X = h.x * T, W = h.w * T, doorC = h.doorX * T + T / 2, out = [];
+  const step = h.w >= 10 ? 44 : 38;
+  for (let wx = X + 22; wx < X + W - 16; wx += step) if (Math.abs(wx - doorC) > 26) out.push(wx);
+  return out;
+}
 function drawHouse(g, h) {
-  const X = h.x * T - off.x, Y = h.y * T - off.y, W = h.w * T, H = h.h * T, roofH = Math.floor(H * 0.45);
-  g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(X + 8, Y + 10, W, H);   // shadow cast down and right
-  g.fillStyle = '#d9b382'; g.fillRect(X, Y + roofH, W, H - roofH);
-  g.fillStyle = 'rgba(0,0,0,0.12)'; for (let y = Y + roofH + 6; y < Y + H; y += 10) g.fillRect(X, y, W, 2);
-  g.fillStyle = h.roof; g.fillRect(X - 4, Y, W + 8, roofH);
-  g.fillStyle = 'rgba(0,0,0,0.18)'; for (let y = Y + 6; y < Y + roofH; y += 8) g.fillRect(X - 4, y, W + 8, 2);
-  g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(X - 4, Y, W + 8, 3);
-  for (let wx = X + 12; wx < X + W - 12; wx += 40) {
-    g.fillStyle = '#7bdfff'; g.fillRect(wx, Y + roofH + 10, 14, 14);
-    g.fillStyle = '#1b2733'; g.fillRect(wx + 6, Y + roofH + 10, 2, 14); g.fillRect(wx, Y + roofH + 16, 14, 2);
+  const X = h.x * T - off.x, Y = h.y * T - off.y, W = h.w * T, H = h.h * T, roofH = Math.floor(H * 0.48);
+  const st = houseStyle(h), seed = (h.x * 31 + h.y * 17) >>> 0;
+  const wallY = Y + roofH, wallH = H - roofH, dX = h.doorX * T - off.x + 6;
+  // shadow cast down and right
+  g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(X + 8, Y + 12, W, H);
+
+  // ----- walls -----
+  if (st.wall === 'timber') {
+    g.fillStyle = '#ead9b5'; g.fillRect(X, wallY, W, wallH);
+    g.fillStyle = 'rgba(0,0,0,0.05)'; for (let i = 0; i < W; i += 7) if (noise(seed + i, 3, 41) < 0.4) g.fillRect(X + i, wallY + 4 + (i * 7) % (wallH - 8), 3, 2);
+    g.fillStyle = '#5b3a1a';
+    g.fillRect(X, wallY, W, 4); g.fillRect(X, Y + H - 9, W, 4);
+    const posts = Math.max(2, Math.round(W / 52));
+    for (let k = 0; k <= posts; k++) {
+      const px = X + Math.round((W - 5) * k / posts);
+      g.fillRect(px, wallY, 5, wallH - 6);
+      if (k < posts && k % 2 === 0) {   // a diagonal brace in every other bay
+        const nx = X + Math.round((W - 5) * (k + 1) / posts);
+        g.save(); g.strokeStyle = '#5b3a1a'; g.lineWidth = 4; g.beginPath(); g.moveTo(px + 4, wallY + 4); g.lineTo(Math.min(nx, px + 30), wallY + Math.min(wallH - 10, 26)); g.stroke(); g.restore();
+      }
+    }
+  } else if (st.wall === 'stone') {
+    g.fillStyle = '#7e838d'; g.fillRect(X, wallY, W, wallH);
+    for (let row = 0, y = wallY; y < Y + H - 5; row++, y += 9) {
+      for (let x = X - (row % 2 ? 9 : 0); x < X + W; x += 18) {
+        const n = noise(seed + x, y, 47);
+        g.fillStyle = n < 0.33 ? '#9aa0aa' : n < 0.66 ? '#8d929c' : '#a5abb5';
+        g.fillRect(Math.max(X, x + 1), y + 1, Math.min(16, X + W - x - 1, x + 17 - X), 7);
+      }
+    }
+    g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(X, wallY, W, 2);
+  } else if (st.wall === 'log') {
+    g.fillStyle = '#4a2f17'; g.fillRect(X, wallY, W, wallH);
+    for (let y = wallY + 1; y < Y + H - 4; y += 8) {
+      g.fillStyle = noise(seed, y, 53) < 0.5 ? '#8b5a2b' : '#7d5026'; g.beginPath(); g.roundRect(X - 3, y, W + 6, 7, 3); g.fill();
+      g.fillStyle = 'rgba(255,255,255,0.14)'; g.fillRect(X, y + 1, W, 1);
+      g.fillStyle = '#c69863'; g.beginPath(); g.arc(X - 2, y + 3.5, 3.5, 0, Math.PI * 2); g.arc(X + W + 2, y + 3.5, 3.5, 0, Math.PI * 2); g.fill();
+    }
+  } else {   // marble
+    g.fillStyle = '#e9e6f0'; g.fillRect(X, wallY, W, wallH);
+    g.fillStyle = '#d3cfde'; g.fillRect(X, wallY, W, 5);
+    const cols = Math.max(2, Math.round(W / 40));
+    for (let k = 0; k <= cols; k++) {
+      const cx = X + 3 + Math.round((W - 14) * k / cols);
+      if (Math.abs(cx + 4 - (dX + 10)) < 18) continue;
+      g.fillStyle = '#f7f5fb'; g.fillRect(cx, wallY + 5, 8, wallH - 10);
+      g.fillStyle = '#c4bfd3'; g.fillRect(cx + 6, wallY + 5, 2, wallH - 10);
+      g.fillStyle = '#d3cfde'; g.fillRect(cx - 2, wallY + 4, 12, 3); g.fillRect(cx - 2, Y + H - 8, 12, 3);
+    }
   }
-  const dx = h.doorX * T - off.x + 6;
-  g.fillStyle = '#5b3a1a'; g.fillRect(dx, Y + H - 22, 20, 22);
-  g.fillStyle = '#ffd86b'; g.fillRect(dx + 14, Y + H - 12, 3, 3);
+  // stone footing along the ground
+  g.fillStyle = '#5f646e'; g.fillRect(X - 2, Y + H - 5, W + 4, 5);
+  g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(X - 2, Y + H - 5, W + 4, 1);
+
+  // ----- windows -----
+  const winY = wallY + Math.max(8, Math.floor((wallH - 22) / 2) - 2);
+  for (const wxAbs of houseWindows(h)) {
+    const wx = wxAbs - off.x - 7;
+    if (st.wall === 'marble') {   // tall arched windows
+      g.fillStyle = '#4b4566'; g.beginPath(); g.roundRect(wx - 1, winY - 3, 16, 22, [8, 8, 1, 1]); g.fill();
+      g.fillStyle = '#8fb8e6'; g.beginPath(); g.roundRect(wx + 1, winY - 1, 12, 18, [6, 6, 0, 0]); g.fill();
+      g.fillStyle = 'rgba(255,255,255,0.45)'; g.fillRect(wx + 3, winY + 2, 2, 8);
+      continue;
+    }
+    if (PARAPET_IDS.has(h.id)) {   // arrow slits in a fortress wall
+      g.fillStyle = '#1b1f2a'; g.fillRect(wx + 5, winY - 2, 4, 18); g.fillRect(wx + 2, winY + 5, 10, 3);
+      continue;
+    }
+    if (st.wall !== 'stone') {   // painted shutters
+      g.fillStyle = shade(st.accent, -0.35); g.fillRect(wx - 6, winY - 1, 5, 17); g.fillRect(wx + 15, winY - 1, 5, 17);
+      g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(wx - 6, winY + 7, 5, 1); g.fillRect(wx + 15, winY + 7, 5, 1);
+    }
+    g.fillStyle = '#3b2a1a'; g.fillRect(wx - 1, winY - 2, 16, 19);
+    g.fillStyle = '#9fd4ff'; g.fillRect(wx + 1, winY, 12, 15);
+    g.fillStyle = '#3b2a1a'; g.fillRect(wx + 6, winY, 2, 15); g.fillRect(wx + 1, winY + 7, 12, 2);
+    g.fillStyle = 'rgba(255,255,255,0.5)'; g.fillRect(wx + 2, winY + 1, 3, 3);
+    if (noise(seed, wxAbs, 59) < 0.55) {   // a flower box under the sill
+      g.fillStyle = '#6b4423'; g.fillRect(wx - 2, winY + 17, 18, 4);
+      for (let f = 0; f < 5; f++) { g.fillStyle = ['#ff6b9b', '#ffd86b', '#e74c3c', '#c084fc'][(f + seed) % 4]; g.fillRect(wx - 1 + f * 4, winY + 14, 3, 3); }
+      g.fillStyle = '#3f7d3a'; g.fillRect(wx - 1, winY + 16, 16, 1);
+    }
+  }
+  if (h.id === 'arena') {   // great arches onto the sand
+    for (let k = 0; k < 3; k++) { const ax = X + 10 + k * (W - 20) / 3; if (Math.abs(ax + 10 - (dX + 10)) < 22) continue; g.fillStyle = '#2b2f3a'; g.beginPath(); g.roundRect(ax, wallY + 8, 22, wallH - 14, [11, 11, 0, 0]); g.fill(); g.fillStyle = '#c2a36b'; g.fillRect(ax + 2, Y + H - 9, 18, 3); }
+  }
+  if (h.id === 'smithy') {   // the forge's glow by the door
+    const fx = dX - 30; g.fillStyle = '#2b1a10'; g.fillRect(fx, wallY + 10, 18, 16);
+    const fg = g.createRadialGradient(fx + 9, wallY + 22, 1, fx + 9, wallY + 22, 14); fg.addColorStop(0, '#ffd86b'); fg.addColorStop(0.5, '#ff7a1a'); fg.addColorStop(1, 'rgba(120,30,0,0.6)');
+    g.fillStyle = fg; g.fillRect(fx + 2, wallY + 12, 14, 12);
+  }
+
+  // ----- the door, its step and a lantern -----
+  g.fillStyle = st.wall === 'marble' ? '#c4bfd3' : st.wall === 'stone' ? '#5f646e' : '#3b2a1a';
+  g.beginPath(); g.roundRect(dX - 3, Y + H - 28, 26, 28, [12, 12, 0, 0]); g.fill();
+  g.fillStyle = h.id === 'arena' ? '#2b2f3a' : '#6b4423'; g.beginPath(); g.roundRect(dX, Y + H - 25, 20, 25, [10, 10, 0, 0]); g.fill();
+  if (h.id !== 'arena') {
+    g.fillStyle = 'rgba(0,0,0,0.25)'; for (let k = 1; k < 4; k++) g.fillRect(dX + k * 5, Y + H - 23, 1, 23);
+    g.fillStyle = '#3b2a1a'; g.fillRect(dX, Y + H - 17, 20, 2); g.fillRect(dX, Y + H - 7, 20, 2);
+    g.fillStyle = '#ffd86b'; g.fillRect(dX + 14, Y + H - 13, 3, 3);
+  }
+  g.fillStyle = '#9ca3af'; g.fillRect(dX - 4, Y + H, 28, 3);
+  g.fillStyle = '#1b1b2f'; g.fillRect(dX + 26, Y + H - 26, 6, 2); g.fillRect(dX + 30, Y + H - 26, 2, 4);
+  g.fillStyle = '#ffd86b'; g.fillRect(dX + 28, Y + H - 22, 6, 7); g.fillStyle = '#1b1b2f'; g.fillRect(dX + 28, Y + H - 22, 6, 1); g.fillRect(dX + 28, Y + H - 16, 6, 1);
+
+  // ----- awnings and banners -----
+  if (h.id === 'shop' || h.id === 'market') {
+    const aw = Math.min(W - 12, 76), ax = Math.max(X + 4, Math.min(X + W - aw - 4, dX + 10 - aw / 2)), ay = wallY + 2;
+    for (let k = 0; k < aw; k += 10) { g.fillStyle = (k / 10) % 2 ? '#f4f4f4' : shade(st.accent, -0.15); g.fillRect(ax + k, ay, Math.min(10, aw - k), 10); g.beginPath(); g.arc(ax + k + 5, ay + 10, 5, 0, Math.PI); g.fill(); }
+    g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(ax, ay + 15, aw, 2);
+  }
+  if (BANNER_IDS.has(h.id)) {
+    for (const bx of [X + 10, X + W - 24]) {
+      g.fillStyle = '#ffd86b'; g.fillRect(bx - 1, wallY + 2, 16, 3);
+      g.fillStyle = st.accent; g.beginPath(); g.moveTo(bx, wallY + 5); g.lineTo(bx + 14, wallY + 5); g.lineTo(bx + 14, wallY + 30); g.lineTo(bx + 7, wallY + 25); g.lineTo(bx, wallY + 30); g.fill();
+      g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(bx + 11, wallY + 5, 3, 22);
+      g.fillStyle = '#ffd86b'; g.fillRect(bx + 5, wallY + 12, 4, 4);
+    }
+  }
+
+  // ----- the roof -----
+  g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(X, wallY, W, 5);   // shadow under the eaves
+  const ov = 6, base = h.roof || '#7a4a2a';
+  if (st.roof === 'parapet') {
+    g.fillStyle = '#6b707a'; g.fillRect(X - 2, Y + 8, W + 4, roofH - 8);
+    g.fillStyle = '#7e838d'; for (let x = X - 2; x < X + W; x += 12) g.fillRect(x, Y, 8, 10);
+    g.fillStyle = 'rgba(255,255,255,0.15)'; for (let x = X - 2; x < X + W; x += 12) g.fillRect(x, Y, 8, 2);
+    g.fillStyle = '#4b5059'; g.fillRect(X + 6, Y + 14, W - 12, roofH - 22);
+    g.fillStyle = shade(base, -0.1); g.fillRect(X + 8, Y + 16, W - 16, roofH - 26);   // the walkway
+  } else if (st.roof === 'pediment') {
+    g.fillStyle = '#d3cfde'; g.fillRect(X - 4, Y + roofH - 10, W + 8, 10);
+    g.fillStyle = '#f2f0f7'; g.beginPath(); g.moveTo(X - 4, Y + roofH - 10); g.lineTo(X + W / 2, Y); g.lineTo(X + W + 4, Y + roofH - 10); g.fill();
+    g.fillStyle = base; g.beginPath(); g.moveTo(X + 8, Y + roofH - 14); g.lineTo(X + W / 2, Y + 7); g.lineTo(X + W - 8, Y + roofH - 14); g.fill();
+    g.fillStyle = '#c4bfd3'; g.fillRect(X - 4, Y + roofH - 3, W + 8, 3);
+    g.fillStyle = '#ffd86b'; g.beginPath(); g.arc(X + W / 2, Y + roofH * 0.5, 4, 0, Math.PI * 2); g.fill();
+  } else {
+    g.save();
+    g.beginPath(); g.moveTo(X - ov, wallY); g.lineTo(X + 12, Y + 2); g.lineTo(X + W - 12, Y + 2); g.lineTo(X + W + ov, wallY); g.closePath();
+    g.fillStyle = base; g.fill(); g.clip();
+    if (st.roof === 'thatch') {
+      for (let k = 0; k < (W + 2 * ov) * 1.4; k++) {
+        const x = X - ov + ((k * 7919) % (W + 2 * ov)), y = Y + ((k * 104729) % roofH);
+        g.fillStyle = noise(k, seed, 61) < 0.5 ? shade(base, 0.18) : shade(base, -0.2); g.fillRect(x, y, 1, 6);
+      }
+      g.fillStyle = shade(base, -0.3); for (let y = Y + 9; y < wallY; y += 10) g.fillRect(X - ov, y, W + 2 * ov, 1);
+    } else if (st.roof === 'slate') {
+      for (let row = 0, y = Y + 3; y < wallY; row++, y += 6) for (let x = X - ov - (row % 2 ? 6 : 0); x < X + W + ov; x += 12) {
+        g.fillStyle = noise(x, y, 67) < 0.5 ? shade(base, -0.08) : shade(base, 0.06); g.fillRect(x + 1, y, 10, 5);
+      }
+    } else {   // clay tiles: rows of scallops
+      for (let row = 0, y = Y + 4; y < wallY + 4; row++, y += 7) {
+        g.fillStyle = shade(base, -0.22); g.fillRect(X - ov, y + 4, W + 2 * ov, 2);
+        g.fillStyle = shade(base, row % 2 ? 0.05 : -0.05);
+        for (let x = X - ov - (row % 2 ? 4 : 0); x < X + W + ov; x += 8) { g.beginPath(); g.arc(x + 4, y + 3, 4, 0, Math.PI); g.fill(); }
+      }
+    }
+    const lg = g.createLinearGradient(0, Y, 0, wallY); lg.addColorStop(0, 'rgba(255,255,255,0.18)'); lg.addColorStop(1, 'rgba(0,0,0,0.18)');
+    g.fillStyle = lg; g.fillRect(X - ov, Y, W + 2 * ov, roofH);
+    g.restore();
+    g.fillStyle = shade(base, 0.3); g.fillRect(X + 12, Y + 1, W - 24, 3);   // the ridge
+    g.fillStyle = shade(base, -0.35); g.fillRect(X - ov, wallY - 2, W + 2 * ov, 2);   // the eave
+    if (h.id === 'throne') { g.fillStyle = '#ffd86b'; for (let x = X + 16; x < X + W - 16; x += 22) { g.beginPath(); g.moveTo(x, Y + 1); g.lineTo(x + 4, Y - 6); g.lineTo(x + 8, Y + 1); g.fill(); } }
+    if (h.id === 'longhouse') {   // crossed gable beams at either end
+      g.strokeStyle = '#4a2f17'; g.lineWidth = 3;
+      for (const ex of [X + 12, X + W - 12]) { g.beginPath(); g.moveTo(ex - 8, Y + 8); g.lineTo(ex + 8, Y - 6); g.moveTo(ex + 8, Y + 8); g.lineTo(ex - 8, Y - 6); g.stroke(); }
+    }
+  }
+  if (CHIMNEY_IDS.has(h.id) && st.roof !== 'parapet') {
+    const cx = X + W - 26;
+    g.fillStyle = st.wall === 'log' ? '#5f646e' : '#8b2e2e'; g.fillRect(cx, Y - 8, 10, 18);
+    g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(cx + 7, Y - 8, 3, 18);
+    g.fillStyle = '#3b3f48'; g.fillRect(cx - 1, Y - 10, 12, 3);
+  }
+
+  // ----- the hanging sign -----
   if (h.sign) {
-    const sw = Math.max(26, h.sign.length * 8 + 8);
-    g.fillStyle = '#f4f4f4'; g.fillRect(dx + 10 - sw / 2, Y + roofH - 7, sw, 13);
-    g.fillStyle = '#1b1b2f'; g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(h.sign, dx + 10, Y + roofH);
+    g.font = 'bold 10px sans-serif';
+    const icon = SIGN_ICON[h.id], tw = g.measureText(h.sign).width, sw = tw + (icon ? 22 : 12), sx = dX + 10 - sw / 2, sy = wallY - 9;
+    g.fillStyle = '#1b1b2f'; g.fillRect(sx + 4, sy - 4, 1, 4); g.fillRect(sx + sw - 5, sy - 4, 1, 4);
+    g.fillStyle = '#6b4423'; g.beginPath(); g.roundRect(sx, sy, sw, 15, 3); g.fill();
+    g.fillStyle = '#8b5a2b'; g.beginPath(); g.roundRect(sx + 1, sy + 1, sw - 2, 13, 2); g.fill();
+    if (icon) { const img = sprite(icon); g.imageSmoothingEnabled = false; g.drawImage(img, sx + 3, sy + 1, 13, 13); }
+    g.fillStyle = '#fff3d6'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(h.sign, sx + (icon ? 18 : 6), sy + 8);
     g.textAlign = 'start'; g.textBaseline = 'alphabetic';
   }
 }
-
+// Chimney smoke drifts up from the houses in view.
+function houseSmoke(now) {
+  if (scene !== 'world' || Math.random() > 0.25) return;
+  for (const h of houses) {
+    if (!CHIMNEY_IDS.has(h.id) || Math.abs(h.x - player.x) > 30 || Math.abs(h.y - player.y) > 22 || Math.random() > 0.12) continue;
+    burst(h.x + h.w - 26 / T - 0.35, h.y - 0.6, h.id === 'smithy' ? '#6b7280' : '#cbd5e1', 1, 8, { gravity: -18, life: 2200, size: 4, spread: 2 });
+  }
+}
 function renderBackground() {
   bgDirty = false;
   const g = bgx;
@@ -2805,9 +3011,9 @@ function drawHud(g, now) {
     ? `HP ${player.hp}/${player.maxHp}  ATK ${player.atk + weaponAtk()}  DEF ${armorDef()}  Lv ${player.level}  ${player.gold}g`
     : `${where}   HP ${player.hp}/${player.maxHp}   ATK ${player.atk + weaponAtk()}   DEF ${armorDef()}   Lv ${player.level}   Gold ${player.gold}`;
   g.font = compact ? 'bold 11px sans-serif' : 'bold 13px sans-serif';
-  // Full screen hides the page's own health bar, so the HUD carries a big one instead.
-  const big = !!document.fullscreenElement;
-  const w = Math.max(g.measureText(text).width + 20, big ? 360 : 0), hudH = big ? 58 : 40;
+  // The HUD carries the game's only health bar, with the mana bar under it.
+  const big = true;
+  const w = Math.max(g.measureText(text).width + 20, compact ? 0 : 360), hudH = 72;
   hudExtra = hudH - 40;
   g.fillStyle = 'rgba(6,12,20,0.78)';
   g.beginPath(); g.roundRect(8, 8, w, hudH, 6); g.fill();
@@ -2824,8 +3030,18 @@ function drawHud(g, now) {
     g.lineWidth = 3; g.strokeStyle = 'rgba(6,12,20,0.9)'; g.strokeText(hpText, 18 + bw / 2, by + 2);
     g.fillStyle = '#ffffff'; g.fillText(hpText, 18 + bw / 2, by + 2);
     g.textAlign = 'start';
-    g.fillStyle = '#0b2033'; g.fillRect(18, by + bh + 3, bw, 4);
-    g.fillStyle = '#7bdfff'; g.fillRect(18, by + bh + 3, bw * Math.min(1, player.xp / xpToNext(player.level)), 4);
+    // mana
+    const my = by + bh + 3, mh = 12, mm = maxMana(), mana = Math.max(0, Math.min(mm, player.mana ?? 0)), mr = mm ? mana / mm : 0;
+    g.fillStyle = '#06202c'; g.beginPath(); g.roundRect(18, my, bw, mh, 4); g.fill();
+    if (mr > 0) { g.fillStyle = mana >= abilityCost() ? '#4f7bff' : '#3b4f8f'; g.beginPath(); g.roundRect(18, my, Math.max(6, bw * mr), mh, 4); g.fill(); }
+    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(20, my + 2, Math.max(0, bw * mr - 4), 2);
+    g.font = 'bold 10px sans-serif'; g.textAlign = 'center';
+    const mpText = `MP ${mana} / ${mm}`;
+    g.lineWidth = 3; g.strokeStyle = 'rgba(6,12,20,0.9)'; g.strokeText(mpText, 18 + bw / 2, my + 1);
+    g.fillStyle = '#ffffff'; g.fillText(mpText, 18 + bw / 2, my + 1); g.textAlign = 'start';
+    // experience
+    g.fillStyle = '#0b2033'; g.fillRect(18, my + mh + 3, bw, 4);
+    g.fillStyle = '#ffd86b'; g.fillRect(18, my + mh + 3, bw * Math.min(1, player.xp / xpToNext(player.level)), 4);
   } else {
     g.fillStyle = '#0b2033'; g.fillRect(18, 40, w - 20, 3);
     g.fillStyle = '#7bdfff'; g.fillRect(18, 40, (w - 20) * Math.min(1, player.xp / xpToNext(player.level)), 3);
@@ -2834,13 +3050,13 @@ function drawHud(g, now) {
   }
   {
     const cls = heroClass();
-    const parts = [`1: ${cls.ability} ${player.cooldown > 0 ? `(${player.cooldown})` : '(ready)'}`];
+    const parts = [`1: ${cls.ability} (${abilityCost()} mana)`];
     if (player.shield > 0) parts.push(`Shield ${player.shield}`);
     if (player.poison > 0) parts.push(`Poisoned ${player.poison}`);
     g.font = '12px sans-serif';
     const at = parts.join('   ');
     g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(8, 50 + hudExtra, g.measureText(at).width + 20, 20, 5); g.fill();
-    g.fillStyle = player.poison > 0 ? '#9ef0b0' : player.cooldown > 0 ? '#a8c0d8' : '#7bdfff'; g.fillText(at, 18, 54 + hudExtra);
+    g.fillStyle = player.poison > 0 ? '#9ef0b0' : (player.mana ?? 0) < abilityCost() ? '#a8c0d8' : '#7bdfff'; g.fillText(at, 18, 54 + hudExtra);
   }
   const obj = scene !== 'dungeon' ? storyObjective() : null;
   let qOffset = 0;
@@ -3161,6 +3377,7 @@ function drawScene(now) {
     if (m.mod) { ctx.fillStyle = ELITE_MODS[m.mod].color; ctx.font = 'bold 12px sans-serif'; ctx.fillText('★', lx * T - cam.x + 1, ly * T - cam.y + 10); }
   }
   drawArmies(ctx, now);
+  houseSmoke(now);
   {
     const [ldx, ldy] = lunge(player, now);
     const lx = (player.rx ?? player.x) + ldx / T, ly = (player.ry ?? player.y) + ldy / T - bob(player) - hop(player);
@@ -3206,6 +3423,9 @@ function drawScene(now) {
       for (const h of houses) {
         if (h.doorX < x0 - 3 || h.doorX > x1 + 3 || h.doorY < y0 - 3 || h.doorY > y1 + 3) continue;
         night.push({ x: h.doorX * T - cam.x + T / 2, y: h.doorY * T - cam.y + T, r: T * 2.4, a: 0.8, glow: 'rgba(255,180,90,0.2)', gr: T * 1.4 });
+        // lamplight in the windows
+        const roofH = Math.floor(h.h * T * 0.48), winY = h.y * T + roofH + Math.max(8, Math.floor((h.h * T - roofH - 22) / 2) - 2) + 7;
+        for (const wx of houseWindows(h)) night.push({ x: wx - cam.x, y: winY - cam.y, r: T * 0.9, a: 0.9, glow: 'rgba(255,190,90,0.35)', gr: T * 0.5 });
       }
       applyLighting(ctx, `rgba(6,12,40,${0.72 * k})`, night);
       // fireflies drifting about
@@ -3765,7 +3985,7 @@ function gainXp(n) {
   while (player.xp >= xpToNext(player.level)) {
     player.xp -= xpToNext(player.level);
     player.level++;
-    player.maxHp += 4; player.atk += 1; player.hp = player.maxHp; mapCache.ox = null;
+    player.maxHp += 4; player.atk += 1; player.hp = player.maxHp; mapCache.ox = null; restoreMana();
     log(`Level up! You are now level ${player.level}. HP and attack increased.`, 'good');
     sfx.play('levelup');
     burst(player.x, player.y, '#ffd86b', 40, 170, { glow: true, gravity: -40, life: 900, size: 3 });
@@ -4771,7 +4991,7 @@ function makeCamp() {
   const night = dayPhase() === 'night';
   turn += 120;
   const healed = player.maxHp - player.hp;
-  player.hp = player.maxHp; player.poison = 0;
+  player.hp = player.maxHp; player.poison = 0; restoreMana();
   if (hound) { hound.down = false; hound.hp = hound.maxHp; }
   const fish = player.bag.filter((id) => id === 'fish').length;
   if (fish) { player.bag = player.bag.map((id) => (id === 'fish' ? 'stew' : id)); }
@@ -5036,7 +5256,7 @@ function endTurn(moved) {
   mp.lastActive = performance.now();
   if (moved && turn % 2 === 0) sfx.play('step');
   if (moved && scene === 'world') { const gnd = groundAt(player.x, player.y); if (gnd === GROUND.ROAD || gnd === GROUND.SAND) burst(player.x, player.y, gnd === GROUND.SAND ? '#e7d3a1' : '#b9976a', 3, 25, { foot: true, gravity: -10, life: 380, size: 2 }); }
-  if (player.cooldown > 0) player.cooldown--;
+  if ((player.mana ?? 0) < maxMana()) player.mana = Math.min(maxMana(), (player.mana ?? 0) + 1);
   if (player.shield > 0 && --player.shield === 0) log('Your shield wall fades.');
   if (player.poison > 0) {
     player.poison--; player.hp -= 1; floatText(player.x, player.y, '-1', '#7ad36b');
@@ -5166,7 +5386,7 @@ function drinkSpring(x, y) {
   if (usedSprings.has(k)) { log('The spring is dry. It will fill again in a lifetime or two.'); return; }
   usedSprings.add(k); bgDirty = true;
   const healed = player.maxHp - player.hp;
-  player.hp = player.maxHp; player.poison = 0;
+  player.hp = player.maxHp; player.poison = 0; restoreMana();
   if (hound && hound.down) { hound.down = false; hound.hp = hound.maxHp; }
   burst(x, y, '#7bdfff', 30, 90, { glow: true, gravity: -80, life: 900 }); sfx.play('potion');
   floatText(player.x, player.y, healed ? `+${healed}` : '✓', '#9ef0b0');
@@ -5216,10 +5436,11 @@ function aimedLine(aim, range) {
 function useAbility(aim = null) {
   if (gameOver || !player || shopOpen || scene === 'house' || perkChoices || storyOpen()) return;
   const cls = heroClass();
-  if (player.cooldown > 0) { log(`${cls.ability} is not ready (${player.cooldown} turns).`); draw(); return; }
-  const cooldownFor = () => Math.max(1, Math.ceil(cls.cooldown * (1 - 0.2 * perkCount('quickened')) * (wearing('starring') ? 0.5 : 1)));
+  const cost = abilityCost();
+  if ((player.mana ?? 0) < cost) { log(`Not enough mana for ${cls.ability}: it costs ${cost}, you have ${player.mana ?? 0}. Mana returns a point a turn, or drink a mana potion.`); draw(); return; }
+  const spend = () => { player.mana -= cost; };
   if (player.cls === 'warrior') {
-    player.shield = 6; player.cooldown = cooldownFor();
+    player.shield = 6; spend();
     log('You raise your shield wall: 2 less damage from every hit for 6 turns.', 'good');
     burst(player.x, player.y, '#7bdfff', 24, 120, { glow: true, gravity: 0, life: 450 });
     sfx.play('shield'); endTurn(false); return;
@@ -5235,7 +5456,7 @@ function useAbility(aim = null) {
     sfx.play('arrow');
     log(`Your arrow hits ${t.m.boss ? t.m.name : 'the ' + t.m.type.name} for ${dmg}.`);
     if (coopMember()) coopHit(t.m, dmg, 'hero'); else if (t.m.hp <= 0) killMonster(t.m);
-    player.cooldown = cooldownFor(); endTurn(false); return;
+    spend(); endTurn(false); return;
   }
   if (player.cls === 'mage') {
     let target = null, bd = Infinity;
@@ -5254,7 +5475,7 @@ function useAbility(aim = null) {
     for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) burst(target.x + i, target.y + j, Math.random() < 0.5 ? '#ff9f43' : '#ffd86b', 3, 70, { glow: true, gravity: -80, life: 600, size: 3 });
     for (const m of hit) { m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); }
     for (const m of hit) { if (coopMember()) coopHit(m, dmg, 'hero'); else if (m.hp <= 0) killMonster(m); }
-    player.cooldown = cooldownFor(); endTurn(false); return;
+    spend(); endTurn(false); return;
   }
 }
 
@@ -5402,14 +5623,14 @@ function touchButtons() {
   if (!isTouch) return [];
   // buttons down the right edge, fitted between the HUD and the message log:
   // one column of five when there is room, otherwise two columns (three and two)
-  const top = 110, logRoom = 96, room = Math.max(100, canvas.height - top - logRoom);
+  const top = 110 + hudExtra, logRoom = 96, room = Math.max(100, canvas.height - top - logRoom);
   const want = canvas.width < 560 ? 24 : 28, perCol = 10 * 20 + 16 <= room ? 5 : 3;
   const r = Math.max(16, Math.min(want, Math.floor((room - 4 * (perCol - 1)) / (2 * perCol)))), gap = Math.min(2 * r + 12, Math.floor((room - 2 * r) / Math.max(1, perCol - 1)));
   const at = (i) => ({ x: canvas.width - r - 12 - (i >= perCol ? 2 * r + 10 : 0), y: top + r + gap * (i % perCol) });
   const cls = heroClass();
   const canCamp = scene === 'world' && !townContaining(player.x, player.y) && !monsters.some((m) => cheb(m, player) <= 6);
   return [
-    { id: 'ability', label: player.cooldown > 0 ? String(player.cooldown) : '✦', sub: cls.ability, ...at(0), r, active: player.cooldown <= 0 },
+    { id: 'ability', label: (player.mana ?? 0) >= abilityCost() ? '✦' : String(abilityCost() - (player.mana ?? 0)), sub: cls.ability, ...at(0), r, active: (player.mana ?? 0) >= abilityCost() },
     { id: 'potion', label: '♥', sub: 'Potion', ...at(1), r, active: player.bag.some((id) => itemKind(id) === 'consumable' && itemInfo(id).heal) },
     canCamp ? { id: 'camp', label: '▲', sub: 'Camp', ...at(2), r, active: true } : { id: 'wait', label: '⏸', sub: 'Wait', ...at(2), r, active: true },
     { id: 'map', label: scene === 'world' ? 'M' : 'Q', sub: scene === 'world' ? 'Map' : 'Quests', ...at(3), r, active: true },
@@ -5499,6 +5720,7 @@ function itemLabel(id) {
   if (ITEMS.relics[id]) return `${it.name} (${it.desc})`;
   if (it.use === 'bomb') return `${it.name} (blasts a 3×3 area)`;
   if (it.use === 'return') return `${it.name} (back to your home town)`;
+  if (it.use === 'mana') return `${it.name} (+${it.mana} mana)`;
   return `${it.name} (+${it.heal} HP)`;
 }
 function renderInventory() {
@@ -5556,7 +5778,18 @@ function useItem(idx) {
   if (!it) return;
   if (it.use === 'bomb') throwBomb(idx);
   else if (it.use === 'return') readScroll(idx);
+  else if (it.use === 'mana') drinkMana(idx);
   else drinkPotion(idx);
+}
+function drinkMana(idx) {
+  if (gameOver || !player) return;
+  if (idx === undefined) idx = player.bag.indexOf('manapotion');
+  if (idx < 0) { log('You have no mana potions.'); draw(); return; }
+  const it = itemInfo(player.bag[idx]), before = player.mana ?? 0;
+  player.bag.splice(idx, 1); restoreMana(it.mana);
+  log(`You drink the ${it.name.toLowerCase()} and recover ${player.mana - before} mana.`, 'good');
+  sfx.play('potion'); burst(player.x, player.y, '#7b9bff', 14, 50, { glow: true, gravity: -90, life: 800 });
+  updateStats(); renderShop(); draw();
 }
 function throwBomb(idx) {
   if (gameOver || !player || perkChoices) return;
@@ -5644,7 +5877,7 @@ const sellPrice = (id) => Math.floor(itemInfo(id).price * sellRate());
 const SERVICE_SHOPS = new Set(['travel', 'player', 'court', 'council', 'chieftain', 'shaman', 'bank', 'hermit']);
 const SHOPS = {
   shop: { title: 'Merchant', stock: (id, it) => it.floor <= Math.max(floor, 1) + 1, price: (it) => it.price, greet: 'The merchant greets you. Buy and sell with the buttons, Esc to leave.' },
-  potions: { title: "Mara's potions", stock: (id) => id === 'potion', price: (it) => it.price - 2, greet: 'Mara sets out her potions. She buys gear too, at half price.' },
+  potions: { title: "Mara's potions", stock: (id) => id === 'potion' || id === 'manapotion', price: (it) => it.price - 2, greet: 'Mara sets out her potions. She buys gear too, at half price.' },
   smithy: { title: 'The Smithy', stock: (id, it) => ITEMS.weapons[id] && it.floor <= 5, price: (it) => Math.round(it.price * 0.9), greet: 'The smith wipes his hands. Every blade on the wall is for sale, a tenth off.' },
   armoury: { title: 'The Armoury', stock: (id, it) => ITEMS.armor[id] && it.floor <= 5, price: (it) => Math.round(it.price * 0.9), greet: 'Racks of mail and plate. The armourer names fair prices.' },
   apothecary: { title: 'The Apothecary', stock: (id) => id === 'potion' || id === 'elixir', price: (it) => it.price, greet: 'Shelves of bottles. Potions, and elixirs for the desperate.' },
@@ -5653,7 +5886,7 @@ const SHOPS = {
   travel: { title: 'Waystone', stock: () => false, price: (it) => it.price, greet: 'The runes hum under your hand. Choose a town you have visited.' },
   player: { title: 'Hero', stock: () => false, price: (it) => it.price, greet: '' },
 };
-SHOPS.apothecary.stock = (id) => id === 'potion' || id === 'elixir' || id === 'scroll';
+SHOPS.apothecary.stock = (id) => id === 'potion' || id === 'elixir' || id === 'scroll' || id === 'manapotion';
 let shopKind = 'shop';
 const buyPrice = (id) => Math.max(1, Math.round(SHOPS[shopKind].price(itemInfo(id)) * priceMult() * (SERVICE_SHOPS.has(shopKind) ? 1 : localDeal(id))));
 Object.assign(SHOPS, {
@@ -6042,7 +6275,7 @@ function afterSceneChange() {
   updateCamera(); updateVisibility(); buildLegend(); updateStats(); draw();
 }
 function startRun(saved) {
-  player = { x: 1, y: 1, hp: 24, maxHp: 24, atk: 3, level: 1, xp: 0, gold: 0, weapon: null, armor: null, bag: [], quests: [], questsDone: 0, cls: 'warrior', cooldown: 0, shield: 0, poison: 0,
+  player = { x: 1, y: 1, hp: 24, maxHp: 24, atk: 3, level: 1, xp: 0, gold: 0, weapon: null, armor: null, bag: [], quests: [], questsDone: 0, cls: 'warrior', mana: 0, shield: 0, poison: 0,
     perks: [], achievements: [], title: null, meta: { visited: [], second_wind: false, places: [], looted: [], found: [], bestiary: {}, story: null, blessing: null, realm: null }, weaponPlus: 0, armorPlus: 0, lifetimeKills: 0, pendingPerks: 0, relic: null };
   questsOpen = false; mapOpen = false; revealedTraps = new Set(); perkChoices = null; toast = null;
   hound = null;
@@ -6079,6 +6312,7 @@ function startRun(saved) {
     else if (classPick) classPick.hidden = false;
   }
   { const ab = document.getElementById('ability'); if (ab) ab.textContent = `${heroClass().ability} (1)`; }
+  player.mana = maxMana();
   if (hound) hound.collar = player.relic === 'houndcollar';
   // heroes who started before the opening existed get to see it once
   if (player.meta.story && !introSeen()) { pendingPrologue = () => { markIntroSeen(); showScene(WORLD_INTRO, () => log('Press J and choose World to read this again.', 'good')); }; if (!classPick || classPick.hidden) setTimeout(() => { const f = pendingPrologue; pendingPrologue = null; if (f) f(); }, 400); }

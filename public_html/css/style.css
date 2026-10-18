@@ -197,3 +197,5 @@ body.wide .chat,body.wide .party{max-width:1400px;margin-left:auto;margin-right:
 .setting{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:10px 0;color:#e6eef8}
 .setting input[type=range]{flex:1;max-width:240px}
 .setting.check{justify-content:flex-start;gap:8px}
+/* the game's HUD draws the only health bar; the page line stays for screen readers */
+.hud{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}

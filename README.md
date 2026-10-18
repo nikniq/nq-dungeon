@@ -22,7 +22,7 @@ sells the realm's best gear. Cities and some towns have a specialist shop: smith
 armoury or apothecary. Out in the country stand caves, crypts, warrens and towers,
 short themed dungeons with their own monsters, a danger rating that grows with
 distance from Hearth, and a hoard at the bottom. Choose a class: Warrior (Shield Wall), Ranger (Arrow, spots traps) or Mage
-(Fireball); press 1 for the ability. Chests hold gold, spike traps hide in
+(Fireball); press 1 for the ability. Abilities cost mana (blue bar under health), which grows with level, refills a point a turn, and comes back at inns, camps, springs and from mana potions. Chests hold gold, spike traps hide in
 corridors, spiders poison (potions cure), archers shoot from range, bats flit.
 Falling in battle costs half your gold and your potions, never level or gear.
 Hire a hound at any inn: it follows, bites, levels up and is patched up free at
@@ -141,6 +141,11 @@ their realm's banner, shown on the world map with a dashed route, and fight on
 arrival. Victory razes the camp for good and pays the hero a share of the spoils.
 The realms also send armies of their own from towns near the hero. State is kept
 in `meta.war`.
+
+Buildings are drawn in their realm's style: timber-framed plaster in the Cantons,
+stone in the Kingdom, logs and thatch in the Clans, marble in the League. Keeps,
+watch houses and the arena have battlements, halls and banks have classical fronts,
+shops have awnings, smithies a forge glow, and chimneys smoke. Windows glow at night.
 
 New heroes see a short illustrated history of the world before the King's summons.
 It can be skipped with Esc and reread from the Journal's World page.
