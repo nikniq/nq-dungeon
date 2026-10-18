@@ -203,4 +203,19 @@ class CharacterTest extends TestCase
         $this->actingAs($user)->postJson('/api/character', $state + ['event' => 'progress', 'meta' => ['encounters' => 12]])->assertOk()->assertJson(['meta' => ['encounters' => 12]]);
         $this->actingAs($user)->postJson('/api/character', $state + ['event' => 'progress', 'meta' => ['encounters' => -1]])->assertUnprocessable();
     }
+
+    public function test_the_inn_chest_and_deep_record_are_saved_and_checked(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla']);
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 9, 'xp' => 0, 'gold' => 10, 'hp' => 40, 'max_hp' => 40, 'atk' => 5, 'kills' => 0, 'bag' => []];
+        $this->get('/heroes/Ayla')->assertOk()->assertDontSee('Deepest in the Deep');
+
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['room' => true, 'stash' => ['longsword', 'crown', 'potion'], 'deepest' => 12]])->assertOk()
+            ->assertJson(['meta' => ['room' => true, 'stash' => ['longsword', 'crown', 'potion'], 'deepest' => 12]]);
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['stash' => ['excalibur']]])->assertUnprocessable();
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['stash' => array_fill(0, 21, 'potion')]])->assertUnprocessable();
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['deepest' => 500]])->assertUnprocessable();
+        $this->get('/heroes/Ayla')->assertOk()->assertSee('Deepest in the Deep')->assertSee('Floor 12');
+    }
 }

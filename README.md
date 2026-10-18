@@ -78,6 +78,14 @@ forgotten altar, an injured wolf that may join you, a hooded stranger, a bard an
 an abandoned camp, plus ambushes at night. Number keys pick a choice; Esc takes
 the last one, which is always the way out.
 
+Any inn rents a room for good (250 gold). It opens a storage chest of 20 items
+at every inn, kept in `characters.meta.stash` and safe when you fall.
+
+The Deep is the endgame. Once the Crown is restored, the Gate of the Deep
+between Hearth and Castle Aurum opens on endless floors up to 99. Danger rises
+every two floors and a boss guards every fifth. The record is saved as
+`meta.deepest` and shown on the hero's public profile.
+
 New heroes see a short illustrated history of the world before the King's summons.
 It can be skipped with Esc and reread from the Journal's World page.
 

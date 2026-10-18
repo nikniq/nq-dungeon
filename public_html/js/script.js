@@ -87,6 +87,8 @@ const ACHIEVEMENTS = {
   wanderer10:  { label: 'Discovered ten places', title: 'the Pathfinder' },
   collector:   { label: 'Found five treasures', title: 'the Treasure-seeker' },
   crownbearer: { label: 'Restored the Crown of Aurum', title: 'Crownbearer' },
+  abyss10:     { label: 'Reached floor 10 of the Deep', title: 'the Deepwalker' },
+  abyss25:     { label: 'Reached floor 25 of the Deep', title: 'Lord of the Deep' },
   wayfarer:    { label: 'Met ten strangers on the road', title: 'the Wayfarer' },
   vault:       { label: 'Broke into a secret vault', title: 'the Delver of Secrets' },
   squire:      { label: 'Became a Squire of Aurum', title: 'the Squire' },
@@ -236,7 +238,8 @@ async function saveProgress(event, keepalive = false) {
         perks: player.perks, achievements: player.achievements, title: player.title || null,
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
-          bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0 },
+          bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -628,7 +631,7 @@ function offerQuest(n) {
   if (QUEST_GIVERS_CLEAR.includes(n.type.name)) {
     const done = questDoneIds();
     const cands = nearbySites(here.cx, here.cy, 2)
-      .filter((st) => !have.has('clear:' + st.key) && !done.has('clear:' + st.key))
+      .filter((st) => !st.deep && !(st.story && !storySiteOpen(st.story)) && !have.has('clear:' + st.key) && !done.has('clear:' + st.key))
       .sort((a, b) => (Math.abs(a.x - here.cx) + Math.abs(a.y - here.cy)) - (Math.abs(b.x - here.cx) + Math.abs(b.y - here.cy)));
     const st = cands[0];
     if (st) q = { id: 'clear:' + st.key, kind: 'clear', label: `Clear ${st.name.startsWith('The ') ? st.name : 'the ' + st.name} (${st.floors} floors, danger ${stars(st.danger).replace(/☆/g, '')})`, target: st.key, need: 1, have: 0, done: false, giver: n.type.name, reward: 80 + 70 * st.danger };
@@ -720,6 +723,7 @@ function drawJournal(g) {
     const steps = [['The summons', 'Answer King Aldric\'s call at Castle Aurum.', st.phase !== 'summons']];
     STORY_ORDER.forEach((id, i) => { const S = STORY_SITES[id]; const doneShard = i < st.ch || st.phase === 'done' || (i === st.ch && st.phase === 'return'); const known = i < st.ch || (i === st.ch && st.phase !== 'summons') || st.phase === 'done'; steps.push([known ? S.shard : '???', known ? `${S.title}, in ${REALMS[(() => { const st2 = siteAt(S.i, S.j); return realmOfTile(st2.x, st2.y); })()].short}.` : 'Not yet revealed.', doneShard]); });
     steps.push(['The crown restored', 'Bring all five shards to the King.', st.phase === 'done']);
+    if (st.phase === 'done') steps.push(['The Deep', `The Gate of the Deep lies between Hearth and Castle Aurum. Your record: floor ${player.meta.deepest || 0}.`, (player.meta.deepest || 0) >= 25]);
     for (const [name, desc, done] of steps) {
       g.fillStyle = done ? '#9ef0b0' : '#e6eef8'; g.font = 'bold 14px sans-serif'; g.fillText(`${done ? '✓' : '•'} ${name}`, X, y);
       g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText(desc, X + 22, y + 18); y += 40;
@@ -950,6 +954,7 @@ function drawHeroPortrait() {
 BIG_SPRITES.slime = ['................', '................', '................', '................', '.......gg.......', '.....gggggg.....', '....ggggwggg....', '...gggggggggg...', '...ggkggggkgg...', '..gggggggggggg..', '..gggggggggggg..', '..ggggggggggggg.', '.gggggggggggggg.', '.GGGGGGGGGGGGGG.', '................', '................'];
 BIG_SPRITES.necromancer = ['......kkkk......', '.....kkkkkk.....', '....kkkkkkkk....', '....kkwwwwkk....', '....kwkwwkwk....', '....kkwwwwkk....', '.....kkkkkk.....', '....kpppppppk...', '...kppppppppkc..', '..wkppppppppkh..', '..w.kpppppppkh..', '....kpppppppkh..', '....kpppppppkh..', '....kpppppppkh..', '...kkkk..kkkkh..', '................'];
 BIG_SPRITES.mimic = ['................', '................', '..hhhhhhhhhhhh..', '.hHHHHHHHHHHHHh.', '.hHhhhhhhhhhhHh.', '.hHhrkhhhhrkhHh.', '.hHHHHHyyHHHHHh.', '.wkwkwkwkwkwkwk.', '.kkrrrrrrrrrrkk.', '.wkwkwkwkwkwkwk.', '.hHHHHHHHHHHHHh.', '.hHhhhhhhhhhhHh.', '.hHHHHHHHHHHHHh.', '..hhhhhhhhhhhh..', '..h..........h..', '................'];
+BIG_SPRITES.abyss = ['................', '....EEEEEEEE....', '...EeeeeeeeeE...', '..EeEEEEEEEEeE..', '..EeEkkkkkkEeE..', '..EeEkkppkkEeE..', '..EeEkpPPpkEeE..', '..EeEkpPPpkEeE..', '..EeEkkppkkEeE..', '..EeEkkkkkkEeE..', '..EeEkkkkkkEeE..', '..EeEkkkkkkEeE..', '.EEEEEEEEEEEEEE.', 'GGGGGGGGGGGGGGGG', '.GGGGGGGGGGGGGG.', '................'];
 const spriteCache = {};
 // Creatures, items and props get a dark outline so they read on any ground;
 // 16px sprites also get a light top rim and a darker bottom rim for volume.
@@ -1145,10 +1150,16 @@ function xpToNext(level) { return 10 + (level - 1) * 8; }
 // well it pays, how far you can see, and how dangerous it is. Danger grows
 // with distance from Hearth and adds to every monster's health and attack.
 const byName = (...names) => MONSTER_TYPES.filter((t) => names.includes(t.name));
+// The Deep: the endgame, opened when the Crown is whole. Endless floors that grow
+// harder, a boss every fifth floor, and a record of how far down you have been.
+const DEEP_CELL = [1, -1];
+const floorText = () => (dungeonDef && dungeonDef.endless ? `floor ${floor} (record ${player.meta.deepest || floor})` : `${floor}/${dungeonDef ? dungeonDef.floors : FINAL_FLOOR}`);
+const DEEP_THEMES = ['stone', 'moss', 'flooded', 'bone', 'lava', 'arcane'];
 const SITE_TYPES = {
   cave:   { label: 'Goblin Cave', sprite: 'cave',   floors: [2, 3], pool: byName('Rat', 'Goblin', 'Bat', 'Spider', 'Orc', 'Slime'), gold: 1.6, potions: 1, view: 7, loot: 0.12, treasure: 60, prefixes: ['Mossy', 'Dripping', 'Echoing', 'Low', 'Black'] },
   warren: { label: 'Orc Warren',  sprite: 'warren', floors: [2, 2], pool: byName('Goblin', 'Archer', 'Orc'),         gold: 1.2, potions: 1, view: 8, loot: 0.3,  treasure: 80, prefixes: ['Bloody', 'Broken-Tusk', 'Red', 'Grim', 'Ironhide'] },
   crypt:  { label: 'Crypt',       sprite: 'crypt',  floors: [3, 3], pool: byName('Skeleton', 'Spider', 'Wraith', 'Necromancer'),    gold: 1,   potions: 1, view: 6, loot: 0.15, treasure: 120, prefixes: ['Forgotten', 'Silent', 'Weeping', 'Sunken', 'Nameless'], xp: 1.5 },
+  deep:   { label: 'The Deep', sprite: 'abyss', floors: [99, 99], pool: null, gold: 1.6, potions: 1.3, view: 7, loot: 0.22, treasure: 0, prefixes: [''], xp: 1.5 },
   tower:  { label: "Wizard's Tower", sprite: 'tower', floors: [3, 4], pool: byName('Wraith', 'Skeleton', 'Bat', 'Archer', 'Necromancer'), gold: 1.3, potions: 2, view: 9, loot: 0.18, treasure: 200, prefixes: ['Leaning', 'Glass', 'Moonlit', 'Shattered', 'Violet'] },
 };
 let dungeonDef = null;   // set when a gate or a site is entered
@@ -1163,6 +1174,7 @@ function townDungeon(town) {
 function siteDungeon(site) {
   const st = SITE_TYPES[site.type];
   const def = { kind: 'site', name: site.name, floors: site.floors, pool: st.pool, gold: st.gold, potions: st.potions, view: st.view, loot: st.loot, treasure: st.treasure, danger: site.danger, xp: st.xp || 1, site };
+  if (site.deep) Object.assign(def, { name: 'the Deep', endless: true, pool: null, danger: 5 });
   if (site.story) { const S = STORY_SITES[site.story]; Object.assign(def, { story: site.story, theme: S.theme, boss: S.boss, treasure: 150 + 60 * S.danger, xp: 1.5 }); }
   return def;
 }
@@ -1287,6 +1299,7 @@ const KING_SCENES = {
     { who: 'King Aldric', sprite: 'king', text: '"Five shards. Lay them on the cushion. There." His hands are shaking. "I have dreamed of this every night since it broke."' },
     { who: 'The Crown of Aurum', sprite: 'obelisk', text: 'The pieces drift together, and with a sound like a bell heard underwater the Crown of Aurum is whole again. Far beneath the world, something that was waking turns over, and goes back to sleep.' },
     { who: 'King Aldric', sprite: 'king', text: '"The four realms will argue for a hundred years about who saved them. I know the answer." He places the crown in your hands, not on his own head. "It chose you, Crownbearer. Wear it. The realm is in your debt, and so am I."' },
+    { who: 'King Aldric', sprite: 'king', text: '"One more thing." He lowers his voice. "When the crown broke, a gate of black iron opened in the hills between Hearth and my walls. The Gate of the Deep. Whatever the five lights were holding down is still down there. Go as deep as you dare, and come back to tell me what you saw."' },
   ],
 };
 const SHARD_FOUND = {
@@ -1504,6 +1517,14 @@ const sites = new Map();
 function siteAt(i, j) {
   const k = key(i, j);
   if (sites.has(k)) return sites.get(k);
+  if (i === DEEP_CELL[0] && j === DEEP_CELL[1]) {
+    let x = i * TOWN_SPACING + 48, y = j * TOWN_SPACING + 70;
+    const town = townAt(i, j);
+    if (town && x >= town.x0 - 3 && x < town.x0 + TW + 3 && y >= town.y0 - 3 && y < town.y0 + TH + 3) y = town.y0 + TH + 10;
+    const site = { key: k, i, j, x, y, type: 'deep', name: 'The Gate of the Deep', floors: 99, danger: 5, sprite: 'abyss', deep: true };
+    sites.set(k, site);
+    return site;
+  }
   if (STORY_AT[k]) {
     const id = STORY_AT[k], S = STORY_SITES[id];
     let x = i * TOWN_SPACING + 12 + Math.floor(cellRand(i, j, 302) * 70), y = j * TOWN_SPACING + 10 + Math.floor(cellRand(i, j, 303) * 70);
@@ -1514,7 +1535,7 @@ function siteAt(i, j) {
     return site;
   }
   if (cellRand(i, j, 300) > 0.55) { sites.set(k, null); return null; }
-  const types = Object.keys(SITE_TYPES);
+  const types = Object.keys(SITE_TYPES).filter((t) => t !== 'deep');
   const type = types[Math.floor(cellRand(i, j, 301) * types.length)], st = SITE_TYPES[type];
   let x = i * TOWN_SPACING + 8 + Math.floor(cellRand(i, j, 302) * 80), y = j * TOWN_SPACING + 6 + Math.floor(cellRand(i, j, 303) * 80);
   const town = townAt(i, j);
@@ -1872,6 +1893,7 @@ let floorMod = null;
 const viewRadius = () => Math.max(3, (dungeonDef ? dungeonDef.view : VIEW_RADIUS) + (wearing('sunstone') ? 3 : 0) - (scene === 'dungeon' && floorMod === 'dark' ? 3 : 0));
 function pickTheme() {
   if (dungeonDef && dungeonDef.theme) return dungeonDef.theme;
+  if (dungeonDef && dungeonDef.endless) return DEEP_THEMES[(floor - 1) % DEEP_THEMES.length];
   if (dungeonDef && dungeonDef.kind === 'site') return { cave: 'moss', warren: 'stone', crypt: 'bone', tower: 'arcane' }[dungeonDef.site.type] || 'stone';
   return ['stone', 'moss', 'flooded', 'bone', 'lava'][Math.min(4, Math.max(0, floor - 1))];
 }
@@ -1897,7 +1919,7 @@ function createDungeon() {
   exit = { x: ex * CHUNK + target.rooms[0].cx, y: ey * CHUNK + target.rooms[0].cy };
   setTile(exit.x, exit.y, TILE.EXIT);
   monsters = monsters.filter((m) => !(m.x === exit.x && m.y === exit.y)); monstersDirty = true;
-  if (floor === (dungeonDef ? dungeonDef.floors : FINAL_FLOOR)) {
+  if (floor === (dungeonDef ? dungeonDef.floors : FINAL_FLOOR) || (dungeonDef && dungeonDef.endless && floor % 5 === 0)) {
     placeBoss(target.rooms[0], ex * CHUNK, ey * CHUNK, R);
     setTimeout(() => { log(`Something large guards the stairs on this floor. Kill it to break the seal.`, 'bad'); sfx.play('boss'); }, 50);
   }
@@ -2293,7 +2315,7 @@ function drawBubble(g, b) {
 }
 
 function drawHud(g, now) {
-  const where = scene === 'house' ? interior.house.name : inTown() ? `${townContaining(player.x, player.y)?.name ?? 'The wilds'}, ${REALMS[realmOfTile(player.x, player.y)].short} · day ${dayNumber()}, ${dayPhase()}` : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floor}/${dungeonDef ? dungeonDef.floors : FINAL_FLOOR}${dungeonDef ? ` · Lv ${recLevel(dungeonDef)}+` : ''}${floorMod ? ` · ${FLOOR_MODS[floorMod].label}` : ''}`;
+  const where = scene === 'house' ? interior.house.name : inTown() ? `${townContaining(player.x, player.y)?.name ?? 'The wilds'}, ${REALMS[realmOfTile(player.x, player.y)].short} · day ${dayNumber()}, ${dayPhase()}` : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floorText()}${dungeonDef ? ` · Lv ${recLevel(dungeonDef)}+` : ''}${floorMod ? ` · ${FLOOR_MODS[floorMod].label}` : ''}`;
   const compact = canvas.width < 560;
   const text = compact
     ? `HP ${player.hp}/${player.maxHp}  ATK ${player.atk + weaponAtk()}  DEF ${armorDef()}  Lv ${player.level}  ${player.gold}g`
@@ -2921,6 +2943,7 @@ function describeTile(x, y) {
   if (t === TILE.CRACK) return `Cracked wall — it sounds hollow. Walk into it to break through (${player.weapon === 'warhammer' ? 'one blow with your warhammer' : 'three blows, or one with a warhammer or a bomb'}). The noise wakes monsters`;
   if (t === TILE.SPRING) return usedSprings.has(key(x, y)) ? 'A dry spring' : 'Healing spring — walk into it for full health, once';
   if (t === TILE.WAYOUT) return 'Way out — walk into it twice to leave the dungeon early, keeping your loot';
+  if (t === TILE.SITE && inTown()) { const st0 = siteAtTile(x, y); if (st0 && st0.deep) return story().phase === 'done' ? `The Gate of the Deep — endless floors, a boss every fifth, ${ratingText(siteDungeon(st0))}. Your record: floor ${player.meta.deepest || 0}` : 'A gate of black iron, sealed while the Crown lies broken'; }
   if (t === TILE.SITE && inTown()) { const st = siteAtTile(x, y); if (st) return st.story && !storySiteOpen(st.story) ? `${st.name} — sealed with old gold` : `${st.name} — ${st.floors} floors, ${ratingText(siteDungeon(st))}${st.story ? ', a shard lies within' : ''}, step in to explore`; }
   if (t === TILE.PLACE && inTown()) { const pl = placeAtTile(x, y); if (pl) return discovered(pl) ? `${pl.name[0].toUpperCase() + pl.name.slice(1)} — ${PLACE_TYPES[pl.type].label}, walk into it` : 'Something old stands here — walk into it'; }
   if (inTown()) {
@@ -3115,7 +3138,7 @@ function buildLegend() {
 }
 
 function updateStats() {
-  const where = scene === 'house' ? interior.house.name : inTown() ? (townContaining(player.x, player.y)?.name ?? 'The wilds') : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floor}/${dungeonDef ? dungeonDef.floors : FINAL_FLOOR}`;
+  const where = scene === 'house' ? interior.house.name : inTown() ? (townContaining(player.x, player.y)?.name ?? 'The wilds') : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floorText()}`;
   statsEl.textContent = `${where} | HP ${player.hp}/${player.maxHp} | ATK ${player.atk}${weaponAtk() ? '+' + weaponAtk() : ''} | DEF ${armorDef()} | Lv ${player.level} (${player.xp}/${xpToNext(player.level)} XP) | Gold ${player.gold}`;
   hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
   hpBar.style.background = player.hp / player.maxHp > 0.5 ? '#5fe17a' : player.hp / player.maxHp > 0.25 ? '#f5c542' : '#ff6b6b';
@@ -3492,6 +3515,15 @@ function nextFloor() {
     saveProgress('win');
     return;
   }
+  if (dungeonDef.endless) {
+    dungeonDef.danger = 5 + Math.floor((floor - 1) / 2);   // each pair of floors is harder than the last
+    if (floor > (player.meta.deepest || 0)) {
+      player.meta.deepest = floor;
+      if (floor > 1) setTimeout(() => log(`A new record: floor ${floor} of the Deep.`, 'good'), 40);
+    }
+    if (floor >= 10) unlock('abyss10');
+    if (floor >= 25) unlock('abyss25');
+  }
   createDungeon();
   afterSceneChange();
   sfx.play('stairs');
@@ -3604,6 +3636,7 @@ function tryMove(dx, dy) {
     }
     if (t === TILE.SITE && inTown()) {
       const site = siteAtTile(nx, ny);
+      if (site && site.deep && story().phase !== 'done') { player.x -= dx; player.y -= dy; log('A gate of black iron is set into the hillside, cold to the touch. It will not open while the Crown of Aurum lies broken.', 'bad'); draw(); return; }
       if (site && site.story && !storySiteOpen(site.story)) { player.x -= dx; player.y -= dy; log(`An old seal of gold bars the way into ${site.name.replace(/^The /, 'the ')}. King Aldric will know how to break it.`, 'bad'); draw(); return; }
       if (site) {
         if (!confirmEntry(siteDungeon(site), 's:' + site.key)) { player.x -= dx; player.y -= dy; draw(); return; }
@@ -4650,6 +4683,39 @@ function shopRow(label, button, onClick, disabled = false) {
   li.append(label, btn);
   return li;
 }
+// A room rented once opens a storage chest at every inn: the innkeepers' guild
+// carries it between towns. What is in it is safe when you fall.
+const ROOM_COST = 250, STASH_SIZE = 20;
+const stash = () => player.meta.stash || (player.meta.stash = []);
+function stashRows() {
+  const rows = [];
+  if (!player.meta.room) {
+    rows.push(shopRow(`Rent a room for good: a storage chest at every inn, ${STASH_SIZE} items, safe even if you fall`, `Rent ${ROOM_COST}g`, () => {
+      if (player.gold < ROOM_COST) return;
+      player.gold -= ROOM_COST; player.meta.room = true; sfx.play('chest');
+      log('The innkeeper hands you a brass key. "Any inn in the four realms will know it. Your chest travels with the guild wagons."', 'good');
+      tip('stash', 'Store spare gear and treasures in your chest at any inn. The chest keeps them safe when you fall.');
+      updateStats(); renderShop(); draw(); saveProgress('progress');
+    }, player.gold < ROOM_COST));
+    return rows;
+  }
+  const S = stash();
+  const head = document.createElement('li'); head.className = 'empty stash-head'; head.textContent = `Your chest (${S.length}/${STASH_SIZE})${S.length ? '' : ': empty'}`; rows.push(head);
+  S.forEach((id, i) => rows.push(shopRow(`${itemLabel(id)}`, 'Take', () => {
+    if (bagFull()) return;
+    player.bag.push(S.splice(i, 1)[0]); log(`You take the ${itemInfo(id).name} from your chest.`);
+    updateStats(); renderShop(); draw(); saveProgress('progress');
+  }, bagFull())));
+  if (player.bag.length) {
+    const h2 = document.createElement('li'); h2.className = 'empty stash-head'; h2.textContent = 'From your bag'; rows.push(h2);
+    player.bag.forEach((id, i) => rows.push(shopRow(`${itemLabel(id)}`, 'Store', () => {
+      if (S.length >= STASH_SIZE) return;
+      S.push(player.bag.splice(i, 1)[0]); log(`You lock the ${itemInfo(id).name} in your chest.`);
+      updateStats(); renderShop(); draw(); saveProgress('progress');
+    }, S.length >= STASH_SIZE)));
+  }
+  return rows;
+}
 function travelCost(town) { const c = 10 + Math.round((Math.abs(town.cx - player.x) + Math.abs(town.cy - player.y)) / 12); return realmState().standing >= 250 ? Math.ceil(c / 2) : c; }
 function travelTo(town) {
   const cost = travelCost(town);
@@ -4682,6 +4748,7 @@ function renderShop() {
     }, player.gold < HOUND_COST));
     else if (hound.down || hound.hp < hound.maxHp) shopBuy.appendChild(shopRow(hound.down ? 'Your hound is back, bandaged and sorry for itself' : 'Patch up your hound', 'Heal, free', () => { hound.hp = hound.maxHp; hound.down = false; log('The innkeeper patches up your hound. Its tail thumps the floor.', 'good'); buildLegend(); renderShop(); draw(); }));
     else shopBuy.appendChild(shopRow(`Your hound is in fine fettle (level ${hound.level}, ${hound.kills} kills)`));
+    for (const row of stashRows()) shopBuy.appendChild(row);
   }
   if (shopKind === 'player') {
     const o = mp.target;
@@ -4934,7 +5001,8 @@ function startRun(saved) {
         found: Array.isArray(saved.meta?.found) ? saved.meta.found.filter((id) => ITEMS.relics[id]) : [],
         bestiary: saved.meta?.bestiary && !Array.isArray(saved.meta.bestiary) ? saved.meta.bestiary : {},
         story: saved.meta?.story && saved.meta.story.phase ? saved.meta.story : null, blessing: saved.meta?.blessing || null,
-        realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0 },
+        realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
+        room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0 },
       relic: ITEMS.relics[saved.relic] ? saved.relic : null,
       weaponPlus: saved.weapon_plus || 0, armorPlus: saved.armor_plus || 0 });
     // heroes made before classes existed start with the warrior's numbers; fresh heroes take their class's

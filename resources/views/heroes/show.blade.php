@@ -25,6 +25,9 @@
         <tr><th>Escapes</th><td>{{ $character->wins }}</td></tr>
         <tr><th>Dungeon runs</th><td>{{ $character->runs }}</td></tr>
         <tr><th>Deepest floor</th><td>{{ $character->best_floor ?: '—' }}</td></tr>
+        @if (($character->meta['deepest'] ?? 0) > 0)
+        <tr><th>Deepest in the Deep</th><td>Floor {{ $character->meta['deepest'] }}</td></tr>
+        @endif
         <tr><th>Most gold carried</th><td>{{ $character->best_gold }}</td></tr>
         <tr><th>Monsters slain</th><td>{{ $character->kills }}</td></tr>
         <tr><th>Quests completed</th><td>{{ $character->quests_done }}</td></tr>
