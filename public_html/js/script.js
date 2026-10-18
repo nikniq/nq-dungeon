@@ -87,6 +87,7 @@ const ACHIEVEMENTS = {
   wanderer10:  { label: 'Discovered ten places', title: 'the Pathfinder' },
   collector:   { label: 'Found five treasures', title: 'the Treasure-seeker' },
   crownbearer: { label: 'Restored the Crown of Aurum', title: 'Crownbearer' },
+  wayfarer:    { label: 'Met ten strangers on the road', title: 'the Wayfarer' },
   vault:       { label: 'Broke into a secret vault', title: 'the Delver of Secrets' },
   squire:      { label: 'Became a Squire of Aurum', title: 'the Squire' },
   knighted:    { label: 'Knighted by the King', title: 'Knight of Aurum' },
@@ -235,7 +236,7 @@ async function saveProgress(event, keepalive = false) {
         perks: player.perks, achievements: player.achievements, title: player.title || null,
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
-          bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState() },
+          bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -3237,6 +3238,7 @@ function killMonster(m) {
     if (hound && !hound.down && cheb(m, hound) <= 1) houndHurt(blast);
   }
   if (m.type.splits && !m.small && !m.boss && !coopMember()) splitSlime(m);
+  if (m.purse) golds.push({ x: m.x, y: m.y, amount: m.purse });
   if (m.type.name === 'Mimic') { golds.push({ x: m.x, y: m.y, amount: 40 + floor * 15 + (dungeonDef ? dungeonDef.danger * 10 : 0) }); }
   if (m.elite) {
     unlock('elite');
@@ -3627,10 +3629,22 @@ function showScene(pages, onDone) {
   sceneQueue = pages.slice(); sceneDone = onDone || null;
   nextScenePage();
 }
+let scenePage = null;
 function nextScenePage() {
   const page = sceneQueue.shift();
+  scenePage = page || null;
+  const box = document.getElementById('story-choices');
+  if (box) box.innerHTML = '';
   if (!page) { storyEl.hidden = true; const done = sceneDone; sceneDone = null; if (done) done(); draw(); return; }
   storyEl.hidden = false;
+  const choices = page.choices || [];
+  document.getElementById('story-next').hidden = choices.length > 0;
+  choices.forEach((c, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = i === 0 ? 'primary' : '';
+    b.textContent = `${i + 1}. ${c.label}`; b.disabled = !!c.disabled;
+    b.addEventListener('click', () => chooseScene(i));
+    box?.appendChild(b);
+  });
   document.getElementById('story-title').textContent = page.who;
   document.getElementById('story-text').textContent = page.text;
   document.getElementById('story-next').textContent = sceneQueue.length ? 'Continue' : 'Close';
@@ -3639,7 +3653,17 @@ function nextScenePage() {
   g.fillStyle = '#0f1724'; g.fillRect(0, 0, pc.width, pc.height);
   if (page.art === 'realms') drawRealmArt(g, pc.width, pc.height);
   else { const spr = sprite(page.sprite === 'hero' ? playerSprite() : page.sprite || 'player'); g.drawImage(spr, 8, 8, pc.width - 16, pc.height - 16); }
-  const skip = document.getElementById('story-skip'); if (skip) skip.hidden = !sceneQueue.length;
+  const skip = document.getElementById('story-skip'); if (skip) skip.hidden = !sceneQueue.length || choices.length > 0;
+}
+// A choice runs its outcome; a returned string is shown as the result page.
+function chooseScene(i) {
+  const page = scenePage, c = page && page.choices && page.choices[i];
+  if (!c || c.disabled) return;
+  const result = c.run();
+  if (typeof result === 'string') sceneQueue.unshift({ who: page.who, sprite: page.sprite, text: result });
+  else if (result && result.text) sceneQueue.unshift({ who: page.who, sprite: page.sprite, ...result });
+  updateStats();
+  nextScenePage();
 }
 document.getElementById('story-next')?.addEventListener('click', () => nextScenePage());
 document.getElementById('story-skip')?.addEventListener('click', () => skipScene());
@@ -3756,6 +3780,159 @@ function usePlace(pl) {
   updateStats();
 }
 
+// ---------- encounters on the road ----------
+// Walking the wilds, every so often something happens: a choice, and its consequences.
+let encounterClock = 0, lastEncounter = null;
+const wildDanger = () => { const [i, j] = cellOf(player.x, player.y); return Math.max(Math.abs(i), Math.abs(j)); };
+const potionIdx = () => player.bag.findIndex((id) => id === 'potion' || id === 'elixir');
+function spawnFoes(type, n, name, extra = {}) {
+  const d = wildDanger();
+  let made = 0;
+  for (let i = 0; i < n; i++) {
+    const spot = freeTileNear(player.x, player.y, 2);
+    if (!spot || townContaining(spot.x, spot.y)) continue;
+    addMonster(type, spot.x, spot.y, { hp: type.hp + d * 2, atk: type.atk + Math.floor(d / 2), wild: true, ...(name ? { name } : {}), ...extra });
+    made++;
+  }
+  monsters = worldMonsters; monstersDirty = true;
+  return made;
+}
+function upgradeFor(slot) {
+  const group = slot === 'weapon' ? ITEMS.weapons : ITEMS.armor, stat = slot === 'weapon' ? 'atk' : 'def';
+  const now = player[slot] ? group[player[slot]][stat] : 0;
+  const better = Object.keys(group).filter((id) => group[id][stat] > now && group[id].floor < 7).sort((a, b) => group[a][stat] - group[b][stat]);
+  return better[Math.min(1, better.length - 1)] || null;   // two steps up when there is room, so it feels like a real gift
+}
+const ROAD_TALES = [
+  'The bard sings of Aurel the Founder, who walked into the Deep with a lantern and came out with five lights and no shadow.',
+  'The bard sings of the War of Four Banners, when brothers fought brothers for a crown none of them could wear.',
+  'The bard sings of the first waystone, carved by a mason who was tired of walking. Its runes still hum his name.',
+  'The bard sings of a necromancer who raised an army and forgot to raise a cook. It did not end well for anyone.',
+  'The bard sings of the Goldspire magnates, who once bought a mountain because it was in the way of their view.',
+];
+const ENCOUNTERS = {
+  caravan: () => ({ who: 'A merchant caravan', sprite: 'merchant',
+    text: 'Three wagons and a tired ox draw up beside you. "Rare goods from all four realms," calls the caravan master. "Elixirs, bombs, and steel you will not find in any village."',
+    choices: [
+      { label: 'Browse their wares', run: () => { setTimeout(() => openShop('caravan'), 0); return null; } },
+      { label: 'Wave and move on', run: () => 'The caravan creaks away down the road.' },
+    ] }),
+  bandits: () => {
+    const toll = Math.max(10, Math.floor(player.gold * 0.1));
+    return { who: 'Bandits on the road', sprite: 'archer',
+      text: `Three figures step out from behind the trees, bows half-drawn. "Road tax," says the tallest. "${toll} gold, and nobody gets hurt."`,
+      choices: [
+        { label: `Pay the ${toll} gold`, disabled: player.gold < toll, run: () => { player.gold -= toll; return 'You count out the coins. The bandits melt back into the trees, laughing.'; } },
+        { label: 'Draw your weapon', run: () => {
+          const g = MONSTER_TYPES.find((t) => t.name === 'Goblin'), a = MONSTER_TYPES.find((t) => t.name === 'Archer');
+          spawnFoes(g, 2, 'Bandit', { purse: 15 + wildDanger() * 10 }); spawnFoes(a, 1, 'Bandit archer', { purse: 15 + wildDanger() * 10 });
+          shakeScreen(4); sfx.play('boss');
+          return null; } },
+        { label: 'Run for it', run: () => {
+          if (Math.random() < 0.6) return 'You bolt into the brush. Arrows whistle past, but you are faster than they are.';
+          const dmg = 3 + wildDanger(); player.hp = Math.max(1, player.hp - dmg); floatText(player.x, player.y, `-${dmg}`, '#ff6b6b');
+          return `An arrow catches you in the shoulder for ${dmg} as you run, but you get away.`; } },
+      ] };
+  },
+  knight: () => ({ who: 'A wounded knight', sprite: 'guard',
+    text: 'A knight in dented mail sits against a milestone, pressing a hand to a bleeding side. "Orcs," he says. "Five of them. I got four." He eyes your pack. "You would not have a potion?"',
+    choices: [
+      { label: 'Give him a potion', disabled: potionIdx() < 0, run: () => {
+        player.bag.splice(potionIdx(), 1);
+        const slot = Math.random() < 0.5 ? 'weapon' : 'armor', up = upgradeFor(slot);
+        if (up && !bagFull()) { player.bag.push(up); return `He drinks, and the colour comes back to his face. "Take this. I have a spare, and you have earned it." He hands you a ${itemInfo(up).name}.`; }
+        const g = 60 + wildDanger() * 30; player.gold += g;
+        return `He drinks, and the colour comes back to his face. He presses ${g} gold into your hand. "From the King's purse. He would want it."`; } },
+      { label: 'Wish him luck and walk on', run: () => 'He nods, unsurprised. You do not look back.' },
+    ] }),
+  gambler: () => ({ who: 'A travelling gambler', sprite: 'merchant',
+    text: 'A man with a feathered hat sits on a barrel, flipping a silver coin. "Heads, I double your stake. Tails, I keep it. Fairest game in the four realms."',
+    choices: [
+      ...[50, 200].map((bet) => ({ label: `Bet ${bet} gold`, disabled: player.gold < bet, run: () => {
+        const win = Math.random() < (wearing('luckycoin') ? 0.6 : 0.48);
+        player.gold += win ? bet : -bet;
+        if (win && player.gold >= 1000) unlock('rich');
+        return win ? `Heads! He pays out ${bet * 2} gold with a pained smile.` : `Tails. He pockets your ${bet} gold. "Better luck next time, friend."`; } })),
+      { label: 'Keep your gold', run: () => 'He shrugs and goes back to flipping the coin. It lands tails, every time.' },
+    ] }),
+  altar: () => ({ who: 'A forgotten altar', sprite: 'obelisk',
+    text: 'Half sunk in the grass is an altar to a god whose name has worn away. The stone is stained dark. It feels hungry, and it feels like it would pay.',
+    choices: [
+      { label: 'Offer your blood (-5 max HP, +1 attack for good)', disabled: player.maxHp <= 15, run: () => {
+        player.maxHp -= 5; player.hp = Math.min(player.hp, player.maxHp); player.atk += 1;
+        burst(player.x, player.y, '#ef4444', 24, 100, { glow: true, gravity: -40, life: 800 });
+        return 'You cut your palm and press it to the stone. Something drinks. Your arm feels stronger, and your heart a little colder.'; } },
+      { label: 'Kneel and pray', run: () => {
+        if (Math.random() < 0.6) { player.meta.blessing = { name: "old god's favour", atk: 2, def: 1, turns: 300 }; return 'Warmth spreads through you. The old god is pleased: +2 attack and +1 defence for 300 turns.'; }
+        player.poison = 5; return 'The stone is cold. Something in the air disagrees with you, and you feel sick.'; } },
+      { label: 'Leave it alone', run: () => 'Some gods are best left forgotten. You walk on.' },
+    ] }),
+  wolf: () => ({ who: 'An injured wolf', sprite: 'hound',
+    text: hound ? 'A grey wolf lies in the ditch with a trap on its leg. Your hound whines at it. The wolf does not growl.' : 'A grey wolf lies in the ditch with a trap on its leg. It watches you with yellow eyes, too tired to growl.',
+    choices: [
+      { label: potionIdx() >= 0 ? 'Free it and pour a potion on the wound' : 'Free it and bind the wound', run: () => {
+        const usedPotion = potionIdx() >= 0; if (usedPotion) player.bag.splice(potionIdx(), 1);
+        if (!usedPotion && Math.random() < 0.5) { player.hp = Math.max(1, player.hp - 2); return 'You pry the trap open. The wolf bites you, once, hard, and limps into the trees.'; }
+        if (!hound) { hound = { x: player.x, y: player.y, hp: 14, maxHp: 14, atk: 3, level: 1, kills: 0, down: false }; placeHound(); buildLegend(); return 'You pry the trap open and tend the leg. The wolf licks your hand, and when you set off it follows. You have a companion.'; }
+        hound.maxHp += 3; hound.hp = hound.maxHp; return 'You pry the trap open. The wolf and your hound touch noses, and the wolf slips away. Your hound seems prouder, and tougher: +3 max HP.'; } },
+      { label: 'Leave it', run: () => 'You leave the wolf to its fate. The road feels longer after that.' },
+    ] }),
+  stranger: () => {
+    const obj = storyObjective();
+    return { who: 'A hooded stranger', sprite: 'necromancer',
+      text: 'A figure in a grey hood falls into step beside you. "You have the look of someone who goes into holes," they say. "I know where some of the holes are. And other things."',
+      choices: [
+        { label: 'Buy a map of nearby places (40 gold)', disabled: player.gold < 40, run: () => {
+          const unknown = nearbyPlaces(player.x, player.y, 2).filter((p) => !discovered(p)).sort((a, b) => cheb(a, player) - cheb(b, player)).slice(0, 3);
+          player.gold -= 40;
+          if (!unknown.length) { player.gold += 40; return '"You have found everything I know of," they admit, and hand your coins back.'; }
+          for (const p of unknown) player.meta.places.push(p.key);
+          mapCache.ox = null; bgDirty = true;
+          return `They sketch quickly: ${unknown.map((p) => p.name).join(', ')}. The places are marked on your map.`; } },
+        { label: 'Ask about the crown', run: () => obj ? `"${obj.short}," they murmur. "${compassWord(obj.x - player.x, obj.y - player.y)} of here, ${Math.round(Math.hypot(obj.x - player.x, obj.y - player.y))} paces or so. Go well." When you turn, they are gone.` : '"The crown is whole," they say. "For now." When you turn, they are gone.' },
+        { label: 'Walk faster', run: () => 'You lengthen your stride. When you glance back, the road is empty.' },
+      ] };
+  },
+  bard: () => ({ who: 'A travelling bard', sprite: 'villager',
+    text: 'A bard with a battered lute sits on a fence, tuning. "A song for the road, hero? Fifteen gold, and I will make you braver than you are."',
+    choices: [
+      { label: 'Pay 15 gold for a song', disabled: player.gold < 15, run: () => { player.gold -= 15; player.meta.blessing = { name: "bard's song", atk: 1, def: 1, turns: 250 }; return 'The song is about you, mostly, and mostly true. You feel ten feet tall: +1 attack and +1 defence for 250 turns.'; } },
+      { label: 'Ask for a tale instead', run: () => ROAD_TALES[rnd(ROAD_TALES.length)] },
+      { label: 'Not today', run: () => 'The bard plays you out with something mournful.' },
+    ] }),
+  camp: () => ({ who: 'An abandoned camp', sprite: 'stones',
+    text: 'A cold fire pit, a torn tent, a pack spilled across the grass. Whoever camped here left in a hurry.',
+    choices: [
+      { label: 'Search the camp', run: () => {
+        if (Math.random() < 0.3) { spawnFoes(MONSTER_TYPES.find((t) => t.name === 'Spider'), 2); return 'The tent moves. It is full of spiders. That explains the hurry.'; }
+        const g = Math.round((15 + rnd(35) + wildDanger() * 10) * goldMult()); player.gold += g;
+        const extra = Math.random() < 0.4 && !bagFull() ? ['potion', 'bomb', 'scroll'][rnd(3)] : null; if (extra) player.bag.push(extra);
+        return `You find ${g} gold in the pack${extra ? `, and a ${itemInfo(extra).name}` : ''}.`; } },
+      { label: 'Leave it be', run: () => 'Some hurries are catching. You move on.' },
+    ] }),
+  ambush: () => ({ who: 'Ambush!', sprite: 'orc',
+    text: 'A branch snaps. Shapes rise out of the dark on both sides of the road. There is no time to run.',
+    choices: [{ label: 'Fight!', run: () => {
+      const d = wildDanger(), pool = [...byName('Goblin', 'Rat'), ...(d >= 2 ? byName('Orc') : []), ...(d >= 3 ? byName('Skeleton') : [])];
+      for (let i = 0; i < 2 + rnd(2); i++) spawnFoes(pool[rnd(pool.length)], 1);
+      shakeScreen(5); sfx.play('boss'); return null; } }] }),
+};
+function compassWord(dx, dy) {
+  const a = Math.atan2(dy, dx) * 180 / Math.PI;
+  return ['East', 'South-east', 'South', 'South-west', 'West', 'North-west', 'North', 'North-east'][((Math.round(a / 45) % 8) + 8) % 8];
+}
+function startEncounter() {
+  const night = dayPhase() === 'night';
+  const ids = Object.keys(ENCOUNTERS).filter((id) => id !== lastEncounter && (id !== 'ambush' || night));
+  const id = night && Math.random() < 0.35 ? 'ambush' : ids[rnd(ids.length)];
+  lastEncounter = id;
+  player.meta.encounters = (player.meta.encounters || 0) + 1;
+  if (player.meta.encounters >= 10) unlock('wayfarer');
+  sfx.play('quest');
+  track('encounter', { id });
+  showScene([ENCOUNTERS[id]()]);
+}
+
 // ---------- the hound ----------
 let hound = null;   // { x, y, rx, ry, hp, maxHp, atk, level, kills, down, face }
 const HOUND_COST = 80;
@@ -3852,6 +4029,11 @@ function endTurn(moved) {
   if (player.hp <= 0) die();
   if (!gameOver && player.pendingPerks > 0) offerPerks();
   if (inTown()) for (const pl of nearbyPlaces(player.x, player.y, 1)) if (!discovered(pl) && cheb(pl, player) <= 3) discoverPlace(pl);
+  if (scene === 'world' && moved && !gameOver && !storyOpen() && !perkChoices && !townContaining(player.x, player.y) && !coopActive()
+      && !monsters.some((m) => m.awake && cheb(m, player) <= 6)) {
+    encounterClock++;
+    if (encounterClock >= 60 && Math.random() < 0.05) { encounterClock = 0; stopWalk?.(); startEncounter(); }
+  }
   if (inTown()) {
     const r = realmOfTile(player.x, player.y);
     if (lastRealm && r !== lastRealm) {
@@ -4040,7 +4222,16 @@ const KEYS = {
 window.addEventListener('keydown', (e) => {
   // typing in a form field never moves the hero
   if (e.target && e.target.closest && e.target.closest('input, textarea, select')) { if (e.key === 'Escape') e.target.blur(); return; }
-  if (storyOpen()) { if (['Enter', ' ', 'e', 'E'].includes(e.key)) { e.preventDefault(); nextScenePage(); } else if (e.key === 'Escape') { e.preventDefault(); skipScene(); } return; }
+  if (storyOpen()) {
+    const choices = scenePage && scenePage.choices;
+    if (choices && choices.length) {
+      if (/^[1-9]$/.test(e.key)) { e.preventDefault(); chooseScene(Number(e.key) - 1); }
+      else if (e.key === 'Escape') { e.preventDefault(); chooseScene(choices.length - 1); }   // the last choice is always the way out
+      return;
+    }
+    if (['Enter', ' ', 'e', 'E'].includes(e.key)) { e.preventDefault(); nextScenePage(); } else if (e.key === 'Escape') { e.preventDefault(); skipScene(); }
+    return;
+  }
   if (controlsOpen()) { if (['Escape', '?', 'Enter'].includes(e.key)) { e.preventDefault(); toggleControls(false); } return; }
   if (e.key === '?') { e.preventDefault(); toggleControls(true); return; }
   if (journalOpen) { journalKey(e); return; }
@@ -4412,6 +4603,7 @@ Object.assign(SHOPS, {
   chieftain: { title: 'The Clan Fire', stock: () => false, price: (it) => it.price, greet: 'The chieftain looks you up and down. "Outsiders may swear the blood oath. Few do. It costs more than gold, but gold first."' },
   shaman: { title: 'The Spirits', stock: () => false, price: (it) => it.price, greet: 'The shaman throws herbs on the fire. "Which spirit would you walk with?"' },
   bank: { title: 'The Goldspire Exchange', stock: () => false, price: (it) => it.price, greet: 'The banker steeples her fingers. "Deposits are safe from death itself. There is a small fee."' },
+  caravan: { title: 'The merchant caravan', stock: (id, it) => !!ITEMS.consumables[id] || (it.floor >= 3 && it.floor <= 7), price: (it) => Math.round(it.price * 0.95), greet: 'The caravan master throws back a tarp. Goods from every corner of the four realms.' },
   hermit: { title: "The hermit's maps", stock: () => false, price: (it) => it.price, greet: 'The hermit spreads out a bundle of hand-drawn maps. "Places I have been. Places I would not go again."' },
 });
 function openShop(kind = 'shop') {
@@ -4742,7 +4934,7 @@ function startRun(saved) {
         found: Array.isArray(saved.meta?.found) ? saved.meta.found.filter((id) => ITEMS.relics[id]) : [],
         bestiary: saved.meta?.bestiary && !Array.isArray(saved.meta.bestiary) ? saved.meta.bestiary : {},
         story: saved.meta?.story && saved.meta.story.phase ? saved.meta.story : null, blessing: saved.meta?.blessing || null,
-        realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) } },
+        realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0 },
       relic: ITEMS.relics[saved.relic] ? saved.relic : null,
       weaponPlus: saved.weapon_plus || 0, armorPlus: saved.armor_plus || 0 });
     // heroes made before classes existed start with the warrior's numbers; fresh heroes take their class's

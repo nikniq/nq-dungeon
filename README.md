@@ -72,6 +72,12 @@ three chunks in ten hide a secret vault behind a cracked wall: three blows break
 it (one with a warhammer or a bomb), and the noise wakes nearby monsters. Some
 rooms have a healing spring that restores full health once.
 
+Walking the wilds brings roadside encounters with choices: a merchant caravan
+with rare stock, bandits demanding a toll, a wounded knight, a gambler, a
+forgotten altar, an injured wolf that may join you, a hooded stranger, a bard and
+an abandoned camp, plus ambushes at night. Number keys pick a choice; Esc takes
+the last one, which is always the way out.
+
 New heroes see a short illustrated history of the world before the King's summons.
 It can be skipped with Esc and reread from the Journal's World page.
 

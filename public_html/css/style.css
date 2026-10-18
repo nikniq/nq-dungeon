@@ -188,3 +188,7 @@ body.wide .chat,body.wide .party{max-width:1400px;margin-left:auto;margin-right:
 .controls-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 20px}
 .itemlist li > span{flex:1}
 #shop-buy li{flex-wrap:wrap}
+.story-choices{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:6px}
+.story-choices:empty{display:none}
+.story-choices button{text-align:left}
+.story-choices button:disabled{opacity:.45;cursor:not-allowed}

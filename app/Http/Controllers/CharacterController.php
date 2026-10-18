@@ -79,6 +79,7 @@ class CharacterController extends Controller
             'meta.blessing.atk' => ['required_with:meta.blessing', 'integer', 'min:0', 'max:10'],
             'meta.blessing.def' => ['nullable', 'integer', 'min:0', 'max:10'],
             'meta.blessing.name' => ['nullable', 'string', 'max:40'],
+            'meta.encounters' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'meta.realm' => ['nullable', 'array'],
             'meta.realm.rank' => ['required_with:meta.realm', 'integer', 'min:0', 'max:3'],
             'meta.realm.standing' => ['required_with:meta.realm', 'integer', 'min:0', 'max:100000000'],

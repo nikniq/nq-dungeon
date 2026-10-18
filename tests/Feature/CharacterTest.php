@@ -200,5 +200,7 @@ class CharacterTest extends TestCase
             ->assertJson(['gold' => 200, 'meta' => ['realm' => $realm]]);
         $this->actingAs($user)->postJson('/api/character', $state + ['event' => 'progress', 'meta' => ['realm' => ['rank' => 9] + $realm]])->assertUnprocessable();
         $this->actingAs($user)->postJson('/api/character', $state + ['event' => 'progress', 'meta' => ['realm' => ['bank' => -5] + $realm]])->assertUnprocessable();
+        $this->actingAs($user)->postJson('/api/character', $state + ['event' => 'progress', 'meta' => ['encounters' => 12]])->assertOk()->assertJson(['meta' => ['encounters' => 12]]);
+        $this->actingAs($user)->postJson('/api/character', $state + ['event' => 'progress', 'meta' => ['encounters' => -1]])->assertUnprocessable();
     }
 }

@@ -54,6 +54,7 @@
           <div class="story-body">
             <h2 id="story-title"></h2>
             <p id="story-text"></p>
+            <div id="story-choices" class="story-choices"></div>
             <button type="button" id="story-next" class="primary">Continue</button>
             <button type="button" id="story-skip" class="link-btn" hidden>Skip</button>
           </div>
