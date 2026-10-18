@@ -2125,6 +2125,7 @@ function refreshTownContext() {
 function createWorld() {
   scene = 'world';
   floorMod = null;
+  if (dungeonDef && dungeonDef.arena) { dungeonDef = null; ARENA.wave = 0; ARENA.between = false; }
   mp.instance = null;
   bounded = null; ground = null; decor = null; interior = null;
   chunks = worldChunks;
@@ -2667,7 +2668,7 @@ function renderBackground() {
     g.fillStyle = '#e6eef8'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
     g.fillText(interior.house.name, bounded.w * T / 2 - off.x, -cam.y - 10);
     g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif';
-    g.fillText('Walk into things to use them. The door at the bottom leads out.', bounded.w * T / 2 - off.x, bounded.h * T - off.y + 20);
+    g.fillText('Walk into things to use them. The door at the bottom leads out.', bounded.w * T / 2 - off.x, bounded.h * T - off.y + 20, Math.max(120, canvas.width - (isTouch ? 110 : 40)));
     g.textAlign = 'start';
     return;
   }
@@ -2827,7 +2828,7 @@ function drawHud(g, now) {
   if (obj) {
     g.font = 'bold 12px sans-serif';
     let ot = `★ ${obj.text}`; while (g.measureText(ot).width > canvas.width - 40 && ot.length > 12) ot = ot.slice(0, -4) + '…';
-    const oy = canvas.width < 560 ? 84 : 74;
+    const oy = canvas.width < 560 ? 116 : 74;
     g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(8, oy, g.measureText(ot).width + 20, 20, 5); g.fill();
     g.fillStyle = '#ffd86b'; g.fillText(ot, 18, oy + 4);
     qOffset = 24;
@@ -2836,7 +2837,7 @@ function drawHud(g, now) {
   if (q) {
     g.font = '12px sans-serif';
     const qt = `Quest: ${q.label}  ${q.have}/${q.need}${questsActive().length > 1 ? `  (+${questsActive().length - 1} more, Q)` : '  (Q)'}`;
-    const qy = (canvas.width < 560 ? 84 : 74) + qOffset;
+    const qy = (canvas.width < 560 ? 116 : 74) + qOffset;
     let qtext = qt; while (g.measureText(qtext).width > canvas.width - 40 && qtext.length > 12) qtext = qtext.slice(0, -4) + '…';
     g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(8, qy, Math.min(canvas.width - 16, g.measureText(qtext).width + 20), 20, 5); g.fill();
     g.fillStyle = '#9ef0b0'; g.fillText(qtext, 18, qy + 4);
@@ -2849,7 +2850,7 @@ function drawHud(g, now) {
     const label = d === 0 ? `${what}: here` : `${what} ${Math.abs(dy) > Math.abs(dx) / 2 ? (dy < 0 ? 'N' : 'S') : ''}${Math.abs(dx) > Math.abs(dy) / 2 ? (dx < 0 ? 'W' : 'E') : ''}  ${d} tiles`;
     g.font = canvas.width < 560 ? 'bold 11px sans-serif' : 'bold 12px sans-serif';
     const cw = g.measureText(label).width + 36;
-    const bx = canvas.width - cw - 8, cy0 = canvas.width < 560 ? 50 : 8;   // second row on narrow screens
+    const bx = canvas.width - cw - 8, cy0 = canvas.width < 560 ? 82 : 8;   // its own row, under the ability line, on narrow screens
     g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(bx, cy0, cw, 28, 6); g.fill();
     g.fillStyle = '#5fe17a'; g.fillText(label, bx + 30, cy0 + 7);
     // arrow
@@ -2863,14 +2864,22 @@ function drawHud(g, now) {
   g.font = '13px sans-serif';
   const recent = messages.filter((m) => now - m.at < 9000);
   if (recent.length) {
-    const lh = 18, pad = 8, bw = canvas.width - 16, bh = recent.length * lh + pad * 2;
+    // long messages wrap to the width of the screen; the newest six lines show
+    const lh = 18, pad = 8, bw = canvas.width - 16, maxW = bw - 20;
+    const lines = [];
+    for (const m of recent) {
+      let line = '';
+      for (const w of String(m.text).split(' ')) { const t = line ? line + ' ' + w : w; if (g.measureText(t).width > maxW && line) { lines.push({ m, text: line }); line = w; } else line = t; }
+      if (line) lines.push({ m, text: line });
+    }
+    const shown = lines.slice(isTouch ? -4 : -6), bh = shown.length * lh + pad * 2;   // on touch screens, four lines fit under the buttons
     g.fillStyle = 'rgba(6,12,20,0.78)';
     g.beginPath(); g.roundRect(8, canvas.height - bh - 8, bw, bh, 6); g.fill();
-    recent.forEach((m, i) => {
+    shown.forEach(({ m, text }, i) => {
       const age = now - m.at;
       g.globalAlpha = age > 6000 ? 1 - (age - 6000) / 3000 : 1;
       g.fillStyle = m.cls === 'good' ? '#9ef0b0' : m.cls === 'bad' ? '#ff9b9b' : '#e6eef8';
-      g.fillText(m.text, 18, canvas.height - bh - 8 + pad + i * lh);
+      g.fillText(text, 18, canvas.height - bh - 8 + pad + i * lh);
     });
     g.globalAlpha = 1;
   }
@@ -3241,7 +3250,7 @@ function drawScene(now) {
     else {
       ctx.font = '13px sans-serif'; ctx.textBaseline = 'top'; ctx.textAlign = 'center';
       const words = toast.text.split(' '), lines = []; let line = '';
-      for (const w of words) { const t = line ? line + ' ' + w : w; if (ctx.measureText(t).width > 520) { lines.push(line); line = w; } else line = t; }
+      for (const w of words) { const t = line ? line + ' ' + w : w; if (ctx.measureText(t).width > Math.min(520, canvas.width - 60)) { lines.push(line); line = w; } else line = t; }
       lines.push(line);
       const bw = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 28, bh = lines.length * 18 + 16, bx = canvas.width / 2 - bw / 2, by = 104;
       ctx.globalAlpha = Math.min(1, (toast.until - now) / 600);
@@ -4081,7 +4090,7 @@ function nextFloor() {
   else track('floor_reached', { floor, dungeon: dungeonDef.kind === 'site' ? dungeonDef.site.type : 'town' });
   if (floor === 1) { player.meta.second_wind = false; tip('dungeon', 'The compass points to the stairs. Walk into monsters to attack, press 1 for your ability, P for a potion.'); }
   if (floor >= 5) unlock('delver');
-  if (floorMod) setTimeout(() => log(`${FLOOR_MODS[floorMod].label}: ${FLOOR_MODS[floorMod].desc}.`, floorMod === 'treasure' ? 'good' : 'bad'), 30);
+  if (floorMod) { const fm = FLOOR_MODS[floorMod], good = floorMod === 'treasure'; setTimeout(() => log(`${fm.label}: ${fm.desc}.`, good ? 'good' : 'bad'), 30); }
   if (floor === dungeonDef.floors) tip('boss', 'A boss waits by the stairs on the last floor. Clear the room, use your ability, keep a potion ready.');
   log(floor === 1 ? `You descend into the ${dungeonDef.name} (${ratingText(dungeonDef)}). Follow the compass to the stairs. The golden door beside you leads back up if you want out.` : `You descend to floor ${floor}. A golden door here leads back to the surface.`, 'good');
   saveProgress('progress');
@@ -4121,7 +4130,9 @@ function startArena(house) {
   track('arena_enter');
 }
 function nextWave() {
-  const w = ++ARENA.wave, room = getChunk(0, 0).rooms[0];
+  const room = getChunk(0, 0).rooms[0];
+  if (!room) return;
+  const w = ++ARENA.wave;
   dungeonDef.danger = Math.floor(w / 2);
   const pool = MONSTER_TYPES.filter((t) => !t.noSpawn && !t.raiser && !t.splits && t.minFloor <= Math.min(5, 1 + Math.floor(w / 2)));
   const spots = [];
@@ -4140,7 +4151,7 @@ function nextWave() {
   updateVisibility(); draw();
 }
 function arenaTurn() {
-  if (!dungeonDef || !dungeonDef.arena || gameOver) return;
+  if (!dungeonDef || !dungeonDef.arena || scene !== 'dungeon' || gameOver) return;
   if (ARENA.between) { if (turn >= ARENA.nextAt) { ARENA.between = false; nextWave(); } return; }
   if (monsters.length) return;
   const w = ARENA.wave, purse = 15 * w + 5 * w * w;
@@ -4347,6 +4358,7 @@ function toggleSettings(show = !settingsOpen()) {
     document.getElementById('set-numbers').checked = settings.numbers;
   }
 }
+document.getElementById('camp-btn')?.addEventListener('click', () => { sfx.unlock(); makeCamp(); });
 document.getElementById('settings-btn')?.addEventListener('click', () => { sfx.unlock(); toggleSettings(); });
 document.getElementById('settings-close')?.addEventListener('click', () => toggleSettings(false));
 document.getElementById('set-music')?.addEventListener('input', (e) => { settings.music = e.target.value / 100; music.refresh(); saveSettings(); });
@@ -5360,15 +5372,20 @@ let isTouch = false;
 const touch = { id: null, sx: 0, sy: 0, timer: null };
 function touchButtons() {
   if (!isTouch) return [];
-  const r = canvas.width < 560 ? 24 : 28, x = canvas.width - r - 12, gap = r * 2 + 12;
-  const y0 = Math.max(110, Math.round(canvas.height / 2 - gap * 1.5));
+  // buttons down the right edge, fitted between the HUD and the message log:
+  // one column of five when there is room, otherwise two columns (three and two)
+  const top = 110, logRoom = 96, room = Math.max(100, canvas.height - top - logRoom);
+  const want = canvas.width < 560 ? 24 : 28, perCol = 10 * 20 + 16 <= room ? 5 : 3;
+  const r = Math.max(16, Math.min(want, Math.floor((room - 4 * (perCol - 1)) / (2 * perCol)))), gap = Math.min(2 * r + 12, Math.floor((room - 2 * r) / Math.max(1, perCol - 1)));
+  const at = (i) => ({ x: canvas.width - r - 12 - (i >= perCol ? 2 * r + 10 : 0), y: top + r + gap * (i % perCol) });
   const cls = heroClass();
+  const canCamp = scene === 'world' && !townContaining(player.x, player.y) && !monsters.some((m) => cheb(m, player) <= 6);
   return [
-    { id: 'ability', label: player.cooldown > 0 ? String(player.cooldown) : '✦', sub: cls.ability, x, y: y0, r, active: player.cooldown <= 0 },
-    { id: 'potion', label: '♥', sub: 'Potion', x, y: y0 + gap, r, active: player.bag.some((id) => itemKind(id) === 'consumable' && itemInfo(id).heal) },
-    { id: 'wait', label: '⏸', sub: 'Wait', x, y: y0 + gap * 2, r, active: true },
-    { id: 'map', label: scene === 'world' ? 'M' : 'Q', sub: scene === 'world' ? 'Map' : 'Quests', x, y: y0 + gap * 3, r, active: true },
-    { id: 'journal', label: 'J', sub: 'Journal', x, y: y0 + gap * 4, r, active: true },
+    { id: 'ability', label: player.cooldown > 0 ? String(player.cooldown) : '✦', sub: cls.ability, ...at(0), r, active: player.cooldown <= 0 },
+    { id: 'potion', label: '♥', sub: 'Potion', ...at(1), r, active: player.bag.some((id) => itemKind(id) === 'consumable' && itemInfo(id).heal) },
+    canCamp ? { id: 'camp', label: '▲', sub: 'Camp', ...at(2), r, active: true } : { id: 'wait', label: '⏸', sub: 'Wait', ...at(2), r, active: true },
+    { id: 'map', label: scene === 'world' ? 'M' : 'Q', sub: scene === 'world' ? 'Map' : 'Quests', ...at(3), r, active: true },
+    { id: 'journal', label: 'J', sub: 'Journal', ...at(4), r, active: true },
   ];
 }
 function drawTouchButtons(g) {
@@ -5428,6 +5445,7 @@ canvas.addEventListener('pointerdown', (e) => {
     else if (btn.id === 'wait') wait();
     else if (btn.id === 'map') { if (scene === 'world') toggleMap(); else { questsOpen = true; draw(); } }
     else if (btn.id === 'journal') { journalOpen = true; draw(); }
+    else if (btn.id === 'camp') makeCamp();
     return;
   }
   stopTouchWalk();
