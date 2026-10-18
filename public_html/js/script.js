@@ -87,6 +87,7 @@ const ACHIEVEMENTS = {
   wanderer10:  { label: 'Discovered ten places', title: 'the Pathfinder' },
   collector:   { label: 'Found five treasures', title: 'the Treasure-seeker' },
   crownbearer: { label: 'Restored the Crown of Aurum', title: 'Crownbearer' },
+  four_realms: { label: 'Finished every realm questline', title: 'Friend of Four Realms' },
   abyss10:     { label: 'Reached floor 10 of the Deep', title: 'the Deepwalker' },
   abyss25:     { label: 'Reached floor 25 of the Deep', title: 'Lord of the Deep' },
   wayfarer:    { label: 'Met ten strangers on the road', title: 'the Wayfarer' },
@@ -215,8 +216,9 @@ const itemInfo = (id) => ITEMS.weapons[id] || ITEMS.armor[id] || ITEMS.consumabl
 const itemKind = (id) => ITEMS.weapons[id] ? 'weapon' : ITEMS.armor[id] ? 'armor' : ITEMS.relics[id] ? 'relic' : 'consumable';
 // The relic you wear changes how you play; see config/items.php for the list.
 const wearing = (id) => !!player && player.relic === id;
-const goldMult = () => (perkCount('lucky') ? 1.25 : 1) * (wearing('luckycoin') ? 1.4 : 1);
-const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0);
+const goldMult = () => (perkCount('lucky') ? 1.25 : 1) * (wearing('luckycoin') ? 1.4 : 1) * (wearing('ledger') ? 1.25 : 1);
+const potionHeal = (h) => h * (wearing('royalsignet') ? 2 : 1);
+const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0);
 const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0)
   + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.def || 0) : 0) + (realmState().rank >= 2 ? 1 : 0);
 const SAVE_EVERY_TURNS = 20;
@@ -239,7 +241,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0 },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {} },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -787,6 +789,21 @@ function drawQuests(g) {
   g.font = '13px sans-serif'; g.fillStyle = '#a8c0d8';
   g.fillText(`${player.questsDone || 0} completed in total  ·  Q or Esc closes  ·  ask captains, the King or townsfolk for more`, 110, 23);
   let y = 60;
+  const rqs = REALM_ORDER.filter((id) => { const st = rqState(id); return st.s >= 1 && st.s <= 4; });
+  if (rqs.length) {
+    g.font = 'bold 14px sans-serif'; g.fillStyle = '#ffd86b'; g.fillText('Realm quests', 24, y); y += 24;
+    for (const id of rqs) {
+      const st = rqState(id), Q = REALM_QUESTS[id], step = Q.steps[st.s - 1];
+      g.fillStyle = REALMS[id].color; g.fillRect(32, y + 4, 8, 8);
+      g.fillStyle = '#e6eef8'; g.font = '14px sans-serif'; g.fillText(`${Q.title} (${st.s === 4 ? 'done' : `step ${st.s} of 3`})`, 46, y);
+      g.fillStyle = '#9fd4ff'; g.font = '12px sans-serif'; g.fillText(st.s === 4 ? `Report to ${Q.ruler}` : `${step.label}${step.need > 1 ? `: ${st.n}/${step.need}` : ''}  ·  from ${Q.ruler}`, 46, y + 18);
+      y += 42;
+    }
+    y += 6;
+  } else if (REALM_ORDER.some((id) => rqState(id).s === 0)) {
+    g.font = '12px sans-serif'; g.fillStyle = '#a8c0d8';
+    g.fillText('Realm leaders have errands too: Speaker Maren in Hearth, King Aldric, Chieftain Ulrek in Kar Thuldun, and the Goldspire bankers.', 24, y); y += 26;
+  }
   const active = questsActive(), done = player.quests.filter((q) => q.done).slice(-5).reverse();
   g.font = 'bold 14px sans-serif'; g.fillStyle = '#ffd86b'; g.fillText(active.length ? 'Active' : 'No active quests. Walk into a guard captain, the King, or any townsperson.', 24, y); y += 26;
   for (const q of active) {
@@ -1724,6 +1741,7 @@ function leaveBuilding() {
 
 function talk(n) {
   if (n.type.name === 'King Aldric') { unlock('royal'); if (storyKing()) return; }
+  if (realmQuestTalk(n)) return;
   if (n.type.action && SERVICE_SHOPS.has(n.type.action)) { log(`${n.type.name}: ${n.type.lines[rnd(n.type.lines.length)]}`); openShop(n.type.action); return; }
   const line = n.type.lines[rnd(n.type.lines.length)];
   log(`${n.type.name}: ${line}`);
@@ -3284,7 +3302,7 @@ function killMonster(m) {
     if (player.lifetimeKills >= 50) unlock('slayer_50');
     if (scene === 'world' && dayPhase() === 'night') unlock('night_owl');
     if (m.boss) { unlock('boss_slayer'); track('boss_killed', { boss: m.name, floor }); }
-    const xp = Math.round(m.type.xp * (m.small || m.raised ? 0.4 : 1) * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1) * (m.elite ? 2 : 1) * (scene === 'dungeon' ? (floorMod === 'swarming' ? 1.25 : floorMod === 'cursed' ? 1.5 : 1) : 1));
+    const xp = Math.round(m.type.xp * (wearing('cantonsbadge') ? 1.2 : 1) * (m.small || m.raised ? 0.4 : 1) * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1) * (m.elite ? 2 : 1) * (scene === 'dungeon' ? (floorMod === 'swarming' ? 1.25 : floorMod === 'cursed' ? 1.5 : 1) : 1));
     if (m.boss) {
       log(`You slay ${m.name}! The seal on the stairs breaks.`, 'good');
       const purse = 40 + 30 * (dungeonDef ? dungeonDef.danger : 0) + floor * 10;
@@ -3293,6 +3311,9 @@ function killMonster(m) {
     } else log(`You slay the ${mName(m)} (+${xp} XP).`, 'good');
     gainXp(xp);
     questProgress('slay', m.type.name, 1);
+    rqProgress('slay', m.type.name);
+    if (m.elite) rqProgress('elite');
+    if (m.boss) rqProgress('boss');
     if (m.boss) { const keep = dungeonDef; dungeonDef = { ...(dungeonDef || {}), loot: 1 }; dropLoot(m); dungeonDef = keep; } else dropLoot(m);
   }
 }
@@ -3495,6 +3516,7 @@ function nextFloor() {
     sfx.play('win');
     track('dungeon_cleared', { dungeon: def.kind === 'site' ? def.site.type : 'town', danger: def.danger, floors: def.floors });
     if (def.kind === 'site') { questProgress('clear', def.site.key, 1); unlock(def.site.type); } else unlock('escapist');
+    rqProgress('clearIn', def.kind === 'site' ? realmOfTile(def.site.x, def.site.y) : realmAt(...(def.home || '0,0').split(',').map(Number)));
     if (def.story) setTimeout(() => storyShardFound(def.story), 60);
     if (def.treasure) {
       const hoard = Math.round(def.treasure * (1 + def.danger * 0.5));
@@ -3606,7 +3628,7 @@ function tryMove(dx, dy) {
     }
     const pot = getPotionAt(nx, ny);
     if (pot) {
-      const healed = Math.min(pot.heal, player.maxHp - player.hp);
+      const healed = Math.min(potionHeal(pot.heal), player.maxHp - player.hp);
       player.hp += healed;
       potions = potions.filter((p) => p !== pot);
       log(healed > 0 ? `You drink a potion and heal ${healed} HP.` : 'You drink a potion but were already at full health.', 'good');
@@ -3615,7 +3637,7 @@ function tryMove(dx, dy) {
       sfx.play('potion'); burst(nx, ny, '#7bdfff', 14, 50, { glow: true, gravity: -90, life: 800 });
     }
     const g = getGoldAt(nx, ny);
-    if (g) { const amt = Math.round(g.amount * (goldMult())); player.gold += amt; golds = golds.filter((x) => x !== g); log(`You pick up ${amt} gold.`, 'good'); floatText(nx, ny, `+${amt}g`, '#f5c542'); sfx.play('gold'); burst(nx, ny, '#ffd86b', 12, 70, { glow: true, gravity: -50, life: 650 }); if (player.gold >= 1000) unlock('rich'); }
+    if (g) { const amt = Math.round(g.amount * (goldMult())); player.gold += amt; rqProgress('gold', null, amt); golds = golds.filter((x) => x !== g); log(`You pick up ${amt} gold.`, 'good'); floatText(nx, ny, `+${amt}g`, '#f5c542'); sfx.play('gold'); burst(nx, ny, '#ffd86b', 12, 70, { glow: true, gravity: -50, life: 650 }); if (player.gold >= 1000) unlock('rich'); }
     if (t === TILE.SHOP) openShop('shop');
     if (t === TILE.BED) {
       if (interior && interior.house.id === 'inn') restAtInn();
@@ -3758,6 +3780,7 @@ function discoverPlace(pl) {
 }
 function usePlace(pl) {
   if (!pl) return;
+  rqProgress('place', pl.type);
   if (!discovered(pl)) discoverPlace(pl);
   const P = PLACE_TYPES[pl.type], name = pl.name[0].toUpperCase() + pl.name.slice(1);
   const resting = placeCooldown.has(pl.key) && turn - placeCooldown.get(pl.key) < DAY_LENGTH;
@@ -3811,6 +3834,81 @@ function usePlace(pl) {
     burst(player.x, player.y, '#7bdfff', 14, 60, { glow: true, gravity: -40, life: 600 });
   }
   updateStats();
+}
+
+// ---------- realm questlines ----------
+// Each realm's leader has a three-step errand. State per realm: s = 0 not
+// offered, 1-3 working on that step, 4 ready to report, 5 rewarded; n = progress.
+const REALM_QUESTS = {
+  cantons: { title: 'Wolves at the Door', ruler: 'Speaker Maren', sprite: 'elder', relic: 'cantonsbadge', gold: 150,
+    intro: '"The council voted, at last, after three days of shouting," Speaker Maren says. "Beasts are strangling the roads and the markets are empty. We need someone who acts instead of debating. Will you help the Cantons?"',
+    steps: [{ kind: 'slay', target: 'Goblin', need: 8, label: 'Drive goblins off the trade roads (slay 8)' },
+            { kind: 'clearIn', target: 'cantons', need: 1, label: 'Clear a dungeon in the Free Cantons' },
+            { kind: 'place', target: 'shrine', need: 1, label: 'Light a candle at a wayside shrine, for the travellers' }],
+    outro: '"The roads are open and the markets are loud again." Maren pins a small enamel badge to your collar. "Every citizen gets a vote. You get this. Wear it, and the Cantons will remember."' },
+  aurum: { title: "The King's Justice", ruler: 'King Aldric', sprite: 'king', relic: 'royalsignet', gold: 200,
+    intro: '"There is another matter," the King says, "smaller than the crown, but it keeps me awake. Monsters with champions at their head raid my villages. Bring them the King\'s justice."',
+    steps: [{ kind: 'elite', need: 3, label: 'Slay 3 elite monsters (starred)' },
+            { kind: 'clearIn', target: 'aurum', need: 1, label: 'Clear a dungeon in the Kingdom of Aurum' },
+            { kind: 'slay', target: 'Orc', need: 6, label: 'Break the orc warbands (slay 6 orcs)' }],
+    outro: '"Justice done, and done well." The King twists a ring from his finger. "My signet. The royal apothecaries brewed for my father with this seal; potions will do twice the good for its bearer."' },
+  kathar: { title: 'The Trial of Three', ruler: 'Chieftain Ulrek Stonehand', sprite: 'guard', relic: 'bloodtorc', gold: 120,
+    intro: '"Outsiders who want clan respect take the Trial of Three," Ulrek says. "Hunt. Listen. Kill something that should not die. Do all three and come back, and I will believe you."',
+    steps: [{ kind: 'slay', target: 'Spider', need: 6, label: 'The hunt: slay 6 spiders' },
+            { kind: 'place', target: 'stones', need: 1, label: 'The listening: touch a ring of standing stones' },
+            { kind: 'boss', need: 1, label: 'The kill: slay any dungeon boss' }],
+    outro: 'Ulrek clasps your forearm in front of the whole longhouse. "Clan-friend." He fastens a heavy iron torc around your neck. "When you bleed, it remembers how we fight. Wear it with pride."' },
+  league: { title: 'A Matter of Accounts', ruler: 'Banker Vessa Orlov', sprite: 'merchant', relic: 'ledger', gold: 250,
+    intro: '"I am an investor," Vessa Orlov says, "and you are an investment. Show me returns. Bring gold up out of the dark, clear a League dungeon that is bad for business, and crack open some of those chests that idle adventurers leave lying about."',
+    steps: [{ kind: 'gold', need: 300, label: 'Pick up 300 gold' },
+            { kind: 'clearIn', target: 'league', need: 1, label: 'Clear a dungeon in the Goldspire League' },
+            { kind: 'chest', need: 5, label: 'Open 5 treasure chests' }],
+    outro: '"An excellent return." Vessa slides a slim book across the desk. "My personal ledger. Merchants who see it pay you as they would pay me, and gold has a way of finding its way to it."' },
+};
+const RULER_REALM = Object.fromEntries(Object.entries(REALM_QUESTS).map(([id, q]) => [q.ruler, id]));
+const rqState = (id) => { const all = player.meta.rq || (player.meta.rq = {}); return all[id] || (all[id] = { s: 0, n: 0 }); };
+function rqProgress(kind, target = null, amount = 1) {
+  if (!player || !player.meta) return;
+  for (const id of REALM_ORDER) {
+    const st = rqState(id), Q = REALM_QUESTS[id];
+    if (st.s < 1 || st.s > 3) continue;
+    const step = Q.steps[st.s - 1];
+    if (step.kind !== kind || (step.target && step.target !== target)) continue;
+    st.n += amount;
+    if (st.n < step.need) continue;
+    st.n = 0; st.s++;
+    sfx.play('quest');
+    if (st.s === 4) log(`${Q.title}: all done. Return to ${Q.ruler}.`, 'good');
+    else log(`${Q.title}: step done. Next: ${Q.steps[st.s - 1].label}.`, 'good');
+    toast = { text: st.s === 4 ? `${Q.title} complete. Report to ${Q.ruler}.` : `${Q.title}: ${Q.steps[st.s - 1].label}`, until: performance.now() + 4000 };
+  }
+}
+// Talking to a realm's leader: offer the questline, take the report, or let them trade.
+function realmQuestTalk(n) {
+  const id = RULER_REALM[n.type.name];
+  if (!id) return false;
+  const Q = REALM_QUESTS[id], st = rqState(id), trade = n.type.action;
+  const tradeChoice = { label: trade === 'court' ? 'Ask about titles' : trade === 'council' ? 'Talk about public works' : trade === 'chieftain' ? 'Talk about the clans' : 'Do business', run: () => { setTimeout(() => openShop(trade), 0); return null; } };
+  if (st.s === 0) {
+    showScene([{ who: `${Q.ruler}: ${Q.title}`, sprite: Q.sprite, text: Q.intro, choices: [
+      { label: 'I will do it', run: () => { st.s = 1; st.n = 0; log(`New quest, ${Q.title}: ${Q.steps[0].label}.`, 'good'); sfx.play('quest'); saveProgress('progress'); return `"Good." Your first task: ${Q.steps[0].label.toLowerCase()}. The quest log (Q) keeps track.`; } },
+      tradeChoice,
+      { label: 'Not now', run: () => '"The offer stands," they say.' },
+    ] }]);
+    return true;
+  }
+  if (st.s === 4) {
+    showScene([{ who: `${Q.ruler}: ${Q.title}`, sprite: Q.sprite, text: Q.outro }], () => {
+      st.s = 5; player.gold += Q.gold;
+      log(`${Q.title} complete: ${Q.gold} gold.`, 'good');
+      if (!giveRelic(Q.relic) && !player.meta.found.includes(Q.relic)) log('Your bag is too full for the gift. Come back with room.', 'bad');
+      if (REALM_ORDER.every((r) => rqState(r).s === 5)) unlock('four_realms');
+      updateStats(); saveProgress('progress');
+    });
+    return true;
+  }
+  if (st.s >= 1 && st.s <= 3) { const step = Q.steps[st.s - 1]; log(`${Q.ruler}: "How goes it? ${step.label}${step.need > 1 ? ` (${st.n}/${step.need})` : ''}."`); }
+  return false;
 }
 
 // ---------- encounters on the road ----------
@@ -4118,6 +4216,7 @@ function openChest(x, y) {
   player.gold += gold;
   setTile(x, y, TILE.FLOOR); bgDirty = true;
   log(`You open the chest: ${gold} gold.`, 'good');
+  rqProgress('chest'); rqProgress('gold', null, gold);
   burst(x, y, '#ffd86b', 24, 110, { glow: true, gravity: 120, life: 700, rise: 120 });
   if (player.gold >= 1000) unlock('rich');
   floatText(x, y, `+${gold}g`, '#f5c542');
@@ -4577,7 +4676,7 @@ function drinkPotion(idx) {
   if (idx === undefined) idx = player.bag.findIndex((id) => itemKind(id) === 'consumable' && itemInfo(id).heal);
   if (idx < 0) { log('You have no potions in your bag.'); draw(); return; }
   const it = itemInfo(player.bag[idx]);
-  const healed = Math.min(it.heal, player.maxHp - player.hp);
+  const healed = Math.min(potionHeal(it.heal), player.maxHp - player.hp);
   player.bag.splice(idx, 1);
   player.hp += healed;
   if (player.poison > 0) { player.poison = 0; log('The potion purges the poison.', 'good'); }
@@ -4613,7 +4712,7 @@ function priceMult() {
   m *= rs.guild ? 0.85 : rs.standing >= 1000 ? 0.9 : 1;   // the better of the two, not both
   return m;
 }
-const sellRate = () => currentRealm() === 'league' ? 0.6 : 0.5;
+const sellRate = () => (wearing('ledger') ? 0.7 : currentRealm() === 'league' ? 0.6 : 0.5);
 const sellPrice = (id) => Math.floor(itemInfo(id).price * sellRate());
 const SERVICE_SHOPS = new Set(['travel', 'player', 'court', 'council', 'chieftain', 'shaman', 'bank', 'hermit']);
 const SHOPS = {
@@ -5002,7 +5101,8 @@ function startRun(saved) {
         bestiary: saved.meta?.bestiary && !Array.isArray(saved.meta.bestiary) ? saved.meta.bestiary : {},
         story: saved.meta?.story && saved.meta.story.phase ? saved.meta.story : null, blessing: saved.meta?.blessing || null,
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
-        room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0 },
+        room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
+        rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {} },
       relic: ITEMS.relics[saved.relic] ? saved.relic : null,
       weaponPlus: saved.weapon_plus || 0, armorPlus: saved.armor_plus || 0 });
     // heroes made before classes existed start with the warrior's numbers; fresh heroes take their class's

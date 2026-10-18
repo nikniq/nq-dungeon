@@ -86,6 +86,17 @@ between Hearth and Castle Aurum opens on endless floors up to 99. Danger rises
 every two floors and a boss guards every fifth. The record is saved as
 `meta.deepest` and shown on the hero's public profile.
 
+Each realm's leader has a three-step questline with a unique treasure at the end:
+
+| Leader | Questline | Reward |
+| --- | --- | --- |
+| Speaker Maren (Hearth) | Wolves at the Door | Badge of the Free Cantons: +20% XP |
+| King Aldric | The King's Justice | Royal Signet: potions heal double |
+| Chieftain Ulrek (Kar Thuldun) | The Trial of Three | Bloodfury Torc: +3 attack at half health |
+| Banker Vessa Orlov (League towns) | A Matter of Accounts | Vessa's Ledger: +25% gold, 70% when selling |
+
+Progress is kept in `meta.rq` and shown in the quest log (Q).
+
 New heroes see a short illustrated history of the world before the King's summons.
 It can be skipped with Esc and reread from the Journal's World page.
 

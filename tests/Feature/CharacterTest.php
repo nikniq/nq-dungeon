@@ -218,4 +218,17 @@ class CharacterTest extends TestCase
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['deepest' => 500]])->assertUnprocessable();
         $this->get('/heroes/Ayla')->assertOk()->assertSee('Deepest in the Deep')->assertSee('Floor 12');
     }
+
+    public function test_realm_questline_progress_is_saved_and_checked(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla']);
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 9, 'xp' => 0, 'gold' => 10, 'hp' => 40, 'max_hp' => 40, 'atk' => 5, 'kills' => 0, 'bag' => []];
+        $rq = ['cantons' => ['s' => 5, 'n' => 0], 'league' => ['s' => 1, 'n' => 120]];
+
+        $this->actingAs($user)->postJson('/api/character', $state + ['relic' => 'ledger', 'meta' => ['rq' => $rq, 'found' => ['cantonsbadge', 'ledger']]])->assertOk()
+            ->assertJson(['relic' => 'ledger', 'meta' => ['rq' => $rq]]);
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['rq' => ['atlantis' => ['s' => 1, 'n' => 0]]]])->assertUnprocessable();
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['rq' => ['aurum' => ['s' => 9, 'n' => 0]]]])->assertUnprocessable();
+    }
 }
