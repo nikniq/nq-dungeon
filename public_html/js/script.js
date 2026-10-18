@@ -1804,7 +1804,8 @@ function townIdentity(town) {
   const leader = `${titles[town.size === 'village' || town.size === 'town' ? 0 : 1]} ${names[Math.floor(cellRand(i, j, 503) * names.length)]}`;
   const sizeWord = town.size === 'grand' ? 'royal seat' : town.size === 'castle' ? 'castle town' : town.size;
   town.identity = { tradeId, trade, famous, landmark: { id: lmId, sprite: L.sprite, name: L.name(town, realm), lore: L.lore }, leader, sizeWord, realm,
-    describe() { return `${town.name}: a ${trade.label} ${sizeWord} of the ${REALMS[realm].name}, known for ${famous}. ${this.landmark.name[0].toUpperCase() + this.landmark.name.slice(1)} stands in the square.${trade.deal ? ' ' + DEAL_TEXT[trade.deal] + '.' : ''}`; } };
+    kind: sizeWord === 'royal seat' ? 'royal seat' : `${trade.label} ${sizeWord}`,
+    describe() { return `${town.name}: ${sizeWord === 'royal seat' ? 'the' : 'a'} ${TIER_WORDS[townTier(town)]} ${this.kind} of the ${REALMS[realm].name}, known for ${famous}. ${this.landmark.name[0].toUpperCase() + this.landmark.name.slice(1)} stands in the square.${trade.deal ? ' ' + DEAL_TEXT[trade.deal] + '.' : ''}`; } };
   return town.identity;
 }
 // The town a shop belongs to, for local prices.
@@ -2560,12 +2561,22 @@ const PAVING = {
 function drawCobble(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y, q = T / 2;
   const P = PAVING[scene === 'world' ? realmOfTile(c, r) : 'cantons'];
+  const town = scene === 'world' ? townContaining(c, r) : null, tier = town ? townTier(town) : 2;
+  if (tier === 0 && noise(c, r, 107) < 0.45) {   // worn through to mud
+    const n = noise(c, r, 109);
+    g.fillStyle = n < 0.5 ? '#6b5236' : '#5e4830'; g.fillRect(X, Y, T, T);
+    g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(X + 4 + Math.floor(n * 10), Y + 8, 8, 2); g.fillRect(X + 14, Y + 20 - Math.floor(n * 6), 6, 2);
+    if (noise(c, r, 113) < 0.18) { g.fillStyle = 'rgba(110,140,170,0.55)'; g.beginPath(); g.ellipse(X + T / 2, Y + T / 2, 11, 6, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(X + 12, Y + 13, 5, 1); }
+    return;
+  }
   g.fillStyle = P[0]; g.fillRect(X, Y, T, T);
   for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
     const n = noise(c * 2 + i, r * 2 + j, 3);
-    g.fillStyle = n < 0.33 ? P[1] : n < 0.66 ? P[2] : P[3];
+    g.fillStyle = tier >= 3 ? ((c + r + i + j) % 2 ? P[3] : P[1]) : n < 0.33 ? P[1] : n < 0.66 ? P[2] : P[3];
     g.fillRect(X + i * q + 2, Y + j * q + 2, q - 4, q - 4);
   }
+  if (tier === 0) { g.fillStyle = 'rgba(40,30,20,0.25)'; if (noise(c, r, 117) < 0.5) g.fillRect(X + 2, Y + q + 2, q - 4, q - 4); }   // missing stones
+  if (tier >= 3 && (c + r) % 4 === 0) { g.fillStyle = 'rgba(255,216,107,0.35)'; g.fillRect(X + q - 2, Y + q - 2, 4, 4); }   // brass studs
 }
 function drawGrass(g, c, r, forest = false) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 11);
@@ -2633,6 +2644,18 @@ const shade = (hex, amt) => {
   const f = (c) => Math.max(0, Math.min(255, Math.round(c + (amt > 0 ? (255 - c) * amt : c * amt))));
   return `#${((f(n >> 16) << 16) | (f((n >> 8) & 255) << 8) | f(n & 255)).toString(16).padStart(6, '0')}`;
 };
+// How prosperous a town looks: Hearth and its neighbours are ramshackle, and towns
+// grow finer the further the adventure takes you. Castles and capitals do better.
+const TIER_WORDS = ['ramshackle', 'modest', 'thriving', 'prosperous', 'grand'];
+function townTier(town) {
+  if (!town) return 1;
+  if (town.i === 0 && town.j === 0) return 0;
+  if (town.size === 'grand') return 4;
+  const d = Math.max(Math.abs(town.i), Math.abs(town.j));
+  let tier = d <= 1 ? 0 : d === 2 ? 1 : d === 3 ? 2 : 3;
+  if (town.capital || town.walled) tier += 1;
+  return Math.min(4, tier);
+}
 const STONE_IDS = new Set(['keep', 'throne', 'royal', 'watch', 'herald', 'arena', 'armoury', 'smithy']);
 const MARBLE_IDS = new Set(['council', 'townhall', 'exchange']);
 const CHIMNEY_IDS = new Set(['inn', 'home', 'cottage', 'herbs', 'smithy', 'apothecary', 'longhouse', 'shamanhut', 'shop']);
@@ -2658,6 +2681,7 @@ function houseWindows(h) {
 function drawHouse(g, h) {
   const X = h.x * T - off.x, Y = h.y * T - off.y, W = h.w * T, H = h.h * T, roofH = Math.floor(H * 0.48);
   const st = houseStyle(h), seed = (h.x * 31 + h.y * 17) >>> 0;
+  const tier = townTier(h.town ? townAt(...h.town.split(',').map(Number)) : null), shabby = tier === 0, fine = tier >= 3;
   const wallY = Y + roofH, wallH = H - roofH, dX = h.doorX * T - off.x + 6;
   // shadow cast down and right
   g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(X + 8, Y + 12, W, H);
@@ -2706,9 +2730,20 @@ function drawHouse(g, h) {
       g.fillStyle = '#d3cfde'; g.fillRect(cx - 2, wallY + 4, 12, 3); g.fillRect(cx - 2, Y + H - 8, 12, 3);
     }
   }
+  if (shabby) {
+    // grime, cracks and fallen plaster
+    const gg = g.createLinearGradient(0, wallY, 0, Y + H); gg.addColorStop(0, 'rgba(40,30,20,0.08)'); gg.addColorStop(1, 'rgba(40,30,20,0.35)');
+    g.fillStyle = gg; g.fillRect(X, wallY, W, wallH);
+    for (let k = 0; k < Math.max(2, Math.round(W / 50)); k++) {
+      const px = X + 8 + Math.floor(noise(seed, k, 71) * (W - 30)), py = wallY + 6 + Math.floor(noise(seed, k, 73) * Math.max(4, wallH - 22));
+      if (st.wall === 'timber' || st.wall === 'marble') { g.fillStyle = '#9b7a55'; g.fillRect(px, py, 14, 9); g.fillStyle = '#6b4c2e'; for (let l = 0; l < 3; l++) g.fillRect(px + 1, py + 2 + l * 3, 12, 1); }
+      g.strokeStyle = 'rgba(30,20,10,0.6)'; g.lineWidth = 1; g.beginPath(); g.moveTo(px + 18, py - 4); g.lineTo(px + 22, py + 4); g.lineTo(px + 19, py + 10); g.stroke();
+    }
+  }
   // stone footing along the ground
-  g.fillStyle = '#5f646e'; g.fillRect(X - 2, Y + H - 5, W + 4, 5);
+  g.fillStyle = shabby ? '#4b4f57' : '#5f646e'; g.fillRect(X - 2, Y + H - 5, W + 4, 5);
   g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(X - 2, Y + H - 5, W + 4, 1);
+  if (shabby) { g.fillStyle = '#3f6b3a'; for (let x = X; x < X + W; x += 9) if (noise(seed, x, 79) < 0.45) g.fillRect(x, Y + H - 8, 3, 4); }   // weeds
 
   // ----- windows -----
   const winY = wallY + Math.max(8, Math.floor((wallH - 22) / 2) - 2);
@@ -2724,15 +2759,31 @@ function drawHouse(g, h) {
       g.fillStyle = '#1b1f2a'; g.fillRect(wx + 5, winY - 2, 4, 18); g.fillRect(wx + 2, winY + 5, 10, 3);
       continue;
     }
-    if (st.wall !== 'stone') {   // painted shutters
+    if (shabby) {
+      g.fillStyle = '#2b2018'; g.fillRect(wx - 1, winY - 2, 16, 19);
+      if (noise(seed, wxAbs, 83) < 0.45) {   // boarded up
+        g.fillStyle = '#1b1510'; g.fillRect(wx + 1, winY, 12, 15);
+        g.fillStyle = '#7a5a3a'; g.save(); g.translate(wx + 7, winY + 7); g.rotate(-0.5); g.fillRect(-10, -2, 20, 4); g.rotate(1.0); g.fillRect(-10, -2, 20, 4); g.restore();
+      } else {
+        g.fillStyle = '#6f8794'; g.fillRect(wx + 1, winY, 12, 15);
+        g.fillStyle = '#2b2018'; g.fillRect(wx + 6, winY, 2, 15); g.fillRect(wx + 1, winY + 7, 12, 2);
+        g.fillStyle = '#1b1510'; g.beginPath(); g.moveTo(wx + 8, winY + 9); g.lineTo(wx + 13, winY + 9); g.lineTo(wx + 13, winY + 15); g.fill();   // a broken pane
+      }
+      if (st.wall !== 'stone' && noise(seed, wxAbs, 89) < 0.5) {   // one shutter, hanging askew
+        g.save(); g.translate(wx + 17, winY - 1); g.rotate(0.18); g.fillStyle = shade(st.accent, -0.6); g.fillRect(0, 0, 5, 16); g.restore();
+      }
+      continue;
+    }
+    if (st.wall !== 'stone' && tier >= 2) {   // painted shutters
       g.fillStyle = shade(st.accent, -0.35); g.fillRect(wx - 6, winY - 1, 5, 17); g.fillRect(wx + 15, winY - 1, 5, 17);
       g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(wx - 6, winY + 7, 5, 1); g.fillRect(wx + 15, winY + 7, 5, 1);
     }
-    g.fillStyle = '#3b2a1a'; g.fillRect(wx - 1, winY - 2, 16, 19);
+    g.fillStyle = fine ? '#c79a3a' : '#3b2a1a'; g.fillRect(wx - 1, winY - 2, 16, 19);
     g.fillStyle = '#9fd4ff'; g.fillRect(wx + 1, winY, 12, 15);
-    g.fillStyle = '#3b2a1a'; g.fillRect(wx + 6, winY, 2, 15); g.fillRect(wx + 1, winY + 7, 12, 2);
+    if (fine) { g.fillStyle = 'rgba(255,216,107,0.35)'; g.fillRect(wx + 1, winY, 5, 7); g.fillStyle = 'rgba(192,132,252,0.3)'; g.fillRect(wx + 8, winY + 9, 5, 6); }
+    g.fillStyle = fine ? '#8a6a22' : '#3b2a1a'; g.fillRect(wx + 6, winY, 2, 15); g.fillRect(wx + 1, winY + 7, 12, 2);
     g.fillStyle = 'rgba(255,255,255,0.5)'; g.fillRect(wx + 2, winY + 1, 3, 3);
-    if (noise(seed, wxAbs, 59) < 0.55) {   // a flower box under the sill
+    if (tier >= 2 && (fine || noise(seed, wxAbs, 59) < 0.55)) {   // a flower box under the sill
       g.fillStyle = '#6b4423'; g.fillRect(wx - 2, winY + 17, 18, 4);
       for (let f = 0; f < 5; f++) { g.fillStyle = ['#ff6b9b', '#ffd86b', '#e74c3c', '#c084fc'][(f + seed) % 4]; g.fillRect(wx - 1 + f * 4, winY + 14, 3, 3); }
       g.fillStyle = '#3f7d3a'; g.fillRect(wx - 1, winY + 16, 16, 1);
@@ -2756,15 +2807,20 @@ function drawHouse(g, h) {
     g.fillStyle = '#3b2a1a'; g.fillRect(dX, Y + H - 17, 20, 2); g.fillRect(dX, Y + H - 7, 20, 2);
     g.fillStyle = '#ffd86b'; g.fillRect(dX + 14, Y + H - 13, 3, 3);
   }
-  g.fillStyle = '#9ca3af'; g.fillRect(dX - 4, Y + H, 28, 3);
-  g.fillStyle = '#1b1b2f'; g.fillRect(dX + 26, Y + H - 26, 6, 2); g.fillRect(dX + 30, Y + H - 26, 2, 4);
-  g.fillStyle = '#ffd86b'; g.fillRect(dX + 28, Y + H - 22, 6, 7); g.fillStyle = '#1b1b2f'; g.fillRect(dX + 28, Y + H - 22, 6, 1); g.fillRect(dX + 28, Y + H - 16, 6, 1);
+  g.fillStyle = shabby ? '#6b7280' : '#9ca3af'; g.fillRect(dX - 4, Y + H, shabby ? 18 : 28, 3);
+  const lantern = (lx) => { g.fillStyle = '#1b1b2f'; g.fillRect(lx - 2, Y + H - 26, 6, 2); g.fillRect(lx + 2, Y + H - 26, 2, 4); g.fillStyle = '#ffd86b'; g.fillRect(lx, Y + H - 22, 6, 7); g.fillStyle = '#1b1b2f'; g.fillRect(lx, Y + H - 22, 6, 1); g.fillRect(lx, Y + H - 16, 6, 1); };
+  if (!shabby) lantern(dX + 28);
+  if (fine) { lantern(dX - 14); g.fillStyle = '#c79a3a'; g.fillRect(dX - 3, Y + H - 28, 26, 2); g.fillRect(dX + 2, Y + H - 14, 2, 2); g.fillRect(dX + 16, Y + H - 14, 2, 2); }
 
   // ----- awnings and banners -----
   if (h.id === 'shop' || h.id === 'market') {
     const aw = Math.min(W - 12, 76), ax = Math.max(X + 4, Math.min(X + W - aw - 4, dX + 10 - aw / 2)), ay = wallY + 2;
     for (let k = 0; k < aw; k += 10) { g.fillStyle = (k / 10) % 2 ? '#f4f4f4' : shade(st.accent, -0.15); g.fillRect(ax + k, ay, Math.min(10, aw - k), 10); g.beginPath(); g.arc(ax + k + 5, ay + 10, 5, 0, Math.PI); g.fill(); }
     g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(ax, ay + 15, aw, 2);
+  }
+  if (fine && !BANNER_IDS.has(h.id) && st.roof !== 'parapet') {
+    const px = X + 6; g.fillStyle = '#5b3a1a'; g.fillRect(px, Y - 14, 2, 20);
+    g.fillStyle = st.accent; g.beginPath(); g.moveTo(px + 2, Y - 14); g.lineTo(px + 16, Y - 10); g.lineTo(px + 2, Y - 6); g.fill();
   }
   if (BANNER_IDS.has(h.id)) {
     for (const bx of [X + 10, X + W - 24]) {
@@ -2777,7 +2833,7 @@ function drawHouse(g, h) {
 
   // ----- the roof -----
   g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(X, wallY, W, 5);   // shadow under the eaves
-  const ov = 6, base = h.roof || '#7a4a2a';
+  const ov = 6, base = shade(h.roof || '#7a4a2a', shabby ? -0.3 : tier === 1 ? -0.1 : fine ? 0.05 : 0);
   if (st.roof === 'parapet') {
     g.fillStyle = '#6b707a'; g.fillRect(X - 2, Y + 8, W + 4, roofH - 8);
     g.fillStyle = '#7e838d'; for (let x = X - 2; x < X + W; x += 12) g.fillRect(x, Y, 8, 10);
@@ -2813,9 +2869,16 @@ function drawHouse(g, h) {
     }
     const lg = g.createLinearGradient(0, Y, 0, wallY); lg.addColorStop(0, 'rgba(255,255,255,0.18)'); lg.addColorStop(1, 'rgba(0,0,0,0.18)');
     g.fillStyle = lg; g.fillRect(X - ov, Y, W + 2 * ov, roofH);
+    if (shabby) {
+      for (let k = 0; k < Math.max(3, Math.round(W / 30)); k++) {   // moss and missing tiles
+        const mx = X + Math.floor(noise(seed, k, 97) * W), my = Y + 4 + Math.floor(noise(seed, k, 101) * (roofH - 10));
+        g.fillStyle = 'rgba(80,120,50,0.55)'; g.beginPath(); g.ellipse(mx, my, 9, 4, 0, 0, Math.PI * 2); g.fill();
+        if (k % 2 === 0) { g.fillStyle = '#1b1510'; g.fillRect(mx + 10, my - 2, 6, 5); }
+      }
+    }
     g.restore();
-    g.fillStyle = shade(base, 0.3); g.fillRect(X + 12, Y + 1, W - 24, 3);   // the ridge
-    g.fillStyle = shade(base, -0.35); g.fillRect(X - ov, wallY - 2, W + 2 * ov, 2);   // the eave
+    g.fillStyle = fine ? '#ffd86b' : shade(base, 0.3); g.fillRect(X + 12, Y + 1, W - 24, 3);   // the ridge
+    g.fillStyle = fine ? '#c79a3a' : shade(base, -0.35); g.fillRect(X - ov, wallY - 2, W + 2 * ov, 2);   // the eave
     if (h.id === 'throne') { g.fillStyle = '#ffd86b'; for (let x = X + 16; x < X + W - 16; x += 22) { g.beginPath(); g.moveTo(x, Y + 1); g.lineTo(x + 4, Y - 6); g.lineTo(x + 8, Y + 1); g.fill(); } }
     if (h.id === 'longhouse') {   // crossed gable beams at either end
       g.strokeStyle = '#4a2f17'; g.lineWidth = 3;
@@ -2833,12 +2896,15 @@ function drawHouse(g, h) {
   if (h.sign) {
     g.font = 'bold 10px sans-serif';
     const icon = SIGN_ICON[h.id], tw = g.measureText(h.sign).width, sw = tw + (icon ? 22 : 12), sx = dX + 10 - sw / 2, sy = wallY - 9;
+    g.save();
+    if (shabby) { g.translate(sx + sw / 2, sy); g.rotate(-0.09); g.translate(-(sx + sw / 2), -sy); }
     g.fillStyle = '#1b1b2f'; g.fillRect(sx + 4, sy - 4, 1, 4); g.fillRect(sx + sw - 5, sy - 4, 1, 4);
-    g.fillStyle = '#6b4423'; g.beginPath(); g.roundRect(sx, sy, sw, 15, 3); g.fill();
+    g.fillStyle = fine ? '#c79a3a' : '#6b4423'; g.beginPath(); g.roundRect(sx, sy, sw, 15, 3); g.fill();
     g.fillStyle = '#8b5a2b'; g.beginPath(); g.roundRect(sx + 1, sy + 1, sw - 2, 13, 2); g.fill();
     if (icon) { const img = sprite(icon); g.imageSmoothingEnabled = false; g.drawImage(img, sx + 3, sy + 1, 13, 13); }
-    g.fillStyle = '#fff3d6'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(h.sign, sx + (icon ? 18 : 6), sy + 8);
+    g.fillStyle = shabby ? '#d8c9a8' : '#fff3d6'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(h.sign, sx + (icon ? 18 : 6), sy + 8);
     g.textAlign = 'start'; g.textBaseline = 'alphabetic';
+    g.restore();
   }
 }
 // Chimney smoke drifts up from the houses in view.
@@ -5308,7 +5374,7 @@ function endTurn(moved) {
     if (here && here.key !== lastTownKey) {
       const I = townIdentity(here);
       if (!player.meta.visited.includes(here.key)) log(I.describe(), 'good');
-      toast = { text: `${here.name}. A ${I.trade.label} ${I.sizeWord} of ${REALMS[I.realm].short}, known for ${I.famous}.`, until: performance.now() + 3500 };
+      toast = { text: `${here.name}. ${here.size === 'grand' ? 'The' : 'A'} ${TIER_WORDS[townTier(here)]} ${I.kind} of ${REALMS[I.realm].short}, known for ${I.famous}.`, until: performance.now() + 3500 };
     }
     lastTownKey = here ? here.key : null;
     if (here && !player.meta.visited.includes(here.key)) { player.meta.visited.push(here.key); if (player.meta.visited.length >= 5) unlock('explorer'); }
