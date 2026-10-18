@@ -16,7 +16,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 const restartBtn = document.getElementById('restart');
 
-const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15 };
+const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15, CRACK: 16, SPRING: 17 };
 const TOWN = 0;           // floor number of the town square
 const FINAL_FLOOR = 5;
 const VIEW_RADIUS = 8;    // how far the hero sees in the dungeon
@@ -33,6 +33,9 @@ const MONSTER_TYPES = [
   { name: 'Bat',      sprite: 'bat',      hp: 2,  atk: 1, xp: 2,  minFloor: 1, erratic: true },
   { name: 'Spider',   sprite: 'spider',   hp: 5,  atk: 2, xp: 5,  minFloor: 2, poison: true },
   { name: 'Archer',   sprite: 'archer',   hp: 4,  atk: 2, xp: 6,  minFloor: 2, ranged: 4 },
+  { name: 'Slime',    sprite: 'slime',    hp: 10, atk: 2, xp: 6,  minFloor: 2, splits: true },
+  { name: 'Necromancer', sprite: 'necromancer', hp: 9, atk: 2, xp: 18, minFloor: 4, raiser: true },
+  { name: 'Mimic',    sprite: 'mimic',    hp: 14, atk: 4, xp: 20, minFloor: 99, noSpawn: true },
 ];
 // Hero classes: base stats, a sprite, and one ability on the 1 key.
 const CLASSES = {
@@ -84,6 +87,7 @@ const ACHIEVEMENTS = {
   wanderer10:  { label: 'Discovered ten places', title: 'the Pathfinder' },
   collector:   { label: 'Found five treasures', title: 'the Treasure-seeker' },
   crownbearer: { label: 'Restored the Crown of Aurum', title: 'Crownbearer' },
+  vault:       { label: 'Broke into a secret vault', title: 'the Delver of Secrets' },
   squire:      { label: 'Became a Squire of Aurum', title: 'the Squire' },
   knighted:    { label: 'Knighted by the King', title: 'Knight of Aurum' },
   baron:       { label: 'Bought a barony', title: 'Baron of Aurum' },
@@ -197,7 +201,7 @@ function markSeen(x, y) {
   const cx = Math.floor(x / CHUNK), cy = Math.floor(y / CHUNK);
   getChunk(cx, cy).seen[(y - cy * CHUNK) * CHUNK + (x - cx * CHUNK)] = 1;
 }
-const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE && t !== TILE.WAYOUT;
+const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE && t !== TILE.WAYOUT && t !== TILE.CRACK && t !== TILE.SPRING;
 const hazard = (x, y) => getTile(x, y) === TILE.LAVA || (getTile(x, y) === TILE.TRAP && revealedTraps.has(key(x, y)));
 
 // ---------- account save/load ----------
@@ -208,7 +212,7 @@ const itemInfo = (id) => ITEMS.weapons[id] || ITEMS.armor[id] || ITEMS.consumabl
 const itemKind = (id) => ITEMS.weapons[id] ? 'weapon' : ITEMS.armor[id] ? 'armor' : ITEMS.relics[id] ? 'relic' : 'consumable';
 // The relic you wear changes how you play; see config/items.php for the list.
 const wearing = (id) => !!player && player.relic === id;
-const goldMult = () => (goldMult()) * (wearing('luckycoin') ? 1.4 : 1);
+const goldMult = () => (perkCount('lucky') ? 1.25 : 1) * (wearing('luckycoin') ? 1.4 : 1);
 const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0);
 const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0)
   + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.def || 0) : 0) + (realmState().rank >= 2 ? 1 : 0);
@@ -587,10 +591,10 @@ function makeElite(m, roll) {
   m.mod = id; m.elite = true; m.name = `${ELITE_MODS[id].label} ${m.type.name}`;
   m.hp = m.maxHp = Math.round(m.maxHp * 1.6);
 }
-const BOSS_NAMES = { Rat: 'the Rat King', Goblin: 'the Goblin Chieftain', Skeleton: 'the Bone Lord', Orc: 'the Orc Warchief', Wraith: 'the Lich', Bat: 'the Bat Matriarch', Spider: 'the Brood Mother', Archer: 'the Goblin Marksman' };
+const BOSS_NAMES = { Rat: 'the Rat King', Goblin: 'the Goblin Chieftain', Skeleton: 'the Bone Lord', Orc: 'the Orc Warchief', Wraith: 'the Lich', Bat: 'the Bat Matriarch', Spider: 'the Brood Mother', Archer: 'the Goblin Marksman', Slime: 'the Slime Queen', Necromancer: 'the Necromancer Lord' };
 function placeBoss(room, ox, oy, R = Math.random) {
   const def = dungeonDef || { pool: null, danger: 0 };
-  const pool = def.pool || MONSTER_TYPES.filter((t) => t.minFloor <= floor);
+  const pool = def.pool || MONSTER_TYPES.filter((t) => !t.noSpawn && t.minFloor <= floor);
   const type = def.boss ? MONSTER_TYPES.find((t) => t.name === def.boss.type) : pool.reduce((a, b) => (b.xp > a.xp ? b : a));
   const danger = def.danger || 0;
   const cells = [];
@@ -674,6 +678,9 @@ const MONSTER_LORE = {
   Bat: 'They flit and bite and flit again. Annoying more than deadly, until there are fifty of them.',
   Spider: 'Patient hunters whose bite carries a poison. Any potion washes it out.',
   Archer: 'Goblins who learned that the safest fight is from a distance. They back away to shoot again.',
+  Slime: 'A wobbling heap of hunger. Cut it in half and you have two smaller problems. Cut those, and you are done.',
+  Necromancer: 'A robed fool who found a book he should not have. He keeps his distance and raises the dead to fight for him. Kill him first.',
+  Mimic: 'Not every chest wants to be opened. Some want to open you. Mimics pay well, if you live.',
 };
 function journalKey(e) {
   if (['j', 'J', 'Escape'].includes(e.key)) journalOpen = false;
@@ -939,6 +946,9 @@ function drawHeroPortrait() {
   const plus = (n) => (n ? ` +${n}` : '');
   pc.title = `${heroClass().name}, level ${player.level}: ${player.weapon ? itemInfo(player.weapon).name + plus(player.weaponPlus) : 'bare hands'}, ${player.armor ? itemInfo(player.armor).name + plus(player.armorPlus) : 'no armour'}${player.relic ? ', ' + itemInfo(player.relic).name : ''}`;
 }
+BIG_SPRITES.slime = ['................', '................', '................', '................', '.......gg.......', '.....gggggg.....', '....ggggwggg....', '...gggggggggg...', '...ggkggggkgg...', '..gggggggggggg..', '..gggggggggggg..', '..ggggggggggggg.', '.gggggggggggggg.', '.GGGGGGGGGGGGGG.', '................', '................'];
+BIG_SPRITES.necromancer = ['......kkkk......', '.....kkkkkk.....', '....kkkkkkkk....', '....kkwwwwkk....', '....kwkwwkwk....', '....kkwwwwkk....', '.....kkkkkk.....', '....kpppppppk...', '...kppppppppkc..', '..wkppppppppkh..', '..w.kpppppppkh..', '....kpppppppkh..', '....kpppppppkh..', '....kpppppppkh..', '...kkkk..kkkkh..', '................'];
+BIG_SPRITES.mimic = ['................', '................', '..hhhhhhhhhhhh..', '.hHHHHHHHHHHHHh.', '.hHhhhhhhhhhhHh.', '.hHhrkhhhhrkhHh.', '.hHHHHHyyHHHHHh.', '.wkwkwkwkwkwkwk.', '.kkrrrrrrrrrrkk.', '.wkwkwkwkwkwkwk.', '.hHHHHHHHHHHHHh.', '.hHhhhhhhhhhhHh.', '.hHHHHHHHHHHHHh.', '..hhhhhhhhhhhh..', '..h..........h..', '................'];
 const spriteCache = {};
 // Creatures, items and props get a dark outline so they read on any ground;
 // 16px sprites also get a light top rim and a darker bottom rim for volume.
@@ -1135,10 +1145,10 @@ function xpToNext(level) { return 10 + (level - 1) * 8; }
 // with distance from Hearth and adds to every monster's health and attack.
 const byName = (...names) => MONSTER_TYPES.filter((t) => names.includes(t.name));
 const SITE_TYPES = {
-  cave:   { label: 'Goblin Cave', sprite: 'cave',   floors: [2, 3], pool: byName('Rat', 'Goblin', 'Bat', 'Spider', 'Orc'), gold: 1.6, potions: 1, view: 7, loot: 0.12, treasure: 60, prefixes: ['Mossy', 'Dripping', 'Echoing', 'Low', 'Black'] },
+  cave:   { label: 'Goblin Cave', sprite: 'cave',   floors: [2, 3], pool: byName('Rat', 'Goblin', 'Bat', 'Spider', 'Orc', 'Slime'), gold: 1.6, potions: 1, view: 7, loot: 0.12, treasure: 60, prefixes: ['Mossy', 'Dripping', 'Echoing', 'Low', 'Black'] },
   warren: { label: 'Orc Warren',  sprite: 'warren', floors: [2, 2], pool: byName('Goblin', 'Archer', 'Orc'),         gold: 1.2, potions: 1, view: 8, loot: 0.3,  treasure: 80, prefixes: ['Bloody', 'Broken-Tusk', 'Red', 'Grim', 'Ironhide'] },
-  crypt:  { label: 'Crypt',       sprite: 'crypt',  floors: [3, 3], pool: byName('Skeleton', 'Spider', 'Wraith'),    gold: 1,   potions: 1, view: 6, loot: 0.15, treasure: 120, prefixes: ['Forgotten', 'Silent', 'Weeping', 'Sunken', 'Nameless'], xp: 1.5 },
-  tower:  { label: "Wizard's Tower", sprite: 'tower', floors: [3, 4], pool: byName('Wraith', 'Skeleton', 'Bat', 'Archer'), gold: 1.3, potions: 2, view: 9, loot: 0.18, treasure: 200, prefixes: ['Leaning', 'Glass', 'Moonlit', 'Shattered', 'Violet'] },
+  crypt:  { label: 'Crypt',       sprite: 'crypt',  floors: [3, 3], pool: byName('Skeleton', 'Spider', 'Wraith', 'Necromancer'),    gold: 1,   potions: 1, view: 6, loot: 0.15, treasure: 120, prefixes: ['Forgotten', 'Silent', 'Weeping', 'Sunken', 'Nameless'], xp: 1.5 },
+  tower:  { label: "Wizard's Tower", sprite: 'tower', floors: [3, 4], pool: byName('Wraith', 'Skeleton', 'Bat', 'Archer', 'Necromancer'), gold: 1.3, potions: 2, view: 9, loot: 0.18, treasure: 200, prefixes: ['Leaning', 'Glass', 'Moonlit', 'Shattered', 'Violet'] },
 };
 let dungeonDef = null;   // set when a gate or a site is entered
 let entryWarned = null;  // { key, turn } after a warning that a dungeon is too hard
@@ -1159,7 +1169,7 @@ function siteDungeon(site) {
 // step, and dungeons whose first floor already holds orcs or wraiths add more.
 function recLevel(def) {
   if (!def) return 1;
-  const pool = def.pool || MONSTER_TYPES.filter((t) => t.minFloor <= 1);
+  const pool = def.pool || MONSTER_TYPES.filter((t) => !t.noSpawn && t.minFloor <= 1);
   const hardest = Math.max(...pool.map((t) => t.atk));
   return Math.max(1, 1 + 2 * (def.danger || 0) + Math.max(0, hardest - 2));
 }
@@ -1771,8 +1781,30 @@ function generateChunk(cx, cy) {
       for (let yy = py; yy < py + ph; yy++) for (let xx = px; xx < px + pw; xx++) if (!(xx === rm.cx && yy === rm.cy) && tiles[at(xx, yy)] === TILE.FLOOR) tiles[at(xx, yy)] = TILE.LAVA;
     });
   }
+  // a secret vault: a sealed 3x3 room behind a cracked wall, above or below a room
+  const vaults = [];
+  if (rand() < 0.3) {
+    for (let tries = 0; tries < 12 && !vaults.length; tries++) {
+      const rm = rooms[r(rooms.length)];
+      if (cx === 0 && cy === 0 && rm === rooms[0]) continue;
+      const up = rand() < 0.5, dx = rm.x + r(rm.w), dy = up ? rm.y - 1 : rm.y + rm.h, vy = up ? dy - 2 : dy + 2;
+      let solid = true;
+      for (let yy = vy - 2; yy <= vy + 2 && solid; yy++) for (let xx = dx - 2; xx <= dx + 2; xx++) {
+        if (xx < 1 || yy < 1 || xx >= CHUNK - 1 || yy >= CHUNK - 1 || tiles[at(xx, yy)] !== TILE.WALL) { solid = false; break; }
+      }
+      if (!solid) continue;
+      for (let yy = vy - 1; yy <= vy + 1; yy++) for (let xx = dx - 1; xx <= dx + 1; xx++) carve(xx, yy);
+      tiles[at(dx, dy)] = TILE.CRACK;
+      vaults.push({ x: dx, y: vy });
+    }
+  }
+  // a healing spring in a quiet room now and then
+  if (!(cx === 0 && cy === 0) && rand() < 0.14) {
+    const rm = rooms[r(rooms.length)];
+    if (rm.w >= 4 && rm.h >= 3 && tiles[at(rm.cx, rm.cy)] === TILE.FLOOR) tiles[at(rm.cx, rm.cy)] = TILE.SPRING;
+  }
   // dressing: bones and torches recorded as deterministic noise at draw time
-  const chunk = { cx, cy, tiles, seen, rooms, populated: false };
+  const chunk = { cx, cy, tiles, seen, rooms, vaults, populated: false };
   populateChunk(chunk, rand);
   return chunk;
 }
@@ -1782,10 +1814,17 @@ function populateChunk(chunk, rand) {
   const r = (n) => Math.floor(rand() * n);
   const ox = chunk.cx * CHUNK, oy = chunk.cy * CHUNK;
   const cells = [];
-  for (let y = 0; y < CHUNK; y++) for (let x = 0; x < CHUNK; x++) if (chunk.tiles[y * CHUNK + x] === TILE.FLOOR) cells.push({ x: ox + x, y: oy + y });
+  const inVault = (x, y) => (chunk.vaults || []).some((v) => Math.abs(v.x - x) <= 1 && Math.abs(v.y - y) <= 1);
+  for (let y = 0; y < CHUNK; y++) for (let x = 0; x < CHUNK; x++) if (chunk.tiles[y * CHUNK + x] === TILE.FLOOR && !inVault(x, y)) cells.push({ x: ox + x, y: oy + y });
   const spawnChunk = chunk.cx === 0 && chunk.cy === 0;
   const def = dungeonDef || { pool: null, gold: 1, potions: 1, danger: 0 };
-  const pool = def.pool || MONSTER_TYPES.filter((t) => t.minFloor <= floor);
+  // vault treasure: a chest in the middle and gold in the corners
+  for (const v of chunk.vaults || []) {
+    chunk.tiles[v.y * CHUNK + v.x] = TILE.CHEST;
+    for (const [ddx, ddy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) if (rand() < 0.75) golds.push({ x: ox + v.x + ddx, y: oy + v.y + ddy, amount: Math.round((15 + r(15) + floor * 5) * (def.gold || 1)) });
+    if (rand() < 0.5) potions.push({ x: ox + v.x, y: oy + v.y + 1, heal: 5 });
+  }
+  const pool = def.pool || MONSTER_TYPES.filter((t) => !t.noSpawn && t.minFloor <= floor);
   const danger = def.danger || 0;
   const take = () => cells.splice(r(cells.length), 1)[0];
   const mCount = Math.min(cells.length / (floorMod === 'swarming' ? 7 : 10), (6 + floor * 2 + r(4)) * (floorMod === 'swarming' ? 1.5 : 1));
@@ -1848,7 +1887,7 @@ function createDungeon() {
   const R = seededRandom(hash32(floorSeed, 4242));
   const spawn = getChunk(0, 0);
   player.x = spawn.rooms[0].cx; player.y = spawn.rooms[0].cy;
-  wayoutWarned = -99;
+  wayoutWarned = -99; crackHits.clear(); usedSprings.clear();
   { const room = spawn.rooms[0]; setTile(room.x, room.y, TILE.WAYOUT); monsters = monsters.filter((m) => !(m.x === room.x && m.y === room.y)); }
   // The stairs down: a few chunks away in a direction fixed by the seed, in that chunk's first room.
   const angle = R() * Math.PI * 2, far = 2 + Math.floor(R() * 2);
@@ -2201,12 +2240,25 @@ function renderBackground() {
     if (!wasSeen(c, r)) continue;
     const t = getTile(c, r);
     if (t === TILE.WALL) drawBrick(g, c, r);
+    else if (t === TILE.CRACK) {
+      drawBrick(g, c, r);
+      const X = c * T - off.x, Y = r * T - off.y;
+      g.strokeStyle = 'rgba(10,10,15,0.85)'; g.lineWidth = 2; g.beginPath();
+      g.moveTo(X + 8, Y + 4); g.lineTo(X + 14, Y + 12); g.lineTo(X + 11, Y + 18); g.lineTo(X + 18, Y + 26);
+      g.moveTo(X + 14, Y + 12); g.lineTo(X + 23, Y + 10); g.moveTo(X + 11, Y + 18); g.lineTo(X + 5, Y + 22); g.stroke();
+    }
     else if (t === TILE.LAVA) drawLava(g, c, r);
     else {
       drawStone(g, c, r);
       floorShade(g, c, r, (x, y) => getTile(x, y) === TILE.WALL);
       if (t === TILE.FLOOR && noise(c, r, 13) < thm().bones) drawSprite(g, 'bones', c, r, 0.8);
       if (t === TILE.EXIT) drawSprite(g, 'stairs', c, r);
+      if (t === TILE.SPRING) {
+        const X = c * T - off.x, Y = r * T - off.y, dry = usedSprings.has(key(c, r));
+        g.fillStyle = '#4b5563'; g.beginPath(); g.ellipse(X + T / 2, Y + T / 2 + 2, T / 2 - 1, T / 2 - 5, 0, 0, Math.PI * 2); g.fill();
+        g.fillStyle = dry ? '#374151' : '#38bdf8'; g.beginPath(); g.ellipse(X + T / 2, Y + T / 2 + 2, T / 2 - 5, T / 2 - 9, 0, 0, Math.PI * 2); g.fill();
+        if (!dry) { g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillRect(X + 10, Y + 13, 6, 2); g.fillRect(X + 18, Y + 18, 4, 2); }
+      }
       if (t === TILE.WAYOUT) { g.fillStyle = 'rgba(255,216,107,0.18)'; g.fillRect(c * T - off.x - 4, r * T - off.y - 4, T + 8, T + 8); drawSprite(g, 'wayout', c, r); }
       if (t === TILE.SHOP) { g.fillStyle = 'rgba(192,132,252,0.25)'; g.fillRect(c * T - off.x, r * T - off.y, T, T); }
       if (t === TILE.CHEST) drawSprite(g, 'chest', c, r, 1, 4);
@@ -2338,7 +2390,7 @@ function drawMinimap(g) {
     }
     if (!wasSeen(x, y)) continue;
     const t = getTile(x, y);
-    g.fillStyle = t === TILE.WALL ? '#2b3a4a' : t === TILE.EXIT ? '#5fe17a' : t === TILE.WAYOUT ? '#ffd86b' : t === TILE.SHOP ? '#c084fc' : '#4b7f99';
+    g.fillStyle = t === TILE.WALL ? '#2b3a4a' : t === TILE.EXIT ? '#5fe17a' : t === TILE.WAYOUT ? '#ffd86b' : t === TILE.SPRING ? '#38bdf8' : t === TILE.SHOP ? '#c084fc' : '#4b7f99';
     g.fillRect(X + (dx + hw) * px, Y + (dy + hh) * px, px, px);
   }
   for (const o of mpHere()) {
@@ -2548,7 +2600,7 @@ function drawScene(now) {
     }
     const lx = (m.rx ?? m.x) + ldx / T, ly = (m.ry ?? m.y) + ldy / T - bob(m, m.awake) - hop(m);
     shadow(lx, ly);
-    drawSprite(ctx, m.type.sprite, lx, ly, 1, m.boss ? -5 : 3, m.face === -1, m.flashUntil > now);
+    drawSprite(ctx, m.type.sprite, lx, ly, 1, m.boss ? -5 : m.small ? 8 : 3, m.face === -1, m.flashUntil > now);
     if (m.boss) {
       ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
       const label = m.name[0].toUpperCase() + m.name.slice(1), lw = ctx.measureText(label).width + 8;
@@ -2865,6 +2917,8 @@ function describeTile(x, y) {
   if (inTown() && t === TILE.WALL) { const h = houses.find((hh) => x >= hh.x && x < hh.x + hh.w && y >= hh.y && y < hh.y + hh.h); if (h) return `${h.name} — the door is at the bottom`; if (groundAt(x, y) === GROUND.RAMPART) return 'Castle wall — the gates are in the middle of each side'; }
   if (t === TILE.EXIT && inTown()) { const tw = townContaining(x, y) || nearestTownTo(x, y); return `Dungeon gate — ${tw ? `${townDungeon(tw).floors} floors, ${ratingText(townDungeon(tw))}` : 'step here to begin your descent'}`; }
   if (t === TILE.EXIT) return 'Stairs down — the exit from this floor';
+  if (t === TILE.CRACK) return `Cracked wall — it sounds hollow. Walk into it to break through (${player.weapon === 'warhammer' ? 'one blow with your warhammer' : 'three blows, or one with a warhammer or a bomb'}). The noise wakes monsters`;
+  if (t === TILE.SPRING) return usedSprings.has(key(x, y)) ? 'A dry spring' : 'Healing spring — walk into it for full health, once';
   if (t === TILE.WAYOUT) return 'Way out — walk into it twice to leave the dungeon early, keeping your loot';
   if (t === TILE.SITE && inTown()) { const st = siteAtTile(x, y); if (st) return st.story && !storySiteOpen(st.story) ? `${st.name} — sealed with old gold` : `${st.name} — ${st.floors} floors, ${ratingText(siteDungeon(st))}${st.story ? ', a shard lies within' : ''}, step in to explore`; }
   if (t === TILE.PLACE && inTown()) { const pl = placeAtTile(x, y); if (pl) return discovered(pl) ? `${pl.name[0].toUpperCase() + pl.name.slice(1)} — ${PLACE_TYPES[pl.type].label}, walk into it` : 'Something old stands here — walk into it'; }
@@ -2893,7 +2947,7 @@ const hover = { x: null, y: null, path: [], sig: '' };
 const occupiedBy = (x, y) => getMonsterAt(x, y) || getNpcAt(x, y) || mpPlayerAt(x, y) || null;
 function interactive(x, y) {
   const t = getTile(x, y);
-  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT].includes(t);
+  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT, TILE.CRACK, TILE.SPRING].includes(t);
 }
 // The tiles from the hero to a target (not including the hero's own tile), shortest first.
 function pathTo(tx, ty, limit = 60) {
@@ -3182,6 +3236,8 @@ function killMonster(m) {
     if (cheb(m, player) <= 1) { player.hp -= blast; floatText(player.x, player.y, `-${blast}`, '#ff6b6b'); }
     if (hound && !hound.down && cheb(m, hound) <= 1) houndHurt(blast);
   }
+  if (m.type.splits && !m.small && !m.boss && !coopMember()) splitSlime(m);
+  if (m.type.name === 'Mimic') { golds.push({ x: m.x, y: m.y, amount: 40 + floor * 15 + (dungeonDef ? dungeonDef.danger * 10 : 0) }); }
   if (m.elite) {
     unlock('elite');
     const purse = 20 + floor * 10 + (dungeonDef ? dungeonDef.danger * 8 : 0);
@@ -3203,7 +3259,7 @@ function killMonster(m) {
     if (player.lifetimeKills >= 50) unlock('slayer_50');
     if (scene === 'world' && dayPhase() === 'night') unlock('night_owl');
     if (m.boss) { unlock('boss_slayer'); track('boss_killed', { boss: m.name, floor }); }
-    const xp = Math.round(m.type.xp * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1) * (m.elite ? 2 : 1) * (scene === 'dungeon' ? (floorMod === 'swarming' ? 1.25 : floorMod === 'cursed' ? 1.5 : 1) : 1));
+    const xp = Math.round(m.type.xp * (m.small || m.raised ? 0.4 : 1) * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1) * (m.elite ? 2 : 1) * (scene === 'dungeon' ? (floorMod === 'swarming' ? 1.25 : floorMod === 'cursed' ? 1.5 : 1) : 1));
     if (m.boss) {
       log(`You slay ${m.name}! The seal on the stairs breaks.`, 'good');
       const purse = 40 + 30 * (dungeonDef ? dungeonDef.danger : 0) + floor * 10;
@@ -3214,6 +3270,43 @@ function killMonster(m) {
     questProgress('slay', m.type.name, 1);
     if (m.boss) { const keep = dungeonDef; dungeonDef = { ...(dungeonDef || {}), loot: 1 }; dropLoot(m); dungeonDef = keep; } else dropLoot(m);
   }
+}
+let spawnCounter = 0;
+function freeTileNear(cx, cy, reach = 1) {
+  const spots = [];
+  for (let dy = -reach; dy <= reach; dy++) for (let dx = -reach; dx <= reach; dx++) {
+    const x = cx + dx, y = cy + dy;
+    if ((dx || dy) && walkable(getTile(x, y)) && getTile(x, y) !== TILE.LAVA && !getMonsterAt(x, y) && !(x === player.x && y === player.y) && !houndAt(x, y) && !mpPlayerAt(x, y)) spots.push({ x, y });
+  }
+  return spots.length ? spots[rnd(spots.length)] : null;
+}
+function addMonster(type, x, y, extra = {}) {
+  const danger = dungeonDef ? dungeonDef.danger || 0 : 0;
+  const hp = extra.hp || type.hp + Math.floor(floor / 2) + danger;
+  const m = { x, y, id: `spawn-${++spawnCounter}`, type, hp, maxHp: hp, atk: type.atk + Math.floor(danger / 2), awake: true, ...extra };
+  monsters.push(m); monsterIndex.set(key(x, y), m); monstersDirty = true;
+  return m;
+}
+function splitSlime(m) {
+  let made = 0;
+  for (let i = 0; i < 2; i++) {
+    const spot = freeTileNear(m.x, m.y, 1) || (i === 0 ? { x: m.x, y: m.y } : null);
+    if (!spot) continue;
+    addMonster(m.type, spot.x, spot.y, { small: true, hp: Math.max(2, Math.ceil(m.maxHp / 3)), atk: Math.max(1, m.atk - 1), name: 'Small slime' });
+    made++;
+  }
+  if (made) { log(`The slime splits in ${made === 2 ? 'two' : 'half'}!`, 'bad'); burst(m.x, m.y, '#7ad36b', 16, 90, { life: 500, size: 3 }); }
+}
+// Necromancers raise up to two skeletons at a time, every few beats.
+function raiseDead(m) {
+  const mine = monsters.filter((o) => o.raisedBy === m.id && o.hp > 0).length;
+  if (mine >= 2) return false;
+  const spot = freeTileNear(m.x, m.y, 1);
+  if (!spot) return false;
+  addMonster(MONSTER_TYPES.find((t) => t.name === 'Skeleton'), spot.x, spot.y, { raised: true, raisedBy: m.id });
+  burst(spot.x, spot.y, '#b18cff', 18, 90, { glow: true, gravity: -60, life: 600 });
+  if (isVisible(m.x, m.y)) { log(`The ${mName(m)} raises a skeleton from the floor!`, 'bad'); tip('necro', 'Necromancers keep raising skeletons while they live. Get to them first: an arrow, a fireball or a bomb works well.'); }
+  return true;
 }
 function monsterAttack(m, ranged = false) {
   if (!ranged && perkCount('nimble') && Math.random() < 0.25) { log(`You dodge ${m.boss ? m.name : 'the ' + m.type.name}.`, 'good'); floatText(player.x, player.y, 'dodge', '#7bdfff'); return; }
@@ -3275,7 +3368,8 @@ function stepMonsters(swiftOnly = false, heroes = null) {
     let best = null, bestD = d.get(key(m.x, m.y)) ?? Infinity;
     const dirs = DIRS.slice().sort(() => Math.random() - 0.5);
     if (m.type.erratic && Math.random() < 0.5) bestD = Infinity;   // bats flap about
-    if (m.type.ranged && dist(m, H) <= 2) {
+    if (m.type.raiser) { m.raiseCd = (m.raiseCd ?? 1) - 1; if (m.raiseCd <= 0 && dist(m, H) <= 7 && raiseDead(m)) { m.raiseCd = 4; continue; } }
+    if ((m.type.ranged && dist(m, H) <= 2) || (m.type.raiser && dist(m, H) <= 3)) {
       // archers back off to shoot again
       for (const [dx, dy] of dirs) {
         const nx = m.x + dx, ny = m.y + dy;
@@ -3337,7 +3431,7 @@ function enrageBoss(m) {
   shakeScreen(8); sfx.play('boss');
   burst(m.x, m.y, '#ef4444', 40, 160, { glow: true, life: 700 });
   const def = dungeonDef || { pool: null };
-  const pool = (def.pool || MONSTER_TYPES.filter((t) => t.minFloor <= floor));
+  const pool = (def.pool || MONSTER_TYPES.filter((t) => !t.noSpawn && t.minFloor <= floor));
   const weak = pool.slice().sort((a, b) => a.xp - b.xp).slice(0, Math.max(1, Math.ceil(pool.length / 2)));
   let called = 0;
   for (let dy = -2; dy <= 2 && called < 2; dy++) for (let dx = -2; dx <= 2 && called < 2; dx++) {
@@ -3446,6 +3540,8 @@ function tryMove(dx, dy) {
   if (n) { talk(n); draw(); return; }
   if (t === TILE.FURNITURE) { useFurniture(decor[ny][nx]); draw(); return; }
   if (t === TILE.WAYSTONE) { openShop('travel'); draw(); return; }
+  if (t === TILE.CRACK) { hitCrack(nx, ny, player.weapon === 'warhammer' ? 3 : 1); endTurn(false); return; }
+  if (t === TILE.SPRING) { drinkSpring(nx, ny); endTurn(false); return; }
   if (t === TILE.WAYOUT) {
     if (turn - wayoutWarned <= 5) { wayoutWarned = -99; leaveDungeon(); return; }
     wayoutWarned = turn;
@@ -3792,6 +3888,17 @@ function die() {
 
 function openChest(x, y) {
   const danger = dungeonDef ? dungeonDef.danger : 0;
+  if (scene === 'dungeon' && floor >= 2 && !coopActive() && !vaultAt(x, y) && Math.random() < 0.12) {
+    setTile(x, y, TILE.FLOOR); bgDirty = true;
+    const type = MONSTER_TYPES.find((t) => t.name === 'Mimic');
+    const mm = addMonster(type, x, y, { hp: type.hp + floor * 2 + danger * 3, atk: type.atk + Math.floor(floor / 2) + Math.floor(danger / 2) });
+    shakeScreen(5); sfx.play('boss');
+    burst(x, y, '#8b5a2b', 20, 120, { life: 500, size: 3 });
+    log('The chest sprouts teeth and lunges at you. A mimic!', 'bad');
+    tip('mimic', 'Some chests deeper down are mimics. They hit hard but drop a fat purse.');
+    monsterAttack(mm);
+    return;
+  }
   const gold = Math.round((20 + rnd(30)) * (1 + danger * 0.5) * (dungeonDef ? dungeonDef.gold : 1) * (goldMult()));
   player.gold += gold;
   setTile(x, y, TILE.FLOOR); bgDirty = true;
@@ -3801,6 +3908,39 @@ function openChest(x, y) {
   floatText(x, y, `+${gold}g`, '#f5c542');
   sfx.play('chest');
   if (Math.random() < 0.4 && !bagFull()) { const keep = dungeonDef; dungeonDef = { ...(dungeonDef || {}), loot: 1 }; dropLoot({ type: { name: 'chest' } }); dungeonDef = keep; }
+}
+function vaultAt(x, y) {
+  const ch = chunks.get(key(Math.floor(x / CHUNK), Math.floor(y / CHUNK)));
+  if (!ch || !ch.vaults) return false;
+  const lx = x - ch.cx * CHUNK, ly = y - ch.cy * CHUNK;
+  return ch.vaults.some((v) => v.x === lx && v.y === ly);
+}
+// Cracked walls give way after three blows (one with a warhammer, or a bomb); the noise wakes things up.
+const crackHits = new Map();
+function hitCrack(x, y, blows = 1) {
+  const k = key(x, y), n = (crackHits.get(k) || 0) + blows;
+  burst(x, y, '#9ca3af', 10, 90, { life: 450, size: 3 }); shakeScreen(2); sfx.play('hit');
+  for (const m of monsters) if (!m.awake && cheb(m, { x, y }) <= 6) m.awake = true;
+  if (n < 3) { crackHits.set(k, n); log(`You strike the cracked wall. It shifts${n === 2 ? ' and groans: one more blow' : ''}.`); return; }
+  crackHits.delete(k);
+  setTile(x, y, TILE.FLOOR); bgDirty = true;
+  burst(x, y, '#9ca3af', 30, 140, { life: 700, size: 4 }); shakeScreen(5);
+  log('The wall crumbles into a hidden vault!', 'good');
+  unlock('vault');
+  updateVisibility();
+}
+// A healing spring: drink once for full health and a clean bill.
+const usedSprings = new Set();
+function drinkSpring(x, y) {
+  const k = key(x, y);
+  if (usedSprings.has(k)) { log('The spring is dry. It will fill again in a lifetime or two.'); return; }
+  usedSprings.add(k); bgDirty = true;
+  const healed = player.maxHp - player.hp;
+  player.hp = player.maxHp; player.poison = 0;
+  if (hound && hound.down) { hound.down = false; hound.hp = hound.maxHp; }
+  burst(x, y, '#7bdfff', 30, 90, { glow: true, gravity: -80, life: 900 }); sfx.play('potion');
+  floatText(player.x, player.y, healed ? `+${healed}` : '✓', '#9ef0b0');
+  log(`You drink from the healing spring${healed ? ` and recover ${healed} HP` : ''}. It sinks away into the stone.`, 'good');
 }
 function springTrap(x, y) {
   const dmg = 3 + floor + (dungeonDef ? dungeonDef.danger : 0);
@@ -4176,8 +4316,14 @@ function throwBomb(idx) {
   if (scene === 'house' || safeZone()) { log('Not here. Bombs are for the dungeon and the wilds.'); draw(); return; }
   let target = null, bd = Infinity;
   for (const m of monsters) { const d = cheb(m, player); if (d <= 5 && isVisible(m.x, m.y) && d < bd) { bd = d; target = m; } }
+  if (!target) {
+    let crack = null;
+    for (let dy = -5; dy <= 5; dy++) for (let dx = -5; dx <= 5; dx++) { const x = player.x + dx, y = player.y + dy; if (getTile(x, y) === TILE.CRACK && isVisible(x, y) && (!crack || cheb({ x, y }, player) < cheb(crack, player))) crack = { x, y }; }
+    if (crack) target = crack;
+  }
   if (!target) { log('Nothing in range to throw a bomb at.'); draw(); return; }
   player.bag.splice(idx, 1);
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (getTile(target.x + dx, target.y + dy) === TILE.CRACK) hitCrack(target.x + dx, target.y + dy, 3);
   const dmg = 8 + floor * 2 + (dungeonDef ? dungeonDef.danger : 0);
   const hit = monsters.filter((m) => cheb(m, target) <= 1);
   burst(target.x, target.y, '#ff9f43', 40, 190, { glow: true, life: 600, size: 3 });
@@ -4331,6 +4477,7 @@ function travelTo(town) {
 function renderShop() {
   if (!shopOpen) return;
   shopGold.textContent = `${player.gold} gold`;
+  { const note = document.getElementById('shop-note'); if (note) note.textContent = SERVICE_SHOPS.has(shopKind) || shopKind === 'inn' ? 'Press Esc to leave.' : `Merchants here pay ${sellRate() === 0.6 ? '60%' : 'half'} of an item's price when you sell. Press Esc to leave.`; }
   shopBuy.innerHTML = '';
   if (shopKind === 'inn') {
     shopBuy.appendChild(player.hp < player.maxHp ? shopRow('A bed for the night (full health)', 'Rest, free', () => { restAtInn(); renderShop(); draw(); }) : shopRow('You are already in perfect health'));

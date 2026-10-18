@@ -66,6 +66,12 @@ twist: Dark, Swarming, Treasure or Cursed. Hovering over a monster shows how har
 hits you and how many blows it will take. Shops mark gear that beats what you wear
 and offer Buy & equip. Press ? for the controls screen.
 
+Deeper dungeons hold slimes that split in two, necromancers that keep their
+distance and raise skeletons, and mimics posing as chests from floor 2. About
+three chunks in ten hide a secret vault behind a cracked wall: three blows break
+it (one with a warhammer or a bomb), and the noise wakes nearby monsters. Some
+rooms have a healing spring that restores full health once.
+
 New heroes see a short illustrated history of the world before the King's summons.
 It can be skipped with Esc and reread from the Journal's World page.
 

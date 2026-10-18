@@ -77,7 +77,7 @@
             <section><h3>Buy</h3><ul id="shop-buy" class="itemlist"></ul></section>
             <section><h3>Sell</h3><ul id="shop-sell" class="itemlist"></ul></section>
           </div>
-          <p class="muted small">The merchant pays half price for anything you sell. Press Esc to leave.</p>
+          <p class="muted small" id="shop-note">The merchant pays half price for anything you sell. Press Esc to leave.</p>
         </div>
       </div>
       <div id="overlay" class="overlay">
