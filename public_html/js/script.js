@@ -2797,6 +2797,7 @@ function drawBubble(g, b) {
   g.textBaseline = 'alphabetic';
 }
 
+let hudExtra = 0;   // how much taller the HUD box is than usual (full screen)
 function drawHud(g, now) {
   const where = scene === 'house' ? interior.house.name : inTown() ? `${townContaining(player.x, player.y)?.name ?? 'The wilds'}, ${REALMS[realmOfTile(player.x, player.y)].short} · day ${dayNumber()}, ${dayPhase()}` : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floorText()}${dungeonDef ? ` · Lv ${recLevel(dungeonDef)}+` : ''}${floorMod ? ` · ${FLOOR_MODS[floorMod].label}` : ''}`;
   const compact = canvas.width < 560;
@@ -2804,15 +2805,33 @@ function drawHud(g, now) {
     ? `HP ${player.hp}/${player.maxHp}  ATK ${player.atk + weaponAtk()}  DEF ${armorDef()}  Lv ${player.level}  ${player.gold}g`
     : `${where}   HP ${player.hp}/${player.maxHp}   ATK ${player.atk + weaponAtk()}   DEF ${armorDef()}   Lv ${player.level}   Gold ${player.gold}`;
   g.font = compact ? 'bold 11px sans-serif' : 'bold 13px sans-serif';
-  const w = g.measureText(text).width + 20;
+  // Full screen hides the page's own health bar, so the HUD carries a big one instead.
+  const big = !!document.fullscreenElement;
+  const w = Math.max(g.measureText(text).width + 20, big ? 360 : 0), hudH = big ? 58 : 40;
+  hudExtra = hudH - 40;
   g.fillStyle = 'rgba(6,12,20,0.78)';
-  g.beginPath(); g.roundRect(8, 8, w, 40, 6); g.fill();
-  g.fillStyle = '#0b2033'; g.fillRect(18, 40, w - 20, 3);
-  g.fillStyle = '#7bdfff'; g.fillRect(18, 40, (w - 20) * Math.min(1, player.xp / xpToNext(player.level)), 3);
+  g.beginPath(); g.roundRect(8, 8, w, hudH, 6); g.fill();
   g.fillStyle = '#e6eef8'; g.textBaseline = 'top'; g.fillText(text, 18, 14);
-  const ratio = Math.max(0, player.hp / player.maxHp);
-  g.fillStyle = '#06202c'; g.fillRect(18, 32, w - 20, 6);
-  g.fillStyle = ratio > 0.5 ? '#5fe17a' : ratio > 0.25 ? '#f5c542' : '#ff6b6b'; g.fillRect(18, 32, (w - 20) * ratio, 6);
+  const ratio = Math.max(0, Math.min(1, player.hp / player.maxHp));
+  const hpCol = ratio > 0.5 ? '#5fe17a' : ratio > 0.25 ? '#f5c542' : '#ff6b6b';
+  if (big) {
+    const by = 32, bh = 16, bw = w - 20;
+    g.fillStyle = '#06202c'; g.beginPath(); g.roundRect(18, by, bw, bh, 4); g.fill();
+    if (ratio > 0) { g.fillStyle = hpCol; g.beginPath(); g.roundRect(18, by, Math.max(6, bw * ratio), bh, 4); g.fill(); }
+    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(20, by + 2, Math.max(0, bw * ratio - 4), 3);
+    g.font = 'bold 12px sans-serif'; g.textAlign = 'center';
+    const hpText = `HP ${player.hp} / ${player.maxHp}${player.poison > 0 ? '  (poisoned)' : ''}`;
+    g.lineWidth = 3; g.strokeStyle = 'rgba(6,12,20,0.9)'; g.strokeText(hpText, 18 + bw / 2, by + 2);
+    g.fillStyle = '#ffffff'; g.fillText(hpText, 18 + bw / 2, by + 2);
+    g.textAlign = 'start';
+    g.fillStyle = '#0b2033'; g.fillRect(18, by + bh + 3, bw, 4);
+    g.fillStyle = '#7bdfff'; g.fillRect(18, by + bh + 3, bw * Math.min(1, player.xp / xpToNext(player.level)), 4);
+  } else {
+    g.fillStyle = '#0b2033'; g.fillRect(18, 40, w - 20, 3);
+    g.fillStyle = '#7bdfff'; g.fillRect(18, 40, (w - 20) * Math.min(1, player.xp / xpToNext(player.level)), 3);
+    g.fillStyle = '#06202c'; g.fillRect(18, 32, w - 20, 6);
+    g.fillStyle = hpCol; g.fillRect(18, 32, (w - 20) * ratio, 6);
+  }
   {
     const cls = heroClass();
     const parts = [`1: ${cls.ability} ${player.cooldown > 0 ? `(${player.cooldown})` : '(ready)'}`];
@@ -2820,15 +2839,15 @@ function drawHud(g, now) {
     if (player.poison > 0) parts.push(`Poisoned ${player.poison}`);
     g.font = '12px sans-serif';
     const at = parts.join('   ');
-    g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(8, 50, g.measureText(at).width + 20, 20, 5); g.fill();
-    g.fillStyle = player.poison > 0 ? '#9ef0b0' : player.cooldown > 0 ? '#a8c0d8' : '#7bdfff'; g.fillText(at, 18, 54);
+    g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(8, 50 + hudExtra, g.measureText(at).width + 20, 20, 5); g.fill();
+    g.fillStyle = player.poison > 0 ? '#9ef0b0' : player.cooldown > 0 ? '#a8c0d8' : '#7bdfff'; g.fillText(at, 18, 54 + hudExtra);
   }
   const obj = scene !== 'dungeon' ? storyObjective() : null;
   let qOffset = 0;
   if (obj) {
     g.font = 'bold 12px sans-serif';
     let ot = `★ ${obj.text}`; while (g.measureText(ot).width > canvas.width - 40 && ot.length > 12) ot = ot.slice(0, -4) + '…';
-    const oy = canvas.width < 560 ? 116 : 74;
+    const oy = (canvas.width < 560 ? 116 : 74) + hudExtra;
     g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(8, oy, g.measureText(ot).width + 20, 20, 5); g.fill();
     g.fillStyle = '#ffd86b'; g.fillText(ot, 18, oy + 4);
     qOffset = 24;
@@ -2837,7 +2856,7 @@ function drawHud(g, now) {
   if (q) {
     g.font = '12px sans-serif';
     const qt = `Quest: ${q.label}  ${q.have}/${q.need}${questsActive().length > 1 ? `  (+${questsActive().length - 1} more, Q)` : '  (Q)'}`;
-    const qy = (canvas.width < 560 ? 116 : 74) + qOffset;
+    const qy = (canvas.width < 560 ? 116 : 74) + hudExtra + qOffset;
     let qtext = qt; while (g.measureText(qtext).width > canvas.width - 40 && qtext.length > 12) qtext = qtext.slice(0, -4) + '…';
     g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(8, qy, Math.min(canvas.width - 16, g.measureText(qtext).width + 20), 20, 5); g.fill();
     g.fillStyle = '#9ef0b0'; g.fillText(qtext, 18, qy + 4);
@@ -2850,7 +2869,7 @@ function drawHud(g, now) {
     const label = d === 0 ? `${what}: here` : `${what} ${Math.abs(dy) > Math.abs(dx) / 2 ? (dy < 0 ? 'N' : 'S') : ''}${Math.abs(dx) > Math.abs(dy) / 2 ? (dx < 0 ? 'W' : 'E') : ''}  ${d} tiles`;
     g.font = canvas.width < 560 ? 'bold 11px sans-serif' : 'bold 12px sans-serif';
     const cw = g.measureText(label).width + 36;
-    const bx = canvas.width - cw - 8, cy0 = canvas.width < 560 ? 82 : 8;   // its own row, under the ability line, on narrow screens
+    const bx = canvas.width - cw - 8, cy0 = canvas.width < 560 ? 82 + hudExtra : 8;   // its own row, under the ability line, on narrow screens
     g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(bx, cy0, cw, 28, 6); g.fill();
     g.fillStyle = '#5fe17a'; g.fillText(label, bx + 30, cy0 + 7);
     // arrow
