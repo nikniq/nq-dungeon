@@ -84,6 +84,8 @@ class CharacterController extends Controller
             'meta.stash' => ['nullable', 'array', 'max:20'],
             'meta.stash.*' => [Rule::in(array_merge(array_keys(config('items.weapons')), array_keys(config('items.armor')), array_keys(config('items.consumables')), array_keys(config('items.relics'))))],
             'meta.deepest' => ['nullable', 'integer', 'min:0', 'max:99'],
+            'meta.horse' => ['nullable', 'boolean'],
+            'meta.arena' => ['nullable', 'integer', 'min:0', 'max:1000'],
             'meta.rq' => ['nullable', 'array:cantons,aurum,kathar,league'],
             'meta.rq.*.s' => ['required', 'integer', 'min:0', 'max:5'],
             'meta.rq.*.n' => ['required', 'integer', 'min:0', 'max:1000000'],

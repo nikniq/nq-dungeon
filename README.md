@@ -97,6 +97,16 @@ Each realm's leader has a three-step questline with a unique treasure at the end
 
 Progress is kept in `meta.rq` and shown in the quest log (Q).
 
+The inns of cities and castles sell a horse (400 gold): in the open wilds each
+step covers two tiles, and you dismount in towns, underground or when monsters
+close in. Clicking the world map drops a pin that the compass follows until you
+reach it.
+
+Castle Aurum's Grand Arena runs waves of foes on an open floor with four pillars.
+Each wave pays more gold, every fifth brings a named champion, and you can leave by
+the golden door between waves. Falling there costs nothing. The best wave is saved
+as `meta.arena`; wave 10 earns Champion of Aurum.
+
 New heroes see a short illustrated history of the world before the King's summons.
 It can be skipped with Esc and reread from the Journal's World page.
 

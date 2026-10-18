@@ -87,6 +87,8 @@ const ACHIEVEMENTS = {
   wanderer10:  { label: 'Discovered ten places', title: 'the Pathfinder' },
   collector:   { label: 'Found five treasures', title: 'the Treasure-seeker' },
   crownbearer: { label: 'Restored the Crown of Aurum', title: 'Crownbearer' },
+  rider:       { label: 'Bought a horse', title: 'the Rider' },
+  champion:    { label: 'Survived ten waves in the Grand Arena', title: 'Champion of Aurum' },
   four_realms: { label: 'Finished every realm questline', title: 'Friend of Four Realms' },
   abyss10:     { label: 'Reached floor 10 of the Deep', title: 'the Deepwalker' },
   abyss25:     { label: 'Reached floor 25 of the Deep', title: 'Lord of the Deep' },
@@ -232,7 +234,7 @@ async function saveProgress(event, keepalive = false) {
     const res = await fetch(ACCOUNT.saveUrl, {
       method: 'POST', keepalive, credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': ACCOUNT.csrf },
-      body: JSON.stringify({ event, floor, level: player.level, xp: player.xp, gold: player.gold,
+      body: JSON.stringify({ event, floor: dungeonDef && dungeonDef.arena ? 0 : floor, level: player.level, xp: player.xp, gold: player.gold,
         hp: player.hp, max_hp: player.maxHp, atk: player.atk, kills, weapon: player.weapon, armor: player.armor, bag: player.bag,
         wx: player.wx ?? 20, wy: player.wy ?? 21, home: homeTown,
         quests: (player.quests || []).slice(-12).map((q) => ({ id: q.id, kind: q.kind, label: q.label, need: q.need, have: q.have, done: !!q.done, target: q.target, giver: q.giver, reward: q.reward })),
@@ -241,7 +243,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {} },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, arena: player.meta.arena || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -972,6 +974,7 @@ BIG_SPRITES.slime = ['................', '................', '................',
 BIG_SPRITES.necromancer = ['......kkkk......', '.....kkkkkk.....', '....kkkkkkkk....', '....kkwwwwkk....', '....kwkwwkwk....', '....kkwwwwkk....', '.....kkkkkk.....', '....kpppppppk...', '...kppppppppkc..', '..wkppppppppkh..', '..w.kpppppppkh..', '....kpppppppkh..', '....kpppppppkh..', '....kpppppppkh..', '...kkkk..kkkkh..', '................'];
 BIG_SPRITES.mimic = ['................', '................', '..hhhhhhhhhhhh..', '.hHHHHHHHHHHHHh.', '.hHhhhhhhhhhhHh.', '.hHhrkhhhhrkhHh.', '.hHHHHHyyHHHHHh.', '.wkwkwkwkwkwkwk.', '.kkrrrrrrrrrrkk.', '.wkwkwkwkwkwkwk.', '.hHHHHHHHHHHHHh.', '.hHhhhhhhhhhhHh.', '.hHHHHHHHHHHHHh.', '..hhhhhhhhhhhh..', '..h..........h..', '................'];
 BIG_SPRITES.abyss = ['................', '....EEEEEEEE....', '...EeeeeeeeeE...', '..EeEEEEEEEEeE..', '..EeEkkkkkkEeE..', '..EeEkkppkkEeE..', '..EeEkpPPpkEeE..', '..EeEkpPPpkEeE..', '..EeEkkppkkEeE..', '..EeEkkkkkkEeE..', '..EeEkkkkkkEeE..', '..EeEkkkkkkEeE..', '.EEEEEEEEEEEEEE.', 'GGGGGGGGGGGGGGGG', '.GGGGGGGGGGGGGG.', '................'];
+BIG_SPRITES.horse = ['................', '................', '............HH..', '...........HhhH.', '..........Hhhkh.', '..........hhhhhh', '...hhhhhhhhhhh..', '..Hhhhhhhhhhhh..', '..hhhhhhhhhhhh..', '.H.hhhhhhhhhh...', '...hhhhhhhhhh...', '...hh.hh..hh.hh.', '...hh.hh..hh.hh.', '...hh.hh..hh.hh.', '...kk.kk..kk.kk.', '................'];
 const spriteCache = {};
 // Creatures, items and props get a dark outline so they read on any ground;
 // 16px sprites also get a light top rim and a darker bottom rim for volume.
@@ -1124,6 +1127,7 @@ BUILDINGS.royal = { name: 'The Royal Armoury', sign: 'ROYAL', roof: '#7c2d12', n
   '################', '#SSSSSSSSSSSSSS#', '#..............#', '#......M.......#', '#...CCCCCCCC...#',
   '#..............#', '#.RR........RR.#', '#..............#', '#..c........c..#', '#######D########'] };
 BUILDINGS.throne.npcs = { G: 'king' };
+BUILDINGS.arena = { ...BUILDINGS.keep, name: 'The Grand Arena', sign: 'ARENA', roof: '#9a3412', npcs: {} };
 BUILDINGS.cottage = { ...BUILDINGS.home, name: "Bram's Cottage", npcs: { H: 'bram' }, roof: '#9a3412' };
 BUILDINGS.council = { name: 'The Council Hall', sign: 'COUNCIL', roof: '#166534', npcs: { G: 'speaker' }, layout: [
   '################', '#p....rrrr....p#', '#.....rGrr.....#', '#.....rrrr.....#', '#..TTT....TTT..#',
@@ -1170,7 +1174,7 @@ const byName = (...names) => MONSTER_TYPES.filter((t) => names.includes(t.name))
 // The Deep: the endgame, opened when the Crown is whole. Endless floors that grow
 // harder, a boss every fifth floor, and a record of how far down you have been.
 const DEEP_CELL = [1, -1];
-const floorText = () => (dungeonDef && dungeonDef.endless ? `floor ${floor} (record ${player.meta.deepest || floor})` : `${floor}/${dungeonDef ? dungeonDef.floors : FINAL_FLOOR}`);
+const floorText = () => (dungeonDef && dungeonDef.arena ? `wave ${ARENA.wave} (best ${player.meta.arena || 0})` : dungeonDef && dungeonDef.endless ? `floor ${floor} (record ${player.meta.deepest || floor})` : `${floor}/${dungeonDef ? dungeonDef.floors : FINAL_FLOOR}`);
 const DEEP_THEMES = ['stone', 'moss', 'flooded', 'bone', 'lava', 'arcane'];
 const SITE_TYPES = {
   cave:   { label: 'Goblin Cave', sprite: 'cave',   floors: [2, 3], pool: byName('Rat', 'Goblin', 'Bat', 'Spider', 'Orc', 'Slime'), gold: 1.6, potions: 1, view: 7, loot: 0.12, treasure: 60, prefixes: ['Mossy', 'Dripping', 'Echoing', 'Low', 'Black'] },
@@ -1419,7 +1423,7 @@ const TOWN_SIZES = {
   town:    { plaza: [11, 6], houses: [[6, 4, 6, 4, 'shop'], [28, 4, 6, 4, 'inn'], [16, 3, 8, 3, 'watch'], [6, 22, 6, 4, 'herbs'], [28, 22, 6, 4, 'home']], folk: [2, 4], walled: false },
   city:    { plaza: [15, 8], houses: [[3, 3, 6, 4, 'shop'], [31, 3, 6, 4, 'inn'], [14, 2, 12, 3, 'market'], [3, 23, 6, 4, 'herbs'], [31, 23, 6, 4, 'home'], [12, 24, 6, 4, 'cottage'], [22, 24, 8, 3, 'watch']], folk: [4, 6], walled: false },
   castle:  { plaza: [16, 10], houses: [[14, 3, 12, 4, 'keep'], [4, 4, 6, 4, 'smithy'], [30, 4, 6, 4, 'armoury'], [4, 22, 6, 4, 'watch'], [30, 22, 6, 4, 'inn']], folk: [2, 4], walled: true },
-  grand:   { plaza: [16, 10], houses: [[12, 3, 16, 5, 'throne'], [3, 4, 7, 4, 'royal'], [31, 4, 6, 4, 'smithy'], [3, 22, 6, 4, 'armoury'], [31, 22, 6, 4, 'watch'], [14, 23, 6, 4, 'apothecary'], [22, 23, 6, 4, 'inn']], folk: [4, 6], walled: true },
+  grand:   { plaza: [16, 10], houses: [[12, 3, 16, 5, 'throne'], [3, 4, 7, 4, 'royal'], [31, 4, 6, 4, 'smithy'], [3, 22, 6, 4, 'armoury'], [31, 22, 6, 4, 'watch'], [14, 23, 6, 4, 'apothecary'], [22, 23, 6, 4, 'inn'], [32, 12, 5, 4, 'arena']], folk: [4, 6], walled: true },
 };
 const GRAND_CASTLE = { i: 2, j: -1 };
 const REALM_SEATS = { cantons: ['council', 'townhall'], aurum: [null, 'herald'], kathar: ['longhouse', 'shamanhut'], league: ['exchange', 'exchange'] };
@@ -1789,7 +1793,19 @@ function restAtInn() {
 // Each chunk digs a few rooms, joins them, and runs corridors from the first
 // room to the middle of all four edges. Neighbouring chunks meet at those
 // midpoints, so every chunk is reachable from every other.
+// The arena floor: one open ring of sand with four pillars, and solid rock around it.
+function arenaChunk(cx, cy) {
+  const tiles = new Uint8Array(CHUNK * CHUNK).fill(TILE.WALL), rooms = [];
+  if (cx === 0 && cy === 0) {
+    const room = { x: 8, y: 10, w: 17, h: 11, cx: 16, cy: 15 };
+    for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) tiles[y * CHUNK + x] = TILE.FLOOR;
+    for (const [x, y] of [[11, 12], [21, 12], [11, 18], [21, 18]]) tiles[y * CHUNK + x] = TILE.WALL;
+    rooms.push(room);
+  }
+  return { cx, cy, tiles, seen: new Uint8Array(CHUNK * CHUNK), rooms, vaults: [], populated: true };
+}
 function generateChunk(cx, cy) {
+  if (dungeonDef && dungeonDef.arena) return arenaChunk(cx, cy);
   const rand = seededRandom(hash32(floorSeed, cx, cy));
   const r = (n) => Math.floor(rand() * n);
   const tiles = new Uint8Array(CHUNK * CHUNK).fill(TILE.WALL);
@@ -1924,12 +1940,13 @@ function createDungeon() {
   mp.dead = new Set(); mp.graveyard = new Map();
   theme = pickTheme();
   { const roll = hash32(floorSeed, 99) % 100, gentle = floor === 1 && !(dungeonDef && dungeonDef.danger);
-    floorMod = !gentle && roll < 36 ? ['dark', 'swarming', 'treasure', 'cursed'][roll % 4] : null; }
+    floorMod = !gentle && !(dungeonDef && dungeonDef.arena) && roll < 36 ? ['dark', 'swarming', 'treasure', 'cursed'][roll % 4] : null; }
   const R = seededRandom(hash32(floorSeed, 4242));
   const spawn = getChunk(0, 0);
   player.x = spawn.rooms[0].cx; player.y = spawn.rooms[0].cy;
   wayoutWarned = -99; crackHits.clear(); usedSprings.clear();
   { const room = spawn.rooms[0]; setTile(room.x, room.y, TILE.WAYOUT); monsters = monsters.filter((m) => !(m.x === room.x && m.y === room.y)); }
+  if (dungeonDef && dungeonDef.arena) { exit = null; return; }
   // The stairs down: a few chunks away in a direction fixed by the seed, in that chunk's first room.
   const angle = R() * Math.PI * 2, far = 2 + Math.floor(R() * 2);
   const ex = Math.round(Math.cos(angle) * far) || 2, ey = Math.round(Math.sin(angle) * far);
@@ -2378,7 +2395,7 @@ function drawHud(g, now) {
     g.fillStyle = '#9ef0b0'; g.fillText(qtext, 18, qy + 4);
   }
   // compass: to the stairs in the dungeon, to the next town outdoors
-  const target = scene === 'dungeon' ? exit : (inTown() ? (() => { const o = storyObjective(); if (o) return { x: o.x, y: o.y, name: `★ ${o.short}` }; const t = nearestOtherTown(player.x, player.y); return t ? { x: t.cx, y: t.cy, name: t.name } : null; })() : null);
+  const target = scene === 'dungeon' ? exit : (inTown() ? (() => { if (mapPin) return { x: mapPin.x, y: mapPin.y, name: 'Pin' }; const o = storyObjective(); if (o) return { x: o.x, y: o.y, name: `★ ${o.short}` }; const t = nearestOtherTown(player.x, player.y); return t ? { x: t.cx, y: t.cy, name: t.name } : null; })() : null);
   if (target) {
     const dx = target.x - player.x, dy = target.y - player.y, d = Math.abs(dx) + Math.abs(dy);
     const what = scene === 'dungeon' ? (bossAlive() ? 'Stairs (sealed)' : 'Stairs') : target.name;
@@ -2672,7 +2689,9 @@ function drawScene(now) {
     const lx = (player.rx ?? player.x) + ldx / T, ly = (player.ry ?? player.y) + ldy / T - bob(player) - hop(player);
     shadow(lx, (player.ry ?? player.y) + ldy / T);
     if (player.shield > 0) { ctx.strokeStyle = `rgba(123,223,255,${0.5 + 0.3 * Math.sin(now / 120)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(lx * T - cam.x + T / 2, ly * T - cam.y + T / 2, T * 0.62, 0, Math.PI * 2); ctx.stroke(); }
-    drawSprite(ctx, playerSprite(), lx, ly, 1, 3, player.face === -1, player.flashUntil > now || player.poison > 0 && Math.floor(now / 300) % 3 === 0);
+    const mounted = riding();
+    if (mounted) drawSprite(ctx, 'horse', lx, ly + 0.12, 1, 1, player.face === -1);
+    drawSprite(ctx, playerSprite(), lx, ly - (mounted ? 0.38 : 0), 1, 3, player.face === -1, player.flashUntil > now || player.poison > 0 && Math.floor(now / 300) % 3 === 0);
   }
   const px = (player.rx ?? player.x) * T - cam.x + T / 2, py = (player.ry ?? player.y) * T - cam.y + T / 2;
   if (scene === 'world') {
@@ -2794,6 +2813,19 @@ function drawScene(now) {
 let mapOpen = false;
 const MAP_STEP = 2, MAP_PX = 3;
 const mapCache = { ox: null, oy: null, canvas: document.createElement('canvas') };
+// A pin you drop on the world map; the compass points to it until you get there.
+let mapPin = null;
+try { mapPin = JSON.parse(localStorage.getItem('dungeon-pin') || 'null'); } catch (e) { mapPin = null; }
+function savePin() { try { localStorage.setItem('dungeon-pin', JSON.stringify(mapPin)); } catch (e) { /* ignore */ } }
+function mapClick(px, py) {
+  const c = mapCache.canvas, X = Math.floor((canvas.width - c.width) / 2), Y = 56;
+  if (mapCache.ox === null || px < X || py < Y || px > X + c.width || py > Y + c.height) return false;
+  const wx = Math.round(mapCache.ox + ((px - X) / MAP_PX) * MAP_STEP), wy = Math.round(mapCache.oy + ((py - Y) / MAP_PX) * MAP_STEP);
+  if (mapPin && Math.hypot(mapPin.x - wx, mapPin.y - wy) < MAP_STEP * 4) { mapPin = null; log('You take the pin out of your map.'); }
+  else { mapPin = { x: wx, y: wy }; log('You pin the map. The compass now points to your pin.', 'good'); sfx.play('quest'); }
+  savePin(); draw();
+  return true;
+}
 const MAP_COLORS = ['#3f7d3a', '#2f5f2c', '#dfc78f', '#1d4ed8', '#6b7280', '#a8865a', '#6b7280', '#2e7d32'];
 
 function toggleMap() {
@@ -2898,6 +2930,15 @@ function drawWorldMap(g, now) {
     g.font = 'bold 11px sans-serif'; g.fillText(inside ? obj.short : `${obj.short} →`, cx2, cy2 + 16);
     g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   }
+  // your pin
+  if (mapPin) {
+    const qx = X + ((mapPin.x - mapCache.ox) / MAP_STEP) * MAP_PX, qy = Y + ((mapPin.y - mapCache.oy) / MAP_STEP) * MAP_PX;
+    if (qx > X && qy > Y && qx < X + c.width && qy < Y + c.height) {
+      g.strokeStyle = '#1b1b2f'; g.lineWidth = 2; g.beginPath(); g.moveTo(qx, qy); g.lineTo(qx, qy - 12); g.stroke();
+      g.fillStyle = '#ef4444'; g.beginPath(); g.arc(qx, qy - 15, 5, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#ffd1d1'; g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.fillText('Pin', qx, qy - 24); g.textAlign = 'left';
+    }
+  }
   // the hero
   const px = X + ((player.x - mapCache.ox) / MAP_STEP) * MAP_PX, py = Y + ((player.y - mapCache.oy) / MAP_STEP) * MAP_PX;
   g.fillStyle = 'rgba(255,216,107,0.35)'; g.beginPath(); g.arc(px, py, 8 + Math.sin(now / 200) * 2, 0, Math.PI * 2); g.fill();
@@ -2908,7 +2949,7 @@ function drawWorldMap(g, now) {
   g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.textAlign = 'left'; g.textBaseline = 'top';
   g.fillText('World map', 20, 14);
   g.font = '13px sans-serif'; g.fillStyle = '#a8c0d8';
-  g.fillText(`${here ? here.name : 'The wilds'}  ·  position ${player.x}, ${player.y}  ·  each square is ${MAP_STEP} tiles  ·  M or Esc closes`, 112, 18);
+  g.fillText(`${here ? here.name : 'The wilds'}  ·  position ${player.x}, ${player.y}  ·  each square is ${MAP_STEP} tiles  ·  click to place or remove a pin  ·  M or Esc closes`, 112, 18);
   // legend
   const items = [['#3f7d3a', 'grass'], ['#2e7d32', 'forest'], ['#1d4ed8', 'water'], ['#6b7280', 'mountains / town'], ['#a8865a', 'road'], ['#5fe17a', 'gate'], ['#c084fc', 'cave, crypt or tower (★ danger)']];
   let lx = 20; const ly = canvas.height - 26;
@@ -3065,6 +3106,7 @@ canvas.addEventListener('mousedown', (e) => {
   if (e.button !== 0 || isTouch) return;
   if (journalOpen) { const { px, py } = canvasPoint(e.clientX, e.clientY); journalClick(px, py); return; }
   if (perkChoices || shopOpen) return;
+  if (mapOpen) { const { px, py } = canvasPoint(e.clientX, e.clientY); if (mapClick(px, py)) return; }
   if (mapOpen || questsOpen) { mapOpen = false; questsOpen = false; draw(); return; }
   if (gameOver) return;
   e.preventDefault();
@@ -3304,7 +3346,7 @@ function killMonster(m) {
     if (m.boss) { unlock('boss_slayer'); track('boss_killed', { boss: m.name, floor }); }
     const xp = Math.round(m.type.xp * (wearing('cantonsbadge') ? 1.2 : 1) * (m.small || m.raised ? 0.4 : 1) * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1) * (m.elite ? 2 : 1) * (scene === 'dungeon' ? (floorMod === 'swarming' ? 1.25 : floorMod === 'cursed' ? 1.5 : 1) : 1));
     if (m.boss) {
-      log(`You slay ${m.name}! The seal on the stairs breaks.`, 'good');
+      log(dungeonDef && dungeonDef.arena ? `You defeat ${m.name}! The crowd is on its feet.` : `You slay ${m.name}! The seal on the stairs breaks.`, 'good');
       const purse = 40 + 30 * (dungeonDef ? dungeonDef.danger : 0) + floor * 10;
       player.gold += purse; floatText(m.x, m.y, `+${purse}g`, '#f5c542');
       sfx.play('win');
@@ -3570,8 +3612,76 @@ function confirmEntry(def, k) {
   sfx.play('boss');
   return false;
 }
+// ---------- the Grand Arena at Castle Aurum ----------
+// Waves of foes on the sand, gold for every wave, and the door out whenever you like.
+// Falling here costs nothing: the arena masters drag you out.
+const ARENA = { wave: 0, earned: 0, door: null, between: false, nextAt: 0 };
+const CHAMPIONS = ['Grimjaw the Unbowed', 'Ironhide', 'the Red Duchess', 'Old Tusk', 'Sable the Swift', 'the Masked Knight'];
+function offerArena(house) {
+  showScene([{ who: 'The Grand Arena', sprite: 'guard',
+    text: `The roar of the crowd spills out of the arena gate. "Waves of foes, each tougher than the last," the arena master says. "Gold for every wave you survive, a champion every fifth, and you can walk out between waves with your winnings. Fall, and we drag you out at no charge."${player.meta.arena ? ` Your best: wave ${player.meta.arena}.` : ''}`,
+    choices: [
+      { label: 'Step onto the sand', run: () => { setTimeout(() => startArena(house), 0); return null; } },
+      { label: 'Not today', run: () => 'The crowd groans as you walk away.' },
+    ] }]);
+}
+function startArena(house) {
+  Object.assign(ARENA, { wave: 0, earned: 0, door: { x: house.doorX, y: house.doorY + 1 }, between: true, nextAt: turn + 2 });
+  player.wx = ARENA.door.x; player.wy = ARENA.door.y;
+  dungeonDef = { kind: 'arena', arena: true, name: 'the Grand Arena', floors: 1, pool: null, gold: 1, potions: 0, view: 12, loot: 0, treasure: 0, danger: 0, xp: 1, theme: 'stone' };
+  floor = 1; mp.instance = null;
+  createDungeon(); afterSceneChange();
+  sfx.play('boss');
+  log('You step onto the sand. The gate clangs shut behind you, the golden door in the corner leads out. The first wave is coming!', 'good');
+  track('arena_enter');
+}
+function nextWave() {
+  const w = ++ARENA.wave, room = getChunk(0, 0).rooms[0];
+  dungeonDef.danger = Math.floor(w / 2);
+  const pool = MONSTER_TYPES.filter((t) => !t.noSpawn && !t.raiser && !t.splits && t.minFloor <= Math.min(5, 1 + Math.floor(w / 2)));
+  const spots = [];
+  for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) if (getTile(x, y) === TILE.FLOOR && cheb({ x, y }, player) >= 4) spots.push({ x, y });
+  const count = Math.min(10, 1 + w);
+  for (let i = 0; i < count && spots.length; i++) {
+    const c = spots.splice(rnd(spots.length), 1)[0], t = pool[rnd(pool.length)];
+    addMonster(t, c.x, c.y, { hp: t.hp + w * 2, atk: t.atk + Math.floor(w / 3) });
+  }
+  if (w % 5 === 0 && spots.length) {
+    const c = spots.splice(rnd(spots.length), 1)[0], t = MONSTER_TYPES.find((x) => x.name === 'Orc');
+    addMonster(t, c.x, c.y, { id: 'boss', boss: true, name: CHAMPIONS[(w / 5 - 1) % CHAMPIONS.length], hp: 30 + w * 7, atk: 4 + Math.floor(w / 2) });
+  }
+  toast = { text: `Wave ${w}${w % 5 === 0 ? ': a champion enters the arena!' : ''}`, until: performance.now() + 2500 };
+  sfx.play('boss'); shakeScreen(3);
+  updateVisibility(); draw();
+}
+function arenaTurn() {
+  if (!dungeonDef || !dungeonDef.arena || gameOver) return;
+  if (ARENA.between) { if (turn >= ARENA.nextAt) { ARENA.between = false; nextWave(); } return; }
+  if (monsters.length) return;
+  const w = ARENA.wave, purse = 15 * w + 5 * w * w;
+  player.gold += purse; ARENA.earned += purse;
+  const heal = Math.ceil(player.maxHp * 0.2); player.hp = Math.min(player.maxHp, player.hp + heal);
+  floatText(player.x, player.y, `+${purse}g`, '#f5c542'); sfx.play('win');
+  if (w > (player.meta.arena || 0)) player.meta.arena = w;
+  if (w >= 10) unlock('champion');
+  log(`Wave ${w} cleared! The crowd throws ${purse} gold and you catch your breath (+${heal} HP). The next wave comes in three turns, or leave by the golden door.`, 'good');
+  ARENA.between = true; ARENA.nextAt = turn + 3;
+}
+function leaveArena(fell) {
+  const earned = ARENA.earned, waves = Math.max(0, ARENA.wave - (fell ? 1 : 0));
+  floor = TOWN; createWorld();
+  player.x = ARENA.door.x; player.y = ARENA.door.y; player.wx = player.x; player.wy = player.y;
+  if (fell) player.hp = Math.max(1, Math.ceil(player.maxHp / 4));
+  settle(player); refreshTownContext();
+  dungeonDef = null; Object.assign(ARENA, { wave: 0, between: false });
+  afterSceneChange();
+  log(fell ? `You fall on the sand. The arena masters drag you out, battered but alive, with your ${earned} gold in winnings.` : `You leave the arena to cheers, ${earned} gold richer after ${waves} ${waves === 1 ? 'wave' : 'waves'}.`, fell ? 'bad' : 'good');
+  track('arena_leave', { waves, earned, fell: !!fell });
+  saveProgress('progress');
+}
 // Leaving early through the door by the entrance: keep everything, skip the hoard.
 function leaveDungeon() {
+  if (dungeonDef && dungeonDef.arena) { leaveArena(false); return; }
   const def = dungeonDef;
   sfx.play('stairs');
   track('dungeon_left', { dungeon: def ? (def.kind === 'site' ? def.site.type : 'town') : 'town', floor });
@@ -3601,6 +3711,7 @@ function tryMove(dx, dy) {
   if (t === TILE.WAYOUT) {
     if (turn - wayoutWarned <= 5) { wayoutWarned = -99; leaveDungeon(); return; }
     wayoutWarned = turn;
+    if (dungeonDef && dungeonDef.arena) { log(`The way out. Walk into it again to leave the arena with your ${ARENA.earned} gold in winnings.`); draw(); return; }
     log(`A door back to the surface. Walk into it again to leave the ${dungeonDef ? dungeonDef.name : 'dungeon'} now: you keep what you carry, but skip ${dungeonDef && dungeonDef.treasure ? 'the hoard at the bottom' : 'the rest of the floors'}.`);
     draw(); return;
   }
@@ -3608,7 +3719,9 @@ function tryMove(dx, dy) {
   const other = mpPlayerAt(nx, ny);
   if (other) { if (scene !== 'dungeon') openPlayerMenu(other); draw(); return; }
   if (t === TILE.DOOR) {
-    if (scene === 'house') leaveBuilding(); else enterBuilding(houses.find((h) => h.doorX === nx && h.doorY === ny));
+    const house = scene === 'house' ? null : houses.find((h) => h.doorX === nx && h.doorY === ny);
+    if (house && house.id === 'arena') { offerArena(house); draw(); return; }
+    if (scene === 'house') leaveBuilding(); else enterBuilding(house);
     return;
   }
   if (dx) player.face = dx;
@@ -3669,6 +3782,14 @@ function tryMove(dx, dy) {
       }
     }
     if (inTown()) { player.wx = nx; player.wy = ny; }
+  }
+  // on horseback the second tile comes free, if the road ahead is clear
+  if (!m && (dx || dy) && riding() && !(walk.active && player.x === walk.tx && player.y === walk.ty)) {
+    const x2 = player.x + dx, y2 = player.y + dy;
+    if (getTile(x2, y2) === TILE.FLOOR && !getMonsterAt(x2, y2) && !getNpcAt(x2, y2) && !townContaining(x2, y2) && !getGoldAt(x2, y2) && !mpPlayerAt(x2, y2) && !houndAt(x2, y2)) {
+      player.x = x2; player.y = y2; player.wx = x2; player.wy = y2;
+      if (hound && !hound.down && cheb(hound, player) > 3) placeHound();
+    }
   }
   endTurn(!m && (dx || dy));
 }
@@ -4158,8 +4279,10 @@ function endTurn(moved) {
   updateVisibility();
   updateStats();
   if (player.hp <= 0) die();
+  else arenaTurn();
   if (!gameOver && player.pendingPerks > 0) offerPerks();
   if (inTown()) for (const pl of nearbyPlaces(player.x, player.y, 1)) if (!discovered(pl) && cheb(pl, player) <= 3) discoverPlace(pl);
+  if (mapPin && scene === 'world' && cheb(mapPin, player) <= 3) { mapPin = null; savePin(); log('You reach the spot you pinned on your map.', 'good'); }
   if (scene === 'world' && moved && !gameOver && !storyOpen() && !perkChoices && !townContaining(player.x, player.y) && !coopActive()
       && !monsters.some((m) => m.awake && cheb(m, player) <= 6)) {
     encounterClock++;
@@ -4183,6 +4306,7 @@ function endTurn(moved) {
 }
 
 function die() {
+  if (dungeonDef && dungeonDef.arena && scene === 'dungeon') { leaveArena(true); return; }
   player.hp = 0; updateStats();
   const t = townAt(...homeTown.split(',').map(Number)) || townAt(0, 0);
   const lost = Math.ceil(player.gold / 2);
@@ -4537,6 +4661,7 @@ canvas.addEventListener('pointerdown', (e) => {
   sfx.unlock();
   if (perkChoices) { perkClick(e); return; }
   if (journalOpen) { const { px, py } = canvasPoint(e.clientX, e.clientY); journalClick(px, py); return; }
+  if (mapOpen) { const { px, py } = canvasPoint(e.clientX, e.clientY); if (mapClick(px, py)) return; }
   if (mapOpen || questsOpen) { mapOpen = false; questsOpen = false; draw(); return; }
   if (gameOver) { init(); return; }
   if (shopOpen) return;
@@ -4815,6 +4940,23 @@ function stashRows() {
   }
   return rows;
 }
+// A horse from the stables of any city or castle: in the open wilds every step
+// covers two tiles. It waits in town and never goes underground.
+const HORSE_COST = 400;
+const riding = () => !!(player && player.meta && player.meta.horse) && scene === 'world' && !townContaining(player.x, player.y)
+  && !monsters.some((m) => m.awake && cheb(m, player) <= 4);
+function horseRows() {
+  const town = interior && interior.house && interior.house.town ? townAt(...interior.house.town.split(',').map(Number)) : null;
+  if (!town || !['city', 'castle', 'grand'].includes(town.size)) return player.meta.horse ? [] : [shopRow('The big inns of cities and castles keep stables, and sell horses')];
+  if (player.meta.horse) return [shopRow('Your horse is fed and rested. It carries you two tiles a step in the open wilds')];
+  return [shopRow('Buy a horse from the stables: ride two tiles a step through the open wilds', `Buy ${HORSE_COST}g`, () => {
+    if (player.gold < HORSE_COST) return;
+    player.gold -= HORSE_COST; player.meta.horse = true; sfx.play('quest');
+    log('The stable hand leads out a sturdy bay mare. Out in the wilds you ride; in towns and dungeons she waits for you.', 'good');
+    tip('horse', 'In the open wilds you ride, two tiles a step. You dismount in towns, underground, and when monsters close in.');
+    unlock('rider'); updateStats(); renderShop(); draw(); saveProgress('progress');
+  }, player.gold < HORSE_COST)];
+}
 function travelCost(town) { const c = 10 + Math.round((Math.abs(town.cx - player.x) + Math.abs(town.cy - player.y)) / 12); return realmState().standing >= 250 ? Math.ceil(c / 2) : c; }
 function travelTo(town) {
   const cost = travelCost(town);
@@ -4847,6 +4989,7 @@ function renderShop() {
     }, player.gold < HOUND_COST));
     else if (hound.down || hound.hp < hound.maxHp) shopBuy.appendChild(shopRow(hound.down ? 'Your hound is back, bandaged and sorry for itself' : 'Patch up your hound', 'Heal, free', () => { hound.hp = hound.maxHp; hound.down = false; log('The innkeeper patches up your hound. Its tail thumps the floor.', 'good'); buildLegend(); renderShop(); draw(); }));
     else shopBuy.appendChild(shopRow(`Your hound is in fine fettle (level ${hound.level}, ${hound.kills} kills)`));
+    for (const row of horseRows()) shopBuy.appendChild(row);
     for (const row of stashRows()) shopBuy.appendChild(row);
   }
   if (shopKind === 'player') {
@@ -5102,7 +5245,7 @@ function startRun(saved) {
         story: saved.meta?.story && saved.meta.story.phase ? saved.meta.story : null, blessing: saved.meta?.blessing || null,
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
-        rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {} },
+        rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0 },
       relic: ITEMS.relics[saved.relic] ? saved.relic : null,
       weaponPlus: saved.weapon_plus || 0, armorPlus: saved.armor_plus || 0 });
     // heroes made before classes existed start with the warrior's numbers; fresh heroes take their class's

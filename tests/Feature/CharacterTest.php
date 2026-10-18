@@ -230,5 +230,7 @@ class CharacterTest extends TestCase
             ->assertJson(['relic' => 'ledger', 'meta' => ['rq' => $rq]]);
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['rq' => ['atlantis' => ['s' => 1, 'n' => 0]]]])->assertUnprocessable();
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['rq' => ['aurum' => ['s' => 9, 'n' => 0]]]])->assertUnprocessable();
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['horse' => true, 'arena' => 12]])->assertOk()->assertJson(['meta' => ['horse' => true, 'arena' => 12]]);
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['arena' => -3]])->assertUnprocessable();
     }
 }
