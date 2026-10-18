@@ -147,6 +147,13 @@ stone in the Kingdom, logs and thatch in the Clans, marble in the League. Keeps,
 watch houses and the arena have battlements, halls and banks have classical fronts,
 shops have awnings, smithies a forge glow, and chimneys smoke. Windows glow at night.
 
+Every town keeps a watch that patrols the square and the gate and sallies out
+after anything near the walls: a scruffy militiaman in ramshackle towns, guards
+in realm colours in thriving ones, knights in castles and at Castle Aurum (see
+`guardPlan`). Guards fight beasts that follow you to the gates, fall and return
+later if overwhelmed, carry lanterns at night, give directions and quests, and
+never hunt bounty beasts for you.
+
 New heroes see a short illustrated history of the world before the King's summons.
 It can be skipped with Esc and reread from the Journal's World page.
 

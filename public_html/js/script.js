@@ -176,7 +176,7 @@ function reindexMonsters() { monsterIndex = new Map(); for (const m of monsters)
 const getMonsterAt = (x, y) => { if (monstersDirty) reindexMonsters(); return monsterIndex.get(key(x, y)); };
 const getPotionAt = (x, y) => potions.find((p) => p.x === x && p.y === y);
 const getGoldAt = (x, y) => golds.find((g) => g.x === x && g.y === y);
-const getNpcAt = (x, y) => npcs.find((n) => n.x === x && n.y === y);
+const getNpcAt = (x, y) => npcs.find((n) => n.x === x && n.y === y && !n.down);
 const safeZone = () => scene === 'house' || (scene === 'world' && !!townContaining(player.x, player.y)); // towns and rooms: no monsters
 const mName = (m) => m.name || m.type.name;
 const inTown = () => scene === 'world';   // outdoors on the overworld
@@ -2112,12 +2112,130 @@ function townNpcs(town) {
     const cell = spots.splice(Math.floor(cellRand(town.i, town.j, 505) * spots.length), 1)[0];
     town.npcs.push({ ...cell, type: leaderNpc(town), pause: rnd(3), home: { x: town.cx, y: town.cy } });
   }
+  guardPlan(town).forEach((rank, k) => {
+    const beat = guardBeat(town, k), post = beat[0], R = GUARD_RANKS[rank];
+    town.npcs.push({ ...post, post, beat, leg: 1, type: guardNpc(town, rank, k), pause: rnd(3), home: { x: town.cx, y: town.cy }, hp: R.hp, maxHp: R.hp });
+  });
   const count = town.key === '0,0' ? NPC_TYPES.length : town.folk[0] + Math.floor(noise(town.i, town.j, 98) * (town.folk[1] - town.folk[0] + 1));
   for (let n = 0; n < count && spots.length; n++) {
     const cell = spots.splice(Math.floor(noise(town.i, town.j, 100 + n) * spots.length), 1)[0];
     town.npcs.push({ ...cell, type: NPC_TYPES[(n + Math.floor(noise(town.i, town.j, 99) * 4)) % NPC_TYPES.length], pause: rnd(3), home: { x: town.cx, y: town.cy } });
   }
   return town.npcs;
+}
+// ---------- the town watch ----------
+// Every town keeps guards who walk a beat around the square and the gate, and
+// sally out after anything that comes near the walls. Poor towns field a scruffy
+// militiaman or two; rich ones a proper watch in realm colours; castles, knights.
+const GUARD_RANKS = {
+  militia: { title: 'Militiaman', hp: 10, atk: 3, armor: 0, names: ['Tam', 'Dob', 'Wat', 'Hob', 'Nell', 'Gil', 'Pim', 'Rue'] },
+  guard:   { title: 'Guard', hp: 20, atk: 5, armor: 1, names: ['Aldo', 'Berta', 'Cass', 'Dunstan', 'Edda', 'Ferris', 'Greta', 'Hal', 'Ines', 'Jory'] },
+  knight:  { title: 'Knight', hp: 36, atk: 8, armor: 3, names: ['Sir Corwin', 'Dame Ysolt', 'Sir Brannoc', 'Dame Elswyth', 'Sir Godric', 'Dame Rhoswen', 'Sir Alain', 'Dame Mirel'] },
+};
+const REALM_GUARD_TITLES = { kathar: { militia: 'Spear-carrier', guard: 'Warden', knight: 'Champion' }, league: { militia: 'Hired blade', guard: 'Watchman', knight: 'Captain' } };
+function guardSprite(realm, rank) {
+  const name = `guard:${realm}:${rank}`;
+  if (BIG_SPRITES[name]) return name;
+  const col = { cantons: 'g', aurum: 'y', kathar: 'o', league: 'p' }[realm] || 'e';
+  const rows = BIG_SPRITES.soldier.map((r) => [...r]);
+  for (let y = 6; y <= 13; y++) rows[y][14] = '.';   // drop the spear; each rank gets its own weapon
+  if (rank === 'militia') {
+    rows[0] = [...'.....HHHHHH.....']; rows[1] = [...'....HHHHHHHH....']; rows[2] = [...'....HHssssHH....']; rows[3] = [...'....Hsssssss....'];
+    for (let y = 7; y <= 11; y++) for (let x = 2; x < 14; x++) if (rows[y][x] === 'e') rows[y][x] = 'h';
+    for (let x = 4; x < 12; x++) if (rows[9][x] === 'h') rows[9][x] = 'H';
+    rows[6][14] = 'H'; rows[7][14] = 'H'; for (let y = 8; y <= 11; y++) rows[y][14] = 'h';   // a club
+  } else if (rank === 'guard') {
+    for (let y = 7; y <= 11; y++) for (let x = 6; x <= 9; x++) if (rows[y][x] === 'e') rows[y][x] = col;
+    rows[4][14] = 'w'; rows[5][14] = 'w'; for (let y = 6; y <= 12; y++) rows[y][14] = 'h';   // a spear
+  } else {
+    for (let y = 0; y <= 1; y++) for (let x = 0; x < 16; x++) if (rows[y][x] === 'e') rows[y][x] = 'w';
+    rows[0][7] = col; rows[0][8] = col;
+    for (let y = 7; y <= 13; y++) for (let x = 0; x < 16; x++) if (rows[y][x] === 'e' || rows[y][x] === 'E') rows[y][x] = (x >= 6 && x <= 9 && y <= 11) ? col : 'w';
+    rows[3][14] = 'w'; for (let y = 4; y <= 9; y++) rows[y][14] = 'w'; rows[10][13] = 'y'; rows[10][14] = 'y'; rows[10][15] = 'y'; rows[11][14] = 'H';   // a sword
+  }
+  BIG_SPRITES[name] = rows.map((r) => r.join(''));
+  return name;
+}
+function guardPlan(town) {
+  const tier = townTier(town), knights = town.walled || town.size === 'grand';
+  if (tier === 0) return ['militia'];
+  if (tier === 1) return ['militia', 'guard'];
+  if (tier === 2) return knights ? ['guard', 'guard', 'knight'] : ['guard', 'guard', 'guard'];
+  if (tier === 3) return knights ? ['guard', 'guard', 'knight', 'knight'] : ['guard', 'guard', 'guard', 'guard', 'knight'];
+  return ['knight', 'knight', 'knight', 'knight', 'knight', 'knight'];
+}
+function guardNpc(town, rank, k) {
+  const R = GUARD_RANKS[rank], realm = town.realm || 'cantons';
+  const title = (REALM_GUARD_TITLES[realm] || {})[rank] || R.title;
+  const nm = R.names[(Math.floor(cellRand(town.i, town.j, 700) * R.names.length) + k * 3) % R.names.length];   // no two alike in one town
+  const tier = townTier(town), b = bountyFor(town);
+  const lines = [
+    'The gate to the dungeon is at the south end of the square. Nobody goes down it on my watch without a potion in their pack.',
+    tier === 0 ? 'We keep the beasts out. Mostly. The pay is a bowl of stew and the stew is mostly water.' : tier >= 3 ? `${town.name} pays its watch well, and it shows. Nothing with claws gets within a stone's throw of these walls.` : 'Anything that follows you to the gate meets us first. That is what we are for.',
+    `There is a bounty on ${b.name} posted at the watch house, if you have the stomach for it.`,
+    realm === 'aurum' ? "The King's peace holds in this town. Break it and you answer to me." : realm === 'kathar' ? 'The clan fire burns all night. Warm your hands, then move along.' : realm === 'league' ? 'The merchant houses pay for this watch. Thieves are bad for business.' : 'The council votes on our wages every spring. Vote for more.',
+  ];
+  return { sprite: guardSprite(realm, rank), name: `${title} ${nm}`, lines, guard: true, rank };
+}
+// Waypoints around the square and out to the gate.
+function guardBeat(town, k) {
+  const [pw, ph] = town.plaza, c = { x: town.cx, y: town.cy };
+  const ring = [[c.x - pw + 1, c.y - ph + 1], [c.x + pw - 1, c.y - ph + 1], [c.x + pw - 1, c.y + ph - 1], [town.gate.x, town.gate.y - 1], [c.x - pw + 1, c.y + ph - 1]];
+  const start = k % ring.length;
+  return ring.slice(start).concat(ring.slice(0, start)).map(([x, y]) => ({ x, y }));
+}
+function guardStrike(n, m) {
+  const R = GUARD_RANKS[n.type.rank];
+  const dmg = Math.max(1, R.atk + rnd(3) - (m.mod === 'armored' ? 2 : 0));
+  m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120;
+  n.lunge = { dx: Math.sign(m.x - n.x), dy: Math.sign(m.y - n.y), until: performance.now() + 140 };
+  if (m.x !== n.x) n.face = Math.sign(m.x - n.x);
+  floatText(m.x, m.y, `-${dmg}`, '#e9c48a');
+  if (isVisible(m.x, m.y) || cheb(m, player) <= 12) sfx.play('hit');
+  if (m.hp > 0) return;
+  log(`${n.type.name} cuts down the ${mName(m)}.`, 'good');
+  burst(m.x, m.y, '#e5e7eb', 10, 110, { life: 500 });
+  if (m.purse) golds.push({ x: m.x, y: m.y, amount: m.purse });
+  monsters = monsters.filter((x) => x !== m); if (scene === 'world') worldMonsters = monsters; monstersDirty = true;
+}
+function guardHurt(n, m) {
+  const R = GUARD_RANKS[n.type.rank], dmg = Math.max(1, m.atk - R.armor);
+  n.hp -= dmg; n.flashUntil = performance.now() + 120;
+  m.lunge = { dx: Math.sign(n.x - m.x), dy: Math.sign(n.y - m.y), until: performance.now() + 140 };
+  floatText(n.x, n.y, `-${dmg}`, '#ff9b9b');
+  if (n.hp > 0) return;
+  n.down = true; n.downUntil = turn + 150;
+  log(`${n.type.name} falls! The watch will carry them back to the barracks.`, 'bad');
+  burst(n.x, n.y, '#9ca3af', 10, 80, { life: 500 });
+}
+// One beat for every guard near the hero: fight what is close, chase what is near the walls, else patrol.
+function stepGuards() {
+  if (scene !== 'world') return;
+  for (const n of npcs) {
+    if (!n.type.guard || cheb(n, player) > SIM_RADIUS + 10) continue;   // only the watch near the hero acts
+    if (n.down) { if (turn >= n.downUntil) { n.down = false; n.hp = n.maxHp; n.x = n.post.x; n.y = n.post.y; } continue; }
+    if (n.hp < n.maxHp && turn % 10 === 0) n.hp++;
+    const foe = monsters.find((m) => !m.bounty && dist(m, n) === 1);
+    if (foe) { guardStrike(n, foe); continue; }
+    const home = n.home;
+    const near = monsters.filter((m) => !m.bounty && Math.abs(m.x - home.x) <= 24 && Math.abs(m.y - home.y) <= 20 && cheb(m, n) <= 9).sort((a, b) => dist(a, n) - dist(b, n))[0];
+    if (!near && n.pause-- > 0) continue;
+    const goal = near || n.beat[n.leg];
+    if (!near && dist(n, goal) <= 1) { n.leg = (n.leg + 1) % n.beat.length; n.pause = 2 + rnd(4); continue; }
+    const dx = Math.sign(goal.x - n.x), dy = Math.sign(goal.y - n.y);
+    const tries = Math.abs(goal.x - n.x) >= Math.abs(goal.y - n.y) ? [[dx, 0], [0, dy]] : [[0, dy], [dx, 0]];
+    for (const [sx, sy] of tries) {
+      if (!sx && !sy) continue;
+      const nx = n.x + sx, ny = n.y + sy, t = getTile(nx, ny);
+      if (t !== TILE.FLOOR && t !== TILE.EXIT) continue;
+      if (getNpcAt(nx, ny) || getMonsterAt(nx, ny) || houndAt(nx, ny) || (nx === player.x && ny === player.y)) continue;
+      if (sx) n.face = sx;
+      n.x = nx; n.y = ny;
+      if (bubble && bubble.x === n.x - sx && bubble.y === n.y - sy) { bubble.x = n.x; bubble.y = n.y; }
+      break;
+    }
+    if (!near) n.pause = 1;
+  }
 }
 // Houses and townsfolk of the towns around the hero become the live lists.
 function refreshTownContext() {
@@ -2199,6 +2317,7 @@ function talk(n) {
 }
 function stepNpcs() {
   for (const n of npcs) {
+    if (n.type.guard) continue;   // the watch has its own routine
     if (n.fixed || n.pause-- > 0) continue;
     n.pause = 1 + rnd(4);
     const [dx, dy] = DIRS[rnd(4)];
@@ -3371,7 +3490,12 @@ function drawScene(now) {
   }
   const shadow = (x, y) => { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x * T - cam.x + T / 2, y * T - cam.y + T - 4, T * 0.3, 4, 0, 0, Math.PI * 2); ctx.fill(); };
   const bob = (o, idle = true) => (idle ? Math.sin(now / 260 + (o.x * 7 + o.y * 13)) * 0.03 : 0);
-  if (scene !== 'dungeon') for (const n of npcs) if (inView(n)) { const [lx, ly] = [n.rx ?? n.x, n.ry ?? n.y]; shadow(lx, ly); drawSprite(ctx, n.type.sprite, lx, ly - bob(n) - hop(n), 1, 3, n.face === -1); }
+  if (scene !== 'dungeon') for (const n of npcs) if (!n.down && inView(n)) {
+    const [ldx, ldy] = lunge(n, now);
+    const [lx, ly] = [(n.rx ?? n.x) + ldx / T, (n.ry ?? n.y) + ldy / T]; shadow(lx, n.ry ?? n.y);
+    drawSprite(ctx, n.type.sprite, lx, ly - bob(n) - hop(n), 1, 3, n.face === -1, n.flashUntil > now);
+    if (n.type.guard && n.hp < n.maxHp) { ctx.fillStyle = '#300'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, T - 6, 3); ctx.fillStyle = '#e9c48a'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, (T - 6) * (n.hp / n.maxHp), 3); }
+  }
   for (const o of mpHere()) {
     if (!inView(o)) continue;
     if (o.hound && inView(o.hound)) { shadow(o.hound.rx ?? o.hound.x, o.hound.ry ?? o.hound.y); drawSprite(ctx, 'hound', o.hound.rx ?? o.hound.x, (o.hound.ry ?? o.hound.y) - hop(o.hound), 1, 3, o.hound.face === -1); }
@@ -3485,6 +3609,9 @@ function drawScene(now) {
       for (const town of nearbyTowns(player.x, player.y, 1)) {
         if (town.cx + 4 < x0 - 3 || town.cx + 4 > x1 + 3 || town.cy < y0 - 3 || town.cy > y1 + 3) continue;
         night.push({ x: (town.cx + 4) * T - cam.x + T / 2, y: town.cy * T - cam.y + T / 2, r: T * 2.2, a: 0.8, glow: `rgba(123,223,255,${0.18 + 0.06 * Math.sin(now / 400)})`, gr: T * 1.3 });
+      }
+      for (const n of npcs) if (n.type.guard && !n.down && n.x >= x0 - 3 && n.x <= x1 + 3 && n.y >= y0 - 3 && n.y <= y1 + 3) {
+        night.push({ x: (n.rx ?? n.x) * T - cam.x + T / 2, y: (n.ry ?? n.y) * T - cam.y + T / 2, r: T * 3, a: 0.8, glow: 'rgba(255,190,110,0.22)', gr: T * 1.6 });   // the watch carries lanterns
       }
       for (const h of houses) {
         if (h.doorX < x0 - 3 || h.doorX > x1 + 3 || h.doorY < y0 - 3 || h.doorY > y1 + 3) continue;
@@ -3767,6 +3894,7 @@ function describeTile(x, y) {
   if (t === TILE.MONUMENT) { const tw = townContaining(x, y); if (tw) { const L = townIdentity(tw).landmark; return `${L.name[0].toUpperCase() + L.name.slice(1)} — the pride of ${tw.name}. Walk into it to look closer`; } }
   if (getTile(x, y) === TILE.WAYSTONE) return 'Waystone — walk into it to travel to any town you have visited';
   const n = scene !== 'dungeon' && getNpcAt(x, y);
+  if (n && n.type.guard) return `${n.type.name} — the town watch (${n.hp}/${n.maxHp} HP). Keeps beasts from the gates; walk into them to chat`;
   if (n) return `${n.type.name} — walk into them to ${n.type.action === 'shop' || n.type.action === 'potions' ? 'trade' : n.type.action === 'inn' ? 'rest' : 'chat'}`;
   if (isVisible(x, y)) {
     const m = getMonsterAt(x, y);
@@ -3983,6 +4111,7 @@ function buildLegend() {
   add('merchant', 'Merchant', 'buy and sell');
   if (inTown()) {
     add('guard', 'Townsfolk', 'walk into them to chat');
+    { const gd = npcs.find((n) => n.type.guard); if (gd) add(gd.type.sprite, 'The town watch', 'guards the square and the gate'); }
     add('waystone', 'Waystone', 'fast travel between visited towns');
     add('stairs', 'Gate', 'into the dungeon');
     add('tree', 'Forest, water, mountains', 'impassable; roads join the towns');
@@ -4240,6 +4369,10 @@ function stepMonsters(swiftOnly = false, heroes = null) {
     const wake = (scene === 'world' ? (dayPhase() === 'night' ? 10 : 6) : 6) - (wearing('wardstone') ? 3 : 0);
     if (!m.awake && dist(m, H) <= wake && (H.me ? isVisible(m.x, m.y) : true) && Math.random() < 0.7) m.awake = true;
     if (m.boss && m.awake && !swiftOnly && bossTurn(m, H, heroes)) continue;
+    if (scene === 'world' && !m.bounty) {
+      const gd = npcs.find((n) => n.type.guard && !n.down && dist(m, n) === 1);
+      if (gd && !heroes.some((h) => dist(m, h) === 1) && (m.awake || Math.random() < 0.5)) { m.awake = true; guardHurt(gd, m); continue; }
+    }
     const adjacent = heroes.find((h) => dist(m, h) === 1);
     if (adjacent) { strike(m, adjacent, false); continue; }
     if (!m.awake) continue;
@@ -4266,7 +4399,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
     }
     for (const [dx, dy] of dirs) {
       const nx = m.x + dx, ny = m.y + dy;
-      if (!walkable(getTile(nx, ny)) || getTile(nx, ny) === TILE.LAVA || getMonsterAt(nx, ny) || heroAt(nx, ny) || houndAt(nx, ny)) continue;
+      if (!walkable(getTile(nx, ny)) || getTile(nx, ny) === TILE.LAVA || getMonsterAt(nx, ny) || heroAt(nx, ny) || houndAt(nx, ny) || (scene === 'world' && getNpcAt(nx, ny))) continue;
       if (scene === 'world' && townContaining(nx, ny)) continue;   // beasts keep out of settlements
       const nd = d.get(key(nx, ny));
       if (nd !== undefined && nd < bestD) { bestD = nd; best = [nx, ny]; }
@@ -5330,6 +5463,7 @@ function endTurn(moved) {
   }
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
   if (scene !== 'dungeon') stepNpcs();
+  stepGuards();
   stepHound();
   // in a shared dungeon the host moves monsters on a steady beat instead of per turn
   if (scene !== 'house' && !coopActive()) {
