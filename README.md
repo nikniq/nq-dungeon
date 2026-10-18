@@ -46,6 +46,29 @@ Each floor has a merchant (`$`) who buys and sells weapons, armor and potions;
 the item catalog lives in `config/items.php`. Hover or tap anything on the map
 to see what it is. Create a hero to save runs and gear between visits.
 
+## Combat
+
+Every weapon has a trait:
+
+| Weapon | Trait |
+| --- | --- |
+| Dagger | Quick: sneak attacks deal triple damage, and one stab in five strikes twice |
+| Short sword | Keen: one hit in five is a critical for double damage |
+| Mace | Stunning: one hit in four stuns the target for a turn |
+| Longsword | Parrying: parries one melee blow in five |
+| Warhammer | Crushing: knocks foes back a tile, or slams them into a wall for +3 |
+| Royal greatsword | Cleaving: also hits every other foe beside you for half damage |
+
+Hitting a sleeping monster is a sneak attack for double damage. Bosses wind up heavy
+blows that land on the red tiles around them a turn later; at half health they
+enrage, hit harder and call two minions. About a third of dungeon floors have a
+twist: Dark, Swarming, Treasure or Cursed. Hovering over a monster shows how hard it
+hits you and how many blows it will take. Shops mark gear that beats what you wear
+and offer Buy & equip. Press ? for the controls screen.
+
+New heroes see a short illustrated history of the world before the King's summons.
+It can be skipped with Esc and reread from the Journal's World page.
+
 ## Story, realms and treasures
 
 The game is built mainly for one player. **The Shattered Crown** is the main story.

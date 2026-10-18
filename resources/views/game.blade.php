@@ -12,6 +12,42 @@
     <div class="stage">
       <canvas id="game" width="960" height="640"></canvas>
       <div id="tip" class="tip" role="status"></div>
+      <div id="controls-help" class="overlay controls-help" hidden>
+        <div class="controls-box" role="dialog" aria-label="Controls">
+          <h2>Controls</h2>
+          <div class="controls-cols">
+            <div>
+              <h3>Keyboard</h3>
+              <ul>
+                <li><kbd>↑ ↓ ← →</kbd> <kbd>WASD</kbd> <kbd>HJKL</kbd> move; walk into a monster to attack</li>
+                <li><kbd>Space</kbd> or <kbd>.</kbd> wait a turn</li>
+                <li><kbd>1</kbd> class ability · <kbd>P</kbd> potion · <kbd>B</kbd> bomb · <kbd>T</kbd> scroll of return</li>
+                <li><kbd>M</kbd> world map · <kbd>Q</kbd> quests · <kbd>J</kbd> journal · <kbd>N</kbd> sound</li>
+                <li><kbd>Esc</kbd> closes menus and skips story scenes · <kbd>?</kbd> this screen</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Mouse and touch</h3>
+              <ul>
+                <li>Click a spot to walk there, a monster to fight it, people and doors to use them</li>
+                <li>Right-click to use your ability, aimed where you click</li>
+                <li>Hover or tap anything to see what it is, and how hard a monster will be</li>
+                <li>On phones, tap or hold to walk; the round buttons use your ability, a potion, wait or the map</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Tips</h3>
+              <ul>
+                <li>Hit sleeping monsters first: sneak attacks deal double damage, triple with a dagger</li>
+                <li>Every weapon has a trait. Compare them in the shop: ▲ is better than what you wear</li>
+                <li>Bosses wind up heavy blows on the red tiles. Step out of them</li>
+                <li>Every dungeon floor has a golden door back to the surface</li>
+              </ul>
+            </div>
+          </div>
+          <button type="button" id="controls-close" class="primary">Got it</button>
+        </div>
+      </div>
       <div id="story" class="overlay story" hidden>
         <div class="story-box">
           <canvas id="story-portrait" width="96" height="96" aria-hidden="true"></canvas>
@@ -19,6 +55,7 @@
             <h2 id="story-title"></h2>
             <p id="story-text"></p>
             <button type="button" id="story-next" class="primary">Continue</button>
+            <button type="button" id="story-skip" class="link-btn" hidden>Skip</button>
           </div>
         </div>
       </div>
@@ -62,6 +99,7 @@
       <button type="button" id="worldmap" class="fs">Map (M)</button>
       <button type="button" id="quests" class="fs">Quests (Q)</button>
       <button type="button" id="journal" class="fs">Journal (J)</button>
+      <button type="button" id="controls" class="fs">Controls (?)</button>
       <button type="button" id="sound" class="fs">Sound on</button>
       <button type="button" id="fullscreen" class="fs">Fullscreen</button>
     </div>
