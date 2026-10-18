@@ -107,6 +107,12 @@ Each wave pays more gold, every fifth brings a named champion, and you can leave
 the golden door between waves. Falling there costs nothing. The best wave is saved
 as `meta.arena`; wave 10 earns Champion of Aurum.
 
+Every town has its own identity, read from its cell of the world: a trade chosen
+from the land around it (fishing, quarrying, timber, wine, horse-breeding and so on,
+some with local price breaks), a landmark in its square, and a named local leader
+who talks about the town and points to nearby dungeons and places. Arriving shows
+a description, and towns near each other never share a name.
+
 New heroes see a short illustrated history of the world before the King's summons.
 It can be skipped with Esc and reread from the Journal's World page.
 
@@ -117,7 +123,11 @@ A herald's prologue sends you to King Aldric at Castle Aurum. He sends you after
 crown shards, one at a time, each in a sealed story dungeon with its own theme and a
 named boss: the Sunken Chapel, Drowned Grotto, Barrow of Kings, Ember Deeps and Star Tower.
 A gold ★ on the HUD, compass and world map always points at the current objective.
-Each shard comes with a relic, and the finale grants the Crown of Aurum.
+Each shard comes with a relic and a clue: a torn letter signed "E.", a stag
+signet, a carving, a purse of royal silver. They point to Prince Edric, the King's
+exiled elder brother, who broke the crown. His agents ambush you on the road to
+the Ember Deeps, and he waits atop the Star Tower. Beaten, he yields, and the finale
+reunites the brothers before the crown is restored.
 
 Relics go in a separate slot and have unique effects. They are listed in
 `config/items.php` under `relics` and cannot be sold. Dungeon floors have themes:

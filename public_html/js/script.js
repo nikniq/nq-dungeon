@@ -16,7 +16,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 const restartBtn = document.getElementById('restart');
 
-const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15, CRACK: 16, SPRING: 17 };
+const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15, CRACK: 16, SPRING: 17, MONUMENT: 18 };
 const TOWN = 0;           // floor number of the town square
 const FINAL_FLOOR = 5;
 const VIEW_RADIUS = 8;    // how far the hero sees in the dungeon
@@ -36,6 +36,7 @@ const MONSTER_TYPES = [
   { name: 'Slime',    sprite: 'slime',    hp: 10, atk: 2, xp: 6,  minFloor: 2, splits: true },
   { name: 'Necromancer', sprite: 'necromancer', hp: 9, atk: 2, xp: 18, minFloor: 4, raiser: true },
   { name: 'Mimic',    sprite: 'mimic',    hp: 14, atk: 4, xp: 20, minFloor: 99, noSpawn: true },
+  { name: 'Knight',   sprite: 'darkknight', hp: 16, atk: 5, xp: 24, minFloor: 99, noSpawn: true },
 ];
 // Hero classes: base stats, a sprite, and one ability on the 1 key.
 const CLASSES = {
@@ -207,7 +208,7 @@ function markSeen(x, y) {
   const cx = Math.floor(x / CHUNK), cy = Math.floor(y / CHUNK);
   getChunk(cx, cy).seen[(y - cy * CHUNK) * CHUNK + (x - cx * CHUNK)] = 1;
 }
-const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE && t !== TILE.WAYOUT && t !== TILE.CRACK && t !== TILE.SPRING;
+const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE && t !== TILE.WAYOUT && t !== TILE.CRACK && t !== TILE.SPRING && t !== TILE.MONUMENT;
 const hazard = (x, y) => getTile(x, y) === TILE.LAVA || (getTile(x, y) === TILE.TRAP && revealedTraps.has(key(x, y)));
 
 // ---------- account save/load ----------
@@ -613,7 +614,7 @@ function placeBoss(room, ox, oy, R = Math.random) {
   const cell = cells[Math.floor(R() * cells.length)] || { x: exit.x + 1, y: exit.y };
   if (getTile(cell.x, cell.y) === TILE.WALL) setTile(cell.x, cell.y, TILE.FLOOR);
   const hp = type.hp * (def.boss ? 5 : 4) + danger * 4 + floor * 2;
-  monsters.push({ ...cell, id: 'boss', type, name: def.boss ? def.boss.name : BOSS_NAMES[type.name], hp, maxHp: hp, atk: type.atk + 1 + Math.ceil(danger / 2), awake: false, boss: true });
+  monsters.push({ ...cell, id: 'boss', type, name: def.boss ? def.boss.name : BOSS_NAMES[type.name], yields: !!(def.boss && def.boss.yields), hp, maxHp: hp, atk: type.atk + 1 + Math.ceil(danger / 2), awake: false, boss: true });
   monstersDirty = true;
 }
 const bossAlive = () => scene === 'dungeon' && monsters.some((m) => m.boss);
@@ -674,7 +675,7 @@ function questProgress(kind, target, amount = 1) {
   if (done.length > 6) player.quests.splice(player.quests.indexOf(done[0]), 1);
 }
 let questsOpen = false;
-let lastRealm = null;
+let lastRealm = null, lastTownKey = null;
 let journalOpen = false, journalTab = 0;
 const JOURNAL_TABS = ['Story', 'Places', 'Treasures', 'Bestiary', 'World'];
 const MONSTER_LORE = {
@@ -688,6 +689,7 @@ const MONSTER_LORE = {
   Archer: 'Goblins who learned that the safest fight is from a distance. They back away to shoot again.',
   Slime: 'A wobbling heap of hunger. Cut it in half and you have two smaller problems. Cut those, and you are done.',
   Necromancer: 'A robed fool who found a book he should not have. He keeps his distance and raises the dead to fight for him. Kill him first.',
+  Knight: 'Sworn swords in black and grey who wear a small silver stag. They serve Prince Edric, and they fight like men with nothing left to lose.',
   Mimic: 'Not every chest wants to be opened. Some want to open you. Mimics pay well, if you live.',
 };
 function journalKey(e) {
@@ -727,6 +729,8 @@ function drawJournal(g) {
     const steps = [['The summons', 'Answer King Aldric\'s call at Castle Aurum.', st.phase !== 'summons']];
     STORY_ORDER.forEach((id, i) => { const S = STORY_SITES[id]; const doneShard = i < st.ch || st.phase === 'done' || (i === st.ch && st.phase === 'return'); const known = i < st.ch || (i === st.ch && st.phase !== 'summons') || st.phase === 'done'; steps.push([known ? S.shard : '???', known ? `${S.title}, in ${REALMS[(() => { const st2 = siteAt(S.i, S.j); return realmOfTile(st2.x, st2.y); })()].short}.` : 'Not yet revealed.', doneShard]); });
     steps.push(['The crown restored', 'Bring all five shards to the King.', st.phase === 'done']);
+    const clues = STORY_ORDER.filter((id, i) => i < st.ch || st.phase === 'done' || (i === st.ch && st.phase === 'return'));
+    if (clues.length) steps.push(['Clues', clues.map((id) => SHARD_CLUE[id].who).join(', ') + (clues.length >= 2 ? '. They all point to Prince Edric.' : '.'), st.phase === 'done']);
     if (st.phase === 'done') steps.push(['The Deep', `The Gate of the Deep lies between Hearth and Castle Aurum. Your record: floor ${player.meta.deepest || 0}.`, (player.meta.deepest || 0) >= 25]);
     for (const [name, desc, done] of steps) {
       g.fillStyle = done ? '#9ef0b0' : '#e6eef8'; g.font = 'bold 14px sans-serif'; g.fillText(`${done ? '✓' : '•'} ${name}`, X, y);
@@ -975,6 +979,11 @@ BIG_SPRITES.necromancer = ['......kkkk......', '.....kkkkkk.....', '....kkkkkkkk
 BIG_SPRITES.mimic = ['................', '................', '..hhhhhhhhhhhh..', '.hHHHHHHHHHHHHh.', '.hHhhhhhhhhhhHh.', '.hHhrkhhhhrkhHh.', '.hHHHHHyyHHHHHh.', '.wkwkwkwkwkwkwk.', '.kkrrrrrrrrrrkk.', '.wkwkwkwkwkwkwk.', '.hHHHHHHHHHHHHh.', '.hHhhhhhhhhhhHh.', '.hHHHHHHHHHHHHh.', '..hhhhhhhhhhhh..', '..h..........h..', '................'];
 BIG_SPRITES.abyss = ['................', '....EEEEEEEE....', '...EeeeeeeeeE...', '..EeEEEEEEEEeE..', '..EeEkkkkkkEeE..', '..EeEkkppkkEeE..', '..EeEkpPPpkEeE..', '..EeEkpPPpkEeE..', '..EeEkkppkkEeE..', '..EeEkkkkkkEeE..', '..EeEkkkkkkEeE..', '..EeEkkkkkkEeE..', '.EEEEEEEEEEEEEE.', 'GGGGGGGGGGGGGGGG', '.GGGGGGGGGGGGGG.', '................'];
 BIG_SPRITES.horse = ['................', '................', '............HH..', '...........HhhH.', '..........Hhhkh.', '..........hhhhhh', '...hhhhhhhhhhh..', '..Hhhhhhhhhhhh..', '..hhhhhhhhhhhh..', '.H.hhhhhhhhhh...', '...hhhhhhhhhh...', '...hh.hh..hh.hh.', '...hh.hh..hh.hh.', '...hh.hh..hh.hh.', '...kk.kk..kk.kk.', '................'];
+BIG_SPRITES.statue = ['......eeee......', '.....eEEEEe.....', '.....eEeeEe.....', '......eeee......', '.....eeeeee.....', '....eeEeeEee....', '...ee.eeee.ee...', '...e..eeee..e...', '......eeee......', '......ee.ee.....', '......ee.ee.....', '....EEEEEEEE....', '...EeeeeeeeeE...', '...EEEEEEEEEE...', '..EEEEEEEEEEEE..', '................'];
+BIG_SPRITES.belltower = ['.......dd.......', '......dddd......', '.....dddddd.....', '....dddddddd....', '.....EeeeeE.....', '.....E.yy.E.....', '.....E.yy.E.....', '.....EeeeeE.....', '.....EEEEEE.....', '.....EeEEeE.....', '.....EEEEEE.....', '.....EeEEeE.....', '.....EEEEEE.....', '....EEEhhEEE....', '...EEEEhhEEEE...', '................'];
+BIG_SPRITES.bonfire = ['................', '.......yy.......', '......yooy......', '.....yoryoy.....', '.....orrroo.....', '....yorryroy....', '....orrrrrro....', '....orryyrro....', '.....orrrro.....', '...hHhorroHhh...', '..hhHHhhhHHhh...', '...HhhHHHhhH....', '..EEe....eEE....', '..EeEE..EEeE....', '................', '................'];
+BIG_SPRITES.darkknight = ['.....kkkkkk.....', '....kEEEEEEk....', '....kEkkkkEk....', '....kEkrrkEk....', '....kEEEEEEk....', '.....kEEEEk.....', '....kkkkkkkk....', '...kEEEyyEEEk.w.', '..kEEEEEEEEEEkw.', '..EkEEEEEEEEkEw.', '..E.kEEEEEEk.Ey.', '....kEEEEEEk..H.', '....kEEk.kEEk...', '....kEEk.kEEk...', '...kkkk...kkkk..', '................'];
+BIG_SPRITES.letter = ['................', '................', '..tttttttttttt..', '..twwwwwwwwwwt..', '..twkkkkkkkwwt..', '..twwwwwwwwwwt..', '..twkkkkkkwwwt..', '..twwwwwwwwwwt..', '..twkkkkkkkkwt..', '..twwwwwwwwwwt..', '..twkkkkwwwwwt..', '..twwwwwwwwrrt..', '..twwwwwwwwrrt..', '..tttttttttttt..', '................', '................'];
 const spriteCache = {};
 // Creatures, items and props get a dark outline so they read on any ground;
 // 16px sprites also get a light top rim and a darker bottom rim for volume.
@@ -1249,7 +1258,7 @@ const STORY_SITES = {
   tides:  { i: -2, j: 2,  type: 'cave',  theme: 'flooded', danger: 2, floors: 3, title: 'The Drowned Grotto', shard: 'Shard of Tides',  relic: 'tideheart',  boss: { type: 'Spider', name: 'Morwen the Drowned' } },
   bones:  { i: 3, j: -2,  type: 'crypt', theme: 'bone',    danger: 3, floors: 3, title: 'The Barrow of Kings', shard: 'Shard of Bones', relic: 'bonecharm',  boss: { type: 'Wraith', name: 'the Barrow King' } },
   embers: { i: -4, j: 1,  type: 'cave',  theme: 'lava',    danger: 4, floors: 4, title: 'The Ember Deeps',    shard: 'Shard of Embers', relic: 'emberbrand', boss: { type: 'Orc', name: 'Gorrak Emberjaw' } },
-  stars:  { i: -2, j: -4, type: 'tower', theme: 'arcane',  danger: 5, floors: 4, title: 'The Star Tower',     shard: 'Shard of Stars',  relic: 'starring',   boss: { type: 'Wraith', name: 'Astrael the Unbound' } },
+  stars:  { i: -2, j: -4, type: 'tower', theme: 'arcane',  danger: 5, floors: 4, title: 'The Star Tower',     shard: 'Shard of Stars',  relic: 'starring',   boss: { type: 'Knight', name: 'Prince Edric, the Crownbreaker', yields: true } },
 };
 const STORY_ORDER = ['dawn', 'tides', 'bones', 'embers', 'stars'];
 const STORY_AT = Object.fromEntries(Object.entries(STORY_SITES).map(([id, S]) => [`${S.i},${S.j}`, id]));
@@ -1304,7 +1313,7 @@ function drawRealmArt(g, w, h) {
 }
 const PROLOGUE = [
   { who: 'A royal herald', sprite: 'guard', text: 'A rider in gold and crimson reins in beside the fountain. "Hero! I bear the seal of King Aldric of Aurum. Five nights ago the Crown of Aurum shattered upon its cushion, and its five shards vanished into the dark places of the world."' },
-  { who: 'A royal herald', sprite: 'guard', text: '"Since that night the dungeons stir and beasts walk the roads. The King summons every sword that will answer. Ride east to Castle Aurum and kneel before him. Your compass will show the way."' },
+  { who: 'A royal herald', sprite: 'guard', text: '"The guards swear a cloaked figure walked out of the hall that night, and nobody saw a face. Since then the dungeons stir and beasts walk the roads. The King summons every sword that will answer. Ride east to Castle Aurum and kneel before him. Your compass will show the way."' },
   { who: 'The four realms', sprite: 'obelisk', text: 'This land is split between four realms that agree on very little: the Free Cantons of Hearth, the Kingdom of Aurum, the Ka\'thar Clans and the Goldspire League. On this, at least, they are afraid together.' },
 ];
 const KING_SCENES = {
@@ -1312,12 +1321,13 @@ const KING_SCENES = {
     { who: 'King Aldric', sprite: 'king', text: '"So you came. Good. Most did not." The King is younger than you expected, and more tired. "The shards went where old power sleeps. My scholars have found the first: the Sunken Chapel, south-east of Hearth, where the sisters of dawn once prayed."' },
     { who: 'King Aldric', sprite: 'king', text: '"Bring me the Shard of Dawn. I have broken the seal on the chapel door and marked the way on your map. Take care. Whatever woke in that chapel does not want it found."' },
   ],
-  dawn: [{ who: 'King Aldric', sprite: 'king', text: '"The Shard of Dawn. It is warm, even now." He turns it in his hands. "The next lies in the Drowned Grotto, in the lands of the Ka\'thar Clans to the south-west. The clans have no love for crowns, but they hate what crawls up from that grotto more. Go carefully among them."' }],
-  tides: [{ who: 'King Aldric', sprite: 'king', text: '"The Shard of Tides. You smell of salt and spider silk." He almost smiles. "The third lies closer to home than I would like: the Barrow of Kings, east of my own walls, where my ancestors sleep. Something wears their crowns now. End it."' }],
-  bones: [{ who: 'King Aldric', sprite: 'king', text: '"My grandfathers rest easy again, and I owe you more than gold." His voice drops. "The Shard of Embers burns in the Ember Deeps, beneath the clan lands in the far west. Take water. Take potions. Take nothing you mind losing to the fire."' }],
-  embers: [{ who: 'King Aldric', sprite: 'king', text: '"Four. Only the Shard of Stars remains." He unrolls a map. "It sits atop the Star Tower, north-west, in the shadow of Goldspire. The merchant lords of the League will offer to sell you the way in. Do not pay them."' }],
+  dawn: [{ who: 'King Aldric', sprite: 'king', text: '"The Shard of Dawn. It is warm, even now." Then you show him the scrap of letter, and the warmth goes out of his face. "My brother\'s crown. Whoever wrote this has a brother on a throne, and there are not many of us." He folds the scrap away. "The next shard lies in the Drowned Grotto, in the clan lands to the south-west. Keep your eyes open down there, and not only for monsters."' }],
+  tides: [{ who: 'King Aldric', sprite: 'king', text: '"A rearing stag." The King turns the signet over and over. "The badge of my brother Edric. Our father sent him into exile ten years ago, for reasons I have never said aloud." He sets it down very carefully. "The third shard is in the Barrow of Kings, east of these walls, where our father sleeps. If Edric has been there, I need to know."' }],
+  bones: [{ who: 'King Aldric', sprite: 'king', text: 'He reads the carving twice. "It should have been me." For a long moment the King says nothing. "Edric was the elder by an hour and the cleverer by a mile. Father chose me anyway, and Edric never forgave either of us." He straightens. "The fourth shard burns in the Ember Deeps, far to the west. Be careful on the roads. If Edric knows you are coming, he will not wait for you to arrive."' }],
+  embers: [{ who: 'King Aldric', sprite: 'king', text: '"He paid an orc to keep it for him." The King weighs the purse of old royal silver. "Our mother\'s silver. He took it with him into exile." He unrolls a map and taps a tower in the north-west. "The Star Tower. That is where he will be, with the last shard. Bring it back, and if you can, bring him back too. Alive. He is still my brother."' }],
   stars: [
-    { who: 'King Aldric', sprite: 'king', text: '"Five shards. Lay them on the cushion. There." His hands are shaking. "I have dreamed of this every night since it broke."' },
+    { who: 'King Aldric', sprite: 'king', text: '"You brought him." Edric stands between two guards, unbowed and very tired. The brothers look at each other for a long time. "Why?" the King asks at last. "So that for once," Edric says, "you would need me to fix something. And instead you found a stranger."' },
+    { who: 'King Aldric', sprite: 'king', text: '"I did need you," Aldric says quietly. "I always have. You are pardoned, brother, on one condition: you help me hold what you nearly broke." Edric opens his mouth to argue and then, for the first time in ten years, does not. The King turns to you. "Now. Five shards. Lay them on the cushion. There."' },
     { who: 'The Crown of Aurum', sprite: 'obelisk', text: 'The pieces drift together, and with a sound like a bell heard underwater the Crown of Aurum is whole again. Far beneath the world, something that was waking turns over, and goes back to sleep.' },
     { who: 'King Aldric', sprite: 'king', text: '"The four realms will argue for a hundred years about who saved them. I know the answer." He places the crown in your hands, not on his own head. "It chose you, Crownbearer. Wear it. The realm is in your debt, and so am I."' },
     { who: 'King Aldric', sprite: 'king', text: '"One more thing." He lowers his voice. "When the crown broke, a gate of black iron opened in the hills between Hearth and my walls. The Gate of the Deep. Whatever the five lights were holding down is still down there. Go as deep as you dare, and come back to tell me what you saw."' },
@@ -1329,6 +1339,15 @@ const SHARD_FOUND = {
   bones: 'On the Barrow King\'s throne, among the crowns of dead kings, the Shard of Bones gleams pale and cold. Around the throne\'s arm hangs a charm of yellowed bone.',
   embers: 'Gorrak\'s hoard is mostly slag and scorched coin, but at its heart the Shard of Embers glows like a coal that will never go out. Next to it, a ring still too hot to touch.',
   stars: 'At the top of the tower, where the ceiling is open to the sky, the Shard of Stars hangs in the air, turning slowly. Below it lies a ring that seems to hold a falling star.',
+};
+
+// The trail of clues that leads to Prince Edric, one beside each shard.
+const SHARD_CLUE = {
+  dawn: { who: 'A torn letter', sprite: 'letter', text: 'Under the altar cloth lies a scrap of a letter in a fine, careful hand: "...the chapel first, where the light is weakest. Once all five lights are scattered, my brother\'s crown is only a hat. E."' },
+  tides: { who: 'A signet ring', sprite: 'chest', text: 'Tangled in the silk is a gold signet ring carved with a rearing stag. Whoever wore it was no ordinary thief.' },
+  bones: { who: 'A fresh carving', sprite: 'skeleton', text: 'Cut into the arm of the Barrow King\'s throne, the marks still sharp: "Here sleeps my father, who chose wrong. It should have been me. E."' },
+  embers: { who: 'A purse of silver', sprite: 'chest', text: 'Under the slag is a velvet purse of old royal silver, and a note: "For your trouble, and your silence. Hold the shard until I come for it. E."' },
+  stars: { who: 'Prince Edric', sprite: 'darkknight', text: 'The knight in black pulls off his helm. He has the King\'s face, ten years harder. "Go on, then," Prince Edric says. "Take it to him. Tell him his brother lost again." He does not resist when you lead him down the stairs.' }
 };
 
 // ---------- places to visit ----------
@@ -1397,6 +1416,22 @@ const REALM_NAMES = {
   league: [['Gold', 'Silver', 'Coin', 'Amber', 'Ivory', 'Velvet', 'Pearl', 'Gilt', 'Opal', 'Saffron', 'Marble', 'Ledger'], ['', '', ''], ['spire', 'port', 'market', 'mint', 'vault', 'haven', 'reach', 'quay', 'court', 'gate']],
 };
 const CAPITAL_NAMES = { kathar: 'Kar Thuldun', league: 'Goldspire' };
+// Two towns close together never share a name: the later one takes a qualifier.
+const NAME_QUALIFIERS = ['Little', 'Upper', 'Lower', 'Old', 'New', 'Great', 'High', 'Nether'];
+function hasTown(i, j) {
+  if (i === 0 && j === 0) return true;
+  if (REALM_ORDER.some((id) => REALMS[id].capital[0] === i && REALMS[id].capital[1] === j)) return true;
+  return !(cellRand(i, j, 90) < 0.28);
+}
+function uniqueTownName(i, j, realm) {
+  const base = townName(i, j, realm);
+  for (let dj = -8; dj <= 0; dj++) for (let di = -8; di <= 8; di++) {
+    if (dj === 0 && di >= 0) continue;   // only towns that come earlier in reading order
+    const i2 = i + di, j2 = j + dj;
+    if (hasTown(i2, j2) && townName(i2, j2, realmAt(i2, j2)) === base) return `${NAME_QUALIFIERS[Math.floor(cellRand(i, j, 95) * NAME_QUALIFIERS.length)]} ${base}`;
+  }
+  return base;
+}
 function townName(i, j, realm = 'cantons') {
   const h = hash32(i * 7919, j * 104729, 4242);
   const [A, M, B] = REALM_NAMES[realm] || [SYL_A, SYL_M, SYL_B];
@@ -1461,7 +1496,7 @@ function townAt(i, j) {
   let size = origin ? 'town' : grand ? 'grand' : capitalOf ? 'city' : sizeRoll < 0.3 ? 'village' : sizeRoll < 0.72 ? 'town' : sizeRoll < (realm === 'aurum' ? 0.8 : 0.88) ? 'city' : 'castle';
   if (size === 'castle' && realm === 'kathar') size = 'town';
   const def = TOWN_SIZES[size];
-  const base = origin ? 'Hearth' : CAPITAL_NAMES[capitalOf] || townName(i, j, realm);
+  const base = origin ? 'Hearth' : CAPITAL_NAMES[capitalOf] || uniqueTownName(i, j, realm);
   const name = grand ? 'Castle Aurum' : size === 'castle' ? `Castle ${base}` : base;
   const town = { key: k, i, j, name, size, realm, capital: !!capitalOf, plaza: def.plaza, walled: def.walled, cx, cy, x0, y0, houses: [], npcs: null, spawn: { x: cx, y: cy + 3 }, gate: { x: cx, y: y0 + (def.walled ? 26 : 28) }, folk: def.folk };
   // a specialist shop in every city, and in some towns in place of the home
@@ -1510,6 +1545,104 @@ function nearestOtherTown(x, y) {
   }
   return best;
 }
+// ---------- what makes each town itself ----------
+// A trade read from the land around it, a landmark in its square, and a named
+// local leader with things to say about the place.
+const TRADES = {
+  fishing:   { label: 'fishing', famous: ['smoked eels', 'river pearls', 'fish stew', 'boats that never leak'], deal: 'potions' },
+  salt:      { label: 'salt', famous: ['white salt from the pans', 'salted hams', 'pickled everything'], deal: 'potions' },
+  mining:    { label: 'mining', famous: ['iron from the deep seams', 'miners who sing underground', 'cheap, honest steel'], deal: 'gear' },
+  quarrying: { label: 'quarrying', famous: ['the grey stone of half the castles in the realm', 'master masons'], deal: null },
+  timber:    { label: 'timber', famous: ['oak beams', 'longbows of yew', 'woodcarvings'], deal: null },
+  hunting:   { label: 'hunting', famous: ['furs', 'tracking hounds', 'venison pies'], deal: 'potions' },
+  farming:   { label: 'farming', famous: ['harvest fairs', 'golden wheat', 'the fattest pigs in the realm'], deal: 'potions' },
+  wine:      { label: 'wine', famous: ['a red that stains the teeth', 'cellars older than the town', 'the autumn wine festival'], deal: null },
+  wool:      { label: 'wool', famous: ['soft grey wool', 'sheepdog trials', 'warm cloaks'], deal: null },
+  bees:      { label: 'beekeeping', famous: ['heather honey', 'honey mead', 'beeswax candles'], deal: 'potions' },
+  pottery:   { label: 'pottery', famous: ['blue-glazed jars', 'kilns that burn all night'], deal: null },
+  brewing:   { label: 'brewing', famous: ['dark ale', 'a brewery older than the Crown'], deal: null },
+  horses:    { label: 'horse-breeding', famous: ['swift bay mares', 'the spring horse fair'], deal: 'horse' },
+  smithing:  { label: 'smithing', famous: ['blades that hold an edge', 'the ring of a hundred anvils'], deal: 'gear' },
+  glass:     { label: 'glassblowing', famous: ['coloured glass', 'mirrors for the Goldspire magnates'], deal: null },
+  silk:      { label: 'silk', famous: ['silk from the southern traders', 'the finest tailors in the League'], deal: null },
+};
+const DEAL_TEXT = { potions: 'Potions and supplies are cheap here', gear: 'Weapons and armour are cheaper here', horse: 'Horses are a quarter cheaper at the stables here' };
+const STATUE_OF = {
+  cantons: ['Speaker Hollis the Founder', 'Bram the Mason', 'Old Mother Tansy', 'the First Council'],
+  aurum: ['King Aurel the Founder', 'Queen Isolde the Wise', 'Sir Corvin of the Bridge', 'King Aldous the Builder'],
+  kathar: ['Chieftain Varn the Tall'], league: ['Magnate Orlov the Elder', 'the Merchant Prince Callis', 'Lady Opaline Vess'],
+};
+const LANDMARKS = {
+  statue:    { sprite: 'statue', name: (t, r) => `the statue of ${STATUE_OF[r][Math.floor(cellRand(t.i, t.j, 504) * STATUE_OF[r].length)]}`,
+               lore: 'Pigeons sit on its head and children dare each other to climb it. A plaque lists the deeds of the one it shows, most of them true.' },
+  oak:       { sprite: 'tree', name: () => 'the Moot Oak', lore: 'Disputes here are settled under its branches. The oak has heard every argument twice and agreed with none of them.' },
+  well:      { sprite: 'well', name: () => 'the Old Well', lore: 'The water is cold and sweet. Locals swear the well is deeper than the dungeon, and nobody has ever checked.' },
+  belltower: { sprite: 'belltower', name: () => 'the bell tower', lore: 'Its bell rings for weddings, fires and the change of the watch. It cracked once, and the town still argues about who did it.' },
+  bonfire:   { sprite: 'bonfire', name: () => 'the Ever-Fire', lore: 'The clan fire has burned here since the town was founded. Each family adds a log at midwinter, and travellers are welcome to warm their hands.' },
+  stones:    { sprite: 'stones', name: () => 'the Speaking Stones', lore: 'Elders gather at these stones to settle feuds. It is said that a lie told here makes the stones go cold.' },
+  obelisk:   { sprite: 'obelisk', name: () => 'the Founders\' Column', lore: 'A column of polished stone carved with the names of the families who founded the town, and how much each of them paid.' },
+};
+const REALM_LANDMARKS = { cantons: ['statue', 'oak', 'well', 'belltower'], aurum: ['statue', 'belltower', 'obelisk', 'well'], kathar: ['bonfire', 'stones', 'oak'], league: ['obelisk', 'statue', 'well', 'belltower'] };
+const LEADER_TITLES = { cantons: ['Reeve', 'Mayor'], aurum: ['Bailiff', 'Lord Mayor'], kathar: ['Elder', 'Headwoman'], league: ['Factor', 'Alderman'] };
+const LEADER_NAMES = {
+  cantons: ['Tobin', 'Marta', 'Hesketh', 'Wynn', 'Ada', 'Corran', 'Elsie', 'Pell'],
+  aurum: ['Roderick', 'Isolde', 'Godfrey', 'Beatrix', 'Alaric', 'Matilda', 'Percival', 'Rosamund'],
+  kathar: ['Druna', 'Vesk', 'Ottar', 'Kaela', 'Grom', 'Thessa', 'Brannoc', 'Ysra'],
+  league: ['Callis', 'Opaline', 'Severin', 'Lucia', 'Marius', 'Vespera', 'Dorian', 'Celandine'],
+};
+function townIdentity(town) {
+  if (town.identity) return town.identity;
+  const i = town.i, j = town.j, realm = town.realm || realmAt(i, j);
+  let water = 0, mountain = 0, forest = 0, sand = 0;
+  for (let dy = -24; dy <= 24; dy += 4) for (let dx = -24; dx <= 24; dx += 4) {
+    const g = terrainAt(town.cx + dx, town.cy + dy);
+    if (g === GROUND.WATER) water++; else if (g === GROUND.MOUNTAIN) mountain++; else if (g === GROUND.FOREST || g === GROUND.TREE) forest++; else if (g === GROUND.SAND) sand++;
+  }
+  const cands = ['farming', 'wine', 'wool', 'bees', 'pottery', 'brewing', 'horses'];
+  if (water >= 12) cands.push('fishing', 'fishing', 'fishing');
+  if (sand >= 8 && water >= 8) cands.push('salt');
+  if (mountain >= 2) cands.push('mining', 'mining', 'quarrying');
+  if (forest >= 30) cands.push('timber', 'timber', 'hunting');
+  if (realm === 'kathar') cands.push('hunting', 'hunting', 'horses');
+  if (realm === 'league') cands.push('glass', 'silk', 'smithing');
+  if (realm === 'aurum') cands.push('smithing', 'wine');
+  if (realm === 'cantons') cands.push('farming', 'wool');
+  const tradeId = cands[Math.floor(cellRand(i, j, 500) * cands.length)], trade = TRADES[tradeId];
+  const famous = trade.famous[Math.floor(cellRand(i, j, 501) * trade.famous.length)];
+  const lmIds = REALM_LANDMARKS[realm], lmId = lmIds[Math.floor(cellRand(i, j, 502) * lmIds.length)], L = LANDMARKS[lmId];
+  const titles = LEADER_TITLES[realm], names = LEADER_NAMES[realm];
+  const leader = `${titles[town.size === 'village' || town.size === 'town' ? 0 : 1]} ${names[Math.floor(cellRand(i, j, 503) * names.length)]}`;
+  const sizeWord = town.size === 'grand' ? 'royal seat' : town.size === 'castle' ? 'castle town' : town.size;
+  town.identity = { tradeId, trade, famous, landmark: { id: lmId, sprite: L.sprite, name: L.name(town, realm), lore: L.lore }, leader, sizeWord, realm,
+    describe() { return `${town.name}: a ${trade.label} ${sizeWord} of the ${REALMS[realm].name}, known for ${famous}. ${this.landmark.name[0].toUpperCase() + this.landmark.name.slice(1)} stands in the square.${trade.deal ? ' ' + DEAL_TEXT[trade.deal] + '.' : ''}`; } };
+  return town.identity;
+}
+// The town a shop belongs to, for local prices.
+function shopTown() {
+  if (scene === 'house' && interior && interior.house && interior.house.town) return townAt(...interior.house.town.split(',').map(Number));
+  return scene === 'world' ? townContaining(player.x, player.y) : null;
+}
+function localDeal(id) {
+  const t = shopTown(); if (!t) return 1;
+  const deal = townIdentity(t).trade.deal;
+  if (deal === 'potions' && ITEMS.consumables[id]) return 0.85;
+  if (deal === 'gear' && (ITEMS.weapons[id] || ITEMS.armor[id])) return 0.9;
+  return 1;
+}
+// The town's leader stands in the square with things to say about the place.
+function leaderNpc(town) {
+  const I = townIdentity(town);
+  const site = nearbySites(town.cx, town.cy, 1).filter((st) => !st.deep).sort((a, b) => cheb(a, { x: town.cx, y: town.cy }) - cheb(b, { x: town.cx, y: town.cy }))[0];
+  const place = nearbyPlaces(town.cx, town.cy, 1).sort((a, b) => cheb(a, { x: town.cx, y: town.cy }) - cheb(b, { x: town.cx, y: town.cy }))[0];
+  const lines = [
+    `Welcome to ${town.name}. We are a ${I.trade.label} ${I.sizeWord}, and folk come from all over for ${I.famous}.`,
+    `Have you seen ${I.landmark.name}? ${I.landmark.lore}`,
+  ];
+  if (site) lines.push(`${site.name.startsWith('The ') ? site.name : 'The ' + site.name} lies ${compassWord(site.x - town.cx, site.y - town.cy).toLowerCase()} of here. ${site.danger >= 3 ? 'Folk who go in there do not always come out.' : 'Our young ones dare each other to go in.'}`);
+  if (place) lines.push(`If you are walking ${compassWord(place.x - town.cx, place.y - town.cy).toLowerCase()}, look out for ${place.name}.`);
+  if (I.trade.deal) lines.push(`${DEAL_TEXT[I.trade.deal]}. Tell them ${I.leader} sent you.`);
+  return { sprite: I.realm === 'league' ? 'merchant' : I.realm === 'aurum' ? 'guard' : 'elder', name: `${I.leader} of ${town.name}`, lines, leader: true };
+}
 // Town layout in local coordinates, shared by the stamp and the renderer.
 function townTile(town, wx, wy) {
   const lx = wx - town.x0, ly = wy - town.y0;
@@ -1530,6 +1663,7 @@ function townTile(town, wx, wy) {
   }
   if (wx === town.gate.x && wy === town.gate.y) t = TILE.EXIT;
   if (wx === town.cx + 4 && wy === town.cy) { t = TILE.WAYSTONE; g = GROUND.COBBLE; }
+  if (wx === town.cx - 6 && wy === town.cy - 2) { t = TILE.MONUMENT; g = GROUND.COBBLE; }
   return [t, g];
 }
 // Special dungeons out in the country: one in roughly half the lattice cells,
@@ -1670,6 +1804,10 @@ function townNpcs(town) {
   const spots = [];
   for (let y = town.cy - 5; y <= town.cy + 5; y++) for (let x = town.cx - 10; x <= town.cx + 10; x++) {
     if (townTile(town, x, y)[0] === TILE.FLOOR && Math.abs(x - town.cx) + Math.abs(y - town.cy) >= 4) spots.push({ x, y });
+  }
+  if (town.size !== 'grand' && spots.length) {
+    const cell = spots.splice(Math.floor(cellRand(town.i, town.j, 505) * spots.length), 1)[0];
+    town.npcs.push({ ...cell, type: leaderNpc(town), pause: rnd(3), home: { x: town.cx, y: town.cy } });
   }
   const count = town.key === '0,0' ? NPC_TYPES.length : town.folk[0] + Math.floor(noise(town.i, town.j, 98) * (town.folk[1] - town.folk[0] + 1));
   for (let n = 0; n < count && spots.length; n++) {
@@ -2261,6 +2399,7 @@ function renderBackground() {
       if (t === TILE.SITE) { const st = siteAtTile(c, r); if (st) drawSprite(g, st.sprite, c, r, 1, 0); }
       if (t === TILE.WAYSTONE) drawSprite(g, 'waystone', c, r, 1, 0);
       if (t === TILE.PLACE) { const pl = placeAtTile(c, r); if (pl) drawSprite(g, pl.sprite, c, r, 1, 0); }
+      if (t === TILE.MONUMENT) { const tw = townContaining(c, r); if (tw) drawSprite(g, townIdentity(tw).landmark.sprite, c, r, 1, 0); }
     }
     for (const pl of nearbyPlaces(player.x, player.y, 1)) {
       if (!discovered(pl) || pl.x < x0 || pl.x > x1 || pl.y < y0 || pl.y > y1) continue;
@@ -2971,6 +3110,7 @@ function describeTile(x, y) {
   const other = mpPlayerAt(x, y);
   if (other) return `${other.data.name}${other.data.title ? ' ' + other.data.title : ''} — level ${other.data.level} ${other.data.cls}${inMyParty(other.id) ? ', in your party' : ''}${scene !== 'dungeon' ? '. Walk into them to invite or wave' : ''}`;
   if (houndAt(x, y)) return `Your hound — ${hound.hp}/${hound.maxHp} HP, bite ${hound.atk}, level ${hound.level}, ${hound.kills} kills`;
+  if (t === TILE.MONUMENT) { const tw = townContaining(x, y); if (tw) { const L = townIdentity(tw).landmark; return `${L.name[0].toUpperCase() + L.name.slice(1)} — the pride of ${tw.name}. Walk into it to look closer`; } }
   if (getTile(x, y) === TILE.WAYSTONE) return 'Waystone — walk into it to travel to any town you have visited';
   const n = scene !== 'dungeon' && getNpcAt(x, y);
   if (n) return `${n.type.name} — walk into them to ${n.type.action === 'shop' || n.type.action === 'potions' ? 'trade' : n.type.action === 'inn' ? 'rest' : 'chat'}`;
@@ -3030,7 +3170,7 @@ const hover = { x: null, y: null, path: [], sig: '' };
 const occupiedBy = (x, y) => getMonsterAt(x, y) || getNpcAt(x, y) || mpPlayerAt(x, y) || null;
 function interactive(x, y) {
   const t = getTile(x, y);
-  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT, TILE.CRACK, TILE.SPRING].includes(t);
+  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT, TILE.CRACK, TILE.SPRING, TILE.MONUMENT].includes(t);
 }
 // The tiles from the hero to a target (not including the hero's own tile), shortest first.
 function pathTo(tx, ty, limit = 60) {
@@ -3346,7 +3486,7 @@ function killMonster(m) {
     if (m.boss) { unlock('boss_slayer'); track('boss_killed', { boss: m.name, floor }); }
     const xp = Math.round(m.type.xp * (wearing('cantonsbadge') ? 1.2 : 1) * (m.small || m.raised ? 0.4 : 1) * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1) * (m.elite ? 2 : 1) * (scene === 'dungeon' ? (floorMod === 'swarming' ? 1.25 : floorMod === 'cursed' ? 1.5 : 1) : 1));
     if (m.boss) {
-      log(dungeonDef && dungeonDef.arena ? `You defeat ${m.name}! The crowd is on its feet.` : `You slay ${m.name}! The seal on the stairs breaks.`, 'good');
+      log(dungeonDef && dungeonDef.arena ? `You defeat ${m.name}! The crowd is on its feet.` : m.yields ? `${bossTitle(m)} drops his sword and yields. The seal on the stairs breaks.` : `You slay ${m.name}! The seal on the stairs breaks.`, 'good');
       const purse = 40 + 30 * (dungeonDef ? dungeonDef.danger : 0) + floor * 10;
       player.gold += purse; floatText(m.x, m.y, `+${purse}g`, '#f5c542');
       sfx.play('win');
@@ -3716,6 +3856,7 @@ function tryMove(dx, dy) {
     draw(); return;
   }
   if (t === TILE.PLACE) { usePlace(placeAtTile(nx, ny)); draw(); return; }
+  if (t === TILE.MONUMENT) { const tw = townContaining(nx, ny); if (tw) { const L = townIdentity(tw).landmark; log(`${L.name[0].toUpperCase() + L.name.slice(1)}. ${L.lore}`); } draw(); return; }
   const other = mpPlayerAt(nx, ny);
   if (other) { if (scene !== 'dungeon') openPlayerMenu(other); draw(); return; }
   if (t === TILE.DOOR) {
@@ -3865,7 +4006,7 @@ function storyShardFound(id) {
   if (STORY_ORDER[st.ch] !== id || st.phase !== 'seek') return;
   st.phase = 'return';
   const S = STORY_SITES[id];
-  showScene([{ who: S.shard, sprite: 'obelisk', text: SHARD_FOUND[id] }], () => { giveRelic(S.relic, S.title); log(`You hold the ${S.shard}. Take it to King Aldric at Castle Aurum.`, 'good'); });
+  showScene([{ who: S.shard, sprite: 'obelisk', text: SHARD_FOUND[id] }, SHARD_CLUE[id]], () => { giveRelic(S.relic, S.title); log(`You hold the ${S.shard}. Take it to King Aldric at Castle Aurum.`, 'good'); });
   track('shard_found', { shard: id });
 }
 // Talking to the King moves the story along. Returns true when he had story to tell.
@@ -4162,6 +4303,14 @@ const ENCOUNTERS = {
         return `You find ${g} gold in the pack${extra ? `, and a ${itemInfo(extra).name}` : ''}.`; } },
       { label: 'Leave it be', run: () => 'Some hurries are catching. You move on.' },
     ] }),
+  agents: () => ({ who: 'Grey cloaks on the road', sprite: 'darkknight',
+    text: 'Riders in grey cloaks block the road, each wearing a small silver stag. "Prince Edric sends his regards," says their captain, "and asks you to stop running errands for his brother."',
+    choices: [
+      { label: 'Fight them', run: () => { const k = MONSTER_TYPES.find((t) => t.name === 'Knight'), a = MONSTER_TYPES.find((t) => t.name === 'Archer');
+        spawnFoes(k, 2, 'Stag knight', { purse: 30 + wildDanger() * 10 }); spawnFoes(a, 1, 'Stag archer', { purse: 20 }); shakeScreen(4); sfx.play('boss'); return null; } },
+      { label: 'Tell them the King knows everything', disabled: player.level < 6, run: () => 'The captain studies your face for a long moment, then turns his horse. "Then it is already over," he says, mostly to himself. The riders follow him into the trees.' },
+      { label: 'Run for it', run: () => { if (Math.random() < 0.5) return 'You break for the trees and lose them in the undergrowth.'; const dmg = 4 + wildDanger(); player.hp = Math.max(1, player.hp - dmg); return `A crossbow bolt grazes you for ${dmg} before you lose them in the undergrowth.`; } },
+    ] }),
   ambush: () => ({ who: 'Ambush!', sprite: 'orc',
     text: 'A branch snaps. Shapes rise out of the dark on both sides of the road. There is no time to run.',
     choices: [{ label: 'Fight!', run: () => {
@@ -4175,8 +4324,10 @@ function compassWord(dx, dy) {
 }
 function startEncounter() {
   const night = dayPhase() === 'night';
-  const ids = Object.keys(ENCOUNTERS).filter((id) => id !== lastEncounter && (id !== 'ambush' || night));
-  const id = night && Math.random() < 0.35 ? 'ambush' : ids[rnd(ids.length)];
+  const ids = Object.keys(ENCOUNTERS).filter((id) => id !== lastEncounter && id !== 'agents' && (id !== 'ambush' || night));
+  const st = story();
+  let id = night && Math.random() < 0.35 ? 'ambush' : ids.filter((x) => x !== 'agents')[rnd(ids.length - 1)] || 'caravan';
+  if (st.ch === 3 && st.phase === 'seek' && !st.ambushed) { id = 'agents'; st.ambushed = true; }
   lastEncounter = id;
   player.meta.encounters = (player.meta.encounters || 0) + 1;
   if (player.meta.encounters >= 10) unlock('wayfarer');
@@ -4299,6 +4450,12 @@ function endTurn(moved) {
   }
   if (inTown()) {
     const here = townContaining(player.x, player.y);
+    if (here && here.key !== lastTownKey) {
+      const I = townIdentity(here);
+      if (!player.meta.visited.includes(here.key)) log(I.describe(), 'good');
+      toast = { text: `${here.name}. A ${I.trade.label} ${I.sizeWord} of ${REALMS[I.realm].short}, known for ${I.famous}.`, until: performance.now() + 3500 };
+    }
+    lastTownKey = here ? here.key : null;
     if (here && !player.meta.visited.includes(here.key)) { player.meta.visited.push(here.key); if (player.meta.visited.length >= 5) unlock('explorer'); }
     if (dayPhase() === 'night') tip('night', 'Night has fallen. Beasts in the wilds notice you from further away, but towns stay safe.');
   }
@@ -4853,7 +5010,7 @@ const SHOPS = {
 };
 SHOPS.apothecary.stock = (id) => id === 'potion' || id === 'elixir' || id === 'scroll';
 let shopKind = 'shop';
-const buyPrice = (id) => Math.max(1, Math.round(SHOPS[shopKind].price(itemInfo(id)) * priceMult()));
+const buyPrice = (id) => Math.max(1, Math.round(SHOPS[shopKind].price(itemInfo(id)) * priceMult() * (SERVICE_SHOPS.has(shopKind) ? 1 : localDeal(id))));
 Object.assign(SHOPS, {
   court: { title: 'The Court of Aurum', stock: () => false, price: (it) => it.price, greet: 'The herald unrolls a long scroll of titles. Each comes with a seal, a ribbon, and a price.' },
   council: { title: 'The Council of the Cantons', stock: () => false, price: (it) => it.price, greet: 'The councillor opens the ledger of public works. Every donation is recorded by name.' },
@@ -4949,13 +5106,14 @@ function horseRows() {
   const town = interior && interior.house && interior.house.town ? townAt(...interior.house.town.split(',').map(Number)) : null;
   if (!town || !['city', 'castle', 'grand'].includes(town.size)) return player.meta.horse ? [] : [shopRow('The big inns of cities and castles keep stables, and sell horses')];
   if (player.meta.horse) return [shopRow('Your horse is fed and rested. It carries you two tiles a step in the open wilds')];
-  return [shopRow('Buy a horse from the stables: ride two tiles a step through the open wilds', `Buy ${HORSE_COST}g`, () => {
-    if (player.gold < HORSE_COST) return;
-    player.gold -= HORSE_COST; player.meta.horse = true; sfx.play('quest');
+  const cost = townIdentity(town).trade.deal === 'horse' ? Math.round(HORSE_COST * 0.75) : HORSE_COST;
+  return [shopRow('Buy a horse from the stables: ride two tiles a step through the open wilds', `Buy ${cost}g`, () => {
+    if (player.gold < cost) return;
+    player.gold -= cost; player.meta.horse = true; sfx.play('quest');
     log('The stable hand leads out a sturdy bay mare. Out in the wilds you ride; in towns and dungeons she waits for you.', 'good');
     tip('horse', 'In the open wilds you ride, two tiles a step. You dismount in towns, underground, and when monsters close in.');
     unlock('rider'); updateStats(); renderShop(); draw(); saveProgress('progress');
-  }, player.gold < HORSE_COST)];
+  }, player.gold < cost)];
 }
 function travelCost(town) { const c = 10 + Math.round((Math.abs(town.cx - player.x) + Math.abs(town.cy - player.y)) / 12); return realmState().standing >= 250 ? Math.ceil(c / 2) : c; }
 function travelTo(town) {
@@ -5011,7 +5169,7 @@ function renderShop() {
     if (!dests.length) shopBuy.appendChild(shopRow('No other towns yet. Visit a town on foot and its waystone will answer.'));
     for (const t of dests.sort((a, b) => travelCost(a) - travelCost(b))) {
       const cost = travelCost(t);
-      shopBuy.appendChild(shopRow(`${t.name}${t.size === 'grand' ? ' ♛' : t.walled ? ' (castle)' : ''}${t.key === homeTown ? ' (home)' : ''}`, `Travel ${cost}g`, () => travelTo(t), player.gold < cost));
+      shopBuy.appendChild(shopRow(`${t.name}${t.size === 'grand' ? ' ♛' : t.walled ? ' (castle)' : ''}${t.key === homeTown ? ' (home)' : ''}, ${townIdentity(t).trade.label}`, `Travel ${cost}g`, () => travelTo(t), player.gold < cost));
     }
     return;
   }
