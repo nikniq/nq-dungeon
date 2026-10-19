@@ -7536,14 +7536,25 @@ const shipAt = (x, y) => !aboard && !!(player && player.meta && player.meta.ship
 function mooringOf(town) {
   const H = town.harbour; if (!H) return null;
   const perp = H.dx ? [0, 1] : [1, 0];
-  for (let k = H.len; k >= 2; k--) for (const sg of [1, -1]) {
+  // never beside the pier's end: the harbourmaster stands there, and you board from the pier tile alongside
+  for (let k = H.len - 1; k >= 2; k--) for (const sg of [1, -1]) {
     const x = H.x + H.dx * k + perp[0] * sg, y = H.y + H.dy * k + perp[1] * sg;
     if (seaTile(x, y)) return { x, y };
   }
   return null;
 }
+// a ship moored where nobody can step aboard (beside the harbourmaster's tile, from
+// before the mooring moved) is brought one tile along the pier
+function fixMooring(town) {
+  const S = player && player.meta && player.meta.ship; if (!S || aboard || !town || !town.harbour) return;
+  const H = town.harbour, end = H.end, perp = H.dx ? [0, 1] : [1, 0];
+  const badSpot = Math.abs(S.x - end.x) + Math.abs(S.y - end.y) === 1 && (S.x - end.x) * perp[0] + (S.y - end.y) * perp[1] !== 0;
+  const moor = mooringOf(town);
+  if (badSpot && moor) { player.meta.ship = moor; log('The harbourmaster has had your ship warped a little way along the pier, out of his doorway.'); }
+}
 function shipRows(here) {
   if (!here || !here.harbour) return [];
+  fixMooring(here);
   const S = player.meta.ship, moor = mooringOf(here);
   if (!S) {
     if (!moor) return [shopRow('The harbourmaster would sell you a ship, but there is no open water to moor one here')];
@@ -8082,6 +8093,7 @@ function startRun(saved) {
     else if (saved && player.meta.ship && saved.wx === player.meta.ship.x && saved.wy === player.meta.ship.y && seaTile(saved.wx, saved.wy)) { player.x = saved.wx; player.y = saved.wy; aboard = true; }   // saved at sea, aboard
     else { player.x = t.spawn.x; player.y = t.spawn.y; }
     player.wx = player.x; player.wy = player.y; settle(player); refreshTownContext();
+    if (player.meta.ship) for (const tn of nearbyTowns(player.meta.ship.x, player.meta.ship.y, 1)) fixMooring(tn);
   } else {
     // back underground: the site whose entrance we saved, or the home town's gate
     const site = saved && Number.isInteger(saved.wx) ? siteAtTile(saved.wx, saved.wy) : null;
