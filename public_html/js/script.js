@@ -4132,14 +4132,7 @@ function renderWorldMap() {
     const t = townAt(i, j);
     if (!t) continue;
     const [x, y] = toPx(t.x0, t.y0), w = (TW / MAP_STEP) * MAP_PX, h = (TH / MAP_STEP) * MAP_PX;
-    const sw = t.size === 'village' ? w * 0.6 : w, sh = t.size === 'village' ? h * 0.6 : h, sx = x + (w - sw) / 2, sy = y + (h - sh) / 2;
-    g.fillStyle = t.walled ? '#94a3b8' : '#6b7280'; g.fillRect(sx, sy, sw, sh);
-    if (t.walled) { g.fillStyle = '#475569'; g.fillRect(sx + 3, sy + 3, sw - 6, sh - 6); g.fillStyle = t.size === 'grand' ? '#ffd86b' : '#94a3b8'; g.fillRect(sx + sw / 2 - 5, sy + sh / 2 - 5, 10, 10); }
-    else { g.fillStyle = '#d9b382'; g.fillRect(sx + 4, sy + 4, sw - 8, 6); g.fillRect(sx + 4, sy + sh - 10, sw - 8, 6); }
-    g.fillStyle = '#5fe17a'; g.fillRect(x + w / 2 - 2, sy + sh - 6, 4, 4);
-    const label = (t.key === homeTown ? t.name + ' (home)' : t.name) + (t.size === 'grand' ? ' ♛' : ''), lw = g.measureText(label).width + 8;
-    g.fillStyle = 'rgba(6,12,20,0.75)'; g.fillRect(x + w / 2 - lw / 2, sy - 16, lw, 14);
-    g.fillStyle = t.size === 'grand' ? '#fbbf24' : '#ffd86b'; g.fillText(label, x + w / 2, sy - 3);
+    drawMapTown(g, t, x, y, w, h);
   }
   // places you have discovered
   g.font = '9px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom';
@@ -4161,6 +4154,56 @@ function renderWorldMap() {
   }
   g.textAlign = 'start'; g.textBaseline = 'alphabetic';
   mapCache.ox = ox; mapCache.oy = oy;
+}
+// A town on the world map: a little illustrated settlement in its realm's colours,
+// sized by its rank, walled if it is a castle, finer the more prosperous it is.
+function drawMapTown(g, t, x, y, w, h) {
+  const I = townIdentity(t), realm = t.realm || 'cantons', tier = townTier(t), col = REALMS[realm].color;
+  const roofs = { cantons: ['#8b2e2e', '#6d3b8b', '#2e7d32', '#7a4a2a'], aurum: ['#b91c1c', '#374151', '#7c2d12', '#4b5563'], kathar: ['#a07a35', '#8c6a2c', '#b08840', '#7d5026'], league: ['#4c2f7a', '#5b3a8b', '#3f2a63', '#6d3b8b'] }[realm];
+  const wall = t.walled, grand = t.size === 'grand';
+  const sw = t.size === 'village' ? w * 0.55 : t.size === 'town' ? w * 0.8 : w, sh = t.size === 'village' ? h * 0.55 : t.size === 'town' ? h * 0.8 : h;
+  const sx = Math.round(x + (w - sw) / 2), sy = Math.round(y + (h - sh) / 2);
+  // ground: paving, or trodden mud where the town is poor
+  g.fillStyle = tier === 0 ? '#6b5236' : PAVING[realm][2]; g.fillRect(sx, sy, sw, sh);
+  g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(sx, sy + sh - 2, sw, 2); g.fillRect(sx + sw - 2, sy, 2, sh);
+  // houses in rows, with the realm's roofs; fewer and duller when the town is down on its luck
+  const count = { village: 3, town: 6, city: 10, castle: 7, grand: 10 }[t.size] - (tier === 0 ? 1 : 0);
+  const cols = t.size === 'village' ? 3 : 4, cw = sw / cols, rows = Math.ceil(count / cols), rh = (sh - 10) / Math.max(1, rows);
+  for (let k = 0; k < count; k++) {
+    const cx = sx + (k % cols) * cw + cw / 2 - 4 + Math.round((cellRand(t.i, t.j, 900 + k) - 0.5) * 4), cy = sy + 4 + Math.floor(k / cols) * rh + Math.round(cellRand(t.i, t.j, 920 + k) * 3);
+    const hw = 8, hh = 5, roof = roofs[Math.floor(cellRand(t.i, t.j, 940 + k) * roofs.length)];
+    g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(cx + 1, cy + 3, hw, hh);
+    g.fillStyle = tier === 0 ? '#b8a07c' : realm === 'league' ? '#ece9f2' : '#e3cfa6'; g.fillRect(cx, cy + 3, hw, hh);
+    g.fillStyle = tier === 0 && k === count - 1 ? '#3b3b3b' : roof; g.beginPath(); g.moveTo(cx - 1, cy + 3); g.lineTo(cx + hw / 2, cy - 1); g.lineTo(cx + hw + 1, cy + 3); g.fill();
+    if (tier >= 3) { g.fillStyle = '#ffd86b'; g.fillRect(cx + hw / 2 - 1, cy - 1, 2, 1); }
+    g.fillStyle = tier === 0 ? '#5b4a3a' : '#7bdfff'; g.fillRect(cx + 2, cy + 5, 1, 1); g.fillRect(cx + 5, cy + 5, 1, 1);
+  }
+  // a spire for cities and the capitals
+  if (t.size === 'city' || grand || t.capital) {
+    const px = sx + sw / 2 - 3, py = sy + 6;
+    g.fillStyle = realm === 'league' ? '#ece9f2' : '#9ca3af'; g.fillRect(px, py + 4, 6, 10);
+    g.fillStyle = grand ? '#ffd86b' : roofs[0]; g.beginPath(); g.moveTo(px - 1, py + 4); g.lineTo(px + 3, py - 6); g.lineTo(px + 7, py + 4); g.fill();
+  }
+  // the square's landmark and the fountain
+  g.fillStyle = '#60a5fa'; g.fillRect(sx + sw / 2 - 2, sy + sh / 2 - 1, 4, 3);
+  if (I.landmark.id === 'oak') { g.fillStyle = '#2e7d32'; g.beginPath(); g.arc(sx + sw / 2 - 8, sy + sh / 2, 3, 0, Math.PI * 2); g.fill(); }
+  else if (I.landmark.id === 'bonfire') { g.fillStyle = '#ff9f43'; g.fillRect(sx + sw / 2 - 9, sy + sh / 2 - 1, 3, 3); }
+  else { g.fillStyle = '#d1d5db'; g.fillRect(sx + sw / 2 - 9, sy + sh / 2 - 2, 2, 4); }
+  // walls and towers for castles; gold trim for the royal seat
+  if (wall) {
+    g.strokeStyle = grand ? '#ffd86b' : '#cbd5e1'; g.lineWidth = 2; g.strokeRect(sx + 1, sy + 1, sw - 2, sh - 2);
+    g.fillStyle = grand ? '#ffd86b' : '#94a3b8';
+    for (const [tx, ty] of [[sx, sy], [sx + sw - 5, sy], [sx, sy + sh - 5], [sx + sw - 5, sy + sh - 5]]) { g.fillRect(tx, ty, 5, 5); g.fillStyle = '#1b1b2f'; g.fillRect(tx + 2, ty + 2, 1, 1); g.fillStyle = grand ? '#ffd86b' : '#94a3b8'; }
+    if (grand) { g.fillStyle = '#475569'; g.fillRect(sx + sw / 2 - 7, sy + 3, 14, 9); g.fillStyle = '#ffd86b'; g.beginPath(); g.moveTo(sx + sw / 2 - 8, sy + 3); g.lineTo(sx + sw / 2, sy - 4); g.lineTo(sx + sw / 2 + 8, sy + 3); g.fill(); }
+  }
+  // the gate, and a pennant in the realm's colour
+  g.fillStyle = '#5fe17a'; g.fillRect(x + w / 2 - 2, sy + sh - 4, 4, 4);
+  g.fillStyle = '#3b2a1a'; g.fillRect(sx - 1, sy - 9, 1, 10);
+  g.fillStyle = col; g.beginPath(); g.moveTo(sx, sy - 9); g.lineTo(sx + 7, sy - 7); g.lineTo(sx, sy - 5); g.fill();
+  // the name
+  const label = (t.key === homeTown ? t.name + ' (home)' : t.name) + (grand ? ' ♛' : t.capital ? ' ✦' : ''), lw = g.measureText(label).width + 8;
+  g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(x + w / 2 - lw / 2, sy - 20, lw, 14, 3); g.fill();
+  g.fillStyle = grand ? '#fbbf24' : t.capital ? col : '#ffd86b'; g.fillText(label, x + w / 2, sy - 7);
 }
 function drawWorldMap(g, now) {
   renderWorldMap();
