@@ -2488,7 +2488,7 @@ function generateWorldChunk(cx, cy) {
     const a = townAt(i, j);
     if (!a) continue;
     for (const b of [neighbourTown(i, j, 1, 0), neighbourTown(i, j, 0, 1)]) {
-      if (!b || continentOf(a.cx, a.cy) !== continentOf(b.cx, b.cy)) continue;   // no roads across the sea
+      { const ca = continentOf(a.cx, a.cy); if (!b || ca < 0 || ca !== continentOf(b.cx, b.cy)) continue; }   // roads only within a continent, never across the sea
       let x = a.cx, y = a.cy;
       while (x !== b.cx) { x += Math.sign(b.cx - x); mark(x, y); mark(x, y + 1); }
       while (y !== b.cy) { y += Math.sign(b.cy - y); mark(x, y); mark(x + 1, y); }
@@ -4328,7 +4328,7 @@ function renderWorldMap() {
     const a = townAt(i, j);
     if (!a) continue;
     for (const b of [neighbourTown(i, j, 1, 0), neighbourTown(i, j, 0, 1)]) {
-      if (!b || continentOf(a.cx, a.cy) !== continentOf(b.cx, b.cy)) continue;   // no roads across the sea
+      { const ca = continentOf(a.cx, a.cy); if (!b || ca < 0 || ca !== continentOf(b.cx, b.cy)) continue; }   // roads only within a continent, never across the sea
       const [ax, ay] = toPx(a.cx, a.cy), [bx, by] = toPx(b.cx, b.cy);
       g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, ay); g.lineTo(bx, by); g.stroke();
     }
@@ -4523,6 +4523,7 @@ function drawWorldMap(g, now) {
     g.fillStyle = on ? '#ffd86b' : '#6b7280'; g.font = 'bold 18px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(bz.id === 'in' ? '+' : '−', bz.x + bz.w / 2, bz.y + bz.h / 2 + 1);
   }
   g.font = 'bold 11px sans-serif'; g.fillStyle = '#cfe9ff'; g.textAlign = 'right'; g.textBaseline = 'middle'; g.fillText(['close', 'far', 'the whole world'][mapZoom - 1], X + c.width - 76, Y + c.height - 21);
+  g.textAlign = 'left';
   // legend
   const items = [['#3f7d3a', 'grass'], ['#2e7d32', 'forest'], ['#1d4ed8', 'water'], ['#6b7280', 'mountains / town'], ['#a8865a', 'road'], ['#5fe17a', 'gate'], ['#c084fc', 'cave, crypt or tower (★ danger)'], ['#8b5a2b', '⚓ port: ships sail to other ports']];
   let lx = 20; const ly = canvas.height - 26;
