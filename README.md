@@ -103,6 +103,17 @@ and pastures around the towns that live off the land (`fieldAt`), wheel-rutted
 roads with green verges, crags with snow on the high peaks, and bushes and tufts
 in the grass.
 
+Six super-boss lairs (`LAIRS`) lie hidden in the far corners of the world: the
+Spider Queen's Hollow, the Wyrm's Roost, the Drowned King's Hall, Old Grumm's
+Bridge, the Lich's Observatory and the Direwolf's Den. They stay off the map
+until a bard's tale, a hermit's map (120 gold), a prophet in a square, or your own
+feet within four tiles reveal them. Each is a two-floor dungeon rated Deadly until
+level 17 to 29, with a super boss on the second floor that has nine or ten times
+a boss's health and enrages twice, calling minions each time. The first kill drops
+a one-of-a-kind legendary (Fangblade, Wyrmscale plate, Tidecaller, Trollhide
+coat, Staff of Ages, Stormhammer), each borrowing a common weapon's trait.
+Progress is kept in `meta.lairs`.
+
 Act II, What Sleeps Below, follows the crown: the pardoned Prince Edric sits in
 the King's hall and sends the hero into the Deep in stages (floors 5, 10, 15, 20),
 with the Warden of the Deep on floor 10 and the Dreaming Maw on floor 20 as named

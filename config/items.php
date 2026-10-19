@@ -12,6 +12,11 @@ return [
         'longsword' => ['name' => 'Longsword', 'atk' => 4, 'price' => 150, 'floor' => 3],
         'warhammer' => ['name' => 'Warhammer', 'atk' => 6, 'price' => 280, 'floor' => 4],
         'greatsword' => ['name' => 'Royal greatsword', 'atk' => 9, 'price' => 650, 'floor' => 7],
+        // legendary: one of a kind, dropped by the super bosses in their lairs (never stocked)
+        'fangblade' => ['name' => 'Fangblade', 'atk' => 10, 'price' => 1500, 'floor' => 99],
+        'tidecaller' => ['name' => 'Tidecaller', 'atk' => 11, 'price' => 1800, 'floor' => 99],
+        'stormhammer' => ['name' => 'Stormhammer', 'atk' => 13, 'price' => 2000, 'floor' => 99],
+        'staffofages' => ['name' => 'Staff of Ages', 'atk' => 10, 'price' => 1800, 'floor' => 99],
     ],
     'armor' => [
         'leather' => ['name' => 'Leather armor', 'def' => 1, 'price' => 20, 'floor' => 1],
@@ -19,6 +24,8 @@ return [
         'scale' => ['name' => 'Scale mail', 'def' => 3, 'price' => 130, 'floor' => 3],
         'plate' => ['name' => 'Plate armor', 'def' => 4, 'price' => 240, 'floor' => 4],
         'dragonscale' => ['name' => 'Dragonscale mail', 'def' => 6, 'price' => 800, 'floor' => 7],
+        'trollhide' => ['name' => 'Trollhide coat', 'def' => 8, 'price' => 1600, 'floor' => 99],
+        'wyrmscale' => ['name' => 'Wyrmscale plate', 'def' => 10, 'price' => 2400, 'floor' => 99],
     ],
     'consumables' => [
         'potion' => ['name' => 'Potion', 'heal' => 5, 'price' => 12, 'floor' => 1],

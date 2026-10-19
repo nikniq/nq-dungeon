@@ -37,6 +37,9 @@ const MONSTER_TYPES = [
   { name: 'Necromancer', sprite: 'necromancer', hp: 9, atk: 2, xp: 18, minFloor: 4, raiser: true },
   { name: 'Mimic',    sprite: 'mimic',    hp: 14, atk: 4, xp: 20, minFloor: 99, noSpawn: true },
   { name: 'Knight',   sprite: 'darkknight', hp: 16, atk: 5, xp: 24, minFloor: 99, noSpawn: true },
+  { name: 'Wyrm',     sprite: 'wyrm',     hp: 30, atk: 9, xp: 60, minFloor: 99, noSpawn: true },
+  { name: 'Direwolf', sprite: 'direwolf', hp: 18, atk: 7, xp: 30, minFloor: 99, noSpawn: true },
+  { name: 'Troll',    sprite: 'troll',    hp: 28, atk: 8, xp: 50, minFloor: 99, noSpawn: true },
 ];
 // Hero classes: base stats, a sprite, and one ability on the 1 key.
 // Abilities run on mana: a pool that grows with level and refills a point a turn.
@@ -92,6 +95,8 @@ const ACHIEVEMENTS = {
   wanderer10:  { label: 'Discovered ten places', title: 'the Pathfinder' },
   collector:   { label: 'Found five treasures', title: 'the Treasure-seeker' },
   crownbearer: { label: 'Restored the Crown of Aurum', title: 'Crownbearer' },
+  lairslayer:  { label: 'Slew a super boss in its lair', title: 'the Legend-slayer' },
+  legend:      { label: 'Cleared all six lairs', title: 'the Living Legend' },
   sailor:      { label: 'Took ship between ports', title: 'the Seafarer' },
   deepwarden:  { label: 'Closed the Dreaming Maw', title: 'Deepwarden' },
   general:     { label: 'Your army razed an orc warcamp', title: 'the General' },
@@ -261,7 +266,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2() },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState() },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -708,8 +713,10 @@ function placeBoss(room, ox, oy, R = Math.random) {
   }
   const cell = cells[Math.floor(R() * cells.length)] || { x: exit.x + 1, y: exit.y };
   if (getTile(cell.x, cell.y) === TILE.WALL) setTile(cell.x, cell.y, TILE.FLOOR);
-  const hp = type.hp * (def.boss ? 5 : 4) + danger * 4 + floor * 2;
-  monsters.push({ ...cell, id: 'boss', type, name: def.boss ? def.boss.name : BOSS_NAMES[type.name], yields: !!(def.boss && def.boss.yields), hp, maxHp: hp, atk: type.atk + 1 + Math.ceil(danger / 2), awake: false, boss: true });
+  const sup = !!(def.boss && def.boss.hpMult);
+  // a super boss is built for heroes of its lair's level: a big pool, and hits that bite through good armour
+  const hp = sup ? type.hp * def.boss.hpMult + danger * 40 : type.hp * (def.boss ? 5 : 4) + danger * 4 + floor * 2;
+  monsters.push({ ...cell, id: 'boss', type, name: def.boss ? def.boss.name : BOSS_NAMES[type.name], yields: !!(def.boss && def.boss.yields), superBoss: !!(def.boss && def.boss.hpMult), hp, maxHp: hp, atk: sup ? type.atk + danger : type.atk + 1 + Math.ceil(danger / 2), awake: false, boss: true });
   monstersDirty = true;
 }
 const bossAlive = () => scene === 'dungeon' && monsters.some((m) => m.boss);
@@ -783,7 +790,7 @@ function offerQuest(n) {
   if (QUEST_GIVERS_CLEAR.includes(n.type.name)) {
     const done = questDoneIds();
     const cands = nearbySites(here.cx, here.cy, 2)
-      .filter((st) => !st.deep && !(st.story && !storySiteOpen(st.story)) && !have.has('clear:' + st.key) && !done.has('clear:' + st.key))
+      .filter((st) => !st.deep && !st.lair && !(st.story && !storySiteOpen(st.story)) && !have.has('clear:' + st.key) && !done.has('clear:' + st.key))
       .sort((a, b) => (Math.abs(a.x - here.cx) + Math.abs(a.y - here.cy)) - (Math.abs(b.x - here.cx) + Math.abs(b.y - here.cy)));
     const st = cands[0];
     if (st) q = { id: 'clear:' + st.key, kind: 'clear', label: `Clear ${st.name.startsWith('The ') ? st.name : 'the ' + st.name} (${st.floors} floors, danger ${stars(st.danger).replace(/☆/g, '')})`, target: st.key, need: 1, have: 0, done: false, giver: n.type.name, reward: 80 + 70 * st.danger };
@@ -837,6 +844,9 @@ const MONSTER_LORE = {
   Slime: 'A wobbling heap of hunger. Cut it in half and you have two smaller problems. Cut those, and you are done.',
   Necromancer: 'A robed fool who found a book he should not have. He keeps his distance and raises the dead to fight for him. Kill him first.',
   Knight: 'Sworn swords in black and grey who wear a small silver stag. They serve Prince Edric, and they fight like men with nothing left to lose.',
+  Wyrm: 'The last of the old dragons, or near enough. It sleeps on gold and wakes hungry.',
+  Direwolf: 'A wolf the size of a horse, with a pack that follows it like a shadow.',
+  Troll: 'Trolls regrow what you cut off. Hit them hard, hit them often, and do not stop to admire your work.',
   Mimic: 'Not every chest wants to be opened. Some want to open you. Mimics pay well, if you live.',
 };
 function journalKey(e) {
@@ -878,6 +888,8 @@ function drawJournal(g) {
     steps.push(['The crown restored', 'Bring all five shards to the King.', st.phase === 'done']);
     const clues = STORY_ORDER.filter((id, i) => i < st.ch || st.phase === 'done' || (i === st.ch && st.phase === 'return'));
     if (clues.length) steps.push(['Clues', clues.map((id) => SHARD_CLUE[id].who).join(', ') + (clues.length >= 2 ? '. They all point to Prince Edric.' : '.'), st.phase === 'done']);
+    { const S = lairState(), known = Object.keys(LAIRS).filter((id) => S.known.includes(id));
+      steps.push(['Lairs of the super bosses', known.length ? known.map((id) => `${LAIRS[id].title}${S.slain.includes(id) ? ' (slain)' : ''}`).join('; ') + '.' : 'Six lie hidden in the world. Bards, hermits and prophets know the way.', S.slain.length >= Object.keys(LAIRS).length]); }
     if (st.phase === 'done') {
       const A = act2();
       steps.push(['Act II: What Sleeps Below', A.s === 0 ? 'Prince Edric, in the King\'s hall, has a problem to solve.' : A.s >= 6 ? 'The Dreaming Maw is closed. You are the Deepwarden.' : A.s === 5 ? 'Return to Prince Edric.' : ACT2_STEPS[A.s - 1].label + '.', A.s >= 6]);
@@ -1164,6 +1176,9 @@ BIG_SPRITES.warcamp = ['................', '.......d........', '......dd........
 BIG_SPRITES.razedcamp = ['................', '................', '................', '................', '.....EkE....k...', '....kEkkk..kEk..', '...kkkEkkk.kkkk.', '..kEkkkkEkkkkEkk', '..kkkkEkkkkEkkkk', '..HHkHHHkHHHkHHH', '................', '....E.......E...', '...EEE.....EEE..', '....E.......E...', '................', '................'];
 BIG_SPRITES.soldier = ['.....eeeeee.....', '....eeeeeeee....', '....eessssee....', '....esssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....eeeeeeee....', '...eeeeeeeeee.e.', '..seeeeeeeeeese.', '..s.eeeeeeee.se.', '....eeeeeeee..e.', '....EEE..EEE..e.', '....EEE..EEE..e.', '...HHH....HHH...', '................'];
 BIG_SPRITES.ship = ['.......w........', '.......ww.......', '.......www......', '.......wwww.....', '.......wwwww....', '.......wwwwww...', '.......wwwww....', '.......www......', '.......w........', '..HHHHHHHHHHHH..', '.HhhhhhhhhhhhhH.', '.HhhhhhhhhhhhhH.', '..HHHHHHHHHHHH..', '...hhhhhhhhhh...', '................', '................'];
+BIG_SPRITES.wyrm = ['......kk........', '.....krrk.......', '....krrrrk......', '...krrkrrrk.....', '..krrrrrrrrk....', '..krryyrrrrk....', '...krrrrrrrrk...', '....krrrrrrrk...', '.....krrrrrrrrk.', '....krrrrrrrrrk.', '...krrrkkrrrrk..', '..krrrk..krrk...', '..krrk....kk....', '...kk...........', '................', '................'];
+BIG_SPRITES.direwolf = ['................', '................', '..kk........kk..', '..kkk......kkk..', '..kkkkkkkkkkkk..', '..kkrkkkkkkrkk..', '..kkkkkkkkkkkk..', '...kkkwwkkkkk...', '....kkkkkkkk....', '..kkkkkkkkkkkkk.', '.kkkkkkkkkkkkkkk', '.kkkkkkkkkkkkkk.', '..kk.kk..kk.kk..', '..kk.kk..kk.kk..', '................', '................'];
+BIG_SPRITES.troll = ['.....GGGGGG.....', '....GGGGGGGG....', '....GGkGGkGG....', '....GGGGGGGG....', '.....GGwwGG.....', '....GGGGGGGG....', '..GGGGGGGGGGGG..', '.GGGGGGGGGGGGGG.', '.GGhGGGGGGGGhGG.', '.GGhGGGGGGGGhGG.', '..GGGGGGGGGGGG..', '...GGGGGGGGGG...', '...GGGG..GGGG...', '...GGGG..GGGG...', '..HHHHH..HHHHH..', '................'];
 const spriteCache = {};
 // Creatures, items and props get a dark outline so they read on any ground;
 // 16px sprites also get a light top rim and a darker bottom rim for volume.
@@ -1390,6 +1405,7 @@ function siteDungeon(site) {
   const st = SITE_TYPES[site.type];
   const def = { kind: 'site', name: site.name, floors: site.floors, pool: st.pool, gold: st.gold, potions: st.potions, view: st.view, loot: st.loot, treasure: st.treasure, danger: site.danger, xp: st.xp || 1, site };
   if (site.deep) Object.assign(def, { name: 'the Deep', endless: true, pool: null, danger: 5 });
+  if (site.lair) { const L = LAIRS[site.lair]; Object.assign(def, { lair: site.lair, theme: L.theme, boss: L.boss, pool: byName(...L.pool), treasure: 200 + 40 * L.danger, xp: 2, loot: 0.3, gold: 1.5 }); }
   if (site.story) { const S = STORY_SITES[site.story]; Object.assign(def, { story: site.story, theme: S.theme, boss: S.boss, treasure: 150 + 60 * S.danger, xp: 1.5 }); }
   return def;
 }
@@ -1555,6 +1571,7 @@ function guideSuggestions() {
   if (player.weapon && (player.weaponPlus || 0) < 3 && player.gold >= UPGRADE_COST(player.weaponPlus || 0)) out.push(['Sharpen your blade', `A smithy can make your ${itemInfo(player.weapon).name} +${(player.weaponPlus || 0) + 1}.`]);
   if (player.meta.places.length < 5) out.push(['Explore', 'Standing stones, shrines, ruins, hermits and wells lie in the wilds. Walk near them to discover them.']);
   if (!player.meta.rod) out.push(['Go fishing', 'Shops in fishing towns sell rods. Walk into water to cast a line.']);
+  if (player.level >= 15 && lairState().slain.length < Object.keys(LAIRS).length) out.push(['A legend to hunt', lairState().known.length ? `${LAIRS[lairState().known.find((id) => !lairState().slain.includes(id)) || lairState().known[0]].title[0].toUpperCase()}${LAIRS[lairState().known.find((id) => !lairState().slain.includes(id)) || lairState().known[0]].title.slice(1)} is on your map. Its master drops gear found nowhere else.` : 'Six super bosses lair in the far corners of the world. Buy a bard a drink, or a hermit a map.']);
   if (player.level >= 5 && !player.meta.arena) out.push(['Test your mettle', 'The Grand Arena at Castle Aurum pays gold for every wave you survive.']);
   if (ACCOUNT.user && player.gold >= BUILD.costs[0]) out.push(['Help other heroes', `Pay an innkeeper ${BUILD.costs[0]} gold to build a monument in the square that every hero can use.`]);
   if (armiesUnlocked() && player.gold >= 150 && !war().armies.some((a) => a.mine)) out.push(['Raise an army', 'Orc warcamps threaten every realm. Recruit soldiers at a realm\'s seat (the King, a council or town hall, the clan longhouse or a League bank) and send them to raze a camp.']);
@@ -1654,6 +1671,21 @@ function edricTalk(n) {
   return true;
 }
 // Called when the hero arrives on a Deep floor, and when a Deep boss falls.
+function lairSlain(id) {
+  const L = LAIRS[id], S = lairState();
+  if (!lairKnown(id)) S.known.push(id);
+  const first = !S.slain.includes(id);
+  if (first) S.slain.push(id);
+  unlock('lairslayer');
+  if (S.slain.length >= Object.keys(LAIRS).length) unlock('legend');
+  const it = itemInfo(L.reward);
+  if (first && !bagFull()) { player.bag.push(L.reward); log(`Among the bones lies ${it.name}: ${itemLabel(L.reward)}. There is no other like it.`, 'good'); }
+  else if (first) { S.slain.pop(); log(`${it.name} lies among the bones, but your bag is full. Make room and come back.`, 'bad'); }
+  showScene([{ who: L.boss.name, sprite: MONSTER_TYPES.find((t) => t.name === L.boss.type).sprite, bg: L.theme === 'lava' ? 'lava' : L.theme === 'flooded' ? 'grotto' : L.theme === 'arcane' ? 'tower' : 'crypt',
+    text: first ? `${L.boss.name[0].toUpperCase() + L.boss.name.slice(1)} is dead. ${L.lore} The realms will tell this one for a long time.` : `${L.boss.name[0].toUpperCase() + L.boss.name.slice(1)} is dead again. Whatever brings them back, it has not learned.` }]);
+  track('lair_slain', { lair: id, first });
+  mapCache.ox = null; updateStats(); saveProgress('progress');
+}
 function act2Progress(kind, fl) {
   const A = act2();
   if (!act2Active()) return;
@@ -1782,8 +1814,44 @@ function valueNoise(x, y, salt, scale) {
 const CONT_RX = 124, CONT_RY = 150, BRIDGE_W = 11;   // continents are taller than they are wide, so the eastern pair keeps a strait
 const CONTINENTS = REALM_ORDER.map((id) => ({ id, cx: REALMS[id].capital[0] * TOWN_SPACING + 20, cy: REALMS[id].capital[1] * TOWN_SPACING + 15 }));
 const BRIDGES = [['cantons', 'aurum'], ['cantons', 'kathar'], ['cantons', 'league'], ['kathar', 'league']].map(([a, b]) => [CONTINENTS.find((c) => c.id === a), CONTINENTS.find((c) => c.id === b)]);
+// Six hidden lairs, each with a super boss and a one-of-a-kind reward. They stay off
+// the map until a bard, a hermit, a prophet or your own feet find them.
+const LAIRS = {
+  spider: { i: 1, j: 3,  title: "the Spider Queen's Hollow", type: 'cave',  theme: 'moss',    danger: 8,  pool: ['Spider', 'Bat', 'Goblin'], boss: { type: 'Spider', name: 'Mother Venom, the Spider Queen', hpMult: 9 }, reward: 'fangblade',
+    lore: 'Every spider in the realms is her child, the clans say, and she has never forgiven anyone who stepped on one.' },
+  wyrm:   { i: 5, j: -3, title: "the Wyrm's Roost", theme: 'lava', type: 'cave', danger: 12, pool: ['Orc', 'Bat', 'Skeleton'], boss: { type: 'Wyrm', name: 'Scald, the Old Wyrm', hpMult: 10 }, reward: 'wyrmscale',
+    lore: 'Scald was old when Aurel forged the crown. He sleeps on the gold of three kingdoms and wakes, the farmers say, about once a century. It has been about a century.' },
+  drowned: { i: -4, j: -4, title: "the Drowned King's Hall", type: 'crypt', theme: 'flooded', danger: 10, pool: ['Skeleton', 'Wraith', 'Spider'], boss: { type: 'Wraith', name: 'the Drowned King', hpMult: 9 }, reward: 'tidecaller',
+    lore: 'A king of the sea-realm that was, before the League. His hall went under the waves and he did not notice, and he holds court there still.' },
+  troll:  { i: -1, j: 4,  title: "Old Grumm's Bridge", type: 'warren', theme: 'stone', danger: 9,  pool: ['Orc', 'Goblin', 'Archer'], boss: { type: 'Troll', name: 'Old Grumm, the Bridge Troll', hpMult: 9 }, reward: 'trollhide',
+    lore: 'There was a bridge once. Grumm ate the toll-keeper, then the toll, then most of the bridge. He is still hungry.' },
+  lich:   { i: 4, j: 2,   title: "the Lich's Observatory", type: 'tower', theme: 'arcane',  danger: 13, pool: ['Skeleton', 'Wraith', 'Necromancer'], boss: { type: 'Necromancer', name: 'Vendrath the Unending', hpMult: 10 }, reward: 'staffofages',
+    lore: 'Vendrath counted the stars for three hundred years and found that one of them was counting back. He has not been entirely himself since.' },
+  wolf:   { i: -5, j: 1,  title: "the Direwolf's Den", type: 'cave', theme: 'bone', danger: 11, pool: ['Rat', 'Goblin', 'Orc'], boss: { type: 'Direwolf', name: 'Gnashfang, the Winter Wolf', hpMult: 9 }, reward: 'stormhammer',
+    lore: 'The winters are longer where Gnashfang hunts. The clans leave a goat on the hill at midwinter and hope it is enough. It is not always enough.' },
+};
+const LAIR_AT = Object.fromEntries(Object.entries(LAIRS).map(([id, L]) => [`${L.i},${L.j}`, id]));
+const lairState = () => player.meta.lairs || (player.meta.lairs = { known: [], slain: [] });
+const lairKnown = (id) => lairState().known.includes(id);
+function revealLair(id, how) {
+  if (lairKnown(id)) return false;
+  lairState().known.push(id);
+  const L = LAIRS[id];
+  mapCache.ox = null;
+  log(`${how} ${L.title[0].toUpperCase() + L.title.slice(1)} is marked on your map. ${L.lore}`, 'good');
+  sfx.play('quest'); track('lair_revealed', { lair: id });
+  return true;
+}
+function nearestUnknownLair(x, y) {
+  return Object.keys(LAIRS).filter((id) => !lairKnown(id)).map((id) => ({ id, site: siteAt(LAIRS[id].i, LAIRS[id].j) })).sort((a, b) => Math.hypot(a.site.x - x, a.site.y - y) - Math.hypot(b.site.x - x, b.site.y - y))[0] || null;
+}
+function lairHint(x, y) {
+  const n = nearestUnknownLair(x, y); if (!n) return null;
+  const d = Math.round(Math.hypot(n.site.x - x, n.site.y - y));
+  return { ...n, text: `${LAIRS[n.id].title}, ${compassWord(n.site.x - x, n.site.y - y).toLowerCase()} of here, ${d} paces or so` };
+}
 // story sites and the Deep gate must be on land: a lobe of land around each of their cells
-const LAND_ANCHORS = [...Object.values(STORY_SITES).map((S) => ({ x: S.i * TOWN_SPACING + 47, y: S.j * TOWN_SPACING + 45, r: 58 })), { x: DEEP_CELL[0] * TOWN_SPACING + 48, y: DEEP_CELL[1] * TOWN_SPACING + 60, r: 50 }];
+const LAND_ANCHORS = [...Object.values(STORY_SITES).map((S) => ({ x: S.i * TOWN_SPACING + 47, y: S.j * TOWN_SPACING + 45, r: 58 })), ...Object.values(LAIRS).map((L) => ({ x: L.i * TOWN_SPACING + 47, y: L.j * TOWN_SPACING + 45, r: 58 })), { x: DEEP_CELL[0] * TOWN_SPACING + 48, y: DEEP_CELL[1] * TOWN_SPACING + 60, r: 50 }];
 function segDist(x, y, a, b) {
   const vx = b.cx - a.cx, vy = b.cy - a.cy, wx = x - a.cx, wy = y - a.cy;
   const t = Math.max(0, Math.min(1, (wx * vx + wy * vy) / (vx * vx + vy * vy)));
@@ -2128,6 +2196,7 @@ const NOTABLES = [
     `"Potions help, but so does not going into ${c.site} with a head cold. Rest first. The inn is cheap and I am not."`,
     c.storyTie] },
   { id: 'prophet', role: 'who says the Deep is waking', sprite: 'elder', lines: (c) => [
+    c.lairTie,
     `"They laughed in ${c.town} when I said the ground was dreaming. Put your ear to ${c.landmark}. Go on. Tell me it is not breathing."`,
     c.deepTie,
     `"Five lights held it down. Five! And one of them in ${c.site}, or near enough. I have maps. Nobody looks at my maps."`] },
@@ -2173,6 +2242,7 @@ function notableNpc(town) {
     site: site ? (site.name.startsWith('The ') ? site.name.replace(/^The /, 'the ') : 'the ' + site.name) : 'the dungeon under the square',
     place: place ? place.name : 'the standing stones', camp: camp ? camp.name : 'the hills', guard: guards.length ? guards[0].type.name : 'the militia',
     lore: townLore(town), storyTie, edricTie, deepTie,
+    lairTie: (() => { const near = Object.keys(LAIRS).map((id) => ({ id, s: siteAt(LAIRS[id].i, LAIRS[id].j) })).sort((a, b) => Math.hypot(a.s.x - town.cx, a.s.y - town.cy) - Math.hypot(b.s.x - town.cx, b.s.y - town.cy))[0]; return `"And there is worse than the Deep, closer to home. ${LAIRS[near.id].title[0].toUpperCase() + LAIRS[near.id].title.slice(1)} lies ${compassWord(near.s.x - town.cx, near.s.y - town.cy).toLowerCase()} of ${town.name}. ${LAIRS[near.id].lore}"`; })(),
   };
   town.notable = { sprite: N.sprite, name, role: N.role, lines: N.lines(c), notable: true, tell: 0 };
   return town.notable;
@@ -2341,6 +2411,15 @@ function siteAt(i, j) {
     const town = townAt(i, j);
     if (town && x >= town.x0 - 3 && x < town.x0 + TW + 3 && y >= town.y0 - 3 && y < town.y0 + TH + 3) y = town.y0 + TH + 10;
     const site = { key: k, i, j, x, y, type: 'deep', name: 'The Gate of the Deep', floors: 99, danger: 5, sprite: 'abyss', deep: true };
+    sites.set(k, site);
+    return site;
+  }
+  if (LAIR_AT[k]) {
+    const id = LAIR_AT[k], L = LAIRS[id];
+    let x = i * TOWN_SPACING + 12 + Math.floor(cellRand(i, j, 302) * 70), y = j * TOWN_SPACING + 10 + Math.floor(cellRand(i, j, 303) * 70);
+    const town = townAt(i, j);
+    if (town && x >= town.x0 - 3 && x < town.x0 + TW + 3 && y >= town.y0 - 3 && y < town.y0 + TH + 3) x = town.x0 + TW + 12;
+    const site = { key: k, i, j, x, y, type: L.type, name: L.title[0].toUpperCase() + L.title.slice(1), floors: 2, danger: L.danger, sprite: SITE_TYPES[L.type].sprite, lair: id };
     sites.set(k, site);
     return site;
   }
@@ -2711,6 +2790,7 @@ function talk(n) {
   if (n.type.action && SERVICE_SHOPS.has(n.type.action)) { log(`${n.type.name}: ${n.type.lines[rnd(n.type.lines.length)]}`); openShop(n.type.action); return; }
   const rumour = !n.type.notable && !n.type.leader && !n.type.guard && !n.type.action && Math.random() < 0.45 ? storyRumour() : null;
   const line = rumour || (n.type.notable ? n.type.lines[n.type.tell++ % n.type.lines.length] : n.type.lines[rnd(n.type.lines.length)]);
+  if (n.type.notable && /worse than the Deep/.test(line)) { const id = Object.keys(LAIRS).find((k) => line.includes(LAIRS[k].title[0].toUpperCase() + LAIRS[k].title.slice(1))); if (id) revealLair(id, 'The prophet points:'); }
   log(`${n.type.name}: ${line}`);
   bubble = { x: n.x, y: n.y, text: line, until: performance.now() + (n.type.notable ? 6000 : 4000) };
   if (n.type.notable) { draw(); return; }
@@ -3587,8 +3667,9 @@ function renderBackground() {
     }
     for (const st of nearbySites(player.x, player.y, 1)) {
       if (st.x < x0 || st.x > x1 || st.y < y0 || st.y > y1) continue;
+      if (st.lair && !lairKnown(st.lair)) continue;
       g.font = 'bold 12px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom';
-      const rt = rating(siteDungeon(st)), sub = `Lv ${rt.rec}+ · ${rt.label}`;
+      const rt = rating(siteDungeon(st)), sub = st.lair ? `☠ lair · Lv ${rt.rec}+ · ${rt.label}` : `Lv ${rt.rec}+ · ${rt.label}`;
       const w = Math.max(g.measureText(st.name).width, g.measureText(sub).width) + 12;
       g.fillStyle = 'rgba(6,12,20,0.7)'; g.fillRect(st.x * T - off.x + T / 2 - w / 2, st.y * T - off.y - 34, w, 30);
       g.fillStyle = '#c084fc'; g.fillText(st.name, st.x * T - off.x + T / 2, st.y * T - off.y - 20);
@@ -4249,7 +4330,15 @@ function renderWorldMap() {
   for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
     const st = siteAt(i, j);
     if (!st) continue;
+    if (st.lair && !lairKnown(st.lair)) continue;
     const [sx, sy] = toPx(st.x, st.y);
+    if (st.lair) {
+      const L = LAIRS[st.lair], slain = lairState().slain.includes(st.lair);
+      g.fillStyle = slain ? '#6b7280' : '#ef4444'; g.font = 'bold 16px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('☠', sx, sy);
+      g.fillStyle = '#ffd86b'; g.font = 'bold 9px sans-serif'; g.fillText('♛', sx, sy - 11);
+      g.font = 'bold 10px sans-serif'; g.fillStyle = slain ? '#9ca3af' : '#fca5a5'; g.fillText(`${st.name}${slain ? ' (slain)' : ''}`, sx, sy + 13); g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.font = 'bold 11px sans-serif';
+      continue;
+    }
     g.fillStyle = '#c084fc'; g.fillRect(sx - 4, sy - 4, 8, 8); g.fillStyle = '#1b1b2f'; g.fillRect(sx - 2, sy - 2, 4, 4);
     g.font = '10px sans-serif'; const rt = rating(siteDungeon(st)); g.fillStyle = '#e9d5ff'; g.fillText(st.name, sx, sy - 16); g.fillStyle = rt.color; g.fillText(`Lv ${rt.rec}+ ${rt.label}`, sx, sy - 6); g.font = 'bold 11px sans-serif';
   }
@@ -4430,7 +4519,7 @@ function describeTile(x, y) {
   if (isVisible(x, y)) {
     const m = getMonsterAt(x, y);
     if (m) {
-      const per = Math.max(1, player.atk + weaponAtk() + 0.5 - (m.mod === 'armored' ? 2 : 0)) * (!m.awake && !m.boss ? (player.weapon === 'dagger' ? 3 : 2) : 1);
+      const per = Math.max(1, player.atk + weaponAtk() + 0.5 - (m.mod === 'armored' ? 2 : 0)) * (!m.awake && !m.boss ? (traitOf(player.weapon) === 'dagger' ? 3 : 2) : 1);
       const hits = Math.max(1, Math.ceil(m.hp / per)), takes = Math.max(1, m.atk - armorDef());
       const threat = takes * 3 >= player.hp ? ' Dangerous for you now.' : '';
       return `${m.boss ? bossTitle(m) + ' (boss)' : m.elite ? `${m.name} (elite: ${ELITE_MODS[m.mod].desc})` : m.type.name} — ${m.hp}/${m.maxHp} HP. Hits you for ${takes}${m.type.ranged ? ' from range' : ''}${m.type.poison ? ' and may poison' : ''}; about ${hits} ${hits === 1 ? 'hit' : 'hits'} to kill${m.awake ? '' : '. Asleep: sneak attack for ' + (player.weapon === 'dagger' ? 'triple' : 'double') + ' damage'}.${threat}`;
@@ -4455,6 +4544,7 @@ function describeTile(x, y) {
   if (t === TILE.CRACK) return `Cracked wall — it sounds hollow. Walk into it to break through (${player.weapon === 'warhammer' ? 'one blow with your warhammer' : 'three blows, or one with a warhammer or a bomb'}). The noise wakes monsters`;
   if (t === TILE.SPRING) return usedSprings.has(key(x, y)) ? 'A dry spring' : 'Healing spring — walk into it for full health, once';
   if (t === TILE.WAYOUT) return 'Way out — walk into it twice to leave the dungeon early, keeping your loot';
+  if (t === TILE.SITE && inTown()) { const sl = siteAtTile(x, y); if (sl && sl.lair) return `${sl.name} — a super boss's lair, ${ratingText(siteDungeon(sl))}. ${LAIRS[sl.lair].boss.name[0].toUpperCase() + LAIRS[sl.lair].boss.name.slice(1)} waits below${lairState().slain.includes(sl.lair) ? ' (slain before)' : ''}`; }
   if (t === TILE.SITE && inTown()) { const st0 = siteAtTile(x, y); if (st0 && st0.deep) return story().phase === 'done' ? `The Gate of the Deep — endless floors, a boss every fifth, ${ratingText(siteDungeon(st0))}. Your record: floor ${player.meta.deepest || 0}` : 'A gate of black iron, sealed while the Crown lies broken'; }
   if (t === TILE.SITE && inTown()) { const st = siteAtTile(x, y); if (st) return st.story && !storySiteOpen(st.story) ? `${st.name} — sealed with old gold` : `${st.name} — ${st.floors} floors, ${ratingText(siteDungeon(st))}${st.story ? ', a shard lies within' : ''}, step in to explore`; }
   if (t === TILE.PLACE && inTown()) { const pl = placeAtTile(x, y); if (pl) return discovered(pl) ? `${pl.name[0].toUpperCase() + pl.name.slice(1)} — ${PLACE_TYPES[pl.type].label}, walk into it` : 'Something old stands here — walk into it'; }
@@ -4728,10 +4818,13 @@ const WEAPON_TRAITS = {
   warhammer:   { name: 'Crushing', desc: 'knocks foes back a tile, or slams them into a wall for +3' },
   greatsword:  { name: 'Cleaving', desc: 'also hits every other foe beside you for half damage' },
 };
+// One-of-a-kind gear from the lairs borrows the fighting style of a common weapon.
+const LEGEND_TRAIT = { fangblade: 'dagger', tidecaller: 'longsword', stormhammer: 'warhammer', staffofages: 'greatsword' };
+const traitOf = (id) => LEGEND_TRAIT[id] || id;
 const nameOf = (m) => (m.boss ? m.name : 'the ' + mName(m));
 function moveMonster(m, x, y) { monsterIndex.delete(key(m.x, m.y)); m.x = x; m.y = y; monsterIndex.set(key(m.x, m.y), m); monstersDirty = true; }
 function playerAttack(m) {
-  const w = player.weapon, sneak = !m.awake && !m.boss, solo = !coopMember();
+  const w = traitOf(player.weapon), sneak = !m.awake && !m.boss, solo = !coopMember();
   let dmg = Math.max(1, player.atk + weaponAtk() + rnd(2) - (m.mod === 'armored' ? 2 : 0));
   const notes = [];
   if (sneak) { dmg *= w === 'dagger' ? 3 : 2; notes.push('Sneak attack!'); tip('sneak', 'Sleeping monsters take double damage from your first blow, triple with a dagger. Creep up on them.'); }
@@ -4797,6 +4890,7 @@ function killMonster(m) {
     unlock('first_blood');
     if (player.lifetimeKills >= 50) unlock('slayer_50');
     if (scene === 'world' && dayPhase() === 'night') unlock('night_owl');
+    if (m.boss && dungeonDef && dungeonDef.lair) setTimeout(() => lairSlain(dungeonDef.lair), 60);
     if (m.boss && dungeonDef && dungeonDef.endless) setTimeout(() => act2Progress('boss', floor), 80);
     if (m.boss) { unlock('boss_slayer'); track('boss_killed', { boss: m.name, floor }); }
     const xp = Math.round(m.type.xp * (wearing('cantonsbadge') ? 1.2 : 1) * (m.small || m.raised ? 0.4 : 1) * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1) * (m.elite ? 2 : 1) * (scene === 'dungeon' ? (floorMod === 'swarming' ? 1.25 : floorMod === 'cursed' ? 1.5 : 1) : 1));
@@ -4858,7 +4952,7 @@ function raiseDead(m) {
 }
 function monsterAttack(m, ranged = false) {
   if (!ranged && perkCount('nimble') && Math.random() < 0.25) { log(`You dodge ${m.boss ? m.name : 'the ' + m.type.name}.`, 'good'); floatText(player.x, player.y, 'dodge', '#7bdfff'); return; }
-  if (!ranged && player.weapon === 'longsword' && Math.random() < 0.2) { log(`You parry ${nameOf(m)}'s blow with your longsword.`, 'good'); floatText(player.x, player.y, 'parry', '#e6eef8'); sfx.play('shield'); return; }
+  if (!ranged && traitOf(player.weapon) === 'longsword' && Math.random() < 0.2) { log(`You parry ${nameOf(m)}'s blow with your longsword.`, 'good'); floatText(player.x, player.y, 'parry', '#e6eef8'); sfx.play('shield'); return; }
   const dmg = Math.max(1, m.atk - armorDef() - (player.shield > 0 ? 2 : 0));
   player.hp -= dmg;
   if (m.mod === 'vampiric' && m.hp < m.maxHp) { const h = Math.min(dmg, m.maxHp - m.hp); m.hp += h; floatText(m.x, m.y, `+${h}`, '#ff6b9b'); }
@@ -4949,7 +5043,8 @@ function stepMonsters(swiftOnly = false, heroes = null) {
 // At half health they enrage and call for help.
 const bossTitle = (m) => m.name[0].toUpperCase() + m.name.slice(1);
 function bossTurn(m, H, heroes) {
-  if (!m.enraged && m.hp <= m.maxHp / 2) { enrageBoss(m); return true; }
+  if (m.superBoss) { const stage = m.hp <= m.maxHp / 3 ? 2 : m.hp <= m.maxHp * 2 / 3 ? 1 : 0; if (stage > (m.enrageStage || 0)) { m.enrageStage = stage; m.enraged = false; enrageBoss(m); return true; } }
+  else if (!m.enraged && m.hp <= m.maxHp / 2) { enrageBoss(m); return true; }
   if (m.windup) {
     const area = new Set(m.windup);
     m.windup = null; m.slamCd = m.enraged ? 3 : 4;
@@ -5180,7 +5275,7 @@ function tryMove(dx, dy) {
   if (n) { talk(n); draw(); return; }
   if (t === TILE.FURNITURE) { useFurniture(decor[ny][nx]); draw(); return; }
   if (t === TILE.WAYSTONE) { openShop('travel'); draw(); return; }
-  if (t === TILE.CRACK) { hitCrack(nx, ny, player.weapon === 'warhammer' ? 3 : 1); endTurn(false); return; }
+  if (t === TILE.CRACK) { hitCrack(nx, ny, traitOf(player.weapon) === 'warhammer' ? 3 : 1); endTurn(false); return; }
   if (t === TILE.SPRING) { drinkSpring(nx, ny); endTurn(false); return; }
   if (t === TILE.WAYOUT) {
     if (turn - wayoutWarned <= 5) { wayoutWarned = -99; leaveDungeon(); return; }
@@ -5250,6 +5345,7 @@ function tryMove(dx, dy) {
     if (t === TILE.SITE && inTown()) {
       const site = siteAtTile(nx, ny);
       if (site && site.deep && story().phase !== 'done') { player.x -= dx; player.y -= dy; log('A gate of black iron is set into the hillside, cold to the touch. It will not open while the Crown of Aurum lies broken.', 'bad'); draw(); return; }
+      if (site && site.lair && !lairKnown(site.lair)) revealLair(site.lair, 'You stumble on it:');
       if (site && site.story && !storySiteOpen(site.story)) { player.x -= dx; player.y -= dy; log(`An old seal of gold bars the way into ${site.name.replace(/^The /, 'the ')}. King Aldric will know how to break it.`, 'bad'); draw(); return; }
       if (site) {
         if (!confirmEntry(siteDungeon(site), 's:' + site.key)) { player.x -= dx; player.y -= dy; draw(); return; }
@@ -5724,7 +5820,7 @@ const ENCOUNTERS = {
     text: 'A bard with a battered lute sits on a fence, tuning. "A song for the road, hero? Fifteen gold, and I will make you braver than you are."',
     choices: [
       { label: 'Pay 15 gold for a song', disabled: player.gold < 15, run: () => { player.gold -= 15; player.meta.blessing = { name: "bard's song", atk: 1, def: 1, turns: 250 }; return 'The song is about you, mostly, and mostly true. You feel ten feet tall: +1 attack and +1 defence for 250 turns.'; } },
-      { label: 'Ask for a tale instead', run: () => ROAD_TALES[rnd(ROAD_TALES.length)] },
+      { label: 'Ask for a tale instead', run: () => { const h = lairHint(player.x, player.y); if (h && Math.random() < 0.6) { revealLair(h.id, 'The bard sings of'); return `The bard sings of ${h.text}. "Few who seek it return," the bard adds, "but the ones who do are rich."`; } return ROAD_TALES[rnd(ROAD_TALES.length)]; } },
       { label: 'Not today', run: () => 'The bard plays you out with something mournful.' },
     ] }),
   camp: () => ({ who: 'An abandoned camp', sprite: 'stones',
@@ -6102,6 +6198,7 @@ function endTurn(moved) {
   else arenaTurn();
   if (!gameOver && player.pendingPerks > 0) offerPerks();
   if (inTown()) for (const pl of nearbyPlaces(player.x, player.y, 1)) if (!discovered(pl) && cheb(pl, player) <= 3) discoverPlace(pl);
+  if (inTown()) for (const st of nearbySites(player.x, player.y, 1)) if (st.lair && !lairKnown(st.lair) && cheb(st, player) <= 4) revealLair(st.lair, 'You stumble on it:');
   if (scene === 'world' && turn % 5 === 0) spawnBounties();
   music.setMood(currentMood());
   if (mapPin && scene === 'world' && cheb(mapPin, player) <= 3) { mapPin = null; savePin(); log('You reach the spot you pinned on your map.', 'good'); }
@@ -6536,7 +6633,7 @@ const invBag = document.getElementById('inv-bag');
 function itemLabel(id) {
   const it = itemInfo(id);
   if (!it) return id;
-  if (ITEMS.weapons[id]) return `${it.name}${id === player.weapon && player.weaponPlus ? ' +' + player.weaponPlus : ''} (+${it.atk + (id === player.weapon ? player.weaponPlus || 0 : 0)} attack${WEAPON_TRAITS[id] ? ', ' + WEAPON_TRAITS[id].name : ''})`;
+  if (ITEMS.weapons[id]) return `${it.name}${id === player.weapon && player.weaponPlus ? ' +' + player.weaponPlus : ''} (+${it.atk + (id === player.weapon ? player.weaponPlus || 0 : 0)} attack${WEAPON_TRAITS[traitOf(id)] ? ', ' + WEAPON_TRAITS[traitOf(id)].name : ''}${it.floor >= 99 ? ', legendary' : ''})`;
   if (ITEMS.armor[id]) return `${it.name}${id === player.armor && player.armorPlus ? ' +' + player.armorPlus : ''} (${it.def + (id === player.armor ? player.armorPlus || 0 : 0)} defence)`;
   if (ITEMS.relics[id]) return `${it.name} (${it.desc})`;
   if (it.use === 'bomb') return `${it.name} (blasts a 3×3 area)`;
@@ -7055,6 +7152,10 @@ function serviceRowsInner(kind) {
       rows.push(shopRow(`${t.name}, ${REALMS[I.realm].short} (${I.kind}${seen ? '' : ', never visited'}), ${compassWord(t.cx - here.cx, t.cy - here.cy).toLowerCase()}`, `Sail ${cost}g`, () => sailTo(here, t), player.gold < cost));
     }
   } else if (kind === 'hermit') {
+    const lh = lairHint(player.x, player.y);
+    if (lh) rows.push(shopRow(`A map to a monster's lair: "${lh.text}". The hermit will not say what lives there`, '120g', () => {
+      if (!spend(120)) return; revealLair(lh.id, 'The hermit marks it on your map:'); afterSpend();
+    }, player.gold < 120));
     const unknown = nearbyPlaces(player.x, player.y, 3).filter((p) => !discovered(p));
     rows.push(shopRow(unknown.length ? `A map of the three nearest places you have not found (${unknown.length} within a few days' walk)` : 'You have found every place the hermit knows about', unknown.length ? '60g' : null, () => {
       if (!spend(60)) return;
@@ -7136,6 +7237,7 @@ function startRun(saved) {
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
         rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
+        lairs: saved.meta?.lairs && Array.isArray(saved.meta.lairs.known) ? { known: saved.meta.lairs.known.filter((id) => LAIRS[id]), slain: (saved.meta.lairs.slain || []).filter((id) => LAIRS[id]) } : null,
         act2: saved.meta?.act2 && Number.isInteger(saved.meta.act2.s) ? { s: saved.meta.act2.s, n: 0, told: !!saved.meta.act2.told } : null,
         war: saved.meta?.war && saved.meta.war.troops ? { troops: { cantons: 0, aurum: 0, kathar: 0, league: 0, ...saved.meta.war.troops }, armies: Array.isArray(saved.meta.war.armies) ? saved.meta.war.armies.map((a) => ({ ...a, fightUntil: undefined })) : [], camps: Array.isArray(saved.meta.war.camps) ? saved.meta.war.camps : [] } : null },
       relic: ITEMS.relics[saved.relic] ? saved.relic : null,
