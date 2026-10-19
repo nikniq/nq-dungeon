@@ -244,7 +244,7 @@ class CharacterTest extends TestCase
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['charts' => ['140,-62', '-3,9'], 'treasures' => 2, 'found' => ['stormpearl']]])->assertOk()->assertJson(['meta' => ['charts' => ['140,-62', '-3,9'], 'treasures' => 2]]);
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['charts' => ['a,b']]])->assertUnprocessable();
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['secrets' => ['295,-96']]])->assertOk()->assertJson(['meta' => ['secrets' => ['295,-96']]]);
-        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['story2' => ['s' => 1], 'rq' => ['tianxia' => ['s' => 2, 'n' => 1]], 'found' => ['jadeseal']]])->assertOk()->assertJson(['meta' => ['story2' => ['s' => 1], 'rq' => ['tianxia' => ['s' => 2, 'n' => 1]]]]);
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['story2' => ['s' => 3], 'rq' => ['tianxia' => ['s' => 2, 'n' => 1]], 'found' => ['jadeseal']]])->assertOk()->assertJson(['meta' => ['story2' => ['s' => 3], 'rq' => ['tianxia' => ['s' => 2, 'n' => 1]]]]);
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['story2' => ['s' => 7]]])->assertUnprocessable();
     }
 

@@ -312,8 +312,17 @@ passage at half price), the Lotus of the Sun (+2 defence by day) and the Bear
 Charm of Severin (+3 attack by night). Buildings are drawn in each culture's
 style: lacquered posts and upturned pagoda eaves with lanterns, sandstone with
 flat terraces, chhatris and domes, log walls with painted plank roofs and onion
-domes. Finishing all three questlines ends Story 2 (`STORY2_FINALE`, 1500 gold,
-Friend of Seven Realms). The journal, objectives, quest log and map labels
+domes. The far realms' people are their own: folk, leaders, notables, harbourmasters
+and rulers wear realm-coloured clothes and a straw hat, turban or fur hat
+(`FAR_DRESS` recolours the base sprites into `villager:tianxia` and so on), and
+have their own lines (`FAR_FOLK`, `FAR_NOTABLES`). Story 2 has its own plot: the
+Veil was raised by three generals to wall in the Hollow King, who stole the
+breath of a continent; the three realm relics are the keys to his prison. Earning
+all three (`unsealBarrow`) opens the Thousand-Step Barrow, a six-floor story site
+at the continent's heart (`STORY_SITES.hollow`) with the Hollow King as a
+super-boss. On the Far Shore's roads his soldiers march (`ENCOUNTERS.hollowmen`).
+Slaying him ends Story 2 (`hollowKingSlain`: 2000 gold, the Crown of the Hollow
+King, Friend of Seven Realms). The journal, objectives, quest log and map labels
 follow the story; the far realms stay off them until the Veil parts.
 
 The public story page at `/world/story` (`StoryController`, `config/story.php`)

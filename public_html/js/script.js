@@ -118,6 +118,7 @@ const ACHIEVEMENTS = {
   four_realms: { label: 'Finished every realm questline', title: 'Friend of Four Realms' },
   farshore:    { label: 'Crossed the Veil to the Far Shore', title: 'of the Far Shore' },
   seven_realms: { label: 'Finished every questline on both shores', title: 'Friend of Seven Realms' },
+  hollowking:  { label: 'Slew the Hollow King', title: 'Breaker of the Barrow' },
   mandarin:    { label: 'Passed the imperial examination', title: 'the Mandarin' },
   pilgrim:     { label: 'Walked the nine gates of Suryapur', title: 'the Pilgrim' },
   boyar:       { label: "Seated on the Tsar's council", title: 'the Boyar' },
@@ -256,8 +257,8 @@ const itemKind = (id) => ITEMS.weapons[id] ? 'weapon' : ITEMS.armor[id] ? 'armor
 const wearing = (id) => !!player && player.relic === id;
 const goldMult = () => (perkCount('lucky') ? 1.25 : 1) * (wearing('luckycoin') ? 1.4 : 1) * (wearing('ledger') ? 1.25 : 1);
 const potionHeal = (h) => h * (wearing('royalsignet') ? 2 : 1);
-const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0) + (player.rage > 0 ? 2 : 0) + (wearing('bearcharm') && dayPhase() === 'night' ? 3 : 0);
-const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('sunlotus') && dayPhase() !== 'night' ? 2 : 0) + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
+const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0) + (player.rage > 0 ? 2 : 0) + (wearing('bearcharm') && dayPhase() === 'night' ? 3 : 0) + (wearing('hollowcrown') ? 3 : 0);
+const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('sunlotus') && dayPhase() !== 'night' ? 2 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
   + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.def || 0) : 0) + (realmState().rank >= 2 ? 1 : 0);
 const SAVE_EVERY_TURNS = 20;
 // What the hero has bought into in each realm: noble rank in Aurum, civic
@@ -910,8 +911,9 @@ function drawJournal(g) {
     }
     if (story1Done()) {
       const S2 = story2();
-      steps.push(['Story 2: The Far Shore', S2.s === 0 ? 'Story 1 is told. Stand in any town and the next story will find you.' : S2.s === 2 ? 'Three crowns beyond the Veil call you friend. The sea road is open for good.' : 'The Veil has parted. Earn the favour of the three crowns beyond it.', S2.s === 2]);
-      if (S2.s >= 1) for (const r of FAR_REALMS) { const Q = REALM_QUESTS[r], rq = rqState(r); steps.push([Q.title, rq.s === 5 ? `${Q.ruler} calls you friend.` : rq.s === 4 ? `Report to ${Q.ruler}.` : rq.s === 0 ? `${Q.ruler} waits in ${CAPITAL_NAMES[r]}.` : Q.steps[rq.s - 1].label + '.', rq.s === 5]); }
+      steps.push(['Story 2: The Far Shore', S2.s === 0 ? 'Story 1 is told. Stand in any town and the next story will find you.' : S2.s === 3 ? 'The Hollow King is dust. Three crowns beyond the Veil call you friend, and the sea road is open for good.' : S2.s === 2 ? 'The three keys are yours and the Barrow is open. Go down the thousand steps.' : 'The Veil was a prison wall. Earn the three keys from the three crowns beyond it.', S2.s === 3]);
+      if (S2.s >= 1) for (const r of FAR_REALMS) { const Q = REALM_QUESTS[r], rq = rqState(r); steps.push([`${Q.title} (the ${itemInfo(Q.relic).name})`, rq.s === 5 ? `${Q.ruler} gave you the key.` : rq.s === 4 ? `Report to ${Q.ruler}.` : rq.s === 0 ? `${Q.ruler} waits in ${CAPITAL_NAMES[r]}.` : Q.steps[rq.s - 1].label + '.', rq.s === 5]); }
+      if (S2.s >= 2) steps.push(['The Thousand-Step Barrow', S2.s === 3 ? 'The Hollow King is slain.' : 'At the heart of the Far Shore. Six floors, and the Hollow King at the bottom.', S2.s === 3]);
     }
     for (const [name, desc, done] of steps) {
       g.fillStyle = done ? '#9ef0b0' : '#e6eef8'; g.font = 'bold 14px sans-serif'; g.fillText(`${done ? '✓' : '•'} ${name}`, X, y);
@@ -1205,6 +1207,19 @@ const spriteCache = {};
 const NO_OUTLINE = new Set(['stairs', 'trap', 'rug', 'counter', 'shelf', 'bed', 'table', 'rack', 'fire', 'flower']);
 const EXTRA_OUTLINE = new Set(['chest', 'lamp', 'torch', 'barrel', 'plant', 'bones']);
 const outlined = (name) => !NO_OUTLINE.has(name) && (!!BIG_SPRITES[name] || EXTRA_OUTLINE.has(name));
+// The Far Shore's people: the same folk, dressed their own way. Clothes take the
+// realm's colour and each realm wears its hat: a straw hat, a turban, a fur hat.
+const FAR_DRESS = {
+  tianxia:   { map: { r: 'B', G: 'r', P: 'B', b: 'r', d: 'r' }, hat: ['.......tt.......', '....tttttttt....', '.ttttttttttttttt'] },
+  suryadesh: { map: { r: 'o', G: 'o', P: 'y', b: 'P', d: 'o' }, hat: ['.....wwwwww.....', '....wwwwwwww....', '....wwssssww....'] },
+  severin:   { map: { r: 'd', G: 'B', P: 'd', b: 'G', d: 'B' }, hat: ['....HHHHHHHH....', '...HHHHHHHHHH...', '...HHHHHHHHHH...'] },
+};
+for (const realm of Object.keys(FAR_DRESS)) for (const base of ['villager', 'elder', 'merchant', 'child', 'innkeeper', 'king']) {
+  const D = FAR_DRESS[realm], rows = BIG_SPRITES[base].map((r) => [...r].map((ch) => (ch !== 's' && ch !== 'k' && ch !== 'H' && D.map[ch]) ? D.map[ch] : ch).join(''));
+  if (base !== 'king') D.hat.forEach((h, i) => { rows[i] = h; });   // crowns stay crowns
+  BIG_SPRITES[`${base}:${realm}`] = rows;
+}
+const farSprite = (base, realm) => BIG_SPRITES[`${base}:${realm}`] ? `${base}:${realm}` : base;
 function sprite(name) {
   if (spriteCache[name]) return spriteCache[name];
   const rows = BIG_SPRITES[name] || SPRITES[name];
@@ -1278,6 +1293,28 @@ const NPC_TYPES = [
     'Old Mara brews potions cheaper than the shop. Her cottage is the one at the bottom left.',
     'Clear all five floors and you come back up with everything you carried.'] },
 ];
+// Townsfolk of the Far Shore, with their own things to say.
+const FAR_FOLK = {
+  tianxia: [
+    { sprite: 'villager:tianxia', name: 'Old Farmer Zhou', lines: ['The paddies flood in spring and the magistrate floods us with forms in autumn. Both grow rice, in the end.', 'The dead walked past my field last week. In step. They did not trample a single shoot. Very proper, the dead.', 'Lanterns at the festival, one for every ancestor. We are going to need a great many more lanterns.'] },
+    { sprite: 'child:tianxia', name: 'Little Mei', lines: ['Grandfather says the Hollow King ate the wind. How do you eat wind? Do you chew?', 'I am going to sit the examination when I am big. Then I can tell everybody what to do.', 'The dragon under the hill is asleep. Everyone says. I put my ear on the ground and I heard it.'] },
+    { sprite: 'merchant:tianxia', name: 'Tea-seller Lin', lines: ['Jasmine, oolong, or the brick tea the caravans drink. The brick tea tastes of caravan.', 'A seal on a paper is worth more than gold here. Gold you can lose. A seal, they hang you for.', 'The Empress reads every petition. Ten thousand clerks make sure she reads the right ones.'] },
+    { sprite: 'elder:tianxia', name: 'Scholar Fang', lines: ['The classics say the Hollow King was a man once, before he gave up breathing as beneath him.', 'Three generals, three locks: the Seal, the Lotus, the Claw. The classics are quite clear. The classics are also a thousand years old.', 'Heaven\'s mandate passes to whoever keeps order. Keep some, and who knows what Heaven will say.'] },
+  ],
+  suryadesh: [
+    { sprite: 'villager:suryadesh', name: 'Gopal the Mahout', lines: ['My elephant has walked the nine gates more times than any priest. She knows where the sweets are sold.', 'The spiders came up the pilgrim road in a line. Elephants do not like spiders. Nobody likes spiders.', 'Monsoon in six weeks. Then the roads are rivers and the rivers are roads.'] },
+    { sprite: 'child:suryadesh', name: 'Little Anjali', lines: ['The stepwell has a hundred and eight steps. I counted. Twice. It is a hundred and seven the second time.', 'The Maharani rode past on an elephant with a gold hat. The elephant had the hat. Not the Maharani.', 'There is a thing in the old temple that says it is a god. Pandit says real gods do not have to say so.'] },
+    { sprite: 'merchant:suryadesh', name: 'Spice-wife Rukmini', lines: ['Pepper, cardamom, saffron by the thread. The saffron is the price of a horse and worth it.', 'The Lotus of the Sun is kept in the ninth gate. The ninth gate is kept by the Maharani\'s aunt. Nobody gets past the aunt.', 'Pilgrims pay nothing on the roads. Everyone else pays me.'] },
+    { sprite: 'elder:suryadesh', name: 'Pandit Harish', lines: ['The lotus closes at night and opens with the sun. So does the kingdom, more or less.', 'The Hollow King was broken here by a woman with a flower. The flower was a lie. The woman was not.', 'Make an offering at the shrines on the road. Not for the gods. For you. It makes you slower, and slower sees more.'] },
+  ],
+  severin: [
+    { sprite: 'villager:severin', name: 'Trapper Yegor', lines: ['Sable, ermine, wolf. Bear, if you ask nicely and bring a bigger bear.', 'The dead came out of the taiga last month in a column. I have never seen orcs run before. I have now.', 'Winter is six weeks off. In Severin, winter is always six weeks off, until it is here.'] },
+    { sprite: 'child:severin', name: 'Little Sasha', lines: ['Babushka says Grandfather Frost gives presents to good children and the Hollow King takes the breath of bad ones. I have been very good.', 'The Tsar has a bear that sleeps by the stove. I have a cat. The cat is braver.', 'There is a song about the barrow under the frozen river. It is a lullaby. It does not work.'] },
+    { sprite: 'merchant:severin', name: 'Fur-seller Katya', lines: ['A coat for the winter, a hat for the wind, boots for the river. Buy all three or buy a coffin.', 'The Bear Charm is in the Tsar\'s terem, around the neck of the actual bear. Nobody has asked the bear.', 'Streltsy drink before they fight and after. During, they are surprisingly accurate.'] },
+    { sprite: 'elder:severin', name: 'Deacon Ilya', lines: ['The third general was a boyar with a bear\'s claw on a cord. He put the last lock on the Barrow and went home to die of the cold, which is how we do things.', 'The dead do not feel the winter. It is the only advantage they have, and they are welcome to it.', 'Pray at the painted church if you like. The icons have seen the Hollow King before. They are not impressed by him either.'] },
+  ],
+};
+const FAR_HARBOUR_NAMES = { tianxia: ['Harbourmaster Guo', 'Captain Shen Hai', 'Old Boatman Wu', 'Mistress Lu of the Junks'], suryadesh: ['Harbourmaster Nair', 'Captain Deva Varma', 'Old Kochu', 'Mother Meenakshi of the Dhows'], severin: ['Harbourmaster Volkov', 'Captain Zima', 'Old Lev the Ferryman', 'Mother Praskovya of the Koches'] };
 const INDOOR_NPCS = {
   speaker: { sprite: 'elder', name: 'Speaker Maren', action: 'council', lines: ['The Cantons answer to their people, and the people answer to their purses. Help us build.'] },
   councillor: { sprite: 'villager', name: 'The town councillor', action: 'council', lines: ['Every coin for the public works is written in the ledger, with your name beside it.'] },
@@ -1285,11 +1322,11 @@ const INDOOR_NPCS = {
   chieftain: { sprite: 'guard', name: 'Chieftain Ulrek Stonehand', action: 'chieftain', lines: ['Kings buy loyalty. Merchants rent it. Among the clans, it is sworn over bread and salt at the fire.'] },
   shaman: { sprite: 'elder', name: 'The clan shaman', action: 'shaman', lines: ['The spirits listen to those who bring gifts. Gold will do. They are not proud.'] },
   banker: { sprite: 'merchant', name: 'Banker Vessa Orlov', action: 'bank', lines: ['Gold in a pocket is lost to the first goblin. Gold in my vault outlives you.'] },
-  empress: { sprite: 'king', name: 'Empress Liang Wu', action: 'yamen', lines: ['Heaven grants its mandate to those who keep order. The examination halls are open to anyone who can hold a brush, or a sword.'] },
-  magistrate: { sprite: 'elder', name: 'The district magistrate', action: 'yamen', lines: ['Every petition is read, every tax is counted, every bandit is eventually hanged. The Empire is patient.'] },
-  maharani: { sprite: 'elder', name: 'Maharani Devika Suryavansha', action: 'durbar', lines: ['The sun rises on nine gates and sets on nine gates. Between them, the Rajadom keeps its promises.'] },
-  dewan: { sprite: 'merchant', name: 'The dewan', action: 'durbar', lines: ['The Maharani\'s treasury is in my keeping, and her roads. Pilgrims pay nothing. Everyone else pays something.'] },
-  tsar: { sprite: 'king', name: 'Tsar Fyodor the Patient', action: 'terem', lines: ['My grandfather said: the winter is long, the Tsar is far, and God is high. I am trying to be a little nearer than that.'] },
+  empress: { sprite: 'king:tianxia', name: 'Empress Liang Wu', action: 'yamen', lines: ['Heaven grants its mandate to those who keep order. The examination halls are open to anyone who can hold a brush, or a sword.'] },
+  magistrate: { sprite: 'elder:tianxia', name: 'The district magistrate', action: 'yamen', lines: ['Every petition is read, every tax is counted, every bandit is eventually hanged. The Empire is patient.'] },
+  maharani: { sprite: 'elder:suryadesh', name: 'Maharani Devika Suryavansha', action: 'durbar', lines: ['The sun rises on nine gates and sets on nine gates. Between them, the Rajadom keeps its promises.'] },
+  dewan: { sprite: 'merchant:suryadesh', name: 'The dewan', action: 'durbar', lines: ['The Maharani\'s treasury is in my keeping, and her roads. Pilgrims pay nothing. Everyone else pays something.'] },
+  tsar: { sprite: 'king:severin', name: 'Tsar Fyodor the Patient', action: 'terem', lines: ['My grandfather said: the winter is long, the Tsar is far, and God is high. I am trying to be a little nearer than that.'] },
   voivode: { sprite: 'guard', name: 'The voivode', action: 'terem', lines: ['I hold this town for the Tsar, against wolves, raiders and the boyars, in roughly that order of difficulty.'] },
   fenwick: { sprite: 'merchant', name: 'Fenwick the merchant', action: 'shop', lines: ['Finest steel this side of the dungeon. Come to the counter.'] },
   dottie: { sprite: 'innkeeper', name: 'Dottie the innkeeper', action: 'inn', lines: ['A bed is a bed. Take any that is free.'] },
@@ -1477,11 +1514,11 @@ const REALMS = {
   league: { name: 'Goldspire League', short: 'the League', gov: 'Oligarchy', ruler: 'the Merchant Council', capital: [-2, -3], color: '#b18cff',
     blurb: 'City-states run by their richest merchant houses. Banks, guilds, fine goods, and prices to match.' },
   // the Far Shore: a continent beyond the Veil of storms, reached only in Story 2
-  tianxia:   { name: 'Celestial Empire of Tianxia', short: 'the Empire', gov: 'Empire', ruler: 'Empress Liang Wu', capital: [12, -1], color: '#ff5c5c', far: true,
+  tianxia:   { name: 'Celestial Empire of Tianxia', short: 'the Empire', gov: 'Empire', ruler: 'Empress Liang Wu', capital: [11, -2], color: '#ff5c5c', far: true,
     blurb: 'Ruled from the Jade Throne by an empress and ten thousand scholar-officials. Walled cities, rice terraces, paper lanterns, and an examination for everything.' },
-  suryadesh: { name: 'Rajadom of Suryadesh', short: 'the Rajadom', gov: 'Rajadom', ruler: 'Maharani Devika Suryavansha', capital: [12, 1], color: '#ffa726', far: true,
+  suryadesh: { name: 'Rajadom of Suryadesh', short: 'the Rajadom', gov: 'Rajadom', ruler: 'Maharani Devika Suryavansha', capital: [11, 2], color: '#ffa726', far: true,
     blurb: 'River kingdoms under a sun-crowned queen: stepwells, spice bazaars, temple towers and elephants on the roads.' },
-  severin:   { name: 'Tsardom of Severin', short: 'the Tsardom', gov: 'Tsardom', ruler: 'Tsar Fyodor the Patient', capital: [15, 0], color: '#7dd3fc', far: true,
+  severin:   { name: 'Tsardom of Severin', short: 'the Tsardom', gov: 'Tsardom', ruler: 'Tsar Fyodor the Patient', capital: [16, 0], color: '#7dd3fc', far: true,
     blurb: 'A cold northern crown of log towns, painted churches, boyars and bears, where winter is the oldest law.' },
 };
 const REALM_ORDER = ['cantons', 'aurum', 'kathar', 'league'];           // the four realms of Story 1
@@ -1501,12 +1538,15 @@ const STORY_SITES = {
   tides:  { i: -2, j: 2,  type: 'cave',  theme: 'flooded', danger: 2, floors: 3, title: 'The Drowned Grotto', shard: 'Shard of Tides',  relic: 'tideheart',  boss: { type: 'Spider', name: 'Morwen the Drowned' } },
   bones:  { i: 3, j: -2,  type: 'crypt', theme: 'bone',    danger: 3, floors: 3, title: 'The Barrow of Kings', shard: 'Shard of Bones', relic: 'bonecharm',  boss: { type: 'Wraith', name: 'the Barrow King' } },
   embers: { i: -4, j: 1,  type: 'cave',  theme: 'lava',    danger: 4, floors: 4, title: 'The Ember Deeps',    shard: 'Shard of Embers', relic: 'emberbrand', boss: { type: 'Orc', name: 'Gorrak Emberjaw' } },
+  // Story 2: the prison at the heart of the Far Shore, opened by the three realms' keys
+  hollow: { i: 13, j: 0,  type: 'crypt', theme: 'bone',    danger: 14, floors: 6, title: 'The Thousand-Step Barrow', far: true, relic: 'hollowcrown', boss: { type: 'Necromancer', name: 'the Hollow King', hpMult: 5 } },
   stars:  { i: -2, j: -4, type: 'tower', theme: 'arcane',  danger: 5, floors: 4, title: 'The Star Tower',     shard: 'Shard of Stars',  relic: 'starring',   boss: { type: 'Knight', name: 'Prince Edric, the Crownbreaker', yields: true } },
 };
 const STORY_ORDER = ['dawn', 'tides', 'bones', 'embers', 'stars'];
 const STORY_AT = Object.fromEntries(Object.entries(STORY_SITES).map(([id, S]) => [`${S.i},${S.j}`, id]));
 const story = () => player.meta.story || (player.meta.story = { ch: 0, phase: 'summons' });
 function storySiteOpen(id) {
+  if (id === 'hollow') return story2().s >= 2;   // the three keys unseal the Barrow
   const st = story(), idx = STORY_ORDER.indexOf(id);
   return st.phase === 'done' || idx < st.ch || (idx === st.ch && st.phase !== 'summons');
 }
@@ -1523,12 +1563,13 @@ function storyObjective() {
     return { text: ACT2_STEPS[A.s - 1].label, short: 'The Gate of the Deep', x: gate.x, y: gate.y };
   }
   if (st.phase === 'seek') { const S = STORY_SITES[STORY_ORDER[st.ch]], site = siteAt(S.i, S.j); return { text: `Find the ${S.shard} in ${S.title.replace(/^The /, 'the ')}`, short: S.title, x: site.x, y: site.y }; }
+  if (story2().s === 2) { const S = STORY_SITES.hollow, site = siteAt(S.i, S.j); return { text: 'Go down the Thousand-Step Barrow and face the Hollow King', short: S.title, x: site.x, y: site.y }; }
   if (story2().s === 1) {
     const next = FAR_REALMS.find((r) => rqState(r).s < 5);
     if (next) {
       const Q = REALM_QUESTS[next], rq = rqState(next), cap = townAt(...REALMS[next].capital);
       if (player.x <= VEIL_X) { const hp = homePort(); return { text: `Take passage across the Veil from a harbour${hp ? ` (${hp.name} is nearest Hearth)` : ''}`, short: 'The Veil', x: hp ? hp.cx : player.x + 100, y: hp ? hp.cy : player.y }; }
-      return { text: rq.s === 0 ? `Seek ${Q.ruler} in ${cap.name}` : rq.s === 4 ? `Report to ${Q.ruler} in ${cap.name}` : `${Q.title}: ${Q.steps[rq.s - 1].label}`, short: cap.name, x: cap.cx, y: cap.cy };
+      return { text: rq.s === 0 ? `Seek ${Q.ruler} in ${cap.name} for a key to the Barrow` : rq.s === 4 ? `Report to ${Q.ruler} in ${cap.name}` : `${Q.title}: ${Q.steps[rq.s - 1].label}`, short: cap.name, x: cap.cx, y: cap.cy };
     }
   }
   return null;
@@ -1609,7 +1650,7 @@ function guideSuggestions() {
     if (S && player.level < need - 1) out.push(['Get stronger first', `${S.title} is meant for level ${need}, and you are level ${player.level}. Town dungeons (Hearth's is level 1+) and bounties are good practice.`]);
   } else if (st.phase === 'done' && act2().s === 0) out.push(['Act II', 'Prince Edric waits in the King\'s hall at Castle Aurum with a problem only you can solve.']);
   else if (story1Done() && story2().s === 0) out.push(['Story 2', 'Story 1 is told. Stand in any town and the next one will find you.']);
-  else if (story2().s === 2) out.push(['The Far Shore', 'Both shores are at peace. The sea road across the Veil is yours.']);
+  else if (story2().s === 3) out.push(['The Far Shore', 'The Hollow King is dust and both shores are at peace. The sea road across the Veil is yours.']);
   else if (st.phase === 'done') out.push(['The Deep', `The Gate of the Deep lies between Hearth and Castle Aurum. Your record: floor ${player.meta.deepest || 0}.`]);
   if (player.hp < player.maxHp * 0.5) out.push(['Rest', 'Inns heal you for free. In the wilds, press C to make camp.']);
   if (player.pendingPerks) out.push(['Choose a perk', 'You have a perk to pick.']);
@@ -1687,35 +1728,48 @@ const STORIES = [
   { n: 1, title: 'The Shattered Crown', acts: ['Act I: The Five Shards', 'Act II: What Sleeps Below'] },
   { n: 2, title: 'The Far Shore', acts: ['The Veil parts', 'Three crowns beyond the sea'] },
 ];
-const story2 = () => player.meta.story2 || (player.meta.story2 = { s: 0 });   // 0 locked, 1 open, 2 done
+const story2 = () => player.meta.story2 || (player.meta.story2 = { s: 0 });   // 0 locked, 1 the keys, 2 the Barrow open, 3 done
 const story1Done = () => !!player && !!player.meta && story().phase === 'done' && act2().s >= 6;
 const farShoreOpen = () => !!player && !!player.meta && story2().s >= 1;
 const STORY2_INTRO = [
-  { who: 'An envoy from across the Veil', sprite: 'merchant', bg: 'sea', title: 'Story 2: The Far Shore',
-    text: 'A ship with sails the colour of sunset puts into harbour, and a woman in grey silk asks for you by name. "For a thousand years the Veil of storms has closed the eastern sea," she says. "Since the Crown was mended and the Deep went quiet, it has opened. My Empress sends her greeting to the hero who did that, and an invitation."' },
+  { who: 'An envoy from across the Veil', sprite: 'merchant:tianxia', bg: 'sea', title: 'Story 2: The Far Shore',
+    text: 'A ship with sails the colour of sunset puts into harbour, and a woman in grey silk asks for you by name. "For a thousand years the Veil of storms has closed the eastern sea," she says. "It was not weather. Our three founders raised it, to wall something in. When your Crown was mended and the Deep went quiet, the Veil fell. So did the wards beneath it."' },
+  { who: 'The Hollow King', sprite: 'necromancer', bg: 'crypt', title: 'The Hollow King',
+    text: '"Before there were three crowns there was one, and it was hollow. The Hollow King took the breath out of every living thing that would not kneel, and ruled a continent of the obedient dead. Three generals broke him: one with a seal, one with a lotus, one with a bear\'s claw. They could not kill him. They buried him under the Mountain of a Thousand Steps, each with a lock, and raised the Veil so that no fool from over the sea would ever come looking for the keys."' },
   { who: 'The Far Shore', sprite: 'ship', bg: 'sea', title: 'The Far Shore',
-    text: 'Beyond the Veil lies one wide continent and three crowns: the Celestial Empire of Tianxia, whose Empress rules by brush and seal; the Rajadom of Suryadesh, nine-gated city of the sun; and the Tsardom of Severin, where winter is the oldest law. They have their own troubles. They have also heard of you.' },
-  { who: 'The road east', sprite: 'hero', bg: 'sea', title: 'The road east',
-    text: '"Any harbourmaster will sell you passage across the Veil now," the envoy says, "or sail yourself, if you have a ship and a strong stomach. Earn the favour of all three crowns, and the sea road stays open for good." The journal (J) keeps the tale.' },
+    text: '"The generals\' heirs rule now: the Celestial Empire of Tianxia, the Rajadom of Suryadesh and the Tsardom of Severin. The keys are their crown treasures. The Barrow has begun to breathe, the dead have begun to walk the roads, and the three crowns, who have not agreed on anything in a thousand years, agree that they want a fool from over the sea. Any harbourmaster sells passage now. Earn the three keys. Then go down the thousand steps." The journal (J) keeps the tale.' },
+];
+const BARROW_UNSEALED = [
+  { who: 'The mountain breathes', sprite: 'stones', bg: 'crypt', title: 'The Barrow unsealed',
+    text: 'The third key is barely in your hand when the ground shivers from one coast to the other. At the heart of the Far Shore the Mountain of a Thousand Steps splits along an old seam, and a cold wind comes out of it that smells of nothing at all. The Hollow King knows his keys have been gathered. He is waiting for whoever brings them.' },
+  { who: 'The thousand steps', sprite: 'crypt', bg: 'crypt', title: 'The thousand steps',
+    text: 'The Thousand-Step Barrow lies at the centre of the continent, between the three realms. Six floors of the obedient dead and the Hollow King at the bottom, stronger than anything you have fought. Bring potions. The three crowns will send their soldiers to hold the door, but what is below it is yours.' },
 ];
 const STORY2_FINALE = [
-  { who: 'Three crowns, one table', sprite: 'king', bg: 'sea', title: 'The Far Shore, united',
-    text: 'Empress, Maharani and Tsar send their envoys to one table for the first time in living memory, and the table is set for you. The Veil is declared open for good, the sea road chartered, and your name entered in three languages in three different books of state.' },
+  { who: 'The Hollow King falls', sprite: 'necromancer', bg: 'crypt', title: 'The Hollow King falls',
+    text: 'He comes apart like a house of ash in a draught, and the breath he stole a thousand years ago goes out of the Barrow in one long sigh that bends the grass for a mile. The obedient dead lie down. The Mountain of a Thousand Steps is, at last, only a mountain.' },
+  { who: 'Three crowns, one table', sprite: 'king:tianxia', bg: 'sea', title: 'Three crowns, one table',
+    text: 'Empress, Maharani and Tsar sit at one table for the first time in living memory, and the table is set for you. The Veil is declared open for good, the sea road chartered, and the Hollow King\'s crown, which none of them will touch, is handed to you with tongs.' },
   { who: 'Friend of Seven Realms', sprite: 'hero', bg: 'sea', title: 'Friend of Seven Realms',
     text: 'Seven realms on two shores know your name now. There will be other stories. For tonight there is a feast, three kinds of wine, and a bear that has had rather too much of all of them.' },
 ];
+function unsealBarrow() {
+  story2().s = 2; sfx.play('boss'); shakeScreen(8, 900); track('barrow_unsealed');
+  showScene(BARROW_UNSEALED, () => { log('The Thousand-Step Barrow is open. Follow the gold star.', 'good'); mapCache.ox = null; saveProgress('progress'); });
+}
+function hollowKingSlain() {
+  if (story2().s >= 3) return;
+  story2().s = 3; player.gold += 2000; unlock('hollowking'); unlock('seven_realms'); track('story2_done');
+  showScene(STORY2_FINALE, () => { giveRelic('hollowcrown'); log('Story 2 complete: 2000 gold, the Hollow King\'s crown, and the sea road open for good.', 'good'); updateStats(); saveProgress('progress'); });
+}
 function offerStory2() {
   if (story2().s !== 0 || !story1Done() || storyOpen()) return;
   story2().s = 1;
   sfx.play('quest'); unlock('farshore'); track('story2_opened');
-  showScene(STORY2_INTRO, () => { log('Story 2, The Far Shore: take passage across the Veil from any harbour, and seek the three crowns beyond it.', 'good'); mapCache.ox = null; saveProgress('progress'); });
-}
-function finishStory2() {
-  story2().s = 2; player.gold += 1500; unlock('seven_realms'); track('story2_done');
-  showScene(STORY2_FINALE, () => { log('Story 2 complete: 1500 gold, and the sea road open for good.', 'good'); updateStats(); saveProgress('progress'); });
+  showScene(STORY2_INTRO, () => { log('Story 2, The Far Shore: take passage across the Veil from any harbour, earn the three keys from the three crowns, and go down the thousand steps.', 'good'); mapCache.ox = null; saveProgress('progress'); });
 }
 // the port on each side of the Veil that the passage runs between
-function farPort() { let best = null; for (let i = 9; i <= 18; i++) for (let j = -5; j <= 5; j++) { const t = townAt(i, j); if (t && t.harbour && (!best || Math.hypot(t.i - 12, t.j - 0) < Math.hypot(best.i - 12, best.j - 0))) best = t; } return best; }
+function farPort() { let best = null; for (let i = 8; i <= 21; i++) for (let j = -6; j <= 6; j++) { const t = townAt(i, j); if (t && t.harbour && (!best || Math.hypot(t.i - 9, t.j) < Math.hypot(best.i - 9, best.j))) best = t; } return best; }   // the Far Shore's western landfall
 function homePort() { let best = null; for (let i = -6; i <= 6; i++) for (let j = -6; j <= 6; j++) { const t = townAt(i, j); if (t && t.harbour && (!best || Math.hypot(t.i, t.j) < Math.hypot(best.i, best.j))) best = t; } return best; }
 const act2Active = () => story().phase === 'done' && act2().s >= 1 && act2().s <= 4;
 const EDRIC_SCENES = {
@@ -1910,7 +1964,7 @@ function valueNoise(x, y, salt, scale) {
 // between them, narrow land bridges joining neighbours, and small islands beyond.
 const CONT_RX = 124, CONT_RY = 150, BRIDGE_W = 11;   // continents are taller than they are wide, so the eastern pair keeps a strait
 const CONTINENTS = [...REALM_ORDER.map((id) => ({ id, cx: REALMS[id].capital[0] * TOWN_SPACING + 20, cy: REALMS[id].capital[1] * TOWN_SPACING + 15 })),
-  { id: 'farshore', cx: 13.5 * TOWN_SPACING + 20, cy: 15, rx: 330, ry: 290 }];   // one wide continent shared by the three far realms
+  { id: 'farshore', cx: 13.5 * TOWN_SPACING + 20, cy: 15, rx: 480, ry: 400 }];   // one wide continent shared by the three far realms
 const VEIL_X = 760;   // the Veil of storms: no ship crosses this longitude until Story 2 opens
 const BRIDGES = [['cantons', 'aurum'], ['cantons', 'kathar'], ['cantons', 'league'], ['kathar', 'league']].map(([a, b]) => [CONTINENTS.find((c) => c.id === a), CONTINENTS.find((c) => c.id === b)]);
 // Six hidden lairs, each with a super boss and a one-of-a-kind reward. They stay off
@@ -2209,7 +2263,7 @@ function leaderNpc(town) {
   const site = nearbySites(town.cx, town.cy, 1).filter((st) => !st.deep).sort((a, b) => cheb(a, { x: town.cx, y: town.cy }) - cheb(b, { x: town.cx, y: town.cy }))[0];
   const place = nearbyPlaces(town.cx, town.cy, 1).sort((a, b) => cheb(a, { x: town.cx, y: town.cy }) - cheb(b, { x: town.cx, y: town.cy }))[0];
   const lines = [
-    `Welcome to ${town.name}. We are a ${I.trade.label} ${I.sizeWord}, and folk come from all over for ${I.famous}.`,
+    { tianxia: `Welcome to ${town.name}, under the mandate of Heaven and the eye of the Empress. We are a ${I.trade.label} ${I.sizeWord}, known for ${I.famous}, and our paperwork is in order.`, suryadesh: `Welcome to ${town.name}, under the Sun and the Maharani. We are a ${I.trade.label} ${I.sizeWord}, known for ${I.famous}. Pilgrims eat free; everyone else eats well.`, severin: `Welcome to ${town.name}, under the Tsar and the snow. We are a ${I.trade.label} ${I.sizeWord}, known for ${I.famous}. Shut the door behind you.` }[town.realm] || `Welcome to ${town.name}. We are a ${I.trade.label} ${I.sizeWord}, and folk come from all over for ${I.famous}.`,
     `Have you seen ${I.landmark.name}? ${I.landmark.lore}`,
     townLore(town),
   ];
@@ -2217,7 +2271,7 @@ function leaderNpc(town) {
   if (place) lines.push(`If you are walking ${compassWord(place.x - town.cx, place.y - town.cy).toLowerCase()}, look out for ${place.name}.`);
   if (I.trade.deal) lines.push(`${DEAL_TEXT[I.trade.deal]}. Tell them ${I.leader} sent you.`);
   if (town.harbour) lines.push(`Our harbour is ${compassWord(town.harbour.dx, town.harbour.dy).toLowerCase()} of the square. The harbourmaster on the pier sells passage to any port on the sea, for those who would rather not walk the bridges.`);
-  return { sprite: I.realm === 'league' ? 'merchant' : I.realm === 'aurum' ? 'guard' : 'elder', name: `${I.leader} of ${town.name}`, lines, leader: true };
+  return { sprite: FAR_REALMS.includes(I.realm) ? farSprite('elder', I.realm) : I.realm === 'league' ? 'merchant' : I.realm === 'aurum' ? 'guard' : 'elder', name: `${I.leader} of ${town.name}`, lines, leader: true };
 }
 // ---------- what gives each town its character ----------
 // A history read from the town's own name, syllable by syllable, and one notable
@@ -2264,9 +2318,9 @@ const CAPITAL_LORE = {
   '3,-1': 'Castle Aurum has been the seat of kings since Aurel the Founder laid the crown on its cushion. Its walls have never been taken, though its hall has seen two brothers at war. Two rings of wall guard it now, the inner one raised after the War of Four Banners, and the servants whisper of ways through the thickness of the stone: a treasury walled up and forgotten, and a postern the old Queen used to slip out unseen.',
   '-3,2': "Kar Thuldun, 'the stone hearth', was raised around the Ever-Fire where the first clans swore peace with each other. The fire has not gone out since.",
   '-2,-3': 'Goldspire was a counting-house before it was a town. The merchant houses built the spire first, so that debts could be seen from the road.',
-  '12,-1': 'Jinling, the Gold Hill, has held the Jade Throne through four dynasties. Its examination halls take in ten thousand candidates every spring and send out a hundred magistrates, and the city is run, the saying goes, by whoever wrote the best essay.',
-  '12,1': 'Suryapur, the City of the Sun, climbs from its great stepwell to the Maharani\'s palace in nine terraces, one for each of its gates. Elephants are stabled at the second and the spice bazaar never closes.',
-  '15,0': 'Vysokograd, the High Town, sits on a bluff above the frozen river behind log walls three trees thick. The Tsar\'s terem glitters with painted domes, and the bears in the market are, mostly, tame.',
+  '11,-2': 'Jinling, the Gold Hill, has held the Jade Throne through four dynasties. Its examination halls take in ten thousand candidates every spring and send out a hundred magistrates, and the city is run, the saying goes, by whoever wrote the best essay.',
+  '11,2': 'Suryapur, the City of the Sun, climbs from its great stepwell to the Maharani\'s palace in nine terraces, one for each of its gates. Elephants are stabled at the second and the spice bazaar never closes.',
+  '16,0': 'Vysokograd, the High Town, sits on a bluff above the frozen river behind log walls three trees thick. The Tsar\'s terem glitters with painted domes, and the bears in the market are, mostly, tame.',
 };
 function townLore(town) {
   if (CAPITAL_LORE[town.key]) return CAPITAL_LORE[town.key];
@@ -2345,10 +2399,27 @@ function storySiteNear(town) {
   for (const id of STORY_ORDER) { const S = STORY_SITES[id]; const d = Math.max(Math.abs(S.i - town.i), Math.abs(S.j - town.j)); if (d < bd) { bd = d; best = id; } }
   return bd <= 2 ? best : null;
 }
+const FAR_NOTABLES = {
+  tianxia: [
+    { id: 'examiner', role: 'a retired examiner', sprite: 'elder:tianxia', lines: (c) => [`"Forty years I read essays in ${c.town}. Ten thousand a spring. I can tell a liar by his brushwork, and I can tell you the Hollow King is not a story."`, c.hollowTie, `"The magistrate at the ${c.leaderPlace} is one of mine. Second class, third year. Adequate. Tell ${c.leader} I said so."`] },
+    { id: 'junkcaptain', role: 'an old junk captain', sprite: 'merchant:tianxia', lines: (c) => [`"I sailed to the edge of the Veil every year of my life from ${c.town}, and every year it threw me back. Then one morning it was not there. I wept. I am not ashamed."`, c.hollowTie, `"${c.site[0].toUpperCase()}${c.site.slice(1)} is where the inland folk lose their sons. Go careful, and go in daylight."`] },
+    { id: 'lanternmaker', role: 'a lantern-maker', sprite: 'villager:tianxia', lines: (c) => [`"One lantern for every ancestor of ${c.town} at the festival. I have made them for thirty years. This year some of the ancestors came to collect theirs in person."`, c.hollowTie, `"${c.landmark[0].toUpperCase()}${c.landmark.slice(1)} is where we hang the first lantern. ${c.lore}"`] },
+  ],
+  suryadesh: [
+    { id: 'mahout', role: "the Maharani's old mahout", sprite: 'villager:suryadesh', lines: (c) => [`"I taught the Maharani to ride before she could walk, and her elephant before it could stand. ${c.town} still feeds the elephant. The Maharani feeds herself."`, c.hollowTie, `"Walk the nine gates if you can. ${c.landmark[0].toUpperCase()}${c.landmark.slice(1)} is the oldest thing in ${c.town}, and it has seen worse than you."`] },
+    { id: 'templedancer', role: 'a temple dancer, retired', sprite: 'innkeeper:suryadesh', lines: (c) => [`"Every step of the dance is a letter and every dance is a prayer. The one for the Lotus takes nine hours. I did it once, in ${c.town}, for a king who fell asleep."`, c.hollowTie, `"${c.site[0].toUpperCase()}${c.site.slice(1)} used to have a shrine at its mouth. The spiders took it. Pilgrims take the long way now."`] },
+    { id: 'stepwellkeeper', role: 'the stepwell keeper', sprite: 'elder:suryadesh', lines: (c) => [`"A hundred and eight steps down to the water in ${c.town}, and I sweep every one. The water has been cold a thousand years. Lately it has been colder."`, c.hollowTie, `"The ${c.trade} trade keeps us. ${c.famous[0].toUpperCase()}${c.famous.slice(1)}, if you are buying."`] },
+  ],
+  severin: [
+    { id: 'bearkeeper', role: "the Tsar's old bearkeeper", sprite: 'villager:severin', lines: (c) => [`"Forty bears I raised for the Tsar, and every one of them nicer than a boyar. ${c.town} still sends him cubs. He sends back vodka."`, c.hollowTie, `"${c.site[0].toUpperCase()}${c.site.slice(1)} is where the taiga keeps its dead. It keeps them badly, lately. They get out."`] },
+    { id: 'iconpainter', role: 'an icon-painter', sprite: 'elder:severin', lines: (c) => [`"Gold leaf, egg and earth. I have painted every saint of ${c.town}, and the Hollow King once, so the children would know what not to pray to."`, c.hollowTie, `"${c.landmark[0].toUpperCase()}${c.landmark.slice(1)}: I painted the inside. ${c.lore}"`] },
+    { id: 'streltsy', role: 'a retired streltsy', sprite: 'guard:severin:guard', lines: (c) => [`"Thirty winters in the Tsar's guard, and ${c.town} is the first place I have been warm. Mostly the stove. Partly the vodka."`, c.hollowTie, `"${c.camp[0].toUpperCase()}${c.camp.slice(1)} is where the orcs winter. Burn it before the snow, or they burn the granary after."`] },
+  ],
+};
 function notableNpc(town) {
   if (town.notable) return town.notable;
   const I = townIdentity(town), realm = town.realm || 'cantons';
-  const pool = NOTABLES.filter((n) => !(n.id === 'greycloak' && realm === 'kathar'));
+  const pool = FAR_NOTABLES[realm] || NOTABLES.filter((n) => !(n.id === 'greycloak' && realm === 'kathar'));
   const N = pool[Math.floor(cellRand(town.i, town.j, 800) * pool.length)];
   // a name no other town within two cells uses, so neighbours never share a notable
   const names = NOTABLE_NAMES[realm];
@@ -2377,6 +2448,7 @@ function notableNpc(town) {
     site: site ? (site.name.startsWith('The ') ? site.name.replace(/^The /, 'the ') : 'the ' + site.name) : 'the dungeon under the square',
     place: place ? place.name : 'the standing stones', camp: camp ? camp.name : 'the hills', guard: guards.length ? guards[0].type.name : 'the militia',
     lore: townLore(town), storyTie, edricTie, deepTie,
+    hollowTie: (player && player.meta && story2().s >= 3) ? '"The Barrow is quiet now, and the dead stay down. Whoever did that, they say it was a fool from over the sea. I would buy that fool a drink."' : (player && player.meta && story2().s === 2) ? '"The mountain split last week. We all felt it. The keys are gathered, they say, and some fool from over the sea is going to walk down the thousand steps with them. Good luck to the fool."' : '"The dead walk the roads in step and the Barrow breathes at night. Our founders locked the Hollow King under the mountain with three keys. The three crowns have them. I hope they remember where."',
     lairTie: (() => { const near = Object.keys(LAIRS).map((id) => ({ id, s: siteAt(LAIRS[id].i, LAIRS[id].j) })).sort((a, b) => Math.hypot(a.s.x - town.cx, a.s.y - town.cy) - Math.hypot(b.s.x - town.cx, b.s.y - town.cy))[0]; return `"And there is worse than the Deep, closer to home. ${LAIRS[near.id].title[0].toUpperCase() + LAIRS[near.id].title.slice(1)} lies ${compassWord(near.s.x - town.cx, near.s.y - town.cy).toLowerCase()} of ${town.name}. ${LAIRS[near.id].lore}"`; })(),
   };
   town.notable = { sprite: N.sprite, name, role: N.role, lines: N.lines(c), notable: true, tell: 0 };
@@ -2385,8 +2457,8 @@ function notableNpc(town) {
 // ---------- the harbour ----------
 const HARBOUR_NAMES = ['Old Salt Maggs', 'Captain Reyes', 'Harbourmaster Finn', 'Mother Carrack', 'Captain Oduya', 'Harbourmaster Lusk', 'Tam Longboat', 'Captain Vashti'];
 function harbourmasterNpc(town) {
-  const nm = HARBOUR_NAMES[Math.floor(cellRand(town.i, town.j, 850) * HARBOUR_NAMES.length)];
-  return { sprite: 'innkeeper', name: `${nm} of ${town.name}`, action: 'harbour', lines: ['Passage to any port on this sea, and the next one, for a fair fare. The bridges are for people with time.', 'Mind the gulls. They have taken a whole pie off a knight before now.'], harbour: true };
+  const pool = FAR_HARBOUR_NAMES[town.realm] || HARBOUR_NAMES, nm = pool[Math.floor(cellRand(town.i, town.j, 850) * pool.length)];
+  return { sprite: farSprite('innkeeper', town.realm), name: `${nm} of ${town.name}`, action: 'harbour', lines: ['Passage to any port on this sea, and the next one, for a fair fare. The bridges are for people with time.', 'Mind the gulls. They have taken a whole pie off a knight before now.'], harbour: true };
 }
 function portsNear(town, reach = 4) {
   const out = [];
@@ -2784,10 +2856,11 @@ function townNpcs(town) {
     town.npcs.push({ ...cell, type: notableNpc(town), pause: rnd(3), home: { x: town.cx, y: town.cy } });
   }
   if (town.harbour) { const H = town.harbour; town.npcs.push({ x: H.end.x, y: H.end.y, type: harbourmasterNpc(town), fixed: true, pause: 0, home: { x: town.cx, y: town.cy } }); }
+  const folk = FAR_FOLK[town.realm] || NPC_TYPES;
   const count = town.key === '0,0' ? NPC_TYPES.length : town.folk[0] + Math.floor(noise(town.i, town.j, 98) * (town.folk[1] - town.folk[0] + 1));
   for (let n = 0; n < count && spots.length; n++) {
     const cell = spots.splice(Math.floor(noise(town.i, town.j, 100 + n) * spots.length), 1)[0];
-    town.npcs.push({ ...cell, type: NPC_TYPES[(n + Math.floor(noise(town.i, town.j, 99) * 4)) % NPC_TYPES.length], pause: rnd(3), home: { x: town.cx, y: town.cy } });
+    town.npcs.push({ ...cell, type: folk[(n + Math.floor(noise(town.i, town.j, 99) * 4)) % folk.length], pause: rnd(3), home: { x: town.cx, y: town.cy } });
   }
   return town.npcs;
 }
@@ -4543,9 +4616,9 @@ function drawScene(now) {
     shadow(lx, (player.ry ?? player.y) + ldy / T);
     if (player.shield > 0) { ctx.strokeStyle = `rgba(123,223,255,${0.5 + 0.3 * Math.sin(now / 120)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(lx * T - cam.x + T / 2, ly * T - cam.y + T / 2, T * 0.62, 0, Math.PI * 2); ctx.stroke(); }
     const mounted = riding();
-    if (mounted) drawSprite(ctx, 'horse', lx, ly + 0.12, 1, 1, player.face === -1);
+    if (mounted && player.meta.horse) drawSprite(ctx, 'horse', lx, ly + 0.12, 1, 1, player.face === -1);
     if (aboard) drawSprite(ctx, 'ship', lx, ly + 0.1 + Math.sin(now / 500) * 0.04, 1, -2, player.face === -1);
-    drawSprite(ctx, playerSprite(), lx, ly - (mounted ? 0.38 : aboard ? 0.3 : 0), 1, 3, player.face === -1, player.flashUntil > now || player.poison > 0 && Math.floor(now / 300) % 3 === 0);
+    drawSprite(ctx, playerSprite(), lx, ly - (mounted && player.meta.horse ? 0.38 : aboard ? 0.3 : 0), 1, 3, player.face === -1, player.flashUntil > now || player.poison > 0 && Math.floor(now / 300) % 3 === 0);
   }
   const px = (player.rx ?? player.x) * T - cam.x + T / 2, py = (player.ry ?? player.y) * T - cam.y + T / 2;
   if (scene === 'world') {
@@ -5612,7 +5685,8 @@ function nextFloor() {
     track('dungeon_cleared', { dungeon: def.kind === 'site' ? def.site.type : 'town', danger: def.danger, floors: def.floors });
     if (def.kind === 'site') { questProgress('clear', def.site.key, 1); unlock(def.site.type); } else unlock('escapist');
     rqProgress('clearIn', def.kind === 'site' ? realmOfTile(def.site.x, def.site.y) : realmAt(...(def.home || '0,0').split(',').map(Number)));
-    if (def.story) setTimeout(() => storyShardFound(def.story), 60);
+    if (def.story === 'hollow') setTimeout(hollowKingSlain, 60);
+    else if (def.story) setTimeout(() => storyShardFound(def.story), 60);
     if (def.treasure) {
       const hoard = Math.round(def.treasure * (1 + def.danger * 0.5));
       player.gold += hoard;
@@ -5856,7 +5930,7 @@ function tryMove(dx, dy) {
       const site = siteAtTile(nx, ny);
       if (site && site.deep && story().phase !== 'done') { player.x -= dx; player.y -= dy; log('A gate of black iron is set into the hillside, cold to the touch. It will not open while the Crown of Aurum lies broken.', 'bad'); draw(); return; }
       if (site && site.lair && !lairKnown(site.lair)) revealLair(site.lair, 'You stumble on it:');
-      if (site && site.story && !storySiteOpen(site.story)) { player.x -= dx; player.y -= dy; log(`An old seal of gold bars the way into ${site.name.replace(/^The /, 'the ')}. King Aldric will know how to break it.`, 'bad'); draw(); return; }
+      if (site && site.story && !storySiteOpen(site.story)) { player.x -= dx; player.y -= dy; log(site.story === 'hollow' ? 'Three locks bar the door of the Barrow: jade, gold and bone. The three crowns of the Far Shore hold the keys, and they do not give them to strangers.' : `An old seal of gold bars the way into ${site.name.replace(/^The /, 'the ')}. King Aldric will know how to break it.`, 'bad'); draw(); return; }
       if (site) {
         if (!confirmEntry(siteDungeon(site), 's:' + site.key)) { player.x -= dx; player.y -= dy; draw(); return; }
         homeTown = nearestTownTo(nx, ny).key; player.wx = nx; player.wy = ny;
@@ -6174,19 +6248,19 @@ const REALM_QUESTS = {
             { kind: 'clearIn', target: 'league', need: 1, label: 'Clear a dungeon in the Goldspire League' },
             { kind: 'chest', need: 5, label: 'Open 5 treasure chests' }],
     outro: '"An excellent return." Vessa slides a slim book across the desk. "My personal ledger. Merchants who see it pay you as they would pay me, and gold has a way of finding its way to it."' },
-  tianxia: { title: 'The Mandate of Heaven', ruler: 'Empress Liang Wu', sprite: 'king', relic: 'jadeseal', gold: 300,
+  tianxia: { title: 'The Mandate of Heaven', ruler: 'Empress Liang Wu', sprite: 'king:tianxia', relic: 'jadeseal', gold: 300,
     intro: '"The Veil kept more than ships out," the Empress says, not looking up from her brush. "Since it opened, the beasts in my provinces have champions, and the tribute roads are robbed. Heaven grants its mandate to those who keep order. Keep some for me."',
     steps: [{ kind: 'clearIn', target: 'tianxia', need: 1, label: 'Clear a dungeon in the Celestial Empire' },
             { kind: 'elite', need: 3, label: 'Slay 3 elite monsters (starred), the champions of the beasts' },
             { kind: 'chest', need: 4, label: 'Recover the lost tribute: open 4 treasure chests' }],
     outro: 'The Empress sets down her brush at last. "Order is restored, and I did not have to write a single edict." A clerk brings a small box. "The seal of the Jade Throne. Show it at any waystone or harbour in the world, and they will charge you half. They will not dare charge you more."' },
-  suryadesh: { title: 'The Nine Gates', ruler: 'Maharani Devika Suryavansha', sprite: 'elder', relic: 'sunlotus', gold: 280,
+  suryadesh: { title: 'The Nine Gates', ruler: 'Maharani Devika Suryavansha', sprite: 'elder:suryadesh', relic: 'sunlotus', gold: 280,
     intro: '"The sun rises on nine gates," the Maharani says, "and lately it sets on spiders. The pilgrim roads are strung with webs, and a thing in the old temple below the hill calls itself a god. Clear my roads, honour my shrines, and put the false god to the sword."',
     steps: [{ kind: 'place', target: 'shrine', need: 1, label: 'Make an offering at a wayside shrine' },
             { kind: 'slay', target: 'Spider', need: 8, label: 'Clear the pilgrim roads of spiders (slay 8)' },
             { kind: 'boss', need: 1, label: 'Put a false god to the sword: slay any dungeon boss' }],
     outro: 'Drums, conches and a shower of marigolds. The Maharani fastens a lotus of beaten gold at your throat. "The Sun\'s own flower. While it shines on you, nothing shines through you."' },
-  severin: { title: 'The Long Winter', ruler: 'Tsar Fyodor the Patient', sprite: 'king', relic: 'bearcharm', gold: 260,
+  severin: { title: 'The Long Winter', ruler: 'Tsar Fyodor the Patient', sprite: 'king:severin', relic: 'bearcharm', gold: 260,
     intro: '"Winter comes in six weeks," the Tsar says, "and the orcs of the taiga have burned two granaries. I need the raiders broken, the granary filled, and the barrow under the frozen river emptied of whatever is singing in it. I am a patient man. Winter is not."',
     steps: [{ kind: 'slay', target: 'Orc', need: 8, label: 'Break the raiders of the taiga (slay 8 orcs)' },
             { kind: 'gold', need: 400, label: 'Fill the winter granary: gather 400 gold' },
@@ -6231,7 +6305,7 @@ function realmQuestTalk(n) {
       log(`${Q.title} complete: ${Q.gold} gold.`, 'good');
       if (!giveRelic(Q.relic) && !player.meta.found.includes(Q.relic)) log('Your bag is too full for the gift. Come back with room.', 'bad');
       if (REALM_ORDER.every((r) => rqState(r).s === 5)) unlock('four_realms');
-      if (FAR_REALMS.includes(id) && story2().s === 1 && FAR_REALMS.every((r) => rqState(r).s === 5)) finishStory2();
+      if (FAR_REALMS.includes(id)) { log(`One of the three keys of the Thousand-Step Barrow is yours: the ${itemInfo(Q.relic).name}.`, 'good'); if (story2().s === 1 && FAR_REALMS.every((r) => rqState(r).s === 5)) unsealBarrow(); }
       updateStats(); saveProgress('progress');
     });
     return true;
@@ -6378,6 +6452,10 @@ const ENCOUNTERS = {
       { label: 'Tell them the King knows everything', disabled: player.level < 6, run: () => 'Halvard studies your face for a long moment, then turns his horse. "Then it is already over," he says, mostly to himself. "We will meet again at the tower, I expect." The riders follow him into the trees.' },
       { label: 'Run for it', run: () => { if (Math.random() < 0.5) return 'You break for the trees and lose them in the undergrowth.'; const dmg = 4 + wildDanger(); player.hp = Math.max(1, player.hp - dmg); return `A crossbow bolt grazes you for ${dmg} before you lose them in the undergrowth.`; } },
     ] }),
+  hollowmen: () => ({ who: 'The obedient dead', sprite: 'skeleton', bg: 'crypt',
+    text: 'They come up the road in step, a dozen of them, in the rusted lamellar of an army a thousand years disbanded, and not one of them breathes. The Hollow King\'s soldiers, walking again. They have seen you.',
+    choices: [{ label: 'Stand and fight', run: () => { const d = wildDanger(); for (let i = 0; i < 3 + rnd(2); i++) spawnFoes(byName('Skeleton')[0], 1, 'Hollow soldier', { purse: 20 + d * 5 }); shakeScreen(5); sfx.play('boss'); return null; } },
+      { label: 'Run for the nearest town', run: () => { if (Math.random() < 0.5) return 'They do not run. They do not need to. But you do, and the gate shuts behind you.'; const dmg = Math.min(player.hp - 1, 4 + wildDanger()); player.hp -= dmg; floatText(player.x, player.y, `-${dmg}`, '#ff6b6b'); return `A rusted spear takes you in the back for ${dmg} as you go, but the dead are slow.`; } }] }),
   ambush: () => ({ who: 'Ambush!', sprite: 'orc',
     text: 'A branch snaps. Shapes rise out of the dark on both sides of the road. There is no time to run.',
     choices: [{ label: 'Fight!', run: () => {
@@ -6391,10 +6469,11 @@ function compassWord(dx, dy) {
 }
 function startEncounter() {
   const night = dayPhase() === 'night';
-  const ids = Object.keys(ENCOUNTERS).filter((id) => id !== lastEncounter && id !== 'agents' && (id !== 'ambush' || night));
+  const ids = Object.keys(ENCOUNTERS).filter((id) => id !== lastEncounter && id !== 'agents' && id !== 'hollowmen' && (id !== 'ambush' || night));
   const st = story();
   let id = night && Math.random() < 0.35 ? 'ambush' : ids.filter((x) => x !== 'agents')[rnd(ids.length - 1)] || 'caravan';
   if (st.ch === 3 && st.phase === 'seek' && !st.ambushed) { id = 'agents'; st.ambushed = true; }
+  if (continentOf(player.x, player.y) === 4 && story2().s >= 1 && story2().s < 3 && Math.random() < 0.45) id = 'hollowmen';   // the Far Shore's roads belong to the dead
   lastEncounter = id;
   player.meta.encounters = (player.meta.encounters || 0) + 1;
   if (player.meta.encounters >= 10) unlock('wayfarer');
@@ -7512,7 +7591,7 @@ function stashRows() {
 // A horse from the stables of any city or castle: in the open wilds every step
 // covers two tiles. It waits in town and never goes underground.
 const HORSE_COST = 400;
-const riding = () => !!(player && player.meta && player.meta.horse) && scene === 'world' && !aboard && !townContaining(player.x, player.y)
+const riding = () => !!(player && player.meta && (player.meta.horse || wearing('hollowcrown'))) && scene === 'world' && !aboard && !townContaining(player.x, player.y)
   && !monsters.some((m) => m.awake && cheb(m, player) <= 4);
 function horseRows() {
   const town = interior && interior.house && interior.house.town ? townAt(...interior.house.town.split(',').map(Number)) : null;
@@ -8059,7 +8138,7 @@ function startRun(saved) {
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
         rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
-        story2: saved.meta?.story2 && Number.isInteger(saved.meta.story2.s) ? { s: Math.max(0, Math.min(2, saved.meta.story2.s)) } : null,
+        story2: saved.meta?.story2 && Number.isInteger(saved.meta.story2.s) ? { s: Math.max(0, Math.min(3, saved.meta.story2.s)) } : null,
         secrets: Array.isArray(saved.meta?.secrets) ? saved.meta.secrets.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 20) : [],
         charts: Array.isArray(saved.meta?.charts) ? saved.meta.charts.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 3) : [], treasures: Number(saved.meta?.treasures) || 0,
         ship: saved.meta?.ship && Number.isInteger(saved.meta.ship.x) && Number.isInteger(saved.meta.ship.y) ? { x: saved.meta.ship.x, y: saved.meta.ship.y } : null,
@@ -8158,7 +8237,7 @@ function renderGlossary(kind) {
   const slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   const thumb = (names) => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#0f1724'; g.fillRect(0, 0, 64, 64); const list = [].concat(names).slice(0, 2); list.forEach((n, i) => { const img = sprite(n); const w = list.length === 1 ? 54 : 34; g.drawImage(img, list.length === 1 ? 5 : 2 + i * 28, list.length === 1 ? 5 : 16 + i * 6, w, w); }); return c; };
   const towns = [];
-  for (let j = -6; j <= 6; j++) for (let i = -6; i <= 18; i++) { const t = townAt(i, j); if (t) towns.push(t); }
+  for (let j = -6; j <= 6; j++) for (let i = -6; i <= 21; i++) { const t = townAt(i, j); if (t) towns.push(t); }
   for (const t of towns) { townIdentity(t); notableNpc(t); }
   const byRealm = (list, keyOf) => ALL_REALMS.map((r) => [r, list.filter((x) => keyOf(x) === r)]).filter(([, l]) => l.length);
   const section = (title, cards) => { const h = document.createElement('h3'); h.className = 'realm'; h.textContent = title; root.appendChild(h); const grid = document.createElement('div'); grid.className = 'cards'; for (const c of cards) grid.appendChild(c); root.appendChild(grid); };

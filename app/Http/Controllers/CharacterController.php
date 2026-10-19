@@ -98,7 +98,7 @@ class CharacterController extends Controller
             'meta.deepest' => ['nullable', 'integer', 'min:0', 'max:99'],
             'meta.horse' => ['nullable', 'boolean'],
             'meta.story2' => ['nullable', 'array:s'],
-            'meta.story2.s' => ['required_with:meta.story2', 'integer', 'min:0', 'max:2'],
+            'meta.story2.s' => ['required_with:meta.story2', 'integer', 'min:0', 'max:3'],
             'meta.secrets' => ['nullable', 'array', 'max:20'],
             'meta.secrets.*' => ['string', 'max:24', 'regex:/^-?\d+,-?\d+$/'],
             'meta.charts' => ['nullable', 'array', 'max:3'],

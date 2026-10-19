@@ -58,6 +58,7 @@ return [
         'jadeseal' => ['name' => 'Seal of the Jade Throne', 'desc' => 'Waystone travel and sea passage cost half.', 'found' => "the Empress's favour", 'price' => 350, 'floor' => 99],
         'sunlotus' => ['name' => 'Lotus of the Sun', 'desc' => '+2 defence while the sun is up.', 'found' => "the Maharani's gift", 'price' => 350, 'floor' => 99],
         'bearcharm' => ['name' => 'Bear Charm of Severin', 'desc' => '+3 attack by night.', 'found' => "the Tsar's thanks", 'price' => 350, 'floor' => 99],
+        'hollowcrown' => ['name' => 'Crown of the Hollow King', 'desc' => '+3 attack, +3 defence, and the stolen winds carry you two tiles a step in the wilds.', 'found' => 'the bottom of the Thousand-Step Barrow', 'price' => 1200, 'floor' => 99],
         'crown' => ['name' => 'Crown of Aurum', 'desc' => '+2 attack, +2 defence and +10 max HP. The King\'s own gift.', 'found' => 'the end of the story', 'price' => 1000, 'floor' => 99],
     ],
     'bag_size' => 12,
