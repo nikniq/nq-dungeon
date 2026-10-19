@@ -225,3 +225,17 @@ body.wide{overscroll-behavior-y:none}
 /* the highlighted dialogue choice (arrow keys, mouse) */
 .story-choices button.selected{background:#5fe17a;color:#06202c;box-shadow:0 0 0 2px #ffd86b}
 .story-choices button:focus{outline:none}
+/* the public story page */
+.story-part{margin:0 0 36px;padding:18px 20px;background:#0b1a26;border:1px solid #163447;border-radius:10px}
+.story-part h3{margin:0 0 4px;color:#ffd86b;font-size:1.3rem}
+.story-part h3 .tag{font-size:.7rem;vertical-align:middle;margin-left:8px}
+.story-part .tagline{color:#cfe9ff;font-style:italic;margin:0 0 12px}
+.story-part h4{margin:16px 0 4px;color:#7bdfff}
+.story-part p{line-height:1.55}
+.discussion{margin-top:18px;padding-top:12px;border-top:1px dashed #1e4a60}
+.discussion .post{padding:8px 0;border-bottom:1px solid #12303f}
+.discussion .post p{margin:4px 0 0}
+.post-form{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.post-form textarea{width:100%;box-sizing:border-box;background:#06121b;color:#e6eef8;border:1px solid #1e4a60;border-radius:6px;padding:8px;font:inherit}
+.post-form button{align-self:flex-start}
+.post-form .error{color:#ff9b9b;margin:0}

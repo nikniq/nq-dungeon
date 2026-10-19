@@ -286,6 +286,40 @@ once. Hermits tell tales and sell maps. Wells take a coin for a random boon. Pre
 the Journal, which has Story, Places, Treasures and Bestiary pages. Realm progress is kept
 in `characters.meta.realm`, and the server validates it.
 
+## The stories and the Far Shore
+
+The narrative is told in stories (`STORIES` in `script.js`, `config/story.php`
+for the public page). Story 1, The Shattered Crown, is Act I (the five shards)
+and Act II (What Sleeps Below). Story 2, The Far Shore, opens once Story 1 is
+finished (`story1Done`): the next time the hero stands in a town an envoy
+arrives (`STORY2_INTRO`), `meta.story2.s` becomes 1, every harbourmaster sells
+passage across the Veil (`farPort`/`homePort`), and a hero's own ship may cross
+it. Before that the Veil, a storm wall at `VEIL_X`, turns ships back.
+
+Beyond it lies one wide continent (the fifth entry of `CONTINENTS`, with its
+own radii) shared by three far realms (`FAR_REALMS`; `ALL_REALMS` is all seven):
+the Celestial Empire of Tianxia (Empress Liang Wu, Jinling), the Rajadom of
+Suryadesh (Maharani Devika Suryavansha, Suryapur) and the Tsardom of Severin
+(Tsar Fyodor the Patient, Vysokograd). Each has its own town names and name
+lore, statues, landmarks, leader and notable names, trades (rice, tea,
+porcelain, spices, cotton, furs), paving, roof colours, guard titles, names and
+colours, army (banner soldiers, elephant lancers, streltsy), seat buildings
+with a ruler and a deputy (yamen/magistracy, durbar/kacheri, terem/prikaz),
+a realm perk at the seat (the imperial examination, the pilgrimage of nine
+gates, the boyar council: +250 standing and a title) and a questline
+(`REALM_QUESTS`) ending in a relic: the Seal of the Jade Throne (travel and
+passage at half price), the Lotus of the Sun (+2 defence by day) and the Bear
+Charm of Severin (+3 attack by night). Buildings are drawn in each culture's
+style: lacquered posts and upturned pagoda eaves with lanterns, sandstone with
+flat terraces, chhatris and domes, log walls with painted plank roofs and onion
+domes. Finishing all three questlines ends Story 2 (`STORY2_FINALE`, 1500 gold,
+Friend of Seven Realms). The journal, objectives, quest log and map labels
+follow the story; the far realms stay off them until the Veil parts.
+
+The public story page at `/world/story` (`StoryController`, `config/story.php`)
+tells both stories and carries a discussion thread under each that signed-in
+heroes can post to (`story_posts`, 600 characters, throttled).
+
 ## Public glossaries
 
 `/world/towns` and `/world/characters` are public pages that load `script.js` in

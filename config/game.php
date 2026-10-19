@@ -4,6 +4,9 @@
 // `php artisan optimize` on the server so the cached config picks them up.
 
 return [
+    // Realm ids the game script knows, for validating saved quest and army state.
+    'realms' => ['cantons', 'aurum', 'kathar', 'league', 'tianxia', 'suryadesh', 'severin'],
+
     // Live multiplayer: seeing other heroes, chat, parties and shared dungeons.
     // When off, the game is single-player only and the relay endpoints return 404.
     'multiplayer' => (bool) env('MULTIPLAYER_ENABLED', true),

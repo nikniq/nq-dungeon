@@ -6,6 +6,7 @@ use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\HeroController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MultiplayerController;
+use App\Http\Controllers\StoryController;
 use App\Http\Controllers\TownBuildingController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,6 +22,8 @@ Route::get('/api/buildings', [TownBuildingController::class, 'index'])->name('bu
 // public glossaries, drawn in the browser from the game's own world generator
 Route::get('/world/towns', fn () => view('glossary', ['kind' => 'towns']))->name('world.towns');
 Route::get('/world/characters', fn () => view('glossary', ['kind' => 'characters']))->name('world.characters');
+Route::get('/world/story', [StoryController::class, 'index'])->name('world.story');
+Route::post('/world/story', [StoryController::class, 'post'])->middleware(['auth', 'throttle:10,1'])->name('world.story.post');
 Route::get('/heroes', [HeroController::class, 'index'])->name('heroes.index');
 Route::get('/heroes/{character}', [HeroController::class, 'show'])->name('heroes.show');
 

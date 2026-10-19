@@ -41,6 +41,11 @@ class User extends Authenticatable
      *
      * @return array<string, string>
      */
+    public function storyPosts(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(StoryPost::class);
+    }
+
     public function character(): HasOne
     {
         return $this->hasOne(Character::class);

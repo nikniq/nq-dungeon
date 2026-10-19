@@ -28,6 +28,7 @@
       <nav class="account">
         <a href="{{ route('game') }}">Play</a>
         <a href="{{ route('heroes.index') }}">Heroes</a>
+        <a href="{{ route('world.story') }}">Story</a>
         <a href="{{ route('world.towns') }}">World</a>
         @auth
           <a href="{{ route('heroes.show', auth()->user()->character ?? auth()->user()->name) }}" class="who">{{ auth()->user()->character?->name ?? auth()->user()->name }}</a>
@@ -44,7 +45,7 @@
     @endif
     @yield('content')
     <footer class="foot muted small">
-      <a href="{{ route('home') }}">About</a> · <a href="{{ route('heroes.index') }}">Heroes</a> · <a href="{{ route('world.towns') }}">Towns</a> · <a href="{{ route('world.characters') }}">Characters</a> · <a href="{{ route('game') }}">Play</a>
+      <a href="{{ route('home') }}">About</a> · <a href="{{ route('heroes.index') }}">Heroes</a> · <a href="{{ route('world.story') }}">Story</a> · <a href="{{ route('world.towns') }}">Towns</a> · <a href="{{ route('world.characters') }}">Characters</a> · <a href="{{ route('game') }}">Play</a>
     </footer>
   </div>
   @yield('scripts')

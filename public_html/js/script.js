@@ -116,6 +116,11 @@ const ACHIEVEMENTS = {
   serpent:     { label: 'Killed a sea serpent', title: 'Serpentsbane' },
   champion:    { label: 'Survived ten waves in the Grand Arena', title: 'Champion of Aurum' },
   four_realms: { label: 'Finished every realm questline', title: 'Friend of Four Realms' },
+  farshore:    { label: 'Crossed the Veil to the Far Shore', title: 'of the Far Shore' },
+  seven_realms: { label: 'Finished every questline on both shores', title: 'Friend of Seven Realms' },
+  mandarin:    { label: 'Passed the imperial examination', title: 'the Mandarin' },
+  pilgrim:     { label: 'Walked the nine gates of Suryapur', title: 'the Pilgrim' },
+  boyar:       { label: "Seated on the Tsar's council", title: 'the Boyar' },
   abyss10:     { label: 'Reached floor 10 of the Deep', title: 'the Deepwalker' },
   abyss25:     { label: 'Reached floor 25 of the Deep', title: 'Lord of the Deep' },
   wayfarer:    { label: 'Met ten strangers on the road', title: 'the Wayfarer' },
@@ -251,8 +256,8 @@ const itemKind = (id) => ITEMS.weapons[id] ? 'weapon' : ITEMS.armor[id] ? 'armor
 const wearing = (id) => !!player && player.relic === id;
 const goldMult = () => (perkCount('lucky') ? 1.25 : 1) * (wearing('luckycoin') ? 1.4 : 1) * (wearing('ledger') ? 1.25 : 1);
 const potionHeal = (h) => h * (wearing('royalsignet') ? 2 : 1);
-const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0) + (player.rage > 0 ? 2 : 0);
-const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
+const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0) + (player.rage > 0 ? 2 : 0) + (wearing('bearcharm') && dayPhase() === 'night' ? 3 : 0);
+const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('sunlotus') && dayPhase() !== 'night' ? 2 : 0) + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
   + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.def || 0) : 0) + (realmState().rank >= 2 ? 1 : 0);
 const SAVE_EVERY_TURNS = 20;
 // What the hero has bought into in each realm: noble rank in Aurum, civic
@@ -274,7 +279,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -888,7 +893,7 @@ function drawJournal(g) {
   const W = canvas.width - 48, X = 24; let y = 100;
   const st = story();
   if (journalTab === 0) {
-    g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.fillText('The Shattered Crown', X, y); y += 26;
+    g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.fillText('Story 1: The Shattered Crown', X, y); y += 26;
     const obj = storyObjective();
     g.fillStyle = '#9ef0b0'; g.font = '13px sans-serif'; y = wrapText(g, obj ? `Now: ${obj.text}.` : 'The crown is whole again. The realms are safe, for now.', X, y, W, 18) + 8;
     const steps = [['The summons', 'Answer King Aldric\'s call at Castle Aurum.', st.phase !== 'summons']];
@@ -903,12 +908,17 @@ function drawJournal(g) {
       steps.push(['Act II: What Sleeps Below', A.s === 0 ? 'Prince Edric, in the King\'s hall, has a problem to solve.' : A.s >= 6 ? 'The Dreaming Maw is closed. You are the Deepwarden.' : A.s === 5 ? 'Return to Prince Edric.' : ACT2_STEPS[A.s - 1].label + '.', A.s >= 6]);
       steps.push(['The Deep', `The Gate of the Deep lies between Hearth and Castle Aurum. Your record: floor ${player.meta.deepest || 0}.`, (player.meta.deepest || 0) >= 25]);
     }
+    if (story1Done()) {
+      const S2 = story2();
+      steps.push(['Story 2: The Far Shore', S2.s === 0 ? 'Story 1 is told. Stand in any town and the next story will find you.' : S2.s === 2 ? 'Three crowns beyond the Veil call you friend. The sea road is open for good.' : 'The Veil has parted. Earn the favour of the three crowns beyond it.', S2.s === 2]);
+      if (S2.s >= 1) for (const r of FAR_REALMS) { const Q = REALM_QUESTS[r], rq = rqState(r); steps.push([Q.title, rq.s === 5 ? `${Q.ruler} calls you friend.` : rq.s === 4 ? `Report to ${Q.ruler}.` : rq.s === 0 ? `${Q.ruler} waits in ${CAPITAL_NAMES[r]}.` : Q.steps[rq.s - 1].label + '.', rq.s === 5]); }
+    }
     for (const [name, desc, done] of steps) {
       g.fillStyle = done ? '#9ef0b0' : '#e6eef8'; g.font = 'bold 14px sans-serif'; g.fillText(`${done ? '✓' : '•'} ${name}`, X, y);
       g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText(desc, X + 22, y + 18); y += 40;
     }
-    y += 6; g.fillStyle = '#e6eef8'; g.font = 'bold 15px sans-serif'; g.fillText('The four realms', X, y); y += 24;
-    for (const id of REALM_ORDER) {
+    y += 6; g.fillStyle = '#e6eef8'; g.font = 'bold 15px sans-serif'; g.fillText(farShoreOpen() ? 'The seven realms' : 'The four realms', X, y); y += 24;
+    for (const id of (farShoreOpen() ? ALL_REALMS : REALM_ORDER)) {
       const R = REALMS[id];
       g.fillStyle = R.color; g.fillRect(X, y + 3, 10, 10);
       g.fillStyle = '#e6eef8'; g.font = 'bold 13px sans-serif'; g.fillText(`${R.name} · ${R.gov}`, X + 18, y);
@@ -986,7 +996,7 @@ function drawQuests(g) {
   g.font = '13px sans-serif'; g.fillStyle = '#a8c0d8';
   g.fillText(`${player.questsDone || 0} completed in total  ·  Q or Esc closes  ·  ask captains, the King or townsfolk for more`, 110, 23);
   let y = 60;
-  const rqs = REALM_ORDER.filter((id) => { const st = rqState(id); return st.s >= 1 && st.s <= 4; });
+  const rqs = ALL_REALMS.filter((id) => { const st = rqState(id); return st.s >= 1 && st.s <= 4; });
   if (rqs.length) {
     g.font = 'bold 14px sans-serif'; g.fillStyle = '#ffd86b'; g.fillText('Realm quests', 24, y); y += 24;
     for (const id of rqs) {
@@ -1275,6 +1285,12 @@ const INDOOR_NPCS = {
   chieftain: { sprite: 'guard', name: 'Chieftain Ulrek Stonehand', action: 'chieftain', lines: ['Kings buy loyalty. Merchants rent it. Among the clans, it is sworn over bread and salt at the fire.'] },
   shaman: { sprite: 'elder', name: 'The clan shaman', action: 'shaman', lines: ['The spirits listen to those who bring gifts. Gold will do. They are not proud.'] },
   banker: { sprite: 'merchant', name: 'Banker Vessa Orlov', action: 'bank', lines: ['Gold in a pocket is lost to the first goblin. Gold in my vault outlives you.'] },
+  empress: { sprite: 'king', name: 'Empress Liang Wu', action: 'yamen', lines: ['Heaven grants its mandate to those who keep order. The examination halls are open to anyone who can hold a brush, or a sword.'] },
+  magistrate: { sprite: 'elder', name: 'The district magistrate', action: 'yamen', lines: ['Every petition is read, every tax is counted, every bandit is eventually hanged. The Empire is patient.'] },
+  maharani: { sprite: 'elder', name: 'Maharani Devika Suryavansha', action: 'durbar', lines: ['The sun rises on nine gates and sets on nine gates. Between them, the Rajadom keeps its promises.'] },
+  dewan: { sprite: 'merchant', name: 'The dewan', action: 'durbar', lines: ['The Maharani\'s treasury is in my keeping, and her roads. Pilgrims pay nothing. Everyone else pays something.'] },
+  tsar: { sprite: 'king', name: 'Tsar Fyodor the Patient', action: 'terem', lines: ['My grandfather said: the winter is long, the Tsar is far, and God is high. I am trying to be a little nearer than that.'] },
+  voivode: { sprite: 'guard', name: 'The voivode', action: 'terem', lines: ['I hold this town for the Tsar, against wolves, raiders and the boyars, in roughly that order of difficulty.'] },
   fenwick: { sprite: 'merchant', name: 'Fenwick the merchant', action: 'shop', lines: ['Finest steel this side of the dungeon. Come to the counter.'] },
   dottie: { sprite: 'innkeeper', name: 'Dottie the innkeeper', action: 'inn', lines: ['A bed is a bed. Take any that is free.'] },
   orla: { sprite: 'guard', name: 'Captain Orla', lines: [
@@ -1352,6 +1368,13 @@ BUILDINGS.council = { name: 'The Council Hall', sign: 'COUNCIL', roof: '#166534'
   '################', '#p....rrrr....p#', '#.....rGrr.....#', '#.....rrrr.....#', '#..TTT....TTT..#',
   '#..............#', '#..TTT....TTT..#', '#..............#', '#p............p#', '#######D########'] };
 BUILDINGS.townhall = { ...BUILDINGS.council, name: 'The Town Hall', sign: 'HALL', npcs: { G: 'councillor' } };
+// the seats of the Far Shore: the Empress's yamen, the Maharani's durbar hall, the Tsar's terem
+BUILDINGS.yamen = { ...BUILDINGS.council, name: 'The Yamen', sign: 'YAMEN', roof: '#b91c1c', npcs: { G: 'empress' } };
+BUILDINGS.magistracy = { ...BUILDINGS.council, name: "The Magistrate's Yamen", sign: 'YAMEN', roof: '#b91c1c', npcs: { G: 'magistrate' } };
+BUILDINGS.durbar = { ...BUILDINGS.council, name: 'The Durbar Hall', sign: 'DURBAR', roof: '#d97706', npcs: { G: 'maharani' } };
+BUILDINGS.kacheri = { ...BUILDINGS.council, name: 'The Kacheri', sign: 'KACHERI', roof: '#d97706', npcs: { G: 'dewan' } };
+BUILDINGS.terem = { ...BUILDINGS.council, name: 'The Terem Palace', sign: 'TEREM', roof: '#1d4ed8', npcs: { G: 'tsar' } };
+BUILDINGS.prikaz = { ...BUILDINGS.council, name: 'The Prikaz', sign: 'PRIKAZ', roof: '#1d4ed8', npcs: { G: 'voivode' } };
 BUILDINGS.herald = { name: "The King's Herald", sign: 'HERALD', roof: '#7c2d12', npcs: { G: 'herald' }, layout: [
   '################', '#RR....f.....RR#', '#..............#', '#......G.......#', '#....CCCCC.....#',
   '#..............#', '#..T.......T...#', '#......rr......#', '#......rr......#', '#######D########'] };
@@ -1453,11 +1476,20 @@ const REALMS = {
     blurb: 'Clans of the southern wilds, led by a chieftain chosen in battle and guided by shamans who speak with the spirits.' },
   league: { name: 'Goldspire League', short: 'the League', gov: 'Oligarchy', ruler: 'the Merchant Council', capital: [-2, -3], color: '#b18cff',
     blurb: 'City-states run by their richest merchant houses. Banks, guilds, fine goods, and prices to match.' },
+  // the Far Shore: a continent beyond the Veil of storms, reached only in Story 2
+  tianxia:   { name: 'Celestial Empire of Tianxia', short: 'the Empire', gov: 'Empire', ruler: 'Empress Liang Wu', capital: [12, -1], color: '#ff5c5c', far: true,
+    blurb: 'Ruled from the Jade Throne by an empress and ten thousand scholar-officials. Walled cities, rice terraces, paper lanterns, and an examination for everything.' },
+  suryadesh: { name: 'Rajadom of Suryadesh', short: 'the Rajadom', gov: 'Rajadom', ruler: 'Maharani Devika Suryavansha', capital: [12, 1], color: '#ffa726', far: true,
+    blurb: 'River kingdoms under a sun-crowned queen: stepwells, spice bazaars, temple towers and elephants on the roads.' },
+  severin:   { name: 'Tsardom of Severin', short: 'the Tsardom', gov: 'Tsardom', ruler: 'Tsar Fyodor the Patient', capital: [15, 0], color: '#7dd3fc', far: true,
+    blurb: 'A cold northern crown of log towns, painted churches, boyars and bears, where winter is the oldest law.' },
 };
-const REALM_ORDER = ['cantons', 'aurum', 'kathar', 'league'];
+const REALM_ORDER = ['cantons', 'aurum', 'kathar', 'league'];           // the four realms of Story 1
+const FAR_REALMS = ['tianxia', 'suryadesh', 'severin'];                 // the Far Shore, Story 2
+const ALL_REALMS = [...REALM_ORDER, ...FAR_REALMS];
 function realmAt(i, j) {
   let best = 'cantons', bd = Infinity;
-  for (const id of REALM_ORDER) { const [ci, cj] = REALMS[id].capital; const d = (i - ci) ** 2 + (j - cj) ** 2; if (d < bd) { bd = d; best = id; } }
+  for (const id of ALL_REALMS) { const [ci, cj] = REALMS[id].capital; const d = (i - ci) ** 2 + (j - cj) ** 2; if (d < bd) { bd = d; best = id; } }
   return best;
 }
 const cellOf = (x, y) => [Math.round((x - 20) / TOWN_SPACING), Math.round((y - 15) / TOWN_SPACING)];
@@ -1491,6 +1523,14 @@ function storyObjective() {
     return { text: ACT2_STEPS[A.s - 1].label, short: 'The Gate of the Deep', x: gate.x, y: gate.y };
   }
   if (st.phase === 'seek') { const S = STORY_SITES[STORY_ORDER[st.ch]], site = siteAt(S.i, S.j); return { text: `Find the ${S.shard} in ${S.title.replace(/^The /, 'the ')}`, short: S.title, x: site.x, y: site.y }; }
+  if (story2().s === 1) {
+    const next = FAR_REALMS.find((r) => rqState(r).s < 5);
+    if (next) {
+      const Q = REALM_QUESTS[next], rq = rqState(next), cap = townAt(...REALMS[next].capital);
+      if (player.x <= VEIL_X) { const hp = homePort(); return { text: `Take passage across the Veil from a harbour${hp ? ` (${hp.name} is nearest Hearth)` : ''}`, short: 'The Veil', x: hp ? hp.cx : player.x + 100, y: hp ? hp.cy : player.y }; }
+      return { text: rq.s === 0 ? `Seek ${Q.ruler} in ${cap.name}` : rq.s === 4 ? `Report to ${Q.ruler} in ${cap.name}` : `${Q.title}: ${Q.steps[rq.s - 1].label}`, short: cap.name, x: cap.cx, y: cap.cy };
+    }
+  }
   return null;
 }
 // The opening: the history of the world, told once to every new hero before the
@@ -1522,7 +1562,7 @@ function drawRealmArt(g, w, h) {
     g.fillStyle = R.color; g.globalAlpha = 0.55 + 0.15 * cellRand(i, j, 7); g.fillRect(a * cw, b * ch, cw + 0.5, ch + 0.5);
   }
   g.globalAlpha = 1;
-  for (const id of REALM_ORDER) {
+  for (const id of REALM_ORDER) {   // the four realms of the old world; the Far Shore is off this little map
     const [i, j] = REALMS[id].capital, x = (i + 5.5) * cw, y = (j + 5.5) * ch;
     g.fillStyle = '#0f1724'; g.beginPath(); g.arc(x, y, 5, 0, Math.PI * 2); g.fill();
     g.fillStyle = id === 'aurum' ? '#ffd86b' : '#f4f4f4'; g.beginPath(); g.arc(x, y, 3, 0, Math.PI * 2); g.fill();
@@ -1568,6 +1608,8 @@ function guideSuggestions() {
     out.push(['Main story', `${obj.text}. Follow the gold star on your compass.`]);
     if (S && player.level < need - 1) out.push(['Get stronger first', `${S.title} is meant for level ${need}, and you are level ${player.level}. Town dungeons (Hearth's is level 1+) and bounties are good practice.`]);
   } else if (st.phase === 'done' && act2().s === 0) out.push(['Act II', 'Prince Edric waits in the King\'s hall at Castle Aurum with a problem only you can solve.']);
+  else if (story1Done() && story2().s === 0) out.push(['Story 2', 'Story 1 is told. Stand in any town and the next one will find you.']);
+  else if (story2().s === 2) out.push(['The Far Shore', 'Both shores are at peace. The sea road across the Veil is yours.']);
   else if (st.phase === 'done') out.push(['The Deep', `The Gate of the Deep lies between Hearth and Castle Aurum. Your record: floor ${player.meta.deepest || 0}.`]);
   if (player.hp < player.maxHp * 0.5) out.push(['Rest', 'Inns heal you for free. In the wilds, press C to make camp.']);
   if (player.pendingPerks) out.push(['Choose a perk', 'You have a perk to pick.']);
@@ -1638,6 +1680,43 @@ const ACT2_STEPS = [
   { floor: 20, label: 'Face the Dreaming Maw on floor 20', boss: { type: 'Wraith', name: 'the Dreaming Maw' } },
 ];
 const act2 = () => player.meta.act2 || (player.meta.act2 = { s: 0 });
+// ---------- the stories ----------
+// Story 1, The Shattered Crown: the five shards (Act I) and What Sleeps Below (Act II).
+// Story 2, The Far Shore: the Veil of storms parts and three realms beyond it ask for help.
+const STORIES = [
+  { n: 1, title: 'The Shattered Crown', acts: ['Act I: The Five Shards', 'Act II: What Sleeps Below'] },
+  { n: 2, title: 'The Far Shore', acts: ['The Veil parts', 'Three crowns beyond the sea'] },
+];
+const story2 = () => player.meta.story2 || (player.meta.story2 = { s: 0 });   // 0 locked, 1 open, 2 done
+const story1Done = () => !!player && !!player.meta && story().phase === 'done' && act2().s >= 6;
+const farShoreOpen = () => !!player && !!player.meta && story2().s >= 1;
+const STORY2_INTRO = [
+  { who: 'An envoy from across the Veil', sprite: 'merchant', bg: 'sea', title: 'Story 2: The Far Shore',
+    text: 'A ship with sails the colour of sunset puts into harbour, and a woman in grey silk asks for you by name. "For a thousand years the Veil of storms has closed the eastern sea," she says. "Since the Crown was mended and the Deep went quiet, it has opened. My Empress sends her greeting to the hero who did that, and an invitation."' },
+  { who: 'The Far Shore', sprite: 'ship', bg: 'sea', title: 'The Far Shore',
+    text: 'Beyond the Veil lies one wide continent and three crowns: the Celestial Empire of Tianxia, whose Empress rules by brush and seal; the Rajadom of Suryadesh, nine-gated city of the sun; and the Tsardom of Severin, where winter is the oldest law. They have their own troubles. They have also heard of you.' },
+  { who: 'The road east', sprite: 'hero', bg: 'sea', title: 'The road east',
+    text: '"Any harbourmaster will sell you passage across the Veil now," the envoy says, "or sail yourself, if you have a ship and a strong stomach. Earn the favour of all three crowns, and the sea road stays open for good." The journal (J) keeps the tale.' },
+];
+const STORY2_FINALE = [
+  { who: 'Three crowns, one table', sprite: 'king', bg: 'sea', title: 'The Far Shore, united',
+    text: 'Empress, Maharani and Tsar send their envoys to one table for the first time in living memory, and the table is set for you. The Veil is declared open for good, the sea road chartered, and your name entered in three languages in three different books of state.' },
+  { who: 'Friend of Seven Realms', sprite: 'hero', bg: 'sea', title: 'Friend of Seven Realms',
+    text: 'Seven realms on two shores know your name now. There will be other stories. For tonight there is a feast, three kinds of wine, and a bear that has had rather too much of all of them.' },
+];
+function offerStory2() {
+  if (story2().s !== 0 || !story1Done() || storyOpen()) return;
+  story2().s = 1;
+  sfx.play('quest'); unlock('farshore'); track('story2_opened');
+  showScene(STORY2_INTRO, () => { log('Story 2, The Far Shore: take passage across the Veil from any harbour, and seek the three crowns beyond it.', 'good'); mapCache.ox = null; saveProgress('progress'); });
+}
+function finishStory2() {
+  story2().s = 2; player.gold += 1500; unlock('seven_realms'); track('story2_done');
+  showScene(STORY2_FINALE, () => { log('Story 2 complete: 1500 gold, and the sea road open for good.', 'good'); updateStats(); saveProgress('progress'); });
+}
+// the port on each side of the Veil that the passage runs between
+function farPort() { let best = null; for (let i = 9; i <= 18; i++) for (let j = -5; j <= 5; j++) { const t = townAt(i, j); if (t && t.harbour && (!best || Math.hypot(t.i - 12, t.j - 0) < Math.hypot(best.i - 12, best.j - 0))) best = t; } return best; }
+function homePort() { let best = null; for (let i = -6; i <= 6; i++) for (let j = -6; j <= 6; j++) { const t = townAt(i, j); if (t && t.harbour && (!best || Math.hypot(t.i, t.j) < Math.hypot(best.i, best.j))) best = t; } return best; }
 const act2Active = () => story().phase === 'done' && act2().s >= 1 && act2().s <= 4;
 const EDRIC_SCENES = {
   offer: [
@@ -1793,13 +1872,16 @@ const REALM_NAMES = {
   aurum: [['King', 'Crown', 'Lion', 'Rose', 'Silver', 'High', 'Fair', 'Bright', 'Royal', 'Swan', 'Hart', 'Gilden'], ['', '', 's'], ['ford', 'mere', 'crest', 'hall', 'keep', 'bridge', 'haven', 'ward', 'gate', 'more', 'leigh']],
   kathar: [["Ka'", 'Ur', 'Dro', 'Gor', 'Thak', 'Vrel', 'Mok', 'Zan', 'Kesh', 'Ruk', 'Ost', 'Grom'], ['', '', 'a', 'u', 'ar'], ['gar', 'thul', 'mok', 'dun', 'rak', 'kesh', 'tor', 'zar', 'vek', 'nag']],
   league: [['Gold', 'Silver', 'Coin', 'Amber', 'Ivory', 'Velvet', 'Pearl', 'Gilt', 'Opal', 'Saffron', 'Marble', 'Ledger'], ['', '', ''], ['spire', 'port', 'market', 'mint', 'vault', 'haven', 'reach', 'quay', 'court', 'gate']],
+  tianxia: [['Jin', 'Lin', 'Hua', 'Tian', 'Shen', 'Long', 'Bai', 'Yun', 'Feng', 'Ming', 'Qing', 'Lu'], ['', '', ''], ['zhou', 'jing', 'an', 'yang', 'cheng', 'he', 'shan', 'kou', 'ling', 'men']],
+  suryadesh: [['Surya', 'Chandra', 'Ratna', 'Vijaya', 'Nila', 'Kamal', 'Indra', 'Deva', 'Padma', 'Hari', 'Amba', 'Mani'], ['', '', ''], ['pur', 'nagar', 'kot', 'garh', 'vati', 'puram', 'ghat', 'pura', 'giri', 'sagar']],
+  severin: [['Novo', 'Belo', 'Krasno', 'Zlato', 'Vysoko', 'Staro', 'Volko', 'Sever', 'Cherno', 'Sveto', 'Dobro', 'Morozo'], ['', '', ''], ['grad', 'gorsk', 'slav', 'pol', 'vsk', 'yarsk', 'vo', 'zero', 'vka', 'borsk']],
 };
-const CAPITAL_NAMES = { kathar: 'Kar Thuldun', league: 'Goldspire' };
+const CAPITAL_NAMES = { kathar: 'Kar Thuldun', league: 'Goldspire', tianxia: 'Jinling', suryadesh: 'Suryapur', severin: 'Vysokograd' };
 // Two towns close together never share a name: the later one takes a qualifier.
 const NAME_QUALIFIERS = ['Little', 'Upper', 'Lower', 'Old', 'New', 'Great', 'High', 'Nether'];
 function hasTown(i, j) {
   if (i === 0 && j === 0) return true;
-  if (REALM_ORDER.some((id) => REALMS[id].capital[0] === i && REALMS[id].capital[1] === j)) return true;
+  if (ALL_REALMS.some((id) => REALMS[id].capital[0] === i && REALMS[id].capital[1] === j)) return true;
   return !(cellRand(i, j, 90) < 0.28);
 }
 function uniqueTownName(i, j, realm) {
@@ -1827,7 +1909,9 @@ function valueNoise(x, y, salt, scale) {
 // Each realm has a continent of its own, centred on its capital, with open sea
 // between them, narrow land bridges joining neighbours, and small islands beyond.
 const CONT_RX = 124, CONT_RY = 150, BRIDGE_W = 11;   // continents are taller than they are wide, so the eastern pair keeps a strait
-const CONTINENTS = REALM_ORDER.map((id) => ({ id, cx: REALMS[id].capital[0] * TOWN_SPACING + 20, cy: REALMS[id].capital[1] * TOWN_SPACING + 15 }));
+const CONTINENTS = [...REALM_ORDER.map((id) => ({ id, cx: REALMS[id].capital[0] * TOWN_SPACING + 20, cy: REALMS[id].capital[1] * TOWN_SPACING + 15 })),
+  { id: 'farshore', cx: 13.5 * TOWN_SPACING + 20, cy: 15, rx: 330, ry: 290 }];   // one wide continent shared by the three far realms
+const VEIL_X = 760;   // the Veil of storms: no ship crosses this longitude until Story 2 opens
 const BRIDGES = [['cantons', 'aurum'], ['cantons', 'kathar'], ['cantons', 'league'], ['kathar', 'league']].map(([a, b]) => [CONTINENTS.find((c) => c.id === a), CONTINENTS.find((c) => c.id === b)]);
 // Six hidden lairs, each with a super boss and a one-of-a-kind reward. They stay off
 // the map until a bard, a hermit, a prophet or your own feet find them.
@@ -1874,7 +1958,7 @@ function segDist(x, y, a, b) {
 }
 function landness(x, y) {
   let v = -1;
-  for (const c of CONTINENTS) v = Math.max(v, 1 - Math.hypot((x - c.cx) / CONT_RX, (y - c.cy) / CONT_RY));
+  for (const c of CONTINENTS) v = Math.max(v, 1 - Math.hypot((x - c.cx) / (c.rx || CONT_RX), (y - c.cy) / (c.ry || CONT_RY)));
   for (const [a, b] of BRIDGES) v = Math.max(v, 0.3 - segDist(x, y, a, b) / BRIDGE_W * 0.22);
   for (const a of LAND_ANCHORS) v = Math.max(v, 0.45 - Math.hypot(x - a.x, y - a.y) / a.r * 0.4);
   // islands out in the sea
@@ -1886,7 +1970,7 @@ const isLand = (x, y) => landness(x, y) > 0.08;
 const isSea = (x, y) => !isLand(x, y);
 function continentOf(x, y) {
   let best = -1, bv = 0.2;
-  CONTINENTS.forEach((c, k) => { const v = 1 - Math.hypot((x - c.cx) / CONT_RX, (y - c.cy) / CONT_RY); if (v > bv) { bv = v; best = k; } });
+  CONTINENTS.forEach((c, k) => { const v = 1 - Math.hypot((x - c.cx) / (c.rx || CONT_RX), (y - c.cy) / (c.ry || CONT_RY)); if (v > bv) { bv = v; best = k; } });
   return best;
 }
 function terrainAt(x, y) {
@@ -1909,8 +1993,8 @@ const TOWN_SIZES = {
   grand:   { plaza: [16, 10], houses: [[22, 9, 16, 5, 'throne'], [11, 10, 7, 4, 'royal'], [43, 10, 6, 4, 'smithy'], [11, 30, 6, 4, 'armoury'], [44, 30, 6, 4, 'watch'], [20, 31, 6, 4, 'apothecary'], [34, 31, 6, 4, 'inn'], [45, 20, 5, 4, 'arena'], [24, 3, 12, 3, 'market'], [14, 38, 6, 3, 'cottage'], [40, 38, 6, 3, 'home'], [2, 16, 5, 4, 'shop'], [53, 16, 5, 4, 'herbs']], folk: [6, 9], walled: true },
 };
 const GRAND_CASTLE = { i: 3, j: -1 };
-const REALM_SEATS = { cantons: ['council', 'townhall'], aurum: [null, 'herald'], kathar: ['longhouse', 'shamanhut'], league: ['exchange', 'exchange'] };
-const REALM_ROOFS = { kathar: ['#a07a35', '#8c6a2c', '#b08840'], league: ['#4c2f7a', '#5b3a8b', '#3f2a63'], aurum: null, cantons: null };   // the King's seat, the only one of its kind
+const REALM_SEATS = { cantons: ['council', 'townhall'], aurum: [null, 'herald'], kathar: ['longhouse', 'shamanhut'], league: ['exchange', 'exchange'], tianxia: ['yamen', 'magistracy'], suryadesh: ['durbar', 'kacheri'], severin: ['terem', 'prikaz'] };
+const REALM_ROOFS = { kathar: ['#a07a35', '#8c6a2c', '#b08840'], league: ['#4c2f7a', '#5b3a8b', '#3f2a63'], aurum: null, cantons: null, tianxia: ['#b91c1c', '#166534', '#9a3412'], suryadesh: ['#d97706', '#b45309', '#7c2d12'], severin: ['#1d4ed8', '#15803d', '#b91c1c'] };   // the King's seat, the only one of its kind
 const SPECIAL_SHOPS = ['smithy', 'armoury', 'apothecary'];
 // Score a candidate centre by how much solid, open ground surrounds it.
 function landScore(cx, cy) {
@@ -1925,7 +2009,7 @@ function townAt(i, j) {
   const k = key(i, j);
   if (towns.has(k)) return towns.get(k);
   const origin = i === 0 && j === 0;
-  const isCapital = REALM_ORDER.some((id) => REALMS[id].capital[0] === i && REALMS[id].capital[1] === j);
+  const isCapital = ALL_REALMS.some((id) => REALMS[id].capital[0] === i && REALMS[id].capital[1] === j);
   const onContinent = continentOf(i * TOWN_SPACING + 20, j * TOWN_SPACING + 15) >= 0;
   if (!origin && !isCapital && !(i === GRAND_CASTLE.i && j === GRAND_CASTLE.j) && !onContinent && cellRand(i, j, 90) < 0.28) { towns.set(k, null); return null; }   // some island cells are just wilderness
   // try a few spots in the cell and keep the one on the best land
@@ -2037,12 +2121,21 @@ const TRADES = {
   smithing:  { label: 'smithing', famous: ['blades that hold an edge', 'the ring of a hundred anvils'], deal: 'gear' },
   glass:     { label: 'glassblowing', famous: ['coloured glass', 'mirrors for the Goldspire magnates'], deal: null },
   silk:      { label: 'silk', famous: ['silk from the southern traders', 'the finest tailors in the League'], deal: null },
+  rice:      { label: 'rice-farming', famous: ['flooded paddies', 'rice wine', 'the harvest lantern festival'], deal: 'potions' },
+  tea:       { label: 'tea', famous: ['terraced tea gardens', 'the tea-house by the gate', 'jasmine tea pressed into bricks'], deal: 'potions' },
+  porcelain: { label: 'porcelain', famous: ['blue-and-white porcelain', 'kilns that never cool'], deal: null },
+  spices:    { label: 'spices', famous: ['the spice bazaar', 'saffron fields', 'pepper that makes knights weep'], deal: 'potions' },
+  cotton:    { label: 'cotton', famous: ['printed cottons', 'dyers with blue hands'], deal: null },
+  furs:      { label: 'fur-trapping', famous: ['sable and ermine', 'the winter fur fair', 'bearskin cloaks'], deal: 'gear' },
 };
 const DEAL_TEXT = { potions: 'Potions and supplies are cheap here', gear: 'Weapons and armour are cheaper here', horse: 'Horses are a quarter cheaper at the stables here' };
 const STATUE_OF = {
   cantons: ['Speaker Hollis the Founder', 'Bram the Mason', 'Old Mother Tansy', 'the First Council'],
   aurum: ['King Aurel the Founder', 'Queen Isolde the Wise', 'Sir Corvin of the Bridge', 'King Aldous the Builder'],
   kathar: ['Chieftain Varn the Tall'], league: ['Magnate Orlov the Elder', 'the Merchant Prince Callis', 'Lady Opaline Vess'],
+  tianxia: ['the First Emperor Shen Zu', 'the scholar Bai Juyin', 'General Long Feng', 'the Dowager Empress Hua'],
+  suryadesh: ['Raja Vikram the Sun-born', 'the saint Padmini', 'Rani Chandravati', 'the elephant Gajendra'],
+  severin: ['Tsar Ivan the Builder', 'Saint Sveta of the Snows', 'the boyar Dobrynya', 'Baba Morozova'],
 };
 const LANDMARKS = {
   statue:    { sprite: 'statue', name: (t, r) => `the statue of ${STATUE_OF[r][Math.floor(cellRand(t.i, t.j, 504) * STATUE_OF[r].length)]}`,
@@ -2054,13 +2147,16 @@ const LANDMARKS = {
   stones:    { sprite: 'stones', name: () => 'the Speaking Stones', lore: 'Elders gather at these stones to settle feuds. It is said that a lie told here makes the stones go cold.' },
   obelisk:   { sprite: 'obelisk', name: () => 'the Founders\' Column', lore: 'A column of polished stone carved with the names of the families who founded the town, and how much each of them paid.' },
 };
-const REALM_LANDMARKS = { cantons: ['statue', 'oak', 'well', 'belltower'], aurum: ['statue', 'belltower', 'obelisk', 'well'], kathar: ['bonfire', 'stones', 'oak'], league: ['obelisk', 'statue', 'well', 'belltower'] };
-const LEADER_TITLES = { cantons: ['Reeve', 'Mayor'], aurum: ['Bailiff', 'Lord Mayor'], kathar: ['Elder', 'Headwoman'], league: ['Factor', 'Alderman'] };
+const REALM_LANDMARKS = { tianxia: ['belltower', 'statue', 'well', 'obelisk'], suryadesh: ['well', 'statue', 'obelisk', 'belltower'], severin: ['belltower', 'bonfire', 'statue', 'well'], cantons: ['statue', 'oak', 'well', 'belltower'], aurum: ['statue', 'belltower', 'obelisk', 'well'], kathar: ['bonfire', 'stones', 'oak'], league: ['obelisk', 'statue', 'well', 'belltower'] };
+const LEADER_TITLES = { cantons: ['Reeve', 'Mayor'], aurum: ['Bailiff', 'Lord Mayor'], kathar: ['Elder', 'Headwoman'], league: ['Factor', 'Alderman'], tianxia: ['Magistrate', 'Prefect'], suryadesh: ['Thakur', 'Nagar-seth'], severin: ['Starosta', 'Voivode'] };
 const LEADER_NAMES = {
   cantons: ['Tobin', 'Marta', 'Hesketh', 'Wynn', 'Ada', 'Corran', 'Elsie', 'Pell'],
   aurum: ['Roderick', 'Isolde', 'Godfrey', 'Beatrix', 'Alaric', 'Matilda', 'Percival', 'Rosamund'],
   kathar: ['Druna', 'Vesk', 'Ottar', 'Kaela', 'Grom', 'Thessa', 'Brannoc', 'Ysra'],
   league: ['Callis', 'Opaline', 'Severin', 'Lucia', 'Marius', 'Vespera', 'Dorian', 'Celandine'],
+  tianxia: ['Wei Lan', 'Zhao Ming', 'Liu Mei', 'Chen Bo', 'Xu Lian', 'Han Yu', 'Sun Qiao', 'Guo Ren'],
+  suryadesh: ['Arjun', 'Meera', 'Devraj', 'Lakshmi', 'Bhima', 'Sita', 'Raghav', 'Kavita'],
+  severin: ['Boris', 'Yelena', 'Dmitri', 'Olga', 'Pyotr', 'Anya', 'Vasily', 'Marfa'],
 };
 function townIdentity(town) {
   if (town.identity) return town.identity;
@@ -2079,6 +2175,9 @@ function townIdentity(town) {
   if (realm === 'league') cands.push('glass', 'silk', 'smithing');
   if (realm === 'aurum') cands.push('smithing', 'wine');
   if (realm === 'cantons') cands.push('farming', 'wool');
+  if (realm === 'tianxia') cands.push('rice', 'rice', 'tea', 'silk', 'porcelain');
+  if (realm === 'suryadesh') cands.push('spices', 'spices', 'cotton', 'rice');
+  if (realm === 'severin') cands.push('furs', 'furs', 'timber', 'bees');
   const port = !!town.harbour;
   const seaTrades = ['fishing', 'fishing', 'shipping', 'shipping', 'salt'];
   const tradeId = port ? seaTrades[Math.floor(cellRand(i, j, 500) * seaTrades.length)] : cands[Math.floor(cellRand(i, j, 500) * cands.length)], trade = TRADES[tradeId];
@@ -2144,12 +2243,30 @@ const NAME_LORE = {
     mid: {},
     suf: { spire: 'the spire of its counting-house', port: 'its harbour', market: 'the market the League chartered', mint: 'its mint', vault: 'the vault under the exchange', haven: 'the haven it gave to ships', reach: 'its reach of river', quay: 'its quay', court: "the merchants' court", gate: 'its toll-gate' },
   },
+  tianxia: {
+    pre: { Jin: 'the gold, jin, the first magistrate found in its river', Lin: 'the forest, lin, it was cut from', Hua: 'the flowering plum trees, hua, of its first garden', Tian: 'heaven, tian, whose mandate its founder claimed', Shen: 'the spirit, shen, of the mountain above it', Long: 'the dragon, long, that is said to sleep under its hill', Bai: 'the white, bai, walls of its first fort', Yun: 'the clouds, yun, that sit on its roofs each morning', Feng: 'the wind, feng, that never stops on its plain', Ming: 'the brightness, ming, of its lanterns at festival', Qing: 'the clear, qing, water of its canal', Lu: 'the deer, lu, that grazed its first fields' },
+    mid: {},
+    suf: { zhou: 'zhou, a prefecture of the Empire', jing: 'jing, a capital, for it was one under an older dynasty', an: 'an, peace, which its charter promised', yang: 'yang, the sunny side of the river it stands on', cheng: 'cheng, its wall', he: 'he, the river', shan: 'shan, the mountain', kou: 'kou, the mouth of the valley', ling: 'ling, the ridge', men: 'men, the gate on the imperial road' },
+  },
+  suryadesh: {
+    pre: { Surya: 'Surya, the sun, whose line the Maharani claims', Chandra: 'the moon, chandra, that lit its founding', Ratna: 'the jewels, ratna, its first raja wore', Vijaya: 'the victory, vijaya, won on its plain', Nila: 'the blue, nila, of its river', Kamal: 'the lotus, kamal, of its tank', Indra: 'Indra, lord of storms, whose temple stands here', Deva: 'the gods, deva, who were said to walk here', Padma: 'the lotus, padma, of its stepwell', Hari: 'Hari the preserver, in whose name it was founded', Amba: 'the mother goddess, Amba, of its shrine', Mani: 'the gem, mani, its traders dealt in' },
+    mid: {},
+    suf: { pur: 'pur, a town', nagar: 'nagar, a city', kot: 'kot, its fort', garh: 'garh, its citadel', vati: 'vati, the garden it was', puram: 'puram, a temple town', ghat: 'ghat, the steps down to its river', pura: 'pura, a walled town', giri: 'giri, its hill', sagar: 'sagar, the great tank of water at its heart' },
+  },
+  severin: {
+    pre: { Novo: 'novo, new, for it was built after the old town burned', Belo: 'belo, white, for its stone church', Krasno: 'krasno, beautiful, or red, the boyars never agreed', Zlato: 'zlato, the gold of its onion dome', Vysoko: 'vysoko, high, on its bluff above the river', Staro: 'staro, old, older than the Tsardom', Volko: 'volk, the wolves that circled its first winter', Sever: 'sever, the north', Cherno: 'cherno, black, for the soil or the forest', Sveto: 'sveto, holy, for the hermit who lived here', Dobro: 'dobro, good, the land that fed it', Morozo: 'moroz, the frost that is its oldest neighbour' },
+    mid: {},
+    suf: { grad: 'grad, a town with walls', gorsk: 'gorsk, of the hills', slav: 'slav, glory', pol: 'pol, its field', vsk: 'the river it was named for', yarsk: 'the trading post, yar, it began as', vo: 'the village it still mostly is', zero: 'ozero, its lake', vka: 'the little river it sits on', borsk: 'bor, its pine forest' },
+  },
 };
 const CAPITAL_LORE = {
   '0,0': 'Hearth was the first hearth lit after the Sundering: a camp of refugees around one fire, which became a town because nobody could agree on where else to go. The Free Cantons were born from that argument.',
   '3,-1': 'Castle Aurum has been the seat of kings since Aurel the Founder laid the crown on its cushion. Its walls have never been taken, though its hall has seen two brothers at war. Two rings of wall guard it now, the inner one raised after the War of Four Banners, and the servants whisper of ways through the thickness of the stone: a treasury walled up and forgotten, and a postern the old Queen used to slip out unseen.',
   '-3,2': "Kar Thuldun, 'the stone hearth', was raised around the Ever-Fire where the first clans swore peace with each other. The fire has not gone out since.",
   '-2,-3': 'Goldspire was a counting-house before it was a town. The merchant houses built the spire first, so that debts could be seen from the road.',
+  '12,-1': 'Jinling, the Gold Hill, has held the Jade Throne through four dynasties. Its examination halls take in ten thousand candidates every spring and send out a hundred magistrates, and the city is run, the saying goes, by whoever wrote the best essay.',
+  '12,1': 'Suryapur, the City of the Sun, climbs from its great stepwell to the Maharani\'s palace in nine terraces, one for each of its gates. Elephants are stabled at the second and the spice bazaar never closes.',
+  '15,0': 'Vysokograd, the High Town, sits on a bluff above the frozen river behind log walls three trees thick. The Tsar\'s terem glitters with painted domes, and the bears in the market are, mostly, tame.',
 };
 function townLore(town) {
   if (CAPITAL_LORE[town.key]) return CAPITAL_LORE[town.key];
@@ -2167,6 +2284,9 @@ const NOTABLE_NAMES = {
   aurum: ['Sir Oswin (retired)', 'Lady Maud', 'Benedict Hale', 'Cecily Ward', 'Old Anselm', 'Mathilde Crane', 'Roland the Lame', 'Edith Marlow', 'Dame Ottilie', 'Gervase Hart', 'Old Piers', 'Rosalind Fay', 'Hugh Lanyon', 'Isolde Vane', 'Brother Aldous', 'Joan Carver'],
   kathar: ['Old Vorna', 'Brak One-Eye', 'Tessaly', 'Grim Ulfar', 'Nessa Brightspear', 'Korrin', 'Mother Halla', 'Drenn the Quiet', 'Ysra Stonehand', 'Orm Redbeard', 'Kaela Wolfsong', 'Old Thurn', 'Brenna Hawk', 'Varl Ironfoot', 'Sela Nightwind', 'Gorm the Elder'],
   league: ['Magister Pell', 'Lucrezia Vane', 'Old Bartolo', 'Serena Oake', 'Cassius Mint', 'Widow Orsini', 'Fennimore', 'Dorothea Glass', 'Aurelio Spark', 'Beatrice Coin', 'Old Marcello', 'Vittoria Quill', 'Lorenzo Fane', 'Clara Ledger', 'Ambrose Dell', 'Petra Silverhand'],
+  tianxia: ['Old Scholar Fang', 'Widow Lin', 'Master Wu the Cook', 'Grandmother Shen', 'Teahouse Zhang', 'Lady Hua Yan', 'Old Captain Lu', 'Sister Mei', 'Blind Li', 'Auntie Qing', 'Ferryman Guo', 'Dr Chen', 'Young Tian', 'Mother Yun', 'Uncle Bai', 'Scribe Feng'],
+  suryadesh: ['Old Rani Devi', 'Pandit Harish', 'Mother Amba', 'Gopal the Mahout', 'Widow Sarla', 'Guru Bhaskar', 'Kamala of the Well', 'Old Vishnu', 'Sister Meenakshi', 'Ravi the Potter', 'Auntie Lata', 'Dancer Padma', 'Old Thakur Singh', 'Nurse Anjali', 'Beggar-king Kishan', 'Spice-wife Rukmini'],
+  severin: ['Old Grandfather Frost', 'Babushka Vera', 'Deacon Ilya', 'Widow Katya', 'Blacksmith Oleg', 'Mother Agafya', 'One-armed Grisha', 'Sister Zoya', 'Old Ivan Bearkeeper', 'Nurse Nadia', 'Fisherman Lev', 'Aunt Praskovya', 'Scribe Fyodor', 'Young Sasha', 'Old Matrona', 'Trapper Yegor'],
 };
 // Twelve kinds of notable, each with a story told in three lines.
 const NOTABLES = [
@@ -2253,7 +2373,7 @@ function notableNpc(town) {
   const deepTie = story().phase === 'done' ? `"The gate is open now, between Hearth and the castle. I told them. I told them for thirty years."` : `"There is a gate in the hills between Hearth and Castle Aurum that is not on any map. It will be, soon."`;
   const c = {
     town: town.name, landmark: I.landmark.name, trade: I.trade.label, famous: I.famous, leader: I.leader, leaderThem: 'them',
-    leaderPlace: realm === 'kathar' ? 'longhouse' : realm === 'league' ? 'exchange' : realm === 'aurum' ? 'keep' : 'council hall',
+    leaderPlace: { kathar: 'longhouse', league: 'exchange', aurum: 'keep', tianxia: 'yamen', suryadesh: 'durbar hall', severin: 'terem' }[realm] || 'council hall',
     site: site ? (site.name.startsWith('The ') ? site.name.replace(/^The /, 'the ') : 'the ' + site.name) : 'the dungeon under the square',
     place: place ? place.name : 'the standing stones', camp: camp ? camp.name : 'the hills', guard: guards.length ? guards[0].type.name : 'the militia',
     lore: townLore(town), storyTie, edricTie, deepTie,
@@ -2273,7 +2393,7 @@ function portsNear(town, reach = 4) {
   for (let i = town.i - reach; i <= town.i + reach; i++) for (let j = town.j - reach; j <= town.j + reach; j++) { const t = townAt(i, j); if (t && t.harbour && t.key !== town.key) out.push(t); }
   return out.sort((a, b) => Math.hypot(a.cx - town.cx, a.cy - town.cy) - Math.hypot(b.cx - town.cx, b.cy - town.cy));
 }
-const fareTo = (from, to) => 15 + Math.round(Math.hypot(to.cx - from.cx, to.cy - from.cy) / 9);
+const fareTo = (from, to) => { const f = 15 + Math.round(Math.hypot(to.cx - from.cx, to.cy - from.cy) / 9); return wearing('jadeseal') ? Math.ceil(f / 2) : f; };
 function sailTo(from, to) {
   const cost = fareTo(from, to);
   if (player.gold < cost) return;
@@ -2680,11 +2800,11 @@ const GUARD_RANKS = {
   guard:   { title: 'Guard', hp: 20, atk: 5, armor: 1, names: ['Aldo', 'Berta', 'Cass', 'Dunstan', 'Edda', 'Ferris', 'Greta', 'Hal', 'Ines', 'Jory'] },
   knight:  { title: 'Knight', hp: 36, atk: 8, armor: 3, names: ['Sir Corwin', 'Dame Ysolt', 'Sir Brannoc', 'Dame Elswyth', 'Sir Godric', 'Dame Rhoswen', 'Sir Alain', 'Dame Mirel'] },
 };
-const REALM_GUARD_TITLES = { kathar: { militia: 'Spear-carrier', guard: 'Warden', knight: 'Champion' }, league: { militia: 'Hired blade', guard: 'Watchman', knight: 'Captain' } };
+const REALM_GUARD_TITLES = { kathar: { militia: 'Spear-carrier', guard: 'Warden', knight: 'Champion' }, league: { militia: 'Hired blade', guard: 'Watchman', knight: 'Captain' }, tianxia: { militia: 'Constable', guard: 'Imperial guard', knight: 'Banner captain' }, suryadesh: { militia: 'Lathi-man', guard: 'Sepoy', knight: 'Rajput' }, severin: { militia: 'Watch-cossack', guard: 'Streltsy', knight: 'Druzhinnik' } };
 function guardSprite(realm, rank) {
   const name = `guard:${realm}:${rank}`;
   if (BIG_SPRITES[name]) return name;
-  const col = { cantons: 'g', aurum: 'y', kathar: 'o', league: 'p' }[realm] || 'e';
+  const col = { cantons: 'g', aurum: 'y', kathar: 'o', league: 'p', tianxia: 'r', suryadesh: 't', severin: 'B' }[realm] || 'e';
   const rows = BIG_SPRITES.soldier.map((r) => [...r]);
   for (let y = 6; y <= 13; y++) rows[y][14] = '.';   // drop the spear; each rank gets its own weapon
   if (rank === 'militia') {
@@ -2712,16 +2832,22 @@ function guardPlan(town) {
   if (tier === 3) return knights ? ['guard', 'guard', 'knight', 'knight'] : ['guard', 'guard', 'guard', 'guard', 'knight'];
   return ['knight', 'knight', 'knight', 'knight', 'knight', 'knight'];
 }
+const FAR_GUARD_NAMES = {
+  tianxia: ['Wei Zhong', 'Li Shan', 'Zhang Hu', 'Chen Yong', 'Wang Lei', 'Zhao Ying', 'Liu Bao', 'Sun Jian', 'Ma Teng', 'Gao Shun', 'Xu Huang', 'Yan Liang'],
+  suryadesh: ['Arjun Singh', 'Bhim Rao', 'Karan Dev', 'Vikram Rathore', 'Rani Lakshmi', 'Dev Varma', 'Jai Chauhan', 'Prithvi Raj', 'Surya Sen', 'Meera Bai', 'Harsh Tomar', 'Ravi Shekhar'],
+  severin: ['Ivan Volkov', 'Pyotr Medved', 'Olga Snegova', 'Dmitri Kazak', 'Yuri Strelok', 'Boris Zima', 'Anya Lesnaya', 'Grigor Topor', 'Vasily Rekin', 'Marfa Dubova', 'Fyodor Kamen', 'Nikolai Burya'],
+};
 function guardNpc(town, rank, k) {
   const R = GUARD_RANKS[rank], realm = town.realm || 'cantons';
   const title = (REALM_GUARD_TITLES[realm] || {})[rank] || R.title;
-  const nm = R.names[(Math.floor(cellRand(town.i, town.j, 700) * R.names.length) + k * 3) % R.names.length];   // no two alike in one town
+  const pool = FAR_GUARD_NAMES[realm] || R.names;
+  const nm = pool[(Math.floor(cellRand(town.i, town.j, 700) * pool.length) + k * 3) % pool.length];   // no two alike in one town
   const tier = townTier(town), b = bountyFor(town);
   const lines = [
     'The gate to the dungeon is at the south end of the square. Nobody goes down it on my watch without a potion in their pack.',
     tier === 0 ? 'We keep the beasts out. Mostly. The pay is a bowl of stew and the stew is mostly water.' : tier >= 3 ? `${town.name} pays its watch well, and it shows. Nothing with claws gets within a stone's throw of these walls.` : 'Anything that follows you to the gate meets us first. That is what we are for.',
     `There is a bounty on ${b.name} posted at the watch house, if you have the stomach for it.`,
-    realm === 'aurum' ? "The King's peace holds in this town. Break it and you answer to me." : realm === 'kathar' ? 'The clan fire burns all night. Warm your hands, then move along.' : realm === 'league' ? 'The merchant houses pay for this watch. Thieves are bad for business.' : 'The council votes on our wages every spring. Vote for more.',
+    { aurum: "The King's peace holds in this town. Break it and you answer to me.", kathar: 'The clan fire burns all night. Warm your hands, then move along.', league: 'The merchant houses pay for this watch. Thieves are bad for business.', tianxia: "The Empress's law runs to the last village, and so do we. Mind both.", suryadesh: 'When the temple bells ring, the watch comes running. Do not make them ring.', severin: 'Winter is the Tsar\'s oldest soldier. We are only the second oldest.' }[realm] || 'The council votes on our wages every spring. Vote for more.',
   ];
   return { sprite: guardSprite(realm, rank), name: `${title} ${nm}`, lines, guard: true, rank };
 }
@@ -3337,6 +3463,9 @@ const PAVING = {
   aurum: ['#6b5a3f', '#a08a62', '#937d58', '#ab9670'],
   kathar: ['#5c4430', '#7a5c3d', '#6f5236', '#84653f'],
   league: ['#8a8698', '#d6d3e0', '#c8c4d6', '#e4e1ec'],
+  tianxia: ['#5b6470', '#9ca3af', '#8b929c', '#a8adb6'],
+  suryadesh: ['#a16207', '#e2b76b', '#d4a85c', '#ebc47c'],
+  severin: ['#4b4035', '#8a7d6a', '#7b6f5d', '#978a76'],
 };
 function drawCobble(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y, q = T / 2;
@@ -3445,7 +3574,7 @@ function drawRoad(g, c, r) {
   if (grassAt(1, 0)) for (let k = 0; k < T; k += 5) if (noise(c, r * 9 + k, 37) < 0.6) g.fillRect(X + T - 2, Y + k, 2, 3);
 }
 // Fields around the towns that live off the land: crop rows, vines or pasture.
-const FIELD_TRADES = { farming: 'crop', wine: 'vine', wool: 'pasture', bees: 'meadow', horses: 'pasture' };
+const FIELD_TRADES = { farming: 'crop', wine: 'vine', wool: 'pasture', bees: 'meadow', horses: 'pasture', rice: 'crop', tea: 'vine', cotton: 'meadow', spices: 'meadow' };
 function fieldAt(c, r) {
   for (const t of nearbyTowns(c, r, 1)) {
     const kind = FIELD_TRADES[townIdentity(t).tradeId]; if (!kind) continue;
@@ -3516,17 +3645,20 @@ function townTier(town) {
 }
 const STONE_IDS = new Set(['keep', 'throne', 'royal', 'watch', 'herald', 'arena', 'armoury', 'smithy']);
 const MARBLE_IDS = new Set(['council', 'townhall', 'exchange']);
-const CHIMNEY_IDS = new Set(['inn', 'home', 'cottage', 'herbs', 'smithy', 'apothecary', 'longhouse', 'shamanhut', 'shop']);
+const CHIMNEY_IDS = new Set(['inn', 'home', 'cottage', 'herbs', 'smithy', 'apothecary', 'longhouse', 'shamanhut', 'shop', 'prikaz', 'terem']);
 const BANNER_IDS = new Set(['throne', 'keep', 'herald', 'arena', 'royal']);
 const PARAPET_IDS = new Set(['keep', 'arena', 'watch']);
 const SIGN_ICON = { shop: 'gold', market: 'gold', inn: 'bed', herbs: 'potion', apothecary: 'potion', exchange: 'gold', smithy: 'rack', armoury: 'rack', royal: 'rack', watch: 'lamp' };
 function houseStyle(h) {
   const town = h.town ? townAt(...h.town.split(',').map(Number)) : null, realm = town ? town.realm || 'cantons' : 'cantons';
-  let wall = { cantons: 'timber', aurum: 'stone', kathar: 'log', league: 'marble' }[realm];
-  if (realm !== 'kathar' && STONE_IDS.has(h.id)) wall = 'stone';
-  if (realm !== 'kathar' && MARBLE_IDS.has(h.id)) wall = 'marble';
+  let wall = { cantons: 'timber', aurum: 'stone', kathar: 'log', league: 'marble', tianxia: 'lacquer', suryadesh: 'sandstone', severin: 'log' }[realm];
+  const far = FAR_REALMS.includes(realm);
+  if (!far && realm !== 'kathar' && STONE_IDS.has(h.id)) wall = 'stone';
+  if (!far && realm !== 'kathar' && MARBLE_IDS.has(h.id)) wall = 'marble';
   if (h.id === 'longhouse' || h.id === 'shamanhut') wall = 'log';
-  const roof = wall === 'log' ? 'thatch' : PARAPET_IDS.has(h.id) && wall === 'stone' ? 'parapet' : MARBLE_IDS.has(h.id) && wall === 'marble' ? 'pediment' : wall === 'stone' ? 'slate' : 'tiles';
+  // the Far Shore builds its own way: upturned pagoda eaves, flat terraces with domes, painted planks and onion domes
+  const roof = realm === 'tianxia' ? 'pagoda' : realm === 'suryadesh' ? (['durbar', 'kacheri', 'keep', 'watch'].includes(h.id) ? 'dome' : 'flat') : realm === 'severin' ? (['terem', 'prikaz', 'keep'].includes(h.id) ? 'onion' : 'plank')
+    : wall === 'log' ? 'thatch' : PARAPET_IDS.has(h.id) && wall === 'stone' ? 'parapet' : MARBLE_IDS.has(h.id) && wall === 'marble' ? 'pediment' : wall === 'stone' ? 'slate' : 'tiles';
   return { realm, wall, roof, accent: REALMS[realm] ? REALMS[realm].color : '#5fe17a' };
 }
 // Window centres along the front wall, kept clear of the door.
@@ -3576,6 +3708,19 @@ function drawHouse(g, h) {
       g.fillStyle = 'rgba(255,255,255,0.14)'; g.fillRect(X, y + 1, W, 1);
       g.fillStyle = '#c69863'; g.beginPath(); g.arc(X - 2, y + 3.5, 3.5, 0, Math.PI * 2); g.arc(X + W + 2, y + 3.5, 3.5, 0, Math.PI * 2); g.fill();
     }
+  } else if (st.wall === 'lacquer') {   // whitewashed plaster between red-lacquered posts, with lattice panels
+    g.fillStyle = '#f1e4c8'; g.fillRect(X, wallY, W, wallH);
+    g.fillStyle = '#a3261c'; g.fillRect(X, wallY, W, 3); g.fillRect(X, Y + H - 8, W, 4);
+    const posts = Math.max(2, Math.round(W / 44));
+    for (let k = 0; k <= posts; k++) { const px = X + Math.round((W - 6) * k / posts); g.fillStyle = '#a3261c'; g.fillRect(px, wallY, 6, wallH - 4); g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(px + 1, wallY, 1, wallH - 4); }
+    g.fillStyle = 'rgba(120,40,30,0.35)'; for (let x = X + 10; x < X + W - 10; x += 6) g.fillRect(x, wallY + 8, 1, Math.max(0, wallH - 22));
+  } else if (st.wall === 'sandstone') {   // warm sandstone blocks with a carved band
+    g.fillStyle = '#c99a5b'; g.fillRect(X, wallY, W, wallH);
+    for (let row = 0, y = wallY; y < Y + H - 5; row++, y += 9) for (let x = X - (row % 2 ? 9 : 0); x < X + W; x += 18) {
+      const n = noise(seed + x, y, 49); g.fillStyle = n < 0.33 ? '#d9ab6a' : n < 0.66 ? '#cfa062' : '#e3b874';
+      g.fillRect(Math.max(X, x + 1), y + 1, Math.min(16, X + W - x - 1, x + 17 - X), 7);
+    }
+    g.fillStyle = '#8c4a1f'; g.fillRect(X, wallY + 3, W, 3); g.fillStyle = '#f5d58a'; for (let x = X + 4; x < X + W - 4; x += 10) g.fillRect(x, wallY + 3, 4, 3);
   } else {   // marble
     g.fillStyle = '#e9e6f0'; g.fillRect(X, wallY, W, wallH);
     g.fillStyle = '#d3cfde'; g.fillRect(X, wallY, W, 5);
@@ -3698,6 +3843,45 @@ function drawHouse(g, h) {
     g.fillStyle = 'rgba(255,255,255,0.15)'; for (let x = X - 2; x < X + W; x += 12) g.fillRect(x, Y, 8, 2);
     g.fillStyle = '#4b5059'; g.fillRect(X + 6, Y + 14, W - 12, roofH - 22);
     g.fillStyle = shade(base, -0.1); g.fillRect(X + 8, Y + 16, W - 16, roofH - 26);   // the walkway
+  } else if (st.roof === 'pagoda') {   // two tiers of glazed tile with eaves that sweep up at the corners
+    const tier2 = Y + Math.floor(roofH * 0.45);
+    for (const [top, left, right, bottom] of [[tier2, X - 2, X + W + 2, wallY + 2], [Y, X + 10, X + W - 10, tier2 + 2]]) {
+      g.fillStyle = base; g.beginPath(); g.moveTo(left - ov - 4, bottom); g.quadraticCurveTo(left + 6, bottom - 2, left + 12, top); g.lineTo(right - 12, top); g.quadraticCurveTo(right - 6, bottom - 2, right + ov + 4, bottom); g.closePath(); g.fill();
+      g.save(); g.clip();
+      for (let y = top + 3; y < bottom; y += 6) { g.fillStyle = shade(base, -0.22); g.fillRect(left - ov - 4, y + 4, right - left + 2 * ov + 8, 1); g.fillStyle = shade(base, (y / 6) % 2 ? 0.06 : -0.06); for (let x = left - ov - 4; x < right + ov + 4; x += 7) { g.beginPath(); g.arc(x + 3, y + 3, 3.5, 0, Math.PI); g.fill(); } }
+      g.restore();
+      g.fillStyle = shade(base, -0.4); g.fillRect(left - ov - 4, bottom - 2, right - left + 2 * ov + 8, 2);
+      g.fillStyle = '#ffd86b'; g.fillRect(left - ov - 5, bottom - 6, 4, 4); g.fillRect(right + ov + 1, bottom - 6, 4, 4);   // the upturned tips
+    }
+    g.fillStyle = '#ffd86b'; g.fillRect(X + 10, Y - 1, W - 20, 3); g.beginPath(); g.arc(X + W / 2, Y - 2, 4, 0, Math.PI * 2); g.fill();   // ridge and finial
+    if (fine) { g.fillStyle = '#ff5c5c'; for (let x = X + 4; x < X + W - 4; x += 26) { g.fillRect(x, wallY + 2, 6, 9); g.fillStyle = '#ffd86b'; g.fillRect(x + 2, wallY + 11, 2, 3); g.fillStyle = '#ff5c5c'; } }   // paper lanterns under the eaves
+  } else if (st.roof === 'flat') {   // a flat terrace behind a parapet, a chhatri at each end
+    g.fillStyle = '#b8864b'; g.fillRect(X - 3, Y + roofH - 12, W + 6, 12);
+    g.fillStyle = '#d9ab6a'; g.fillRect(X - 3, Y + roofH - 12, W + 6, 3);
+    g.fillStyle = shade(base, -0.1); g.fillRect(X + 2, Y + roofH - 9, W - 4, 6);
+    for (const cx of [X + 12, X + W - 12]) { g.fillStyle = '#d9ab6a'; g.fillRect(cx - 7, Y + roofH - 22, 14, 10); g.fillStyle = base; g.beginPath(); g.arc(cx, Y + roofH - 22, 8, Math.PI, 0); g.fill(); g.fillStyle = '#ffd86b'; g.fillRect(cx - 1, Y + roofH - 32, 2, 3); }
+    g.fillStyle = 'rgba(0,0,0,0.25)'; for (let x = X + 1; x < X + W - 4; x += 8) g.fillRect(x, Y + roofH - 12, 4, 3);
+  } else if (st.roof === 'dome') {   // a great dome on a drum, smaller domes at the corners
+    g.fillStyle = '#d9ab6a'; g.fillRect(X - 3, Y + roofH - 10, W + 6, 10);
+    for (const cx of [X + 10, X + W - 10]) { g.fillStyle = shade(base, -0.15); g.beginPath(); g.arc(cx, Y + roofH - 10, 9, Math.PI, 0); g.fill(); }
+    g.fillStyle = '#e3b874'; g.fillRect(X + W / 2 - 18, Y + roofH - 16, 36, 8);
+    const dg = g.createRadialGradient(X + W / 2 - 6, Y + 10, 2, X + W / 2, Y + roofH - 16, 26); dg.addColorStop(0, shade(base, 0.35)); dg.addColorStop(1, shade(base, -0.25));
+    g.fillStyle = dg; g.beginPath(); g.ellipse(X + W / 2, Y + roofH - 16, 24, roofH - 10, 0, Math.PI, 0); g.fill();
+    g.fillStyle = '#ffd86b'; g.fillRect(X + W / 2 - 1, Y - 2, 2, 8); g.beginPath(); g.arc(X + W / 2, Y - 2, 3, 0, Math.PI * 2); g.fill();
+  } else if (st.roof === 'onion') {   // a painted onion dome on a square tower, over a steep plank roof
+    g.fillStyle = shade(base, -0.2); g.beginPath(); g.moveTo(X - ov, wallY); g.lineTo(X + W / 2, Y + 6); g.lineTo(X + W + ov, wallY); g.closePath(); g.fill();
+    g.fillStyle = shade(base, 0.1); for (let x = X - ov; x < X + W + ov; x += 6) g.fillRect(x, Y + 8 + Math.abs(x - X - W / 2) * (roofH - 8) / (W / 2 + ov), 3, 40);
+    g.fillStyle = '#f4f4f4'; g.fillRect(X + W / 2 - 9, Y + 4, 18, roofH - 6);
+    const dg = g.createRadialGradient(X + W / 2 - 4, Y - 8, 1, X + W / 2, Y - 4, 16); dg.addColorStop(0, shade(st.accent, 0.4)); dg.addColorStop(1, shade(st.accent, -0.3));
+    g.fillStyle = dg; g.beginPath(); g.moveTo(X + W / 2, Y - 20); g.quadraticCurveTo(X + W / 2 + 16, Y - 10, X + W / 2 + 11, Y + 4); g.lineTo(X + W / 2 - 11, Y + 4); g.quadraticCurveTo(X + W / 2 - 16, Y - 10, X + W / 2, Y - 20); g.fill();
+    g.fillStyle = '#ffd86b'; g.fillRect(X + W / 2 - 1, Y - 27, 2, 8); g.fillRect(X + W / 2 - 3, Y - 25, 6, 2);
+  } else if (st.roof === 'plank') {   // steep painted planks, snow-shedding, with carved bargeboards
+    g.fillStyle = base; g.beginPath(); g.moveTo(X - ov, wallY); g.lineTo(X + W / 2, Y); g.lineTo(X + W + ov, wallY); g.closePath(); g.fill();
+    g.save(); g.beginPath(); g.moveTo(X - ov, wallY); g.lineTo(X + W / 2, Y); g.lineTo(X + W + ov, wallY); g.closePath(); g.clip();
+    for (let x = X - ov; x < X + W + ov; x += 5) { g.fillStyle = noise(x, seed, 79) < 0.5 ? shade(base, 0.1) : shade(base, -0.12); g.fillRect(x, Y, 4, roofH + 4); }
+    g.fillStyle = 'rgba(255,255,255,0.75)'; g.fillRect(X - ov, Y, W + 2 * ov, 0); if (dayPhase() === 'night' || noise(seed, 5, 83) < 0.5) { g.beginPath(); g.moveTo(X - ov, wallY - 3); g.lineTo(X + W / 2, Y + 2); g.lineTo(X + W + ov, wallY - 3); g.lineTo(X + W + ov, wallY); g.lineTo(X - ov, wallY); g.fill(); }   // a lick of snow along the eave
+    g.restore();
+    g.fillStyle = '#f4f4f4'; g.fillRect(X + W / 2 - 1, Y, 2, roofH); for (const sx of [X - ov, X + W + ov - 3]) for (let y = wallY - 10; y > Y + 4; y -= 6) g.fillRect(sx, y, 3, 3);   // carved white bargeboards
   } else if (st.roof === 'pediment') {
     g.fillStyle = '#d3cfde'; g.fillRect(X - 4, Y + roofH - 10, W + 8, 10);
     g.fillStyle = '#f2f0f7'; g.beginPath(); g.moveTo(X - 4, Y + roofH - 10); g.lineTo(X + W / 2, Y); g.lineTo(X + W + 4, Y + roofH - 10); g.fill();
@@ -4606,7 +4790,7 @@ function renderWorldMap() {
   g.textBaseline = 'bottom';
   // realm names over their capitals
   g.font = 'bold 13px sans-serif';
-  for (const id of REALM_ORDER) {
+  for (const id of (farShoreOpen() ? ALL_REALMS : REALM_ORDER)) {
     const cap = townAt(...REALMS[id].capital); if (!cap) continue;
     const [px, py] = toPx(cap.cx, cap.y0);
     g.fillStyle = 'rgba(6,12,20,0.7)'; const lw = g.measureText(REALMS[id].name).width + 12; g.fillRect(px - lw / 2, py - 46, lw, 18);
@@ -4619,8 +4803,8 @@ function renderWorldMap() {
 // sized by its rank, walled if it is a castle, finer the more prosperous it is.
 // A painted pictogram for a settlement on the world map, scaled with the zoom.
 function drawSettlementIcon(g, cx, cy, sc, o) {
-  const roofs = { cantons: ['#b03a3a', '#7a4a2a', '#2e7d32'], aurum: ['#b91c1c', '#4b5563', '#7c2d12'], kathar: ['#b08840', '#8c6a2c', '#a07a35'], league: ['#5b3a8b', '#4c2f7a', '#6d3b8b'] }[o.realm];
-  const wallCol = o.realm === 'league' ? '#ece9f2' : o.realm === 'kathar' ? '#a0703a' : '#e3cfa6', stone = '#9ca3af', stoneDark = '#6b7280';
+  const roofs = { cantons: ['#b03a3a', '#7a4a2a', '#2e7d32'], aurum: ['#b91c1c', '#4b5563', '#7c2d12'], kathar: ['#b08840', '#8c6a2c', '#a07a35'], league: ['#5b3a8b', '#4c2f7a', '#6d3b8b'], tianxia: ['#b91c1c', '#166534', '#9a3412'], suryadesh: ['#d97706', '#b45309', '#7c2d12'], severin: ['#1d4ed8', '#15803d', '#b91c1c'] }[o.realm] || ['#b03a3a', '#7a4a2a', '#2e7d32'];
+  const wallCol = { league: '#ece9f2', kathar: '#a0703a', tianxia: '#f1e4c8', suryadesh: '#e8c48a', severin: '#8b5a2b' }[o.realm] || '#e3cfa6', stone = '#9ca3af', stoneDark = '#6b7280';
   const S = (v) => v * sc;
   const house = (hx, hy, hw, hh, roof, lit = true) => {
     g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(hx + S(1.5), hy + S(1.5), hw, hh);
@@ -5990,12 +6174,30 @@ const REALM_QUESTS = {
             { kind: 'clearIn', target: 'league', need: 1, label: 'Clear a dungeon in the Goldspire League' },
             { kind: 'chest', need: 5, label: 'Open 5 treasure chests' }],
     outro: '"An excellent return." Vessa slides a slim book across the desk. "My personal ledger. Merchants who see it pay you as they would pay me, and gold has a way of finding its way to it."' },
+  tianxia: { title: 'The Mandate of Heaven', ruler: 'Empress Liang Wu', sprite: 'king', relic: 'jadeseal', gold: 300,
+    intro: '"The Veil kept more than ships out," the Empress says, not looking up from her brush. "Since it opened, the beasts in my provinces have champions, and the tribute roads are robbed. Heaven grants its mandate to those who keep order. Keep some for me."',
+    steps: [{ kind: 'clearIn', target: 'tianxia', need: 1, label: 'Clear a dungeon in the Celestial Empire' },
+            { kind: 'elite', need: 3, label: 'Slay 3 elite monsters (starred), the champions of the beasts' },
+            { kind: 'chest', need: 4, label: 'Recover the lost tribute: open 4 treasure chests' }],
+    outro: 'The Empress sets down her brush at last. "Order is restored, and I did not have to write a single edict." A clerk brings a small box. "The seal of the Jade Throne. Show it at any waystone or harbour in the world, and they will charge you half. They will not dare charge you more."' },
+  suryadesh: { title: 'The Nine Gates', ruler: 'Maharani Devika Suryavansha', sprite: 'elder', relic: 'sunlotus', gold: 280,
+    intro: '"The sun rises on nine gates," the Maharani says, "and lately it sets on spiders. The pilgrim roads are strung with webs, and a thing in the old temple below the hill calls itself a god. Clear my roads, honour my shrines, and put the false god to the sword."',
+    steps: [{ kind: 'place', target: 'shrine', need: 1, label: 'Make an offering at a wayside shrine' },
+            { kind: 'slay', target: 'Spider', need: 8, label: 'Clear the pilgrim roads of spiders (slay 8)' },
+            { kind: 'boss', need: 1, label: 'Put a false god to the sword: slay any dungeon boss' }],
+    outro: 'Drums, conches and a shower of marigolds. The Maharani fastens a lotus of beaten gold at your throat. "The Sun\'s own flower. While it shines on you, nothing shines through you."' },
+  severin: { title: 'The Long Winter', ruler: 'Tsar Fyodor the Patient', sprite: 'king', relic: 'bearcharm', gold: 260,
+    intro: '"Winter comes in six weeks," the Tsar says, "and the orcs of the taiga have burned two granaries. I need the raiders broken, the granary filled, and the barrow under the frozen river emptied of whatever is singing in it. I am a patient man. Winter is not."',
+    steps: [{ kind: 'slay', target: 'Orc', need: 8, label: 'Break the raiders of the taiga (slay 8 orcs)' },
+            { kind: 'gold', need: 400, label: 'Fill the winter granary: gather 400 gold' },
+            { kind: 'clearIn', target: 'severin', need: 1, label: 'Clear a dungeon in the Tsardom' }],
+    outro: 'The Tsar pours you something clear that burns all the way down. "The granary is full and the river is quiet. Take this." A bear claw on a cord, carved with a running wolf. "The night is long here. This makes it yours."' },
 };
 const RULER_REALM = Object.fromEntries(Object.entries(REALM_QUESTS).map(([id, q]) => [q.ruler, id]));
 const rqState = (id) => { const all = player.meta.rq || (player.meta.rq = {}); return all[id] || (all[id] = { s: 0, n: 0 }); };
 function rqProgress(kind, target = null, amount = 1) {
   if (!player || !player.meta) return;
-  for (const id of REALM_ORDER) {
+  for (const id of ALL_REALMS) {
     const st = rqState(id), Q = REALM_QUESTS[id];
     if (st.s < 1 || st.s > 3) continue;
     const step = Q.steps[st.s - 1];
@@ -6014,7 +6216,7 @@ function realmQuestTalk(n) {
   const id = RULER_REALM[n.type.name];
   if (!id) return false;
   const Q = REALM_QUESTS[id], st = rqState(id), trade = n.type.action;
-  const tradeChoice = { label: trade === 'court' ? 'Ask about titles' : trade === 'council' ? 'Talk about public works' : trade === 'chieftain' ? 'Talk about the clans' : 'Do business', run: () => { setTimeout(() => openShop(trade), 0); return null; } };
+  const tradeChoice = { label: { court: 'Ask about titles', council: 'Talk about public works', chieftain: 'Talk about the clans', yamen: 'Ask about the examination', durbar: 'Ask about the pilgrimage', terem: 'Ask about the boyar council' }[trade] || 'Do business', run: () => { setTimeout(() => openShop(trade), 0); return null; } };
   if (st.s === 0) {
     showScene([{ who: `${Q.ruler}: ${Q.title}`, sprite: Q.sprite, text: Q.intro, choices: [
       { label: 'I will do it', run: () => { st.s = 1; st.n = 0; log(`New quest, ${Q.title}: ${Q.steps[0].label}.`, 'good'); sfx.play('quest'); saveProgress('progress'); return `"Good." Your first task: ${Q.steps[0].label.toLowerCase()}. The quest log (Q) keeps track.`; } },
@@ -6029,6 +6231,7 @@ function realmQuestTalk(n) {
       log(`${Q.title} complete: ${Q.gold} gold.`, 'good');
       if (!giveRelic(Q.relic) && !player.meta.found.includes(Q.relic)) log('Your bag is too full for the gift. Come back with room.', 'bad');
       if (REALM_ORDER.every((r) => rqState(r).s === 5)) unlock('four_realms');
+      if (FAR_REALMS.includes(id) && story2().s === 1 && FAR_REALMS.every((r) => rqState(r).s === 5)) finishStory2();
       updateStats(); saveProgress('progress');
     });
     return true;
@@ -6259,6 +6462,9 @@ const ARMY = {
   aurum:   { label: 'knights', cost: 65, power: 1.3 },
   kathar:  { label: 'clan warriors', cost: 45, power: 1.1 },
   league:  { label: 'mercenaries', cost: 55, power: 1.0 },
+  tianxia:   { label: 'banner soldiers', cost: 55, power: 1.1 },
+  suryadesh: { label: 'elephant lancers', cost: 70, power: 1.4 },
+  severin:   { label: 'streltsy', cost: 50, power: 1.15 },
 };
 // Armies are for heroes of renown: below this level the realms will not follow you,
 // raise no armies of their own, and any army already raised waits where it stands.
@@ -6270,7 +6476,7 @@ function campAt(i, j) {
   const k = key(i, j);
   if (camps.has(k)) return camps.get(k);
   let camp = null;
-  const capital = REALM_ORDER.some((id) => REALMS[id].capital[0] === i && REALMS[id].capital[1] === j);
+  const capital = ALL_REALMS.some((id) => REALMS[id].capital[0] === i && REALMS[id].capital[1] === j);
   if (!(i === 0 && j === 0) && !capital && cellRand(i, j, 600) < 0.2) {
     const town = townAt(i, j), site = siteAt(i, j), place = placeAt(i, j);
     for (let n = 0; n < 6 && !camp; n++) {
@@ -6287,7 +6493,8 @@ function campAt(i, j) {
   camps.set(k, camp);
   return camp;
 }
-const war = () => player.meta.war || (player.meta.war = { troops: { cantons: 0, aurum: 0, kathar: 0, league: 0 }, armies: [], camps: [] });
+const emptyTroops = () => Object.fromEntries(ALL_REALMS.map((r) => [r, 0]));
+const war = () => player.meta.war || (player.meta.war = { troops: emptyTroops(), armies: [], camps: [] });
 const campRazed = (c) => war().camps.includes(c.key);
 const campAtTile = (x, y) => { const [i0, j0] = cellOf(x, y); for (let i = i0 - 1; i <= i0 + 1; i++) for (let j = j0 - 1; j <= j0 + 1; j++) { const c = campAt(i, j); if (c && c.x === x && c.y === y) return c; } return null; };
 function campsNear(x, y, reach) {
@@ -6532,6 +6739,7 @@ function endTurn(moved) {
   if (player.hp <= 0) die();
   else arenaTurn();
   if (!gameOver && player.pendingPerks > 0) offerPerks();
+  if (scene === 'world' && moved && story2().s === 0 && townContaining(player.x, player.y) && story1Done()) offerStory2();
   if (inTown()) for (const pl of nearbyPlaces(player.x, player.y, 1)) if (!discovered(pl) && cheb(pl, player) <= 3) discoverPlace(pl);
   if (inTown()) for (const st of nearbySites(player.x, player.y, 1)) if (st.lair && !lairKnown(st.lair) && cheb(st, player) <= 4) revealLair(st.lair, 'You stumble on it:');
   if (scene === 'world' && turn % 5 === 0) spawnBounties();
@@ -7196,7 +7404,7 @@ function priceMult() {
 }
 const sellRate = () => (wearing('ledger') ? 0.7 : currentRealm() === 'league' ? 0.6 : 0.5);
 const sellPrice = (id) => Math.floor(itemInfo(id).price * sellRate());
-const SERVICE_SHOPS = new Set(['travel', 'player', 'court', 'council', 'chieftain', 'shaman', 'bank', 'hermit', 'harbour']);
+const SERVICE_SHOPS = new Set(['travel', 'player', 'court', 'council', 'chieftain', 'shaman', 'bank', 'hermit', 'harbour', 'yamen', 'durbar', 'terem']);
 const SHOPS = {
   shop: { title: 'Merchant', stock: (id, it) => it.floor <= Math.max(floor, 1) + 1, price: (it) => it.price, greet: 'The merchant greets you. Buy and sell with the buttons, Esc to leave.' },
   potions: { title: "Mara's potions", stock: (id) => id === 'potion' || id === 'manapotion', price: (it) => it.price - 2, greet: 'Mara sets out her potions. She buys gear too, at half price.' },
@@ -7213,6 +7421,9 @@ let shopKind = 'shop';
 const buyPrice = (id) => Math.max(1, Math.round(SHOPS[shopKind].price(itemInfo(id)) * priceMult() * (SERVICE_SHOPS.has(shopKind) ? 1 : localDeal(id))));
 Object.assign(SHOPS, {
   court: { title: 'The Court of Aurum', stock: () => false, price: (it) => it.price, greet: 'The herald unrolls a long scroll of titles. Each comes with a seal, a ribbon, and a price.' },
+  yamen: { title: 'The Yamen of the Empire', stock: () => false, price: (it) => it.price, greet: 'Clerks bend over ledgers. A brush is dipped, a seal is pressed, and someone finally looks up at you.' },
+  durbar: { title: 'The Durbar Hall', stock: () => false, price: (it) => it.price, greet: 'Incense, marigolds and a floor cool as a river. Petitioners wait in a patient line that parts for you.' },
+  terem: { title: 'The Terem of the Tsar', stock: () => false, price: (it) => it.price, greet: 'A stove the size of a house, icons in gold, and a bear asleep by the door. Nobody seems worried about the bear.' },
   council: { title: 'The Council of the Cantons', stock: () => false, price: (it) => it.price, greet: 'The councillor opens the ledger of public works. Every donation is recorded by name.' },
   chieftain: { title: 'The Clan Fire', stock: () => false, price: (it) => it.price, greet: 'The chieftain looks you up and down. "Outsiders may swear the clan oath. Few do. It asks more than gold, but gold first: a gift for the clan hall."' },
   shaman: { title: 'The Spirits', stock: () => false, price: (it) => it.price, greet: 'The shaman throws herbs on the fire. "Which spirit would you walk with?"' },
@@ -7481,6 +7692,7 @@ function boardShip() {
 }
 function sailStep(dx, dy) {
   let nx = player.x + dx, ny = player.y + dy;
+  if (!farShoreOpen() && nx > VEIL_X && player.x <= VEIL_X) { log('A wall of black cloud stands across the eastern sea with lightning walking inside it: the Veil. No ship has passed it in a thousand years, and yours turns back of its own accord.', 'bad'); draw(); return; }
   player.x = nx; player.y = ny;
   // a following sea: the second tile comes free on open water
   const x2 = nx + dx, y2 = ny + dy;
@@ -7493,7 +7705,7 @@ function sailStep(dx, dy) {
   endTurn(true);
   if (aboard && !gameOver && !storyOpen() && !shopOpen) seaEvent();
 }
-function travelCost(town) { const c = 10 + Math.round((Math.abs(town.cx - player.x) + Math.abs(town.cy - player.y)) / 12); return realmState().standing >= 250 ? Math.ceil(c / 2) : c; }
+function travelCost(town) { const c = 10 + Math.round((Math.abs(town.cx - player.x) + Math.abs(town.cy - player.y)) / 12); const d = realmState().standing >= 250 ? Math.ceil(c / 2) : c; return wearing('jadeseal') ? Math.ceil(d / 2) : d; }
 function travelTo(town) {
   const cost = travelCost(town);
   if (player.gold < cost) return;
@@ -7626,9 +7838,14 @@ function spend(cost) {
   player.gold -= cost; sfx.play('chest'); return true;
 }
 function afterSpend() { updateStats(); renderShop(); draw(); saveProgress('progress'); }
+const FAR_SEATS = {
+  yamen: { realm: 'tianxia', cost: 600, ach: 'mandarin', offer: 'Sit the imperial examination', blurb: 'The examination halls take anyone with a brush. Pass, and you are a mandarin of the Empire, with a rank, a seal, and a very small hat.', done: 'Three days in a cell with a brush and an inkstone. Your essay on the Deep is read aloud at court. You are a mandarin of the ninth rank.' },
+  durbar: { realm: 'suryadesh', cost: 500, ach: 'pilgrim', offer: 'Make the pilgrimage of nine gates', blurb: 'Walk the nine gates of Suryapur with an offering at each, and the temples will know your name from here to the sea.', done: 'Nine gates, nine offerings, nine blessings chanted over you. The priests tie a saffron thread at your wrist. You are a pilgrim of the Sun.' },
+  terem: { realm: 'severin', cost: 550, ach: 'boyar', offer: 'Be raised to the boyar council', blurb: 'The Tsar seats useful people at his council. Useful, in Severin, means brave, rich, or good with bears.', done: 'The Tsar hands you a fur hat and a seat at the long table. The other boyars glare. You are a boyar of Severin.' },
+};
 function serviceRows(kind) {
   const rows0 = serviceRowsInner(kind);
-  const realm = { court: 'aurum', council: 'cantons', chieftain: 'kathar', bank: 'league' }[kind];
+  const realm = { court: 'aurum', council: 'cantons', chieftain: 'kathar', bank: 'league', yamen: 'tianxia', durbar: 'suryadesh', terem: 'severin' }[kind];
   return realm ? rows0.concat(armyRows(realm)) : rows0;
 }
 function serviceRowsInner(kind) {
@@ -7649,6 +7866,13 @@ function serviceRowsInner(kind) {
       }, player.gold < r.cost));
     });
     if (rs.rank >= NOBLE_RANKS.length) rows.push(shopRow('You hold every title the herald can sell'));
+  } else if (FAR_SEATS[kind]) {
+    const P = FAR_SEATS[kind], had = (player.achievements || []).includes(P.ach);
+    rows.push(shopRow(P.blurb));
+    rows.push(shopRow(had ? `✓ ${P.offer}` : `${P.offer}: +250 standing with every realm, and a title`, had ? '' : `${P.cost}g`, () => {
+      if (had || !spend(P.cost)) return;
+      rs.standing += 250; unlock(P.ach); log(P.done, 'good'); track('realm_spend', { realm: P.realm, what: kind, cost: P.cost }); afterSpend();
+    }, had || player.gold < P.cost));
   } else if (kind === 'council') {
     const next = CIVIC_TIERS.find((t) => rs.standing < t.at);
     const have = CIVIC_TIERS.filter((t) => rs.standing >= t.at).map((t) => t.name);
@@ -7728,6 +7952,10 @@ function serviceRowsInner(kind) {
     const ports = here ? portsNear(here) : [];
     for (const row of shipRows(here)) rows.push(row);
     for (const row of chartRows(here)) rows.push(row);
+    if (farShoreOpen() && here) {   // the passage across the Veil, each way
+      const dest = here.cx > VEIL_X ? homePort() : farPort();
+      if (dest) { const cost = fareTo(here, dest); rows.push(shopRow(`Passage across the Veil to ${dest.name}, ${REALMS[dest.realm].short}${here.cx > VEIL_X ? ' (home)' : ' (the Far Shore)'}`, `Sail ${cost}g`, () => sailTo(here, dest), player.gold < cost)); }
+    }
     if (!ports.length) rows.push(shopRow('No other port on this sea. The ship stays tied up.'));
     for (const t of ports) {
       const I = townIdentity(t), seen = player.meta.visited.includes(t.key), cost = fareTo(here, t);
@@ -7820,13 +8048,14 @@ function startRun(saved) {
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
         rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
+        story2: saved.meta?.story2 && Number.isInteger(saved.meta.story2.s) ? { s: Math.max(0, Math.min(2, saved.meta.story2.s)) } : null,
         secrets: Array.isArray(saved.meta?.secrets) ? saved.meta.secrets.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 20) : [],
         charts: Array.isArray(saved.meta?.charts) ? saved.meta.charts.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 3) : [], treasures: Number(saved.meta?.treasures) || 0,
         ship: saved.meta?.ship && Number.isInteger(saved.meta.ship.x) && Number.isInteger(saved.meta.ship.y) ? { x: saved.meta.ship.x, y: saved.meta.ship.y } : null,
         rescued: Number(saved.meta?.rescued) || 0,
         lairs: saved.meta?.lairs && Array.isArray(saved.meta.lairs.known) ? { known: saved.meta.lairs.known.filter((id) => LAIRS[id]), slain: (saved.meta.lairs.slain || []).filter((id) => LAIRS[id]) } : null,
         act2: saved.meta?.act2 && Number.isInteger(saved.meta.act2.s) ? { s: saved.meta.act2.s, n: 0, told: !!saved.meta.act2.told } : null,
-        war: saved.meta?.war && saved.meta.war.troops ? { troops: { cantons: 0, aurum: 0, kathar: 0, league: 0, ...saved.meta.war.troops }, armies: Array.isArray(saved.meta.war.armies) ? saved.meta.war.armies.map((a) => ({ ...a, fightUntil: undefined })) : [], camps: Array.isArray(saved.meta.war.camps) ? saved.meta.war.camps : [] } : null },
+        war: saved.meta?.war && saved.meta.war.troops ? { troops: { ...emptyTroops(), ...saved.meta.war.troops }, armies: Array.isArray(saved.meta.war.armies) ? saved.meta.war.armies.map((a) => ({ ...a, fightUntil: undefined })) : [], camps: Array.isArray(saved.meta.war.camps) ? saved.meta.war.camps : [] } : null },
       relic: ITEMS.relics[saved.relic] ? saved.relic : null,
       weaponPlus: saved.weapon_plus || 0, armorPlus: saved.armor_plus || 0 });
     // heroes made before classes existed start with the warrior's numbers; fresh heroes take their class's
@@ -7917,9 +8146,9 @@ function renderGlossary(kind) {
   const slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   const thumb = (names) => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#0f1724'; g.fillRect(0, 0, 64, 64); const list = [].concat(names).slice(0, 2); list.forEach((n, i) => { const img = sprite(n); const w = list.length === 1 ? 54 : 34; g.drawImage(img, list.length === 1 ? 5 : 2 + i * 28, list.length === 1 ? 5 : 16 + i * 6, w, w); }); return c; };
   const towns = [];
-  for (let j = -6; j <= 6; j++) for (let i = -6; i <= 6; i++) { const t = townAt(i, j); if (t) towns.push(t); }
+  for (let j = -6; j <= 6; j++) for (let i = -6; i <= 18; i++) { const t = townAt(i, j); if (t) towns.push(t); }
   for (const t of towns) { townIdentity(t); notableNpc(t); }
-  const byRealm = (list, keyOf) => REALM_ORDER.map((r) => [r, list.filter((x) => keyOf(x) === r)]).filter(([, l]) => l.length);
+  const byRealm = (list, keyOf) => ALL_REALMS.map((r) => [r, list.filter((x) => keyOf(x) === r)]).filter(([, l]) => l.length);
   const section = (title, cards) => { const h = document.createElement('h3'); h.className = 'realm'; h.textContent = title; root.appendChild(h); const grid = document.createElement('div'); grid.className = 'cards'; for (const c of cards) grid.appendChild(c); root.appendChild(grid); };
   const card = (sprites, title, sub, body, search) => {
     const el = document.createElement('div'); el.className = 'card'; el.dataset.search = search.toLowerCase(); el.id = slug(title);
