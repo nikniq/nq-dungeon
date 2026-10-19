@@ -97,6 +97,8 @@ class CharacterController extends Controller
             'meta.stash.*' => [Rule::in(array_merge(array_keys(config('items.weapons')), array_keys(config('items.armor')), array_keys(config('items.consumables')), array_keys(config('items.relics'))))],
             'meta.deepest' => ['nullable', 'integer', 'min:0', 'max:99'],
             'meta.horse' => ['nullable', 'boolean'],
+            'meta.secrets' => ['nullable', 'array', 'max:20'],
+            'meta.secrets.*' => ['string', 'max:24', 'regex:/^-?\d+,-?\d+$/'],
             'meta.charts' => ['nullable', 'array', 'max:3'],
             'meta.charts.*' => ['string', 'max:24', 'regex:/^-?\d+,-?\d+$/'],
             'meta.treasures' => ['nullable', 'integer', 'min:0', 'max:10000'],

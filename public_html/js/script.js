@@ -119,6 +119,7 @@ const ACHIEVEMENTS = {
   abyss10:     { label: 'Reached floor 10 of the Deep', title: 'the Deepwalker' },
   abyss25:     { label: 'Reached floor 25 of the Deep', title: 'Lord of the Deep' },
   wayfarer:    { label: 'Met ten strangers on the road', title: 'the Wayfarer' },
+  postern:     { label: "Found the Queen's postern", title: 'the Sly' },
   vault:       { label: 'Broke into a secret vault', title: 'the Delver of Secrets' },
   squire:      { label: 'Became a Squire of Aurum', title: 'the Squire' },
   knighted:    { label: 'Knighted by the King', title: 'Knight of Aurum' },
@@ -273,7 +274,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -1751,7 +1752,7 @@ function placeAt(i, j) {
     const town = townAt(i, j), site = siteAt(i, j);
     for (let n = 0; n < 6 && !place; n++) {
       const x = i * TOWN_SPACING + 6 + Math.floor(cellRand(i, j, 402 + n) * 84), y = j * TOWN_SPACING + 4 + Math.floor(cellRand(i, j, 412 + n) * 84);
-      if (town && x >= town.x0 - 6 && x < town.x0 + TW + 6 && y >= town.y0 - 6 && y < town.y0 + TH + 6) continue;
+      if (town && x >= town.x0 - 6 && x < town.x0 + tw(town) + 6 && y >= town.y0 - 6 && y < town.y0 + th(town) + 6) continue;
       if (site && Math.abs(site.x - x) + Math.abs(site.y - y) < 10) continue;
       const g = terrainAt(x, y);
       if (g !== GROUND.GRASS && g !== GROUND.FOREST) continue;
@@ -1775,6 +1776,8 @@ const discovered = (p) => player.meta.places.includes(p.key);
 // walk from one to the next. Each town has a name, its own set of buildings,
 // a fountain, townsfolk and a gate down into the dungeon.
 const WORLD_SEED = 7331, TOWN_SPACING = 96, TW = 40, TH = 30;
+const GRAND_W = 60, GRAND_H = 44;   // Castle Aurum's footprint
+const tw = (t) => t.w || TW, th = (t) => t.h || TH;
 const GROUND = { GRASS: 0, FOREST: 1, SAND: 2, WATER: 3, MOUNTAIN: 4, ROAD: 5, COBBLE: 6, TREE: 7, RAMPART: 8, DOCK: 9 };
 const worldChunks = new Map();   // kept across scene changes
 const towns = new Map();         // lattice key -> town
@@ -1903,7 +1906,7 @@ const TOWN_SIZES = {
   town:    { plaza: [11, 6], houses: [[6, 4, 6, 4, 'shop'], [28, 4, 6, 4, 'inn'], [16, 3, 8, 3, 'watch'], [6, 22, 6, 4, 'herbs'], [28, 22, 6, 4, 'home']], folk: [2, 4], walled: false },
   city:    { plaza: [15, 8], houses: [[3, 3, 6, 4, 'shop'], [31, 3, 6, 4, 'inn'], [14, 2, 12, 3, 'market'], [3, 23, 6, 4, 'herbs'], [31, 23, 6, 4, 'home'], [12, 24, 6, 4, 'cottage'], [22, 24, 8, 3, 'watch']], folk: [4, 6], walled: false },
   castle:  { plaza: [16, 10], houses: [[14, 3, 12, 4, 'keep'], [4, 4, 6, 4, 'smithy'], [30, 4, 6, 4, 'armoury'], [4, 22, 6, 4, 'watch'], [30, 22, 6, 4, 'inn']], folk: [2, 4], walled: true },
-  grand:   { plaza: [16, 10], houses: [[12, 3, 16, 5, 'throne'], [3, 4, 7, 4, 'royal'], [31, 4, 6, 4, 'smithy'], [3, 22, 6, 4, 'armoury'], [31, 22, 6, 4, 'watch'], [14, 23, 6, 4, 'apothecary'], [22, 23, 6, 4, 'inn'], [32, 12, 5, 4, 'arena']], folk: [4, 6], walled: true },
+  grand:   { plaza: [16, 10], houses: [[22, 9, 16, 5, 'throne'], [11, 10, 7, 4, 'royal'], [43, 10, 6, 4, 'smithy'], [11, 30, 6, 4, 'armoury'], [44, 30, 6, 4, 'watch'], [20, 31, 6, 4, 'apothecary'], [34, 31, 6, 4, 'inn'], [45, 20, 5, 4, 'arena'], [24, 3, 12, 3, 'market'], [14, 38, 6, 3, 'cottage'], [40, 38, 6, 3, 'home'], [2, 16, 5, 4, 'shop'], [53, 16, 5, 4, 'herbs']], folk: [6, 9], walled: true },
 };
 const GRAND_CASTLE = { i: 3, j: -1 };
 const REALM_SEATS = { cantons: ['council', 'townhall'], aurum: [null, 'herald'], kathar: ['longhouse', 'shamanhut'], league: ['exchange', 'exchange'] };
@@ -1934,8 +1937,8 @@ function townAt(i, j) {
       if (sc > best) { best = sc; cx = tx; cy = ty; }
     }
   }
-  const x0 = cx - 20, y0 = cy - 15;
   const grand = i === GRAND_CASTLE.i && j === GRAND_CASTLE.j;
+  const x0 = cx - (grand ? GRAND_W / 2 : 20), y0 = cy - (grand ? GRAND_H / 2 : 15);
   if (!origin && !isCapital && !grand && (landScore(cx, cy) < 8 || !isLand(cx, cy))) { towns.set(k, null); return null; }   // no towns in the sea
   const sizeRoll = cellRand(i, j, 89);
   const realm = realmAt(i, j), capitalOf = isCapital ? realm : null;
@@ -1945,7 +1948,7 @@ function townAt(i, j) {
   const def = TOWN_SIZES[size];
   const base = origin ? 'Hearth' : CAPITAL_NAMES[capitalOf] || uniqueTownName(i, j, realm);
   const name = grand ? 'Castle Aurum' : size === 'castle' ? `Castle ${base}` : base;
-  const town = { key: k, i, j, name, size, realm, capital: !!capitalOf, plaza: def.plaza, walled: def.walled, cx, cy, x0, y0, houses: [], npcs: null, spawn: { x: cx, y: cy + 3 }, gate: { x: cx, y: y0 + (def.walled ? 26 : 28) }, folk: def.folk };
+  const town = { key: k, i, j, name, size, realm, capital: !!capitalOf, plaza: def.plaza, walled: def.walled, cx, cy, x0, y0, w: grand ? GRAND_W : TW, h: grand ? GRAND_H : TH, houses: [], npcs: null, spawn: { x: cx, y: cy + 3 }, gate: { x: cx, y: y0 + (grand ? GRAND_H - 4 : def.walled ? 26 : 28) }, folk: def.folk };
   // a specialist shop in every city, and in some towns in place of the home
   let plan = def.houses.map((h) => h.slice());
   if (!origin && !def.walled) {
@@ -1969,7 +1972,7 @@ function townAt(i, j) {
 function harbourOf(town) {
   let best = null;
   for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-    const edge = dx === 1 ? town.x0 + TW : dx === -1 ? town.x0 - 1 : dy === 1 ? town.y0 + TH : town.y0 - 1;
+    const edge = dx === 1 ? town.x0 + tw(town) : dx === -1 ? town.x0 - 1 : dy === 1 ? town.y0 + th(town) : town.y0 - 1;
     for (let along = -1; along <= 1; along++) {
       const sx = dx ? edge : town.cx + along * 8, sy = dy ? edge : town.cy + along * 6;
       for (let n = 1; n <= 14; n++) {
@@ -1994,7 +1997,7 @@ function townContaining(x, y) {
   const i0 = Math.round((x - 20) / TOWN_SPACING), j0 = Math.round((y - 15) / TOWN_SPACING);
   for (let i = i0 - 1; i <= i0 + 1; i++) for (let j = j0 - 1; j <= j0 + 1; j++) {
     const t = townAt(i, j);
-    if (t && x >= t.x0 && x < t.x0 + TW && y >= t.y0 && y < t.y0 + TH) return t;
+    if (t && x >= t.x0 && x < t.x0 + tw(t) && y >= t.y0 && y < t.y0 + th(t)) return t;
   }
   return null;
 }
@@ -2144,7 +2147,7 @@ const NAME_LORE = {
 };
 const CAPITAL_LORE = {
   '0,0': 'Hearth was the first hearth lit after the Sundering: a camp of refugees around one fire, which became a town because nobody could agree on where else to go. The Free Cantons were born from that argument.',
-  '3,-1': 'Castle Aurum has been the seat of kings since Aurel the Founder laid the crown on its cushion. Its walls have never been taken, though its hall has seen two brothers at war.',
+  '3,-1': 'Castle Aurum has been the seat of kings since Aurel the Founder laid the crown on its cushion. Its walls have never been taken, though its hall has seen two brothers at war. Two rings of wall guard it now, the inner one raised after the War of Four Banners, and the servants whisper of ways through the thickness of the stone: a treasury walled up and forgotten, and a postern the old Queen used to slip out unseen.',
   '-3,2': "Kar Thuldun, 'the stone hearth', was raised around the Ever-Fire where the first clans swore peace with each other. The fire has not gone out since.",
   '-2,-3': 'Goldspire was a counting-house before it was a town. The merchant houses built the spire first, so that debts could be seen from the road.',
 };
@@ -2297,6 +2300,45 @@ const PLOT_SPOTS = [[6, -2], [-6, 2], [6, 2]];
 const PLOT_NAMES = ['north-east', 'south-west', 'south-east'];
 const MONUMENT_SPRITES = { fountain: 'herofountain', shrine: 'valorshrine', cache: 'cache', beacon: 'beacon' };
 const MONUMENT_COOLDOWN_MS = 20 * 60 * 1000;
+// Castle Aurum's secrets, in local coordinates: the old treasury walled up in the
+// outer bailey, and the Queen's postern, a hidden way straight through both rings.
+const GRAND_TREASURY = { x: 3, y: 2 };
+const GRAND_SECRETS = [
+  { lx: 7, ly: 4, name: 'the walled-up treasury', found: 'A loose stone turns under your hand and a section of wall swings inward on oiled hinges. A chamber nobody has entered in a lifetime.' },
+  { lx: 51, ly: 30, name: "the Queen's postern", found: 'You lean on a worn patch of stone and it gives. A narrow door in the inner wall, cut for someone who did not want to be seen leaving.' },
+  { lx: 58, ly: 30, name: "the Queen's postern", found: 'A crack of daylight behind a hanging of ivy: the postern runs clean through the outer wall and out into the fields.' },
+];
+const secretsFound = () => (player && player.meta) ? (player.meta.secrets || (player.meta.secrets = [])) : [];
+function grandSecret(town, lx, ly) {
+  if (town.size !== 'grand') return null;
+  const sec = GRAND_SECRETS.find((s) => s.lx === lx && s.ly === ly);
+  return sec ? { ...sec, open: secretsFound().includes(key(town.x0 + lx, town.y0 + ly)) } : null;
+}
+function revealSecret(town, sec, x, y) {
+  secretsFound().push(key(x, y));
+  setTile(x, y, TILE.FLOOR); setGround(x, y, GROUND.COBBLE); bgDirty = true; mapCache.ox = null;
+  shakeScreen(3); sfx.play('quest'); burst(x, y, '#d9c17a', 18, 80, { glow: true, gravity: -40, life: 700 });
+  log(`${sec.found} You have found ${sec.name}.`, 'good');
+  const all = GRAND_SECRETS.every((s) => secretsFound().includes(key(town.x0 + s.lx, town.y0 + s.ly)));
+  unlock(sec.lx === GRAND_TREASURY.x + 4 ? 'vault' : 'postern');
+  if (all) log('You know every secret of Castle Aurum now. The steward would be appalled.', 'good');
+  track('secret_found', { name: sec.name }); updateStats(); saveProgress('progress'); draw();
+}
+function openTreasury(x, y) {
+  player.meta.looted.push(key(x, y)); setTile(x, y, TILE.FLOOR); bgDirty = true;
+  const gold = Math.round((500 + rnd(200)) * goldMult());
+  player.gold += gold; floatText(x, y, `+${gold}g`, '#f5c542'); sfx.play('win');
+  burst(x, y, '#ffd86b', 30, 120, { glow: true, gravity: 120, life: 800, rise: 140 });
+  log(`An iron-bound chest under a century of dust: ${gold} gold in old royal coin.`, 'good');
+  const up = upgradeFor(Math.random() < 0.5 ? 'weapon' : 'armor');
+  if (up && !bagFull()) { player.bag.push(up); log(`Beneath the coin, oiled and wrapped: a ${itemInfo(up).name} of the old King's own.`, 'good'); }
+  if (player.gold >= 1000) unlock('rich');
+  track('treasury_opened'); updateStats(); saveProgress('progress');
+}
+function setGround(x, y, g) {
+  const cx = Math.floor(x / CHUNK), cy = Math.floor(y / CHUNK), ch = getChunk(cx, cy);
+  if (ch.ground) ch.ground[(y - cy * CHUNK) * CHUNK + (x - cx * CHUNK)] = g;
+}
 const plotSlot = (town, x, y) => PLOT_SPOTS.slice(0, BUILD.slots).findIndex(([dx, dy]) => x === town.cx + dx && y === town.cy + dy);
 const townBuildings = new Map();   // town key -> { at, list }
 const buildingAt = (town, slot) => { const e = townBuildings.get(town.key); return e ? e.list.find((b) => b.slot === slot) || null : null; };
@@ -2391,15 +2433,31 @@ function monumentRows() {
 // Town layout in local coordinates, shared by the stamp and the renderer.
 function townTile(town, wx, wy) {
   const lx = wx - town.x0, ly = wy - town.y0;
-  const cx = 20, cy = 15, [pw, ph] = town.plaza;
+  const cx = town.cx - town.x0, cy = town.cy - town.y0, [pw, ph] = town.plaza;
   let g = GROUND.GRASS, t = TILE.FLOOR;
   if (ly >= cy - ph && ly <= cy + ph && lx >= cx - pw && lx <= cx + pw) g = GROUND.COBBLE;
   if (town.walled) {
-    if (lx >= 1 && lx <= 38 && ly >= 1 && ly <= 28) g = GROUND.COBBLE;   // paved bailey
-    const onRing = (lx === 1 || lx === 38 || ly === 1 || ly === 28) && lx >= 1 && lx <= 38 && ly >= 1 && ly <= 28;
-    const gap = ((ly === 1 || ly === 28) && lx >= 19 && lx <= 21) || ((lx === 1 || lx === 38) && ly >= 14 && ly <= 16);
-    const tower = (lx <= 2 || lx >= 37) && (ly <= 2 || ly >= 27);
-    if ((onRing && !gap) || tower) { t = TILE.WALL; g = GROUND.RAMPART; }
+    const W = tw(town), H = th(town);
+    if (lx >= 1 && lx <= W - 2 && ly >= 1 && ly <= H - 2) g = GROUND.COBBLE;   // paved bailey
+    // a ring of wall with a gate in the middle of each side and a tower at each corner
+    const ring = (a, b, c2, d) => {
+      const inside = lx >= a && lx <= c2 && ly >= b && ly <= d;
+      const on = inside && (lx === a || lx === c2 || ly === b || ly === d);
+      const gap = ((ly === b || ly === d) && lx >= cx - 1 && lx <= cx + 1) || ((lx === a || lx === c2) && ly >= cy - 1 && ly <= cy + 1);
+      const tower = inside && (lx <= a + 1 || lx >= c2 - 1) && (ly <= b + 1 || ly >= d - 1);
+      return (on && !gap) || tower;
+    };
+    if (ring(1, 1, W - 2, H - 2)) { t = TILE.WALL; g = GROUND.RAMPART; }
+    if (town.size === 'grand') {
+      if (ring(8, 7, W - 9, H - 8)) { t = TILE.WALL; g = GROUND.RAMPART; }   // the inner ring round the royal bailey
+      const R = GRAND_TREASURY;   // a chamber hidden in the thickness of the outer wall
+      if (lx >= R.x && lx <= R.x + 4 && ly >= R.y && ly <= R.y + 4) {
+        if (lx === R.x || lx === R.x + 4 || ly === R.y || ly === R.y + 4) { t = TILE.WALL; g = GROUND.RAMPART; }
+        else { t = TILE.FLOOR; g = GROUND.COBBLE; if (lx === R.x + 2 && ly === R.y + 2 && !(player && player.meta && player.meta.looted.includes(key(wx, wy)))) t = TILE.CHEST; }
+      }
+      const sec = grandSecret(town, lx, ly);
+      if (sec) { if (sec.open) { t = TILE.FLOOR; g = GROUND.COBBLE; } else { t = TILE.WALL; g = GROUND.RAMPART; } }
+    }
   }
   if (lx >= cx - 1 && lx <= cx + 1) g = GROUND.COBBLE;            // the path through the square to the roads
   if (ly >= cy - 1 && ly <= cy && lx >= cx - 1 && lx <= cx) { t = TILE.FOUNTAIN; g = GROUND.COBBLE; }
@@ -2421,7 +2479,7 @@ function siteAt(i, j) {
   if (i === DEEP_CELL[0] && j === DEEP_CELL[1]) {
     let x = i * TOWN_SPACING + 48, y = j * TOWN_SPACING + 70;
     const town = townAt(i, j);
-    if (town && x >= town.x0 - 3 && x < town.x0 + TW + 3 && y >= town.y0 - 3 && y < town.y0 + TH + 3) y = town.y0 + TH + 10;
+    if (town && x >= town.x0 - 3 && x < town.x0 + tw(town) + 3 && y >= town.y0 - 3 && y < town.y0 + th(town) + 3) y = town.y0 + th(town) + 10;
     const site = { key: k, i, j, x, y, type: 'deep', name: 'The Gate of the Deep', floors: 99, danger: 5, sprite: 'abyss', deep: true };
     sites.set(k, site);
     return site;
@@ -2430,7 +2488,7 @@ function siteAt(i, j) {
     const id = LAIR_AT[k], L = LAIRS[id];
     let x = i * TOWN_SPACING + 12 + Math.floor(cellRand(i, j, 302) * 70), y = j * TOWN_SPACING + 10 + Math.floor(cellRand(i, j, 303) * 70);
     const town = townAt(i, j);
-    if (town && x >= town.x0 - 3 && x < town.x0 + TW + 3 && y >= town.y0 - 3 && y < town.y0 + TH + 3) x = town.x0 + TW + 12;
+    if (town && x >= town.x0 - 3 && x < town.x0 + tw(town) + 3 && y >= town.y0 - 3 && y < town.y0 + th(town) + 3) x = town.x0 + tw(town) + 12;
     const site = { key: k, i, j, x, y, type: L.type, name: L.title[0].toUpperCase() + L.title.slice(1), floors: 2, danger: L.danger, sprite: SITE_TYPES[L.type].sprite, lair: id };
     sites.set(k, site);
     return site;
@@ -2439,7 +2497,7 @@ function siteAt(i, j) {
     const id = STORY_AT[k], S = STORY_SITES[id];
     let x = i * TOWN_SPACING + 12 + Math.floor(cellRand(i, j, 302) * 70), y = j * TOWN_SPACING + 10 + Math.floor(cellRand(i, j, 303) * 70);
     const town = townAt(i, j);
-    if (town && x >= town.x0 - 3 && x < town.x0 + TW + 3 && y >= town.y0 - 3 && y < town.y0 + TH + 3) x = town.x0 + TW + 12;
+    if (town && x >= town.x0 - 3 && x < town.x0 + tw(town) + 3 && y >= town.y0 - 3 && y < town.y0 + th(town) + 3) x = town.x0 + tw(town) + 12;
     const site = { key: k, i, j, x, y, type: S.type, name: S.title, floors: S.floors, danger: S.danger, sprite: SITE_TYPES[S.type].sprite, story: id };
     sites.set(k, site);
     return site;
@@ -2449,7 +2507,7 @@ function siteAt(i, j) {
   const type = types[Math.floor(cellRand(i, j, 301) * types.length)], st = SITE_TYPES[type];
   let x = i * TOWN_SPACING + 8 + Math.floor(cellRand(i, j, 302) * 80), y = j * TOWN_SPACING + 6 + Math.floor(cellRand(i, j, 303) * 80);
   const town = townAt(i, j);
-  if (town && x >= town.x0 - 3 && x < town.x0 + TW + 3 && y >= town.y0 - 3 && y < town.y0 + TH + 3) { x = town.x0 + TW + 12 + Math.floor(noise(i, j, 304) * 20); }
+  if (town && x >= town.x0 - 3 && x < town.x0 + tw(town) + 3 && y >= town.y0 - 3 && y < town.y0 + th(town) + 3) { x = town.x0 + tw(town) + 12 + Math.floor(noise(i, j, 304) * 20); }
   if (!isLand(x, y)) { sites.set(k, null); return null; }
   const danger = Math.max(Math.abs(i), Math.abs(j)) + (type === 'tower' || type === 'crypt' ? 1 : 0);
   const floors = st.floors[0] + Math.floor(cellRand(i, j, 305) * (st.floors[1] - st.floors[0] + 1));
@@ -2544,7 +2602,7 @@ function generateWorldChunk(cx, cy) {
   }
   // town stamps
   for (const town of nearbyTowns(ox + CHUNK / 2, oy + CHUNK / 2, 1)) {
-    for (let y = Math.max(oy, town.y0); y < Math.min(oy + CHUNK, town.y0 + TH); y++) for (let x = Math.max(ox, town.x0); x < Math.min(ox + CHUNK, town.x0 + TW); x++) {
+    for (let y = Math.max(oy, town.y0); y < Math.min(oy + CHUNK, town.y0 + th(town)); y++) for (let x = Math.max(ox, town.x0); x < Math.min(ox + CHUNK, town.x0 + tw(town)); x++) {
       const [t, g] = townTile(town, x, y);
       tiles[(y - oy) * CHUNK + (x - ox)] = t; gr[(y - oy) * CHUNK + (x - ox)] = g;
     }
@@ -2568,7 +2626,7 @@ function generateWorldChunk(cx, cy) {
     const g = gr[y * CHUNK + x];
     if (tiles[y * CHUNK + x] !== TILE.FLOOR || (g !== GROUND.GRASS && g !== GROUND.FOREST)) continue;
     const wx = ox + x, wy = oy + y;
-    if (nearbyTowns(wx, wy, 1).some((t) => wx >= t.x0 - 8 && wx < t.x0 + TW + 8 && wy >= t.y0 - 8 && wy < t.y0 + TH + 8)) continue;
+    if (nearbyTowns(wx, wy, 1).some((t) => wx >= t.x0 - 8 && wx < t.x0 + tw(t) + 8 && wy >= t.y0 - 8 && wy < t.y0 + th(t) + 8)) continue;
     spots.push({ x: wx, y: wy });
   }
   const pool = [...byName('Rat', 'Goblin'), ...(danger >= 2 ? byName('Orc') : []), ...(danger >= 3 ? byName('Skeleton') : []), ...(danger >= 5 ? byName('Wraith') : [])];
@@ -3391,7 +3449,7 @@ const FIELD_TRADES = { farming: 'crop', wine: 'vine', wool: 'pasture', bees: 'me
 function fieldAt(c, r) {
   for (const t of nearbyTowns(c, r, 1)) {
     const kind = FIELD_TRADES[townIdentity(t).tradeId]; if (!kind) continue;
-    const dx = c < t.x0 ? t.x0 - c : c >= t.x0 + TW ? c - (t.x0 + TW) + 1 : 0, dy = r < t.y0 ? t.y0 - r : r >= t.y0 + TH ? r - (t.y0 + TH) + 1 : 0;
+    const dx = c < t.x0 ? t.x0 - c : c >= t.x0 + tw(t) ? c - (t.x0 + tw(t)) + 1 : 0, dy = r < t.y0 ? t.y0 - r : r >= t.y0 + th(t) ? r - (t.y0 + th(t)) + 1 : 0;
     if (!dx && !dy) continue;   // inside the walls
     if (dx > 9 || dy > 7) continue;
     if (Math.abs(c - t.cx) <= 2) continue;   // keep the roads out of town clear
@@ -3428,9 +3486,11 @@ function drawDock(g, c, r) {
 }
 function drawRampart(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 29);
-  g.fillStyle = n < 0.5 ? '#64748b' : '#5b6b7f'; g.fillRect(X, Y, T, T);
+  const town = scene === 'world' ? townContaining(c, r) : null, royal = !!town && town.size === 'grand';
+  g.fillStyle = royal ? (n < 0.5 ? '#7c8aa3' : '#70809a') : n < 0.5 ? '#64748b' : '#5b6b7f'; g.fillRect(X, Y, T, T);
   g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(X, Y + T / 2 - 1, T, 2); g.fillRect(X + (n < 0.5 ? T / 2 : T / 4), Y, 2, T / 2); g.fillRect(X + (n < 0.5 ? T / 4 : T * 0.7), Y + T / 2, 2, T / 2);
-  if (groundAt(c, r - 1) !== GROUND.RAMPART) { g.fillStyle = '#94a3b8'; for (let i = 0; i < T; i += 8) g.fillRect(X + i, Y, 4, 5); }
+  if (groundAt(c, r - 1) !== GROUND.RAMPART) { g.fillStyle = royal ? '#d6bd62' : '#94a3b8'; for (let i = 0; i < T; i += 8) g.fillRect(X + i, Y, 4, 5); }
+  if (royal) { const sec = grandSecret(town, c - town.x0, r - town.y0); if (sec && !sec.open) { g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(X + 13, Y + 4, 1, 9); g.fillRect(X + 14, Y + 12, 1, 7); g.fillRect(X + 16, Y + 18, 1, 8); g.fillStyle = 'rgba(90,140,70,0.6)'; g.fillRect(X + 11, Y + 24, 3, 2); } }
   g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(X, Y + T - 3, T, 3);
 }
 // ---------- buildings ----------
@@ -4522,7 +4582,7 @@ function renderWorldMap() {
   for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
     const t = townAt(i, j);
     if (!t) continue;
-    const [x, y] = toPx(t.x0, t.y0), w = (TW / MAP_STEP) * MAP_PX, h = (TH / MAP_STEP) * MAP_PX;
+    const [x, y] = toPx(t.x0, t.y0), w = (tw(t) / MAP_STEP) * MAP_PX, h = (th(t) / MAP_STEP) * MAP_PX;
     drawMapTown(g, t, x, y, w, h);
   }
   // places you have discovered
@@ -5527,6 +5587,7 @@ function tryMove(dx, dy) {
     if (shipAt(nx, ny)) { boardShip(); return; }
     fishAt(nx, ny); return;
   }
+  if (t === TILE.WALL && scene === 'world') { const tn = townContaining(nx, ny); const sec = tn && grandSecret(tn, nx - tn.x0, ny - tn.y0); if (sec && !sec.open) { if (dx) player.face = dx; revealSecret(tn, sec, nx, ny); return; } }
   if (t === TILE.WALL || t === TILE.FOUNTAIN) return;
   const n = scene !== 'dungeon' && getNpcAt(nx, ny);
   if (n) { talk(n); draw(); return; }
@@ -5559,6 +5620,7 @@ function tryMove(dx, dy) {
     return;
   }
   if (dx) player.face = dx;
+  if (t === TILE.CHEST && scene === 'world') { const tn = townContaining(nx, ny); if (tn && tn.size === 'grand' && nx - tn.x0 === GRAND_TREASURY.x + 2 && ny - tn.y0 === GRAND_TREASURY.y + 2) { openTreasury(nx, ny); endTurn(false); return; } }
   if (t === TILE.CHEST) { openChest(nx, ny); endTurn(false); return; }
   if (houndAt(nx, ny)) { hound.x = player.x; hound.y = player.y; }
   if (escort && escort.x === nx && escort.y === ny) { escort.x = player.x; escort.y = player.y; }
@@ -6213,7 +6275,7 @@ function campAt(i, j) {
     const town = townAt(i, j), site = siteAt(i, j), place = placeAt(i, j);
     for (let n = 0; n < 6 && !camp; n++) {
       const x = i * TOWN_SPACING + 8 + Math.floor(cellRand(i, j, 601 + n) * 80), y = j * TOWN_SPACING + 6 + Math.floor(cellRand(i, j, 611 + n) * 80);
-      if (town && x >= town.x0 - 12 && x < town.x0 + TW + 12 && y >= town.y0 - 12 && y < town.y0 + TH + 12) continue;
+      if (town && x >= town.x0 - 12 && x < town.x0 + tw(town) + 12 && y >= town.y0 - 12 && y < town.y0 + th(town) + 12) continue;
       if (site && Math.abs(site.x - x) + Math.abs(site.y - y) < 10) continue;
       if (place && Math.abs(place.x - x) + Math.abs(place.y - y) < 6) continue;
       const g = terrainAt(x, y);
@@ -7304,7 +7366,7 @@ function chartSpot(port, n) {
     const x = Math.round(port.cx + Math.cos(a) * d), y = Math.round(port.cy + Math.sin(a) * d);
     if (!isLand(x, y) || charts().includes(key(x, y))) continue;
     const g = terrainAt(x, y); if (g !== GROUND.GRASS && g !== GROUND.SAND && g !== GROUND.FOREST) continue;
-    if (nearbyTowns(x, y, 1).some((t) => x >= t.x0 - 4 && x < t.x0 + TW + 4 && y >= t.y0 - 4 && y < t.y0 + TH + 4)) continue;
+    if (nearbyTowns(x, y, 1).some((t) => x >= t.x0 - 4 && x < t.x0 + tw(t) + 4 && y >= t.y0 - 4 && y < t.y0 + th(t) + 4)) continue;
     if (continentOf(x, y) === -1) return { x, y };
     if (!shore && [[3, 0], [-3, 0], [0, 3], [0, -3]].some(([ox, oy]) => isSea(x + ox, y + oy))) shore = { x, y };
   }
@@ -7758,6 +7820,7 @@ function startRun(saved) {
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
         rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
+        secrets: Array.isArray(saved.meta?.secrets) ? saved.meta.secrets.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 20) : [],
         charts: Array.isArray(saved.meta?.charts) ? saved.meta.charts.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 3) : [], treasures: Number(saved.meta?.treasures) || 0,
         ship: saved.meta?.ship && Number.isInteger(saved.meta.ship.x) && Number.isInteger(saved.meta.ship.y) ? { x: saved.meta.ship.x, y: saved.meta.ship.y } : null,
         rescued: Number(saved.meta?.rescued) || 0,

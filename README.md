@@ -226,6 +226,16 @@ blocks; forest trees vary in size, lean and facing; and by day the shadows of a
 few clouds drift over the land, fixed to the world and pushed by the wind
 (`drawCloudShadows`).
 
+Castle Aurum is half again the size of any other town (`GRAND_W`×`GRAND_H`, via
+`tw()`/`th()`), with two rings of wall: an outer bailey of market, cottages and
+shops, and an inner ring round the throne hall, royal apartments, arena and
+smithy. Its ramparts are gold-trimmed. Three secret stones (`GRAND_SECRETS`)
+open when the hero walks into them: a walled-up treasury in the outer wall with
+a chest of royal gold and old gear, and the Queen's postern, a hidden door in
+each ring on the east side that leads straight out into the fields. Secret
+stones show a hairline crack and a tuft of moss; the castle's lore hints at them.
+Found secrets are kept in `meta.secrets`.
+
 Every town keeps a watch that patrols the square and the gate and sallies out
 after anything near the walls: a scruffy militiaman in ramshackle towns, guards
 in realm colours in thriving ones, knights in castles and at Castle Aurum (see
