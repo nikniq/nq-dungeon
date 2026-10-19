@@ -22,8 +22,13 @@ Deep gate sits on the Cantons–Kingdom bridge; story sites are anchored to land
 Towns, dungeons, places and camps only generate on land, and roads never cross
 the sea. Any town near the sea is a port with a pier, a moored ship and a
 harbourmaster who sells passage to every other port within four regions, even
-ones not yet visited (`harbourOf`, `sailTo`). A hero whose saved spot is now
-sea wakes in their home town.
+ones not yet visited (`harbourOf`, `sailTo`). Harbourmasters also sell a ship
+of the hero's own (`SHIP_COST`, a quarter off in shipping towns): walk into it
+at its mooring beside the pier to go aboard, sail the open sea two tiles a
+step with the arrow keys or a click, and steer onto any shore or island to
+land. The ship waits where it was left (`meta.ship`, shown on the map) and any
+harbourmaster can fetch it for a small fee. A hero saved at sea wakes aboard;
+one whose saved spot on land is now sea wakes in their home town.
 
 You start in Hearth on an endless seeded overworld (`WORLD_SEED` in `script.js`).
 Settlements sit roughly every 96 tiles (some cells are empty), placed on the best

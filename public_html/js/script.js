@@ -70,6 +70,7 @@ const perkCount = (id) => (player && player.perks ? player.perks.filter((p) => p
 const bagSize = () => ITEMS.bag_size + 4 * perkCount('packrat');
 let perkChoices = null;   // the three on offer while the picker is open
 let perkCursor = 0;       // the card the arrow keys have highlighted
+let aboard = false;       // the hero is at sea in their own ship
 
 // Achievements award a title the moment they unlock; the newest title shows on the profile.
 const ACHIEVEMENTS = {
@@ -110,6 +111,7 @@ const ACHIEVEMENTS = {
   angler:      { label: 'Caught a golden carp', title: 'the Angler' },
   camper:      { label: 'Made camp in the wilds', title: 'the Wanderer' },
   rider:       { label: 'Bought a horse', title: 'the Rider' },
+  shipwright:  { label: 'Bought a ship', title: 'the Captain' },
   champion:    { label: 'Survived ten waves in the Grand Arena', title: 'Champion of Aurum' },
   four_realms: { label: 'Finished every realm questline', title: 'Friend of Four Realms' },
   abyss10:     { label: 'Reached floor 10 of the Deep', title: 'the Deepwalker' },
@@ -269,7 +271,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -1573,6 +1575,7 @@ function guideSuggestions() {
   if (!questsActive().length) out.push(['Find work', 'Watch captains post bounties on named beasts, and townsfolk want monsters cleared.']);
   if (!hound) out.push(['A companion', `Any inn will hire you a hound for ${HOUND_COST} gold.`]);
   if (player.bag.length >= bagSize() - 2 && !player.meta.room) out.push(['Your bag is nearly full', `Rent a room at an inn (${ROOM_COST} gold) for a storage chest at every inn.`]);
+  if (!player.meta.ship && player.gold >= SHIP_COST * 0.75) out.push(['Set sail', `Harbourmasters sell ships (${SHIP_COST} gold): sail the open sea to islands and shores no road reaches.`]);
   if (!player.meta.horse && player.gold >= HORSE_COST * 0.75) out.push(['Ride', `Inns in cities and castles sell horses (${HORSE_COST} gold): two tiles a step in the wilds.`]);
   if (player.weapon && (player.weaponPlus || 0) < 3 && player.gold >= UPGRADE_COST(player.weaponPlus || 0)) out.push(['Sharpen your blade', `A smithy can make your ${itemInfo(player.weapon).name} +${(player.weaponPlus || 0) + 1}.`]);
   if (player.meta.places.length < 5) out.push(['Explore', 'Standing stones, shrines, ruins, hermits and wells lie in the wilds. Walk near them to discover them.']);
@@ -3122,7 +3125,7 @@ function createDungeon() {
 
 // ---------- visibility and pathing ----------
 // Breadth-first distances from a point, out to a limit. Returns a Map of "x,y" -> steps.
-function bfs(sx, sy, limit, blockMonsters, avoidHazards = false) {
+function bfs(sx, sy, limit, blockMonsters, avoidHazards = false, sea = false) {
   const d = new Map([[key(sx, sy), 0]]);
   const q = [[sx, sy]];
   while (q.length) {
@@ -3131,7 +3134,7 @@ function bfs(sx, sy, limit, blockMonsters, avoidHazards = false) {
     if (dd >= limit) continue;
     for (const [dx, dy] of DIRS) {
       const nx = cx + dx, ny = cy + dy, k = key(nx, ny);
-      if (d.has(k) || !walkable(getTile(nx, ny))) continue;
+      if (d.has(k) || !(walkable(getTile(nx, ny)) || (sea && seaTile(nx, ny)))) continue;
       if (blockMonsters && getMonsterAt(nx, ny)) continue;
       if (avoidHazards && hazard(nx, ny)) continue;
       d.set(k, dd + 1);
@@ -4258,6 +4261,7 @@ function drawScene(now) {
     shadow(ex, ey); drawSprite(ctx, 'villager', ex, ey - bob(escort), 1, 3, escort.face === -1);
     ctx.fillStyle = '#300'; ctx.fillRect(ex * T - cam.x + 3, ey * T - cam.y, T - 6, 3); ctx.fillStyle = '#9ef0b0'; ctx.fillRect(ex * T - cam.x + 3, ey * T - cam.y, (T - 6) * (escort.hp / escort.maxHp), 3);
   }
+  if (player.meta.ship && !aboard && scene === 'world') drawSprite(ctx, 'ship', player.meta.ship.x, player.meta.ship.y + Math.sin(now / 500) * 0.04, 1, -2);   // moored where it was left
   {
     const [ldx, ldy] = lunge(player, now);
     const lx = (player.rx ?? player.x) + ldx / T, ly = (player.ry ?? player.y) + ldy / T - bob(player) - hop(player);
@@ -4265,7 +4269,8 @@ function drawScene(now) {
     if (player.shield > 0) { ctx.strokeStyle = `rgba(123,223,255,${0.5 + 0.3 * Math.sin(now / 120)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(lx * T - cam.x + T / 2, ly * T - cam.y + T / 2, T * 0.62, 0, Math.PI * 2); ctx.stroke(); }
     const mounted = riding();
     if (mounted) drawSprite(ctx, 'horse', lx, ly + 0.12, 1, 1, player.face === -1);
-    drawSprite(ctx, playerSprite(), lx, ly - (mounted ? 0.38 : 0), 1, 3, player.face === -1, player.flashUntil > now || player.poison > 0 && Math.floor(now / 300) % 3 === 0);
+    if (aboard) drawSprite(ctx, 'ship', lx, ly + 0.1 + Math.sin(now / 500) * 0.04, 1, -2, player.face === -1);
+    drawSprite(ctx, playerSprite(), lx, ly - (mounted ? 0.38 : aboard ? 0.3 : 0), 1, 3, player.face === -1, player.flashUntil > now || player.poison > 0 && Math.floor(now / 300) % 3 === 0);
   }
   const px = (player.rx ?? player.x) * T - cam.x + T / 2, py = (player.ry ?? player.y) * T - cam.y + T / 2;
   if (scene === 'world') {
@@ -4649,6 +4654,10 @@ function drawWorldMap(g, now) {
       g.fillStyle = '#ffd1d1'; g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.fillText('Pin', qx, qy - 24); g.textAlign = 'left';
     }
   }
+  if (player.meta.ship && !aboard) {   // the ship, where it was left
+    const sx = X + ((player.meta.ship.x - mapCache.ox) / MAP_STEP) * MAP_PX, sy = Y + ((player.meta.ship.y - mapCache.oy) / MAP_STEP) * MAP_PX;
+    g.font = 'bold 13px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText('⛵', sx, sy); g.textBaseline = 'alphabetic';
+  }
   // the hero
   const px = X + ((player.x - mapCache.ox) / MAP_STEP) * MAP_PX, py = Y + ((player.y - mapCache.oy) / MAP_STEP) * MAP_PX;
   g.fillStyle = 'rgba(255,216,107,0.35)'; g.beginPath(); g.arc(px, py, 8 + Math.sin(now / 200) * 2, 0, Math.PI * 2); g.fill();
@@ -4690,6 +4699,7 @@ function describeTile(x, y) {
   const other = mpPlayerAt(x, y);
   if (other) return `${other.data.name}${other.data.title ? ' ' + other.data.title : ''} — level ${other.data.level} ${other.data.cls}${inMyParty(other.id) ? ', in your party' : ''}${scene !== 'dungeon' ? '. Walk into them to invite or wave' : ''}`;
   if (houndAt(x, y)) return `Your hound — ${hound.hp}/${hound.maxHp} HP, bite ${hound.atk}, level ${hound.level}, ${hound.kills} kills`;
+  if (shipAt(x, y)) return 'Your ship — walk into her to go aboard';
   if (t === TILE.SHIP) { const pt = portAtTile(x, y); return pt ? `The ship of ${pt.name} — walk into it, or speak to the harbourmaster, to sail to another port` : 'A boat'; }
   if (scene === 'world' && groundAt(x, y) === GROUND.DOCK) return 'The pier — the harbourmaster at the end sells passage by sea';
   if (t === TILE.WARCAMP) { const wc = campAtTile(x, y); if (wc) return campRazed(wc) ? `${wc.name} — razed` : `${wc.name} — orc warcamp, strength ${wc.strength}. ${armiesUnlocked() ? 'Send a realm\'s army' : `Armies open at level ${ARMY_LEVEL}`}`; }
@@ -4738,7 +4748,7 @@ function describeTile(x, y) {
   if (t === TILE.PLACE && inTown()) { const pl = placeAtTile(x, y); if (pl) return discovered(pl) ? `${pl.name[0].toUpperCase() + pl.name.slice(1)} — ${PLACE_TYPES[pl.type].label}, walk into it` : 'Something old stands here — walk into it'; }
   if (inTown()) {
     const gnd = groundAt(x, y);
-    if (gnd === GROUND.WATER) return 'Water — too deep to cross';
+    if (gnd === GROUND.WATER) return seaTile(x, y) ? (aboard ? 'Open sea' : player.meta.ship ? 'The sea — your ship could sail here' : 'The sea — harbourmasters sell ships to sail it, and fish bite along the shore') : 'Water — too deep to cross';
     if (gnd === GROUND.MOUNTAIN) return 'Mountains — no way over';
     if (gnd === GROUND.TREE) return 'Dense trees — find a way round';
     if (gnd === GROUND.ROAD) { const nt = nearestOtherTown(x, y); return `Road${nt ? ' — leads towards ' + nt.name : ''}`; }
@@ -4761,12 +4771,12 @@ const hover = { x: null, y: null, path: [], sig: '' };
 const occupiedBy = (x, y) => getMonsterAt(x, y) || getNpcAt(x, y) || mpPlayerAt(x, y) || null;
 function interactive(x, y) {
   const t = getTile(x, y);
-  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT, TILE.CRACK, TILE.SPRING, TILE.MONUMENT, TILE.PLOT, TILE.WARCAMP, TILE.SHIP, TILE.CAPTIVE, TILE.TOTEM, TILE.LEVER, TILE.ALTAR].includes(t);
+  return !!occupiedBy(x, y) || shipAt(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT, TILE.CRACK, TILE.SPRING, TILE.MONUMENT, TILE.PLOT, TILE.WARCAMP, TILE.SHIP, TILE.CAPTIVE, TILE.TOTEM, TILE.LEVER, TILE.ALTAR].includes(t);
 }
 // The tiles from the hero to a target (not including the hero's own tile), shortest first.
 function pathTo(tx, ty, limit = 60) {
-  let d = bfs(tx, ty, limit, false, true);
-  if (d.get(key(player.x, player.y)) === undefined) d = bfs(tx, ty, limit, false);   // only through hazards if there is no other way
+  let d = bfs(tx, ty, limit, false, true, aboard);
+  if (d.get(key(player.x, player.y)) === undefined) d = bfs(tx, ty, limit, false, false, aboard);   // only through hazards if there is no other way
   if (d.get(key(player.x, player.y)) === undefined) return null;
   const path = []; let x = player.x, y = player.y;
   for (let i = 0; i < limit; i++) {
@@ -5468,7 +5478,12 @@ function tryMove(dx, dy) {
   if (gameOver || !player || shopOpen || perkChoices || entering || storyOpen() || controlsOpen() || settingsOpen()) return;
   const nx = player.x + dx, ny = player.y + dy;
   const t = getTile(nx, ny);
-  if (t === TILE.WALL && scene === 'world' && groundAt(nx, ny) === GROUND.WATER) { fishAt(nx, ny); return; }
+  if (t === TILE.WALL && scene === 'world' && groundAt(nx, ny) === GROUND.WATER) {
+    if (dx) player.face = dx;
+    if (aboard && seaTile(nx, ny)) { sailStep(dx, dy); return; }
+    if (shipAt(nx, ny)) { boardShip(); return; }
+    fishAt(nx, ny); return;
+  }
   if (t === TILE.WALL || t === TILE.FOUNTAIN) return;
   const n = scene !== 'dungeon' && getNpcAt(nx, ny);
   if (n) { talk(n); draw(); return; }
@@ -5507,6 +5522,7 @@ function tryMove(dx, dy) {
   const m = getMonsterAt(nx, ny);
   if (m) playerAttack(m);
   else {
+    if (aboard) { aboard = false; player.meta.ship = { x: player.x, y: player.y }; log('You run the ship in close and splash ashore. She waits here for you.'); placeHound(); }
     player.x = nx; player.y = ny;
     if (t === TILE.TRAP && (dx || dy)) springTrap(nx, ny);
     if (t === TILE.LAVA) {
@@ -6407,7 +6423,7 @@ function endTurn(moved) {
   if (scene === 'world' && turn % 5 === 0) spawnBounties();
   music.setMood(currentMood());
   if (mapPin && scene === 'world' && cheb(mapPin, player) <= 3) { mapPin = null; savePin(); log('You reach the spot you pinned on your map.', 'good'); }
-  if (scene === 'world' && moved && !gameOver && !storyOpen() && !perkChoices && !townContaining(player.x, player.y) && !coopActive()
+  if (scene === 'world' && moved && !gameOver && !storyOpen() && !perkChoices && !aboard && !townContaining(player.x, player.y) && !coopActive()
       && !monsters.some((m) => m.awake && cheb(m, player) <= 6)) {
     if (chapterRider()) { draw(); return; }
     encounterClock++;
@@ -6848,8 +6864,8 @@ function touchStep() {
   const dx = tx - player.x, dy = ty - player.y;
   if (!dx && !dy) { stopTouchWalk(); return; }
   // walk the shortest path when the spot can be reached, so obstacles are skirted
-  if (walkable(getTile(tx, ty)) && Math.abs(dx) + Math.abs(dy) <= 40) {
-    const d = bfs(tx, ty, 48, false), here = d.get(key(player.x, player.y));
+  if ((walkable(getTile(tx, ty)) || (aboard && seaTile(tx, ty))) && Math.abs(dx) + Math.abs(dy) <= 40) {
+    const d = bfs(tx, ty, 48, false, false, aboard), here = d.get(key(player.x, player.y));
     if (here !== undefined) {
       let best = null, bd = here;
       for (const [ax, ay] of DIRS) { const nd = d.get(key(player.x + ax, player.y + ay)); if (nd !== undefined && nd < bd) { bd = nd; best = [ax, ay]; } }
@@ -7171,7 +7187,7 @@ function stashRows() {
 // A horse from the stables of any city or castle: in the open wilds every step
 // covers two tiles. It waits in town and never goes underground.
 const HORSE_COST = 400;
-const riding = () => !!(player && player.meta && player.meta.horse) && scene === 'world' && !townContaining(player.x, player.y)
+const riding = () => !!(player && player.meta && player.meta.horse) && scene === 'world' && !aboard && !townContaining(player.x, player.y)
   && !monsters.some((m) => m.awake && cheb(m, player) <= 4);
 function horseRows() {
   const town = interior && interior.house && interior.house.town ? townAt(...interior.house.town.split(',').map(Number)) : null;
@@ -7185,6 +7201,62 @@ function horseRows() {
     tip('horse', 'In the open wilds you ride, two tiles a step. You dismount in towns, underground, and when monsters close in.');
     unlock('rider'); updateStats(); renderShop(); draw(); saveProgress('progress');
   }, player.gold < cost)];
+}
+// A ship of the hero's own, sold by any harbourmaster. It sails the open sea
+// two tiles a step, lands on any shore, and waits wherever it was left.
+const SHIP_COST = 1500;
+const seaTile = (x, y) => scene === 'world' && getTile(x, y) === TILE.WALL && groundAt(x, y) === GROUND.WATER && isSea(x, y);
+const shipAt = (x, y) => !aboard && !!(player && player.meta && player.meta.ship) && player.meta.ship.x === x && player.meta.ship.y === y && scene === 'world';
+// the open-water tile alongside the pier where a hero's ship can lie
+function mooringOf(town) {
+  const H = town.harbour; if (!H) return null;
+  const perp = H.dx ? [0, 1] : [1, 0];
+  for (let k = H.len; k >= 2; k--) for (const sg of [1, -1]) {
+    const x = H.x + H.dx * k + perp[0] * sg, y = H.y + H.dy * k + perp[1] * sg;
+    if (seaTile(x, y)) return { x, y };
+  }
+  return null;
+}
+function shipRows(here) {
+  if (!here || !here.harbour) return [];
+  const S = player.meta.ship, moor = mooringOf(here);
+  if (!S) {
+    if (!moor) return [shopRow('The harbourmaster would sell you a ship, but there is no open water to moor one here')];
+    const cost = townIdentity(here).trade.label === 'shipping' ? Math.round(SHIP_COST * 0.75) : SHIP_COST;
+    return [shopRow('A ship of your own: sail the open sea at will, two tiles a step, and land on any shore or island no road reaches', `Buy ${cost}g`, () => {
+      if (player.gold < cost) return;
+      player.gold -= cost; player.meta.ship = moor; sfx.play('quest');
+      log(`The harbourmaster hands you the papers of a trim little cog. She lies at anchor off the pier of ${here.name}: walk into her to go aboard.`, 'good');
+      tip('ship', 'At sea the arrow keys sail your ship. Steer onto any shore to land; the ship waits where you left it, and any harbourmaster can fetch it.');
+      unlock('shipwright'); track('ship_bought', { cost }); updateStats(); renderShop(); draw(); saveProgress('progress');
+    }, player.gold < cost)];
+  }
+  const far = Math.round(Math.hypot(S.x - here.cx, S.y - here.cy));
+  if (far <= 24 || !moor) return [shopRow(far <= 24 ? 'Your ship rides at anchor off the pier. Walk into her to go aboard' : 'Your ship is moored elsewhere, and there is no open water here to bring her to')];
+  const fee = 20 + Math.round(far / 20);
+  return [shopRow(`Your ship lies ${far} tiles away. The harbourmaster's lads can bring her round to this pier`, `Fetch ${fee}g`, () => {
+    if (player.gold < fee) return;
+    player.gold -= fee; player.meta.ship = moor; sfx.play('gold');
+    log(`A few days of other people's rowing later, your ship lies off the pier of ${here.name}.`, 'good');
+    updateStats(); renderShop(); draw(); saveProgress('progress');
+  }, player.gold < fee)];
+}
+function boardShip() {
+  const S = player.meta.ship;
+  if (S.x > player.x) player.face = 1; else if (S.x < player.x) player.face = -1;
+  player.x = S.x; player.y = S.y; player.wx = S.x; player.wy = S.y; aboard = true;
+  log('You climb aboard and shake out the sail. The open sea is yours.', 'good');
+  tip('ship', 'At sea the arrow keys sail your ship. Steer onto any shore to land; the ship waits where you left it, and any harbourmaster can fetch it.');
+  sfx.play('stairs'); endTurn(true);
+}
+function sailStep(dx, dy) {
+  let nx = player.x + dx, ny = player.y + dy;
+  player.x = nx; player.y = ny;
+  // a following sea: the second tile comes free on open water
+  const x2 = nx + dx, y2 = ny + dy;
+  if ((dx || dy) && seaTile(x2, y2) && !(walk.active && nx === walk.tx && ny === walk.ty)) { player.x = x2; player.y = y2; }
+  player.wx = player.x; player.wy = player.y; player.meta.ship = { x: player.x, y: player.y };
+  endTurn(true);
 }
 function travelCost(town) { const c = 10 + Math.round((Math.abs(town.cx - player.x) + Math.abs(town.cy - player.y)) / 12); return realmState().standing >= 250 ? Math.ceil(c / 2) : c; }
 function travelTo(town) {
@@ -7419,6 +7491,7 @@ function serviceRowsInner(kind) {
   } else if (kind === 'harbour') {
     const here = townContaining(player.x, player.y) || nearestTownTo(player.x, player.y);
     const ports = here ? portsNear(here) : [];
+    for (const row of shipRows(here)) rows.push(row);
     if (!ports.length) rows.push(shopRow('No other port on this sea. The ship stays tied up.'));
     for (const t of ports) {
       const I = townIdentity(t), seen = player.meta.visited.includes(t.key), cost = fareTo(here, t);
@@ -7471,7 +7544,8 @@ document.getElementById('shop-close')?.addEventListener('click', closeShop);
 
 // ---------- setup ----------
 function afterSceneChange() {
-  if (scene === 'world' && player && !walkable(getTile(player.x, player.y)) && !townContaining(player.x, player.y)) {
+  if (aboard && !seaTile(player.x, player.y)) aboard = false;   // ferries, waystones and gates all leave the ship where it was moored
+  if (scene === 'world' && player && !aboard && !walkable(getTile(player.x, player.y)) && !townContaining(player.x, player.y)) {
     log('The land has changed since you were last here: the sea covers where you stood. You wake in your home town.', 'bad');
     returnHome();
   }
@@ -7486,7 +7560,7 @@ function afterSceneChange() {
 function startRun(saved) {
   player = { x: 1, y: 1, hp: 24, maxHp: 24, atk: 3, level: 1, xp: 0, gold: 0, weapon: null, armor: null, bag: [], quests: [], questsDone: 0, cls: 'warrior', mana: 0, shield: 0, poison: 0,
     perks: [], achievements: [], title: null, meta: { visited: [], second_wind: false, places: [], looted: [], found: [], bestiary: {}, story: null, blessing: null, realm: null }, weaponPlus: 0, armorPlus: 0, lifetimeKills: 0, pendingPerks: 0, relic: null };
-  questsOpen = false; mapOpen = false; revealedTraps = new Set(); perkChoices = null; toast = null;
+  questsOpen = false; mapOpen = false; revealedTraps = new Set(); perkChoices = null; toast = null; aboard = false;
   hound = null;
   { const h = saved && saved.meta && saved.meta.hound; if (h && h.max_hp) hound = { x: 0, y: 0, hp: h.hp, maxHp: h.max_hp, atk: h.atk, level: h.level, kills: h.kills, down: !!h.down }; }
   floor = TOWN; interior = null; gameOver = false; turn = 0; kills = 0;
@@ -7510,6 +7584,7 @@ function startRun(saved) {
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
         rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
+        ship: saved.meta?.ship && Number.isInteger(saved.meta.ship.x) && Number.isInteger(saved.meta.ship.y) ? { x: saved.meta.ship.x, y: saved.meta.ship.y } : null,
         rescued: Number(saved.meta?.rescued) || 0,
         lairs: saved.meta?.lairs && Array.isArray(saved.meta.lairs.known) ? { known: saved.meta.lairs.known.filter((id) => LAIRS[id]), slain: (saved.meta.lairs.slain || []).filter((id) => LAIRS[id]) } : null,
         act2: saved.meta?.act2 && Number.isInteger(saved.meta.act2.s) ? { s: saved.meta.act2.s, n: 0, told: !!saved.meta.act2.told } : null,
@@ -7537,6 +7612,7 @@ function startRun(saved) {
     const t = townAt(...homeTown.split(',').map(Number)) || townAt(0, 0);
     homeTown = t.key;
     if (saved && Number.isInteger(saved.wx) && Number.isInteger(saved.wy) && walkable(getTile(saved.wx, saved.wy))) { player.x = saved.wx; player.y = saved.wy; }
+    else if (saved && player.meta.ship && saved.wx === player.meta.ship.x && saved.wy === player.meta.ship.y && seaTile(saved.wx, saved.wy)) { player.x = saved.wx; player.y = saved.wy; aboard = true; }   // saved at sea, aboard
     else { player.x = t.spawn.x; player.y = t.spawn.y; }
     player.wx = player.x; player.wy = player.y; settle(player); refreshTownContext();
   } else {
