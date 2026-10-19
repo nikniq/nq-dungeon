@@ -81,6 +81,17 @@ the last one, which is always the way out.
 Any inn rents a room for good (250 gold). It opens a storage chest of 20 items
 at every inn, kept in `characters.meta.stash` and safe when you fall.
 
+Between shards, a rider finds the hero on the road with news, a hint and a gift
+(`CHAPTER_RIDERS`); townsfolk trade rumours that change with the story
+(`storyRumour`); Ser Halvard, captain of Edric's grey cloaks, leads the road
+ambush, holds the third floor of the Star Tower and later stands in the King's
+hall; and once the crown is whole every square hangs bunting. Story scenes have
+painted backdrops (`drawSceneBackdrop`: hall, town, road, crypt, grotto, lava,
+tower, wilds, deep, arena, map). The overworld has crop rows, vineyards, meadows
+and pastures around the towns that live off the land (`fieldAt`), wheel-rutted
+roads with green verges, crags with snow on the high peaks, and bushes and tufts
+in the grass.
+
 Act II, What Sleeps Below, follows the crown: the pardoned Prince Edric sits in
 the King's hall and sends the hero into the Deep in stages (floors 5, 10, 15, 20),
 with the Warden of the Deep on floor 10 and the Dreaming Maw on floor 20 as named

@@ -1264,6 +1264,10 @@ const INDOOR_NPCS = {
     'The King holds court at the grand castle. Bring him a tale worth hearing.',
     'Our smithy and armoury serve any hero who serves the realm.'] },
   edric: { sprite: 'darkknight', name: 'Prince Edric', lines: ['"My brother keeps me close now, where he can see me."'] },
+  halvard: { sprite: 'darkknight', name: 'Ser Halvard', lines: [
+    '"We have met. On the Ember road, and on the third floor of a tower, where you knocked me flat. No hard feelings. You fight well, for someone who does not fight for money."',
+    '"I served the prince for ten years in exile, and I serve him still. The King keeps me on because a man who will follow the wrong brother that far will follow the right one anywhere."',
+    '"The grey cloaks are disbanded. Most of them took the pardon. One or two did not, and are on the roads yet. If you meet them, tell them Halvard said to come home."'] },
   king: { sprite: 'king', name: 'King Aldric', action: 'court', lines: [
     'Welcome, hero. The realm has need of those who go below and come back up.',
     'My quartermaster keeps the royal armoury. Dragonscale, if you have the gold.',
@@ -1468,9 +1472,9 @@ const WORLD_INTRO = [
     text: 'A thousand years ago there was one kingdom and one crown. Aurel the Founder pulled five lights out of the dark, Dawn, Tides, Bones, Embers and Stars, and forged them into the Crown of Aurum. While the crown stayed whole, the land was quiet.' },
   { who: 'The Deep', sprite: 'wraith', title: 'The Deep',
     text: 'The lights were not taken from nothing. Beneath the world lies the Deep, old and patient and dreaming. Its dreams leak upward as caves, crypts and endless halls. Every town was built with a gate over one, so the watch could keep an eye on the dark.' },
-  { who: 'The Sundering', art: 'realms', title: 'The Sundering',
+  { who: 'The Sundering', art: 'realms', bg: 'map', title: 'The Sundering',
     text: 'Three hundred years ago the War of Four Banners broke the old kingdom apart. The crown stayed at Castle Aurum with the last royal line. The rest of the land went its own way, and four realms rose from the wreck.' },
-  { who: 'The four realms', art: 'realms', title: 'The four realms',
+  { who: 'The four realms', art: 'realms', bg: 'map', title: 'The four realms',
     text: "In the middle lie the Free Cantons of Hearth, who elect their council and argue about everything. To the north-east the Kingdom of Aurum keeps the crown, the castles and the King's law. In the south-west the Ka'thar Clans follow a chieftain chosen in battle and shamans who speak with spirits. And in the north-west the Goldspire League is run by its richest merchant houses, and sells everything." },
   { who: 'The roads between', sprite: 'stones', title: 'The roads between',
     text: 'Old roads run between the realms, past standing stones older than any of them, wayside shrines, ruined towns, lonely hermits and battlefields where the swords still stand. The waystone in every town remembers the roads, for a fee.' },
@@ -1556,6 +1560,41 @@ function guideSuggestions() {
   if (!player.relic && player.meta.found.length) out.push(['Wear your treasure', 'You have a treasure in your bag. Wear it from the inventory.']);
   return out.slice(0, 9);
 }
+// After each shard is handed in, a rider finds the hero on the road with news of
+// the realms, a hint, and a small gift from someone who is grateful.
+const CHAPTER_RIDERS = [
+  { who: 'A rider of the Cantons', sprite: 'villager', bg: 'road', gift: () => { player.gold += 40; return '40 gold'; },
+    text: 'A rider in Cantons green catches you up on the road. "Speaker Maren sends this, with the council\'s thanks: forty gold, voted unanimously, which has never happened before." She leans closer. "And a warning. Grey riders with silver stags were seen on the south road. Nobody knows whose they are."' },
+  { who: "A runner of the Ka'thar", sprite: 'farmer', bg: 'road', gift: () => { player.bag.push('potion'); if (!bagFull()) player.bag.push('potion'); return 'two potions'; },
+    text: 'A clan runner falls into step beside you, barely breathing hard. "Ulrek says: the grotto is quiet, the fishers are back on the water, and the clans will not hinder you. Here." Two potions, wrapped in oilcloth. "He also says the stag riders have been asking after you. He told them you were in the Deep. He thought it was funny."' },
+  { who: 'A courier of the League', sprite: 'merchant', bg: 'road', gift: () => { if (!bagFull()) player.bag.push('bomb'); return 'a bomb'; },
+    text: 'A courier in League purple reins in and hands you a sealed note without a word. It is from Vessa Orlov. "The prince has been buying orc loyalty with royal silver. Follow the silver west; it ends in a pit of embers. Enclosed, something that goes bang. Invoice to follow." The courier is already gone.' },
+  { who: "The King's own rider", sprite: 'guard', bg: 'road', gift: () => { if (!bagFull()) player.bag.push('elixir'); return 'an elixir'; },
+    text: 'A rider in gold and crimson, lathered to the knees. "From the King\'s hand." An elixir, and a note in Aldric\'s cramped script: "Edric is at the Star Tower. He knows you are coming; he has always known when I was coming. My brother never did know when to run. Bring him back. A."' },
+];
+function chapterRider() {
+  const st = story();
+  if (st.phase !== 'seek' || st.ch < 1 || (st.riders || 0) >= st.ch) return false;
+  const R = CHAPTER_RIDERS[st.ch - 1]; if (!R) return false;
+  st.riders = st.ch;
+  stopWalk?.(); sfx.play('quest');
+  showScene([{ who: R.who, sprite: R.sprite, bg: R.bg, text: R.text }], () => { const got = R.gift(); log(`${R.who} leaves you ${got}.`, 'good'); updateStats(); saveProgress('progress'); });
+  return true;
+}
+// What the townsfolk are saying, as the story moves on.
+function storyRumour() {
+  const st = story(), A = player.meta.act2 || { s: 0 };
+  const pools = {
+    summons: ['They say a herald rode through every town in the Cantons this week. Something about the crown.', 'Five lights in the sky, the night the crown broke. My cousin saw them. My cousin also sees things in his ale.', 'The gate has been noisier at night. The watch says it is nothing. The watch says that about everything.'],
+    early: ['A hero went into the old chapel, they say, and came out again. Nobody comes out of that chapel.', 'Grey riders on the south road. Silver stags on their cloaks. Nobody knows whose.', 'The King has broken the seals on the old places. My grandmother would have had words about that.'],
+    late: ["It's the prince. Everyone says so now. The one they exiled. He's behind the crown.", 'Riders in grey ambushed a caravan near the Ember road. They were looking for someone.', 'They say the last shard sits on top of a tower you can see from the Goldspire hills. Rather you than me.'],
+    done: ['Bells rang in every realm the day the crown was mended. Even the League rang theirs, and they charge for bells.', 'The prince is pardoned, they say. Sitting in his brother\'s hall like nothing happened. Kings.', 'The beasts on the roads are thinner since the crown was whole. Not gone. Thinner.', 'There is bunting in the square and the council voted for a holiday. Two holidays. They are still arguing about the second.'],
+    deep: ['Something went quiet under the hills. You can feel it in the well water, the old folk say.', 'The Deepwarden came through here once. Bought a potion and said thank you. A hero, and polite.'],
+  };
+  const key = A.s >= 6 ? 'deep' : st.phase === 'done' ? 'done' : st.phase === 'summons' ? 'summons' : st.ch >= 3 ? 'late' : 'early';
+  const pool = pools[key];
+  return pool[rnd(pool.length)];
+}
 // ---------- Act II: What Sleeps Below ----------
 // After the crown is whole, the pardoned Prince Edric takes a seat in the King's
 // hall and sends the hero into the Deep in stages: s = 0 not offered, 1-4 on a
@@ -1577,6 +1616,7 @@ const EDRIC_SCENES = {
   step2: '"The Warden is dead, and you are not. Good." Edric unrolls a chart. "The Warden kept the lower halls closed. Below it the walls themselves are said to speak. Go to the fifteenth floor and listen. Write down what you hear, if you can bear to."',
   step3: '"\'It should have been me.\'" Edric reads the words you copied and goes very still. "My words. Carved on my father\'s throne by my own hand, and now the Deep says them back to you." He is quiet for a long moment. "It wears the shapes of our guilt. That is how it dreams. On the twentieth floor it has a mouth. Close it."',
   finale: [
+    { who: 'Ser Halvard', sprite: 'darkknight', text: 'Halvard meets you at the hall door and, for the first time, salutes. "Twenty floors," he says. "I went down five once, for the prince, and came up grey. Go in. He has been pacing since dawn."' },
     { who: 'Prince Edric', sprite: 'darkknight', text: '"The Maw is closed." He says it twice, as if to be sure. "I have spent ten years believing I broke the world out of spite, and the truth is worse: I broke it out of carelessness, and a stranger mended it twice." He stands. "Aldric will want to give you a title. Let me give you something more useful."' },
     { who: 'King Aldric', sprite: 'king', text: '"The library says the Deep will dream again, in a hundred years or a thousand. Let it. The four realms have a hero now, and my brother, and a crown that is whole." He raises your hand before the court. "Deepwarden. Wherever you walk, the gates of Aurum are open."' },
   ],
@@ -2529,7 +2569,7 @@ function createInterior(house) {
       npcs.push({ x, y, type: INDOOR_NPCS[def.npcs[ch]], fixed: true, pause: 0 });
     }
   }));
-  if (house.id === 'throne' && story().phase === 'done' && !npcs.some((n) => n.x === 9 && n.y === 2)) npcs.push({ x: 9, y: 2, type: INDOOR_NPCS.edric, fixed: true, pause: 0 });
+  if (house.id === 'throne' && story().phase === 'done' && !npcs.some((n) => n.x === 9 && n.y === 2)) { npcs.push({ x: 9, y: 2, type: INDOOR_NPCS.edric, fixed: true, pause: 0 }); npcs.push({ x: 12, y: 3, type: INDOOR_NPCS.halvard, fixed: true, pause: 0 }); }
 }
 
 function enterBuilding(house) {
@@ -2555,7 +2595,8 @@ function talk(n) {
   if (edricTalk(n)) return;
   if (realmQuestTalk(n)) return;
   if (n.type.action && SERVICE_SHOPS.has(n.type.action)) { log(`${n.type.name}: ${n.type.lines[rnd(n.type.lines.length)]}`); openShop(n.type.action); return; }
-  const line = n.type.notable ? n.type.lines[n.type.tell++ % n.type.lines.length] : n.type.lines[rnd(n.type.lines.length)];
+  const rumour = !n.type.notable && !n.type.leader && !n.type.guard && !n.type.action && Math.random() < 0.45 ? storyRumour() : null;
+  const line = rumour || (n.type.notable ? n.type.lines[n.type.tell++ % n.type.lines.length] : n.type.lines[rnd(n.type.lines.length)]);
   log(`${n.type.name}: ${line}`);
   bubble = { x: n.x, y: n.y, text: line, until: performance.now() + (n.type.notable ? 6000 : 4000) };
   if (n.type.notable) { draw(); return; }
@@ -2765,9 +2806,9 @@ function createDungeon() {
   exit = { x: ex * CHUNK + target.rooms[0].cx, y: ey * CHUNK + target.rooms[0].cy };
   setTile(exit.x, exit.y, TILE.EXIT);
   monsters = monsters.filter((m) => !(m.x === exit.x && m.y === exit.y)); monstersDirty = true;
-  if (floor === (dungeonDef ? dungeonDef.floors : FINAL_FLOOR) || (dungeonDef && dungeonDef.endless && floor % 5 === 0)) {
+  if (floor === (dungeonDef ? dungeonDef.floors : FINAL_FLOOR) || (dungeonDef && dungeonDef.endless && floor % 5 === 0) || (dungeonDef && dungeonDef.midBossFloor === floor)) {
     placeBoss(target.rooms[0], ex * CHUNK, ey * CHUNK, R);
-    setTimeout(() => { log(`Something large guards the stairs on this floor. Kill it to break the seal.`, 'bad'); sfx.play('boss'); }, 50);
+    setTimeout(() => { log(dungeonDef && dungeonDef.midBossFloor === floor ? 'Grey cloaks hold this floor. Their captain has the key to the stairs.' : `Something large guards the stairs on this floor. Kill it to break the seal.`, 'bad'); sfx.play('boss'); }, 50);
   }
 }
 
@@ -2957,6 +2998,14 @@ function drawGrass(g, c, r, forest = false) {
     g.fillRect(bx, by, 1, 3); g.fillRect(bx + 1, by + 1, 1, 2);
   }
   if (n < 0.05 && !forest) { g.fillStyle = '#8b8f86'; g.fillRect(X + 18, Y + 20, 4, 3); g.fillStyle = '#a3a79c'; g.fillRect(X + 18, Y + 20, 3, 1); }
+  else if (n > 0.95 && !forest) {   // a low bush
+    g.fillStyle = '#2f6a2c'; g.beginPath(); g.ellipse(X + 16, Y + 20, 9, 6, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#3f8a3a'; g.beginPath(); g.ellipse(X + 13, Y + 17, 6, 4, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#5aa352'; g.fillRect(X + 11, Y + 15, 2, 1); g.fillRect(X + 18, Y + 18, 2, 1);
+  } else if (n > 0.9) {   // a taller tuft
+    g.fillStyle = forest ? '#4a8a44' : '#63b25a'; g.fillRect(X + 14, Y + 14, 1, 8); g.fillRect(X + 16, Y + 12, 1, 10); g.fillRect(X + 18, Y + 15, 1, 7); g.fillRect(X + 12, Y + 17, 1, 5);
+  }
+  if (forest && noise(c, r, 45) < 0.12) { g.fillStyle = '#4a8a44'; for (let k = 0; k < 4; k++) { g.fillRect(X + 6 + k * 5, Y + 24 - k * 2, 1, 4 + k); } }   // ferns
 }
 function drawWater(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 21);
@@ -2982,18 +3031,72 @@ function drawWater(g, c, r) {
 function drawSand(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 23);
   g.fillStyle = n < 0.5 ? '#e7d3a1' : '#dfc78f'; g.fillRect(X, Y, T, T);
+  g.fillStyle = 'rgba(0,0,0,0.05)'; for (let k = 0; k < 3; k++) g.fillRect(X, Y + 6 + k * 10 + Math.floor(noise(c, r + k, 24) * 4), T, 1);   // wind ripples
   g.fillStyle = '#cdb272'; if (n < 0.3) g.fillRect(X + 9, Y + 14, 3, 3); else if (n < 0.6) g.fillRect(X + 20, Y + 6, 2, 2);
+  if (n > 0.8) { g.fillStyle = '#b89a5c'; g.fillRect(X + 22, Y + 20, 3, 2); g.fillStyle = '#f3e6c4'; g.fillRect(X + 6, Y + 24, 2, 2); }   // pebbles and a shell
+  let wetSide = null; for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) if (groundAt(c + dx, r + dy) === GROUND.WATER) { wetSide = [dx, dy]; break; }
+  if (wetSide) { g.fillStyle = 'rgba(120,100,60,0.25)'; const [dx, dy] = wetSide; g.fillRect(dx === 1 ? X + T - 6 : X, dy === 1 ? Y + T - 6 : Y, dx ? 6 : T, dy ? 6 : T); }   // damp sand by the water
 }
 function drawMountain(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 25);
+  // the inner range is higher: rock on the fringe, snow on peaks ringed by more mountain
+  let ring = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && groundAt(c + dx, r + dy) === GROUND.MOUNTAIN) ring++;
   g.fillStyle = n < 0.5 ? '#6b7280' : '#5b6370'; g.fillRect(X, Y, T, T);
-  g.fillStyle = '#4b5563'; g.beginPath(); g.moveTo(X + 4, Y + T - 4); g.lineTo(X + T / 2, Y + 6); g.lineTo(X + T - 4, Y + T - 4); g.closePath(); g.fill();
-  g.fillStyle = '#e5e7eb'; g.beginPath(); g.moveTo(X + T / 2 - 5, Y + 13); g.lineTo(X + T / 2, Y + 6); g.lineTo(X + T / 2 + 5, Y + 13); g.closePath(); g.fill();
+  g.fillStyle = 'rgba(0,0,0,0.12)'; for (let k = 0; k < 3; k++) g.fillRect(X, Y + 8 + k * 9 + Math.floor(noise(c, r + k, 26) * 3), T, 1);   // strata
+  const px = X + T / 2 + Math.floor((n - 0.5) * 8), top = Y + 4 + Math.floor(noise(c, r, 28) * 4);
+  g.fillStyle = '#4b5563'; g.beginPath(); g.moveTo(X + 2, Y + T - 3); g.lineTo(px, top); g.lineTo(X + T - 2, Y + T - 3); g.closePath(); g.fill();   // the shaded face
+  g.fillStyle = '#7b8290'; g.beginPath(); g.moveTo(X + 2, Y + T - 3); g.lineTo(px, top); g.lineTo(px, Y + T - 3); g.closePath(); g.fill();   // the lit face
+  if (ring >= 5) { g.fillStyle = '#e5e7eb'; g.beginPath(); g.moveTo(px - 6, top + 8); g.lineTo(px, top); g.lineTo(px + 6, top + 8); g.lineTo(px + 3, top + 7); g.lineTo(px, top + 10); g.lineTo(px - 3, top + 7); g.closePath(); g.fill(); }
+  else if (n > 0.7) { g.fillStyle = '#9ca3af'; g.fillRect(X + 6, Y + T - 8, 3, 2); g.fillRect(X + 22, Y + T - 6, 2, 2); }   // scree
 }
 function drawRoad(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 27);
   g.fillStyle = n < 0.5 ? '#a8865a' : '#9f7e53'; g.fillRect(X, Y, T, T);
-  g.fillStyle = '#8c6d45'; if (n < 0.35) g.fillRect(X + 8, Y + 12, 4, 3); else if (n < 0.7) g.fillRect(X + 20, Y + 20, 3, 3);
+  // wheel ruts run the way the road does
+  const road = (dx, dy) => groundAt(c + dx, r + dy) === GROUND.ROAD || groundAt(c + dx, r + dy) === GROUND.COBBLE;
+  const horiz = road(1, 0) || road(-1, 0), vert = road(0, 1) || road(0, -1);
+  g.fillStyle = 'rgba(0,0,0,0.13)';
+  if (horiz && !(vert && !horiz)) { g.fillRect(X, Y + 10, T, 2); g.fillRect(X, Y + 21, T, 2); }
+  if (vert && !horiz) { g.fillRect(X + 10, Y, 2, T); g.fillRect(X + 21, Y, 2, T); }
+  g.fillStyle = '#8c6d45'; if (n < 0.35) g.fillRect(X + 8, Y + 14, 4, 3); else if (n < 0.7) g.fillRect(X + 20, Y + 24, 3, 3);
+  if (n > 0.85) { g.fillStyle = '#7d8795'; g.fillRect(X + 3, Y + 4, 3, 3); }   // an edge stone
+  const grassAt = (dx, dy) => { const gg = groundAt(c + dx, r + dy); return gg === GROUND.GRASS || gg === GROUND.FOREST; };
+  g.fillStyle = 'rgba(70,130,60,0.5)';   // a ragged green edge where the verge meets the road
+  if (grassAt(0, -1)) for (let k = 0; k < T; k += 5) if (noise(c * 9 + k, r, 31) < 0.6) g.fillRect(X + k, Y, 3, 2);
+  if (grassAt(0, 1)) for (let k = 0; k < T; k += 5) if (noise(c * 9 + k, r, 33) < 0.6) g.fillRect(X + k, Y + T - 2, 3, 2);
+  if (grassAt(-1, 0)) for (let k = 0; k < T; k += 5) if (noise(c, r * 9 + k, 35) < 0.6) g.fillRect(X, Y + k, 2, 3);
+  if (grassAt(1, 0)) for (let k = 0; k < T; k += 5) if (noise(c, r * 9 + k, 37) < 0.6) g.fillRect(X + T - 2, Y + k, 2, 3);
+}
+// Fields around the towns that live off the land: crop rows, vines or pasture.
+const FIELD_TRADES = { farming: 'crop', wine: 'vine', wool: 'pasture', bees: 'meadow', horses: 'pasture' };
+function fieldAt(c, r) {
+  for (const t of nearbyTowns(c, r, 1)) {
+    const kind = FIELD_TRADES[townIdentity(t).tradeId]; if (!kind) continue;
+    const dx = c < t.x0 ? t.x0 - c : c >= t.x0 + TW ? c - (t.x0 + TW) + 1 : 0, dy = r < t.y0 ? t.y0 - r : r >= t.y0 + TH ? r - (t.y0 + TH) + 1 : 0;
+    if (!dx && !dy) continue;   // inside the walls
+    if (dx > 9 || dy > 7) continue;
+    if (Math.abs(c - t.cx) <= 2) continue;   // keep the roads out of town clear
+    if (valueNoise(c, r, 77, 5) < 0.42) continue;   // fields in patches, not a solid ring
+    return kind;
+  }
+  return null;
+}
+function drawField(g, c, r, kind) {
+  const X = c * T - off.x, Y = r * T - off.y;
+  if (kind === 'crop') {
+    g.fillStyle = '#6b4f2a'; g.fillRect(X, Y, T, T);
+    for (let k = 0; k < 4; k++) { g.fillStyle = '#5a401f'; g.fillRect(X, Y + 2 + k * 8, T, 2); g.fillStyle = (c + r) % 3 ? '#b7a23a' : '#7fa83a'; for (let x = 1; x < T; x += 4) g.fillRect(X + x, Y + 4 + k * 8, 2, 3); }
+  } else if (kind === 'vine') {
+    g.fillStyle = '#5f7a3a'; g.fillRect(X, Y, T, T);
+    for (let k = 0; k < 3; k++) { const vy = Y + 4 + k * 10; g.fillStyle = '#5b3a1a'; g.fillRect(X, vy + 4, T, 1); for (let x = 2; x < T; x += 8) { g.fillStyle = '#5b3a1a'; g.fillRect(X + x, vy, 1, 8); g.fillStyle = '#2f6a2c'; g.fillRect(X + x - 2, vy + 1, 5, 4); g.fillStyle = '#6b21a8'; if (noise(c + x, r + k, 39) < 0.5) g.fillRect(X + x + 1, vy + 5, 2, 2); } }
+  } else if (kind === 'meadow') {
+    drawGrass(g, c, r); for (let k = 0; k < 5; k++) { g.fillStyle = ['#ffd86b', '#f4f4f4', '#ff9ecf', '#c084fc'][(k + c) % 4]; g.fillRect(X + 3 + ((k * 7 + c) % 26), Y + 3 + ((k * 11 + r) % 26), 2, 2); }
+  } else {   // pasture: cropped grass with a post-and-rail fence on the town side
+    g.fillStyle = (c + r) % 2 ? '#5f9f54' : '#5a9850'; g.fillRect(X, Y, T, T);
+    g.fillStyle = '#4f8a46'; for (let k = 0; k < 4; k++) g.fillRect(X + 3 + ((k * 9 + r) % 26), Y + 5 + ((k * 7 + c) % 24), 2, 1);
+    if (noise(c, r, 47) < 0.12) { g.fillStyle = '#f4f4f4'; g.beginPath(); g.ellipse(X + 16, Y + 18, 6, 4, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = '#1b1b2f'; g.fillRect(X + 20, Y + 15, 3, 3); g.fillRect(X + 12, Y + 21, 1, 3); g.fillRect(X + 18, Y + 21, 1, 3); }   // a sheep
+    if (!fieldAt(c, r - 1)) { g.fillStyle = '#6b4423'; g.fillRect(X, Y + 2, T, 2); g.fillRect(X + 4, Y, 2, 8); g.fillRect(X + 24, Y, 2, 8); }   // the fence
+  }
 }
 function drawRampart(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 29);
@@ -3324,7 +3427,7 @@ function renderBackground() {
         drawGrass(g, c, r, true);
         if (gnd === GROUND.TREE) { g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(c * T - off.x + T / 2 + 4, r * T - off.y + T - 4, T * 0.42, 6, 0, 0, Math.PI * 2); g.fill(); drawSprite(g, 'tree', c, r, 1, 1); }
       }
-      else { drawGrass(g, c, r); if (t === TILE.FLOOR && noise(c, r, 9) < 0.06) drawSprite(g, 'flower', c, r); }
+      else { const fk = t === TILE.FLOOR && fieldAt(c, r); if (fk) drawField(g, c, r, fk); else { drawGrass(g, c, r); if (t === TILE.FLOOR && noise(c, r, 9) < 0.06) drawSprite(g, 'flower', c, r); } }
       if (t === TILE.FOUNTAIN) {
         const X = c * T - off.x, Y = r * T - off.y;
         g.fillStyle = '#9ca3af'; g.fillRect(X, Y, T, T);
@@ -3371,6 +3474,14 @@ function renderBackground() {
     for (const town of nearbyTowns(player.x, player.y, 1)) {
       if (town.cx < x0 - 12 || town.cx > x1 + 12 || town.cy < y0 - 8 || town.cy > y1 + 8) continue;
       for (const [lc, lr] of [[town.cx - 11, town.cy - 6], [town.cx + 11, town.cy - 6], [town.cx - 11, town.cy + 6], [town.cx + 11, town.cy + 6]]) drawSprite(g, 'lamp', lc, lr);
+      if (player && player.meta && player.meta.story && player.meta.story.phase === 'done') {   // bunting for the mended crown
+        const col = REALMS[town.realm || 'cantons'].color;
+        for (const [ax, ay, bx] of [[town.cx - 11, town.cy - 6, town.cx + 11], [town.cx - 11, town.cy + 6, town.cx + 11]]) {
+          const x0 = ax * T - off.x + T / 2, x1 = bx * T - off.x + T / 2, y0 = ay * T - off.y + 6;
+          g.strokeStyle = '#3b2a1a'; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo((x0 + x1) / 2, y0 + 18, x1, y0); g.stroke();
+          for (let k = 1; k < 22; k++) { const u = k / 22, x = x0 + (x1 - x0) * u, y = y0 + 18 * 2 * u * (1 - u); g.fillStyle = k % 2 ? col : '#ffd86b'; g.beginPath(); g.moveTo(x - 4, y); g.lineTo(x + 4, y); g.lineTo(x, y + 8); g.fill(); }
+        }
+      }
       g.fillStyle = 'rgba(6,12,20,0.6)'; g.font = 'bold 13px sans-serif'; g.textAlign = 'center';
       const w = g.measureText(town.name).width + 14;
       g.fillRect(town.cx * T - off.x + T - w / 2, town.y0 * T - off.y + T * 1.2, w, 20);
@@ -4519,7 +4630,7 @@ function killMonster(m) {
     if (m.boss) { unlock('boss_slayer'); track('boss_killed', { boss: m.name, floor }); }
     const xp = Math.round(m.type.xp * (wearing('cantonsbadge') ? 1.2 : 1) * (m.small || m.raised ? 0.4 : 1) * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1) * (m.elite ? 2 : 1) * (scene === 'dungeon' ? (floorMod === 'swarming' ? 1.25 : floorMod === 'cursed' ? 1.5 : 1) : 1));
     if (m.boss) {
-      log(dungeonDef && dungeonDef.arena ? `You defeat ${m.name}! The crowd is on its feet.` : m.yields ? `${bossTitle(m)} drops his sword and yields. The seal on the stairs breaks.` : `You slay ${m.name}! The seal on the stairs breaks.`, 'good');
+      log(dungeonDef && dungeonDef.arena ? `You defeat ${m.name}! The crowd is on its feet.` : m.yields ? `${bossTitle(m)} drops his sword and yields. The seal on the stairs breaks.` : /Halvard/.test(m.name) ? 'Ser Halvard goes down on one knee, then flat. "Go on up," he says through his teeth. "He is expecting you." The stairs are open.' : `You slay ${m.name}! The seal on the stairs breaks.`, 'good');
       const purse = 40 + 30 * (dungeonDef ? dungeonDef.danger : 0) + floor * 10;
       player.gold += purse; floatText(m.x, m.y, `+${purse}g`, '#f5c542');
       sfx.play('win');
@@ -4761,6 +4872,10 @@ function nextFloor() {
     saveProgress('win');
     return;
   }
+  if (dungeonDef.story === 'stars') {
+    dungeonDef.boss = floor === 3 ? { type: 'Knight', name: 'Ser Halvard, Captain of the Grey Cloaks', yields: true } : STORY_SITES.stars.boss;
+    dungeonDef.midBossFloor = 3;
+  }
   if (dungeonDef.endless) {
     dungeonDef.danger = 5 + Math.floor((floor - 1) / 2);   // each pair of floors is harder than the last
     const guardian = ACT2_STEPS.find((st) => st.boss && st.floor === floor);
@@ -4997,6 +5112,67 @@ function showScene(pages, onDone) {
   nextScenePage();
 }
 let scenePage = null;
+// A painted backdrop for each kind of scene: sky, silhouettes and a little light.
+function sceneBackdropKey(page) {
+  if (page.bg) return page.bg;
+  const who = String(page.who || '');
+  if (/King Aldric|Prince Edric|Ser Halvard|Crown of Aurum/.test(who)) return 'hall';
+  if (/The Deep/.test(who)) return 'deep';
+  if (/herald|four realms|Age of the Crown|And you/.test(who)) return 'town';
+  if (/Shard of/.test(who)) return 'crypt';
+  if (/Grand Arena/.test(who)) return 'arena';
+  return scene === 'dungeon' ? 'crypt' : scene === 'house' ? 'hall' : 'road';
+}
+function drawSceneBackdrop(g, key, w, h) {
+  const sky = (a, b) => { const lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, a); lg.addColorStop(1, b); g.fillStyle = lg; g.fillRect(0, 0, w, h); };
+  const glow = (x, y, r, col) => { const rg = g.createRadialGradient(x, y, 1, x, y, r); rg.addColorStop(0, col); rg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = rg; g.fillRect(x - r, y - r, r * 2, r * 2); };
+  const hills = (col, base, amp, seed) => { g.fillStyle = col; g.beginPath(); g.moveTo(0, h); for (let x = 0; x <= w; x += 8) g.lineTo(x, base - Math.abs(Math.sin(x / 90 + seed)) * amp - Math.sin(x / 23 + seed) * 4); g.lineTo(w, h); g.fill(); };
+  const stars = (n) => { g.fillStyle = '#fff'; for (let k = 0; k < n; k++) g.fillRect((k * 173) % w, (k * 97) % (h * 0.6), k % 5 ? 1 : 2, k % 5 ? 1 : 2); };
+  const night = dayPhase() === 'night';
+  if (key === 'hall') {
+    sky('#2a0f0f', '#120606');
+    for (let x = 40; x < w; x += 110) { g.fillStyle = '#3b2a1a'; g.fillRect(x, 10, 14, h); g.fillStyle = '#5b4a3a'; g.fillRect(x, 10, 4, h); }   // columns
+    g.fillStyle = '#7c2d12'; for (let x = 97; x < w; x += 110) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 40, 0); g.lineTo(x + 20, 46); g.fill(); g.fillStyle = '#ffd86b'; g.fillRect(x + 17, 18, 6, 6); g.fillStyle = '#7c2d12'; }   // banners
+    glow(w / 2, h * 0.75, 90, 'rgba(255,200,120,0.35)'); g.fillStyle = '#c79a3a'; g.fillRect(w / 2 - 26, h - 26, 52, 26); g.fillStyle = '#8b2e2e'; g.fillRect(w / 2 - 18, h - 20, 36, 20);   // the throne
+  } else if (key === 'town') {
+    sky(night ? '#0b1a33' : '#79b8ea', night ? '#1b2a44' : '#cfe6f5'); if (night) stars(40);
+    hills('#4f8a46', h * 0.72, 18, 1);
+    for (let x = 10; x < w; x += 90) { const rh = 30 + (x * 7) % 25; g.fillStyle = '#7a4a2a'; g.beginPath(); g.moveTo(x, h - 40); g.lineTo(x + 30, h - 40 - rh); g.lineTo(x + 60, h - 40); g.fill(); g.fillStyle = '#d9b382'; g.fillRect(x + 6, h - 40, 48, 40); g.fillStyle = night ? '#ffd86b' : '#7bdfff'; g.fillRect(x + 22, h - 30, 8, 8); }
+  } else if (key === 'road') {
+    sky(night ? '#0b1a33' : '#8ec5ea', night ? '#1b2a44' : '#e9f2f7'); if (night) stars(40); else glow(w * 0.8, 30, 40, 'rgba(255,240,180,0.9)');
+    hills('#3f7d3a', h * 0.62, 26, 2); hills('#4f9548', h * 0.78, 16, 5);
+    g.fillStyle = '#a8865a'; g.beginPath(); g.moveTo(w / 2 - 6, h * 0.66); g.lineTo(w / 2 + 6, h * 0.66); g.lineTo(w / 2 + 120, h); g.lineTo(w / 2 - 120, h); g.fill();
+    for (const [tx, s2] of [[60, 1], [w - 90, 1.2], [w / 2 + 170, 0.8]]) { g.fillStyle = '#2f6a2c'; g.beginPath(); g.arc(tx, h * 0.7, 18 * s2, 0, Math.PI * 2); g.fill(); g.fillStyle = '#5b3a1a'; g.fillRect(tx - 3, h * 0.7, 6, 24 * s2); }
+  } else if (key === 'crypt') {
+    sky('#141222', '#06050c');
+    g.fillStyle = '#1f1b33'; for (let x = 0; x < w; x += 70) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 35, 0); g.lineTo(x + 17, 40 + (x * 3) % 30); g.fill(); }   // vaulting
+    for (let x = 30; x < w; x += 120) { g.fillStyle = '#2a2640'; g.beginPath(); g.roundRect(x, 30, 40, h, [20, 20, 0, 0]); g.fill(); g.fillStyle = '#0b0a14'; g.beginPath(); g.roundRect(x + 6, 36, 28, h, [14, 14, 0, 0]); g.fill(); }   // arches
+    glow(w / 2, h * 0.7, 70, 'rgba(255,200,100,0.35)'); g.fillStyle = '#ffd86b'; g.fillRect(w / 2 - 2, h * 0.7 - 10, 4, 10);   // a candle
+  } else if (key === 'deep') {
+    sky('#0a0616', '#000'); stars(14);
+    for (let k = 0; k < 6; k++) { g.strokeStyle = `rgba(150,90,220,${0.15 + k * 0.05})`; g.lineWidth = 2; g.beginPath(); g.moveTo((k * 140) % w, h); for (let y = h; y > 0; y -= 14) g.lineTo((k * 140) % w + Math.sin(y / 18 + k) * 22, y); g.stroke(); }   // veins
+    glow(w / 2, h, 120, 'rgba(120,60,200,0.35)');
+  } else if (key === 'arena') {
+    sky('#79b8ea', '#cfe6f5'); g.fillStyle = '#6b7280'; g.fillRect(0, h * 0.35, w, h * 0.3); g.fillStyle = '#4b5563'; for (let x = 0; x < w; x += 12) g.fillRect(x, h * 0.35 + (x % 24 ? 8 : 0), 10, h * 0.3);
+    g.fillStyle = '#c2a36b'; g.fillRect(0, h * 0.65, w, h); for (let k = 0; k < 40; k++) { g.fillStyle = ['#e74c3c', '#f4f4f4', '#ffd86b', '#4a90e2'][k % 4]; g.fillRect((k * 53) % w, h * 0.38 + (k % 3) * 9, 4, 6); }   // the crowd
+  } else if (key === 'tower') {
+    sky('#0b1a33', '#2a3a66'); stars(60);
+    g.fillStyle = '#1b1b2f'; g.fillRect(w / 2 - 30, 20, 60, h); g.beginPath(); g.moveTo(w / 2 - 40, 24); g.lineTo(w / 2, -10); g.lineTo(w / 2 + 40, 24); g.fill(); glow(w / 2, 40, 30, 'rgba(192,132,252,0.8)');
+    hills('#1a2a3a', h * 0.8, 20, 3);
+  } else if (key === 'wilds') {
+    sky(night ? '#0b1a33' : '#8ec5ea', night ? '#1b2a44' : '#e9f2f7'); if (night) stars(40); hills('#3f7d3a', h * 0.6, 30, 4); hills('#4f9548', h * 0.8, 14, 7);
+    for (let k = 0; k < 5; k++) { g.fillStyle = '#6b7280'; g.fillRect(w / 2 - 60 + k * 30, h * 0.72 - (k % 2) * 6, 10, 28 + (k % 2) * 6); }   // standing stones
+  } else if (key === 'lava') {
+    sky('#2a0a05', '#0a0303'); glow(w / 2, h, 160, 'rgba(255,120,30,0.6)'); g.fillStyle = '#ff7a1a'; for (let x = 0; x < w; x += 6) g.fillRect(x, h - 14 + Math.sin(x / 15) * 4, 6, 20); g.fillStyle = '#1b0b05'; for (let x = 20; x < w; x += 90) { g.beginPath(); g.moveTo(x, h - 10); g.lineTo(x + 25, 30 + (x % 40)); g.lineTo(x + 50, h - 10); g.fill(); }
+  } else if (key === 'grotto') {
+    sky('#061a2e', '#02070f'); for (let x = 0; x < w; x += 45) { g.fillStyle = '#0d2a44'; g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 22, 0); g.lineTo(x + 11, 30 + (x * 7) % 40); g.fill(); }
+    glow(w / 2, h * 0.9, 110, 'rgba(60,180,255,0.4)'); g.fillStyle = 'rgba(56,189,248,0.5)'; g.fillRect(0, h - 22, w, 22);
+  } else {   // map
+    drawRealmArt(g, w, h);
+  }
+  g.fillStyle = 'rgba(6,12,20,0)'; g.fillRect(0, 0, w, h);
+  const vg = g.createLinearGradient(0, h - 30, 0, h); vg.addColorStop(0, 'rgba(6,32,44,0)'); vg.addColorStop(1, 'rgba(6,32,44,0.9)'); g.fillStyle = vg; g.fillRect(0, h - 30, w, 30);
+}
 function nextScenePage() {
   const page = sceneQueue.shift();
   scenePage = page || null;
@@ -5015,6 +5191,8 @@ function nextScenePage() {
   document.getElementById('story-title').textContent = page.who;
   document.getElementById('story-text').textContent = page.text;
   document.getElementById('story-next').textContent = sceneQueue.length ? 'Continue' : 'Close';
+  const bc = document.getElementById('story-bg');
+  if (bc) { const bg2 = bc.getContext('2d'); bg2.clearRect(0, 0, bc.width, bc.height); drawSceneBackdrop(bg2, sceneBackdropKey(page), bc.width, bc.height); }
   const pc = document.getElementById('story-portrait'), g = pc.getContext('2d');
   g.clearRect(0, 0, pc.width, pc.height); g.imageSmoothingEnabled = false;
   g.fillStyle = '#0f1724'; g.fillRect(0, 0, pc.width, pc.height);
@@ -5077,7 +5255,8 @@ function storyShardFound(id) {
   if (STORY_ORDER[st.ch] !== id || st.phase !== 'seek') return;
   st.phase = 'return';
   const S = STORY_SITES[id];
-  showScene([{ who: S.shard, sprite: 'obelisk', text: SHARD_FOUND[id] }, SHARD_CLUE[id]], () => { giveRelic(S.relic, S.title); log(`You hold the ${S.shard}. Take it to King Aldric at Castle Aurum.`, 'good'); });
+  const bg = { dawn: 'crypt', tides: 'grotto', bones: 'crypt', embers: 'lava', stars: 'tower' }[id];
+  showScene([{ who: S.shard, sprite: 'obelisk', text: SHARD_FOUND[id], bg }, { ...SHARD_CLUE[id], bg }], () => { giveRelic(S.relic, S.title); log(`You hold the ${S.shard}. Take it to King Aldric at Castle Aurum.`, 'good'); });
   track('shard_found', { shard: id });
 }
 // Talking to the King moves the story along. Returns true when he had story to tell.
@@ -5107,7 +5286,7 @@ function discoverPlace(pl) {
   const P = PLACE_TYPES[pl.type], realm = REALMS[realmOfTile(pl.x, pl.y)];
   log(`Discovered: ${pl.name}, in ${realm.short}.`, 'good');
   sfx.play('quest');
-  showScene([{ who: pl.name[0].toUpperCase() + pl.name.slice(1), sprite: pl.sprite, text: P.lore }]);
+  showScene([{ who: pl.name[0].toUpperCase() + pl.name.slice(1), sprite: pl.sprite, text: P.lore, bg: 'wilds' }]);
   if (player.meta.places.length >= 10) unlock('wanderer10');
   track('place_discovered', { type: pl.type });
 }
@@ -5375,11 +5554,11 @@ const ENCOUNTERS = {
       { label: 'Leave it be', run: () => 'Some hurries are catching. You move on.' },
     ] }),
   agents: () => ({ who: 'Grey cloaks on the road', sprite: 'darkknight',
-    text: 'Riders in grey cloaks block the road, each wearing a small silver stag. "Prince Edric sends his regards," says their captain, "and asks you to stop running errands for his brother."',
+    text: 'Riders in grey cloaks block the road, each wearing a small silver stag. Their captain lifts his visor: a lean man with a scar through one eyebrow. "Ser Halvard, at your service," he says. "Prince Edric sends his regards, and asks you to stop running errands for his brother."',
     choices: [
       { label: 'Fight them', run: () => { const k = MONSTER_TYPES.find((t) => t.name === 'Knight'), a = MONSTER_TYPES.find((t) => t.name === 'Archer');
         spawnFoes(k, 2, 'Stag knight', { purse: 30 + wildDanger() * 10 }); spawnFoes(a, 1, 'Stag archer', { purse: 20 }); shakeScreen(4); sfx.play('boss'); return null; } },
-      { label: 'Tell them the King knows everything', disabled: player.level < 6, run: () => 'The captain studies your face for a long moment, then turns his horse. "Then it is already over," he says, mostly to himself. The riders follow him into the trees.' },
+      { label: 'Tell them the King knows everything', disabled: player.level < 6, run: () => 'Halvard studies your face for a long moment, then turns his horse. "Then it is already over," he says, mostly to himself. "We will meet again at the tower, I expect." The riders follow him into the trees.' },
       { label: 'Run for it', run: () => { if (Math.random() < 0.5) return 'You break for the trees and lose them in the undergrowth.'; const dmg = 4 + wildDanger(); player.hp = Math.max(1, player.hp - dmg); return `A crossbow bolt grazes you for ${dmg} before you lose them in the undergrowth.`; } },
     ] }),
   ambush: () => ({ who: 'Ambush!', sprite: 'orc',
@@ -5744,6 +5923,7 @@ function endTurn(moved) {
   if (mapPin && scene === 'world' && cheb(mapPin, player) <= 3) { mapPin = null; savePin(); log('You reach the spot you pinned on your map.', 'good'); }
   if (scene === 'world' && moved && !gameOver && !storyOpen() && !perkChoices && !townContaining(player.x, player.y) && !coopActive()
       && !monsters.some((m) => m.awake && cheb(m, player) <= 6)) {
+    if (chapterRider()) { draw(); return; }
     encounterClock++;
     if (encounterClock >= 60 && Math.random() < 0.05) { encounterClock = 0; stopWalk?.(); startEncounter(); }
   }

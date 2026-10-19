@@ -66,6 +66,8 @@ class CharacterController extends Controller
             'meta.story' => ['nullable', 'array'],
             'meta.story.ch' => ['required_with:meta.story', 'integer', 'min:0', 'max:5'],
             'meta.story.phase' => ['required_with:meta.story', Rule::in(['summons', 'seek', 'return', 'done'])],
+            'meta.story.riders' => ['nullable', 'integer', 'min:0', 'max:5'],
+            'meta.story.ambushed' => ['nullable', 'boolean'],
             'meta.act2' => ['nullable', 'array'],
             'meta.act2.s' => ['required_with:meta.act2', 'integer', 'min:0', 'max:6'],
             'meta.act2.n' => ['nullable', 'integer', 'min:0', 'max:100'],

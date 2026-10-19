@@ -66,6 +66,8 @@
       </div>
       <div id="story" class="overlay story" hidden>
         <div class="story-box">
+          <canvas id="story-bg" class="story-bg" width="760" height="150" aria-hidden="true"></canvas>
+          <div class="story-row">
           <canvas id="story-portrait" width="96" height="96" aria-hidden="true"></canvas>
           <div class="story-body">
             <h2 id="story-title"></h2>
@@ -73,6 +75,7 @@
             <div id="story-choices" class="story-choices"></div>
             <button type="button" id="story-next" class="primary">Continue</button>
             <button type="button" id="story-skip" class="link-btn" hidden>Skip</button>
+          </div>
           </div>
         </div>
       </div>
