@@ -16,7 +16,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 const restartBtn = document.getElementById('restart');
 
-const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15, CRACK: 16, SPRING: 17, MONUMENT: 18, PLOT: 19, WARCAMP: 20 };
+const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15, CRACK: 16, SPRING: 17, MONUMENT: 18, PLOT: 19, WARCAMP: 20, SHIP: 21 };
 const TOWN = 0;           // floor number of the town square
 const FINAL_FLOOR = 5;
 const VIEW_RADIUS = 8;    // how far the hero sees in the dungeon
@@ -92,6 +92,7 @@ const ACHIEVEMENTS = {
   wanderer10:  { label: 'Discovered ten places', title: 'the Pathfinder' },
   collector:   { label: 'Found five treasures', title: 'the Treasure-seeker' },
   crownbearer: { label: 'Restored the Crown of Aurum', title: 'Crownbearer' },
+  sailor:      { label: 'Took ship between ports', title: 'the Seafarer' },
   deepwarden:  { label: 'Closed the Dreaming Maw', title: 'Deepwarden' },
   general:     { label: 'Your army razed an orc warcamp', title: 'the General' },
   warlord:     { label: 'Five warcamps razed', title: 'the Warlord' },
@@ -224,7 +225,7 @@ function markSeen(x, y) {
   const cx = Math.floor(x / CHUNK), cy = Math.floor(y / CHUNK);
   getChunk(cx, cy).seen[(y - cy * CHUNK) * CHUNK + (x - cx * CHUNK)] = 1;
 }
-const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE && t !== TILE.WAYOUT && t !== TILE.CRACK && t !== TILE.SPRING && t !== TILE.MONUMENT && t !== TILE.PLOT && t !== TILE.WARCAMP;
+const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE && t !== TILE.WAYOUT && t !== TILE.CRACK && t !== TILE.SPRING && t !== TILE.MONUMENT && t !== TILE.PLOT && t !== TILE.WARCAMP && t !== TILE.SHIP;
 const hazard = (x, y) => getTile(x, y) === TILE.LAVA || (getTile(x, y) === TILE.TRAP && revealedTraps.has(key(x, y)));
 
 // ---------- account save/load ----------
@@ -725,9 +726,9 @@ function bountyFor(town) {
   const i = town.i, j = town.j, d = Math.max(Math.abs(i), Math.abs(j));
   const names = d < 2 ? ['Goblin', 'Spider', 'Orc'] : d < 4 ? ['Orc', 'Spider', 'Skeleton'] : ['Orc', 'Wraith', 'Skeleton'];
   const type = MONSTER_TYPES.find((t) => t.name === names[Math.floor(cellRand(i, j, 511) * names.length)]);
-  const angle = cellRand(i, j, 510) * Math.PI * 2, far = 26 + Math.floor(cellRand(i, j, 513) * 14);
-  return { key: town.key, town, type, name: BOUNTY_NAMES[Math.floor(cellRand(i, j, 512) * BOUNTY_NAMES.length)],
-    x: Math.round(town.cx + Math.cos(angle) * far), y: Math.round(town.cy + Math.sin(angle) * far), reward: 80 + d * 60, danger: d };
+  let angle = cellRand(i, j, 510) * Math.PI * 2, far = 26 + Math.floor(cellRand(i, j, 513) * 14), bx = town.cx, by = town.cy;
+  for (let k = 0; k < 8; k++, angle += Math.PI / 4) { bx = Math.round(town.cx + Math.cos(angle) * far); by = Math.round(town.cy + Math.sin(angle) * far); if (isLand(bx, by)) break; }   // the beast prowls on land
+  return { key: town.key, town, type, name: BOUNTY_NAMES[Math.floor(cellRand(i, j, 512) * BOUNTY_NAMES.length)], x: bx, y: by, reward: 80 + d * 60, danger: d };
 }
 const activeBounties = () => (player.quests || []).filter((q) => q.kind === 'bounty' && !q.done);
 // Put each hunted beast back in the world (they are not saved, so a reload brings them back).
@@ -1162,6 +1163,7 @@ BIG_SPRITES.beacon = ['......yoy.......', '.....yoroy......', '......yoy.......'
 BIG_SPRITES.warcamp = ['................', '.......d........', '......dd........', '......d.........', '.....rrr....rr..', '....rrrrr..rrrr.', '...rrkrrrr.rkrr.', '..rrrkkrrrrrkkrr', '..rrrkkrrrrrkkrr', '..HHHHHHHHHHHHHH', '....E..oo...E...', '...EEE.oy..EEE..', '....E..oo...E...', '.H..H......H..H.', '................', '................'];
 BIG_SPRITES.razedcamp = ['................', '................', '................', '................', '.....EkE....k...', '....kEkkk..kEk..', '...kkkEkkk.kkkk.', '..kEkkkkEkkkkEkk', '..kkkkEkkkkEkkkk', '..HHkHHHkHHHkHHH', '................', '....E.......E...', '...EEE.....EEE..', '....E.......E...', '................', '................'];
 BIG_SPRITES.soldier = ['.....eeeeee.....', '....eeeeeeee....', '....eessssee....', '....esssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....eeeeeeee....', '...eeeeeeeeee.e.', '..seeeeeeeeeese.', '..s.eeeeeeee.se.', '....eeeeeeee..e.', '....EEE..EEE..e.', '....EEE..EEE..e.', '...HHH....HHH...', '................'];
+BIG_SPRITES.ship = ['.......w........', '.......ww.......', '.......www......', '.......wwww.....', '.......wwwww....', '.......wwwwww...', '.......wwwww....', '.......www......', '.......w........', '..HHHHHHHHHHHH..', '.HhhhhhhhhhhhhH.', '.HhhhhhhhhhhhhH.', '..HHHHHHHHHHHH..', '...hhhhhhhhhh...', '................', '................'];
 const spriteCache = {};
 // Creatures, items and props get a dark outline so they read on any ground;
 // 16px sprites also get a light top rim and a darker bottom rim for volume.
@@ -1419,7 +1421,7 @@ const stars = (danger) => '★'.repeat(Math.min(5, 1 + danger)) + '☆'.repeat(M
 const REALMS = {
   cantons: { name: 'Free Cantons of Hearth', short: 'the Free Cantons', gov: 'Democracy', ruler: 'Speaker Maren', capital: [0, 0], color: '#5fe17a',
     blurb: 'Free towns that elect a council every spring. Low tariffs, public works, and arguments in every tavern.' },
-  aurum: { name: 'Kingdom of Aurum', short: 'the Kingdom', gov: 'Monarchy', ruler: 'King Aldric', capital: [2, -1], color: '#f5c542',
+  aurum: { name: 'Kingdom of Aurum', short: 'the Kingdom', gov: 'Monarchy', ruler: 'King Aldric', capital: [3, -1], color: '#f5c542',
     blurb: 'Ruled by King Aldric from Castle Aurum. Castles on the hills, knights on the roads, and the King\'s law over all.' },
   kathar: { name: "Ka'thar Clans", short: 'the Clans', gov: 'Tribal', ruler: 'Chieftain Ulrek Stonehand', capital: [-3, 2], color: '#e0763a',
     blurb: 'Clans of the southern wilds, led by a chieftain chosen in battle and guided by shamans who speak with the spirits.' },
@@ -1729,7 +1731,7 @@ const discovered = (p) => player.meta.places.includes(p.key);
 // walk from one to the next. Each town has a name, its own set of buildings,
 // a fountain, townsfolk and a gate down into the dungeon.
 const WORLD_SEED = 7331, TOWN_SPACING = 96, TW = 40, TH = 30;
-const GROUND = { GRASS: 0, FOREST: 1, SAND: 2, WATER: 3, MOUNTAIN: 4, ROAD: 5, COBBLE: 6, TREE: 7, RAMPART: 8 };
+const GROUND = { GRASS: 0, FOREST: 1, SAND: 2, WATER: 3, MOUNTAIN: 4, ROAD: 5, COBBLE: 6, TREE: 7, RAMPART: 8, DOCK: 9 };
 const worldChunks = new Map();   // kept across scene changes
 const towns = new Map();         // lattice key -> town
 let homeTown = '0,0';            // the town whose gate you last took
@@ -1774,7 +1776,40 @@ function valueNoise(x, y, salt, scale) {
   const n00 = noise(x0, y0, salt), n10 = noise(x0 + 1, y0, salt), n01 = noise(x0, y0 + 1, salt), n11 = noise(x0 + 1, y0 + 1, salt);
   return (n00 * (1 - sx) + n10 * sx) * (1 - sy) + (n01 * (1 - sx) + n11 * sx) * sy;
 }
+// ---------- continents ----------
+// Each realm has a continent of its own, centred on its capital, with open sea
+// between them, narrow land bridges joining neighbours, and small islands beyond.
+const CONT_RX = 124, CONT_RY = 150, BRIDGE_W = 11;   // continents are taller than they are wide, so the eastern pair keeps a strait
+const CONTINENTS = REALM_ORDER.map((id) => ({ id, cx: REALMS[id].capital[0] * TOWN_SPACING + 20, cy: REALMS[id].capital[1] * TOWN_SPACING + 15 }));
+const BRIDGES = [['cantons', 'aurum'], ['cantons', 'kathar'], ['cantons', 'league'], ['kathar', 'league']].map(([a, b]) => [CONTINENTS.find((c) => c.id === a), CONTINENTS.find((c) => c.id === b)]);
+// story sites and the Deep gate must be on land: a lobe of land around each of their cells
+const LAND_ANCHORS = [...Object.values(STORY_SITES).map((S) => ({ x: S.i * TOWN_SPACING + 47, y: S.j * TOWN_SPACING + 45, r: 58 })), { x: DEEP_CELL[0] * TOWN_SPACING + 48, y: DEEP_CELL[1] * TOWN_SPACING + 60, r: 50 }];
+function segDist(x, y, a, b) {
+  const vx = b.cx - a.cx, vy = b.cy - a.cy, wx = x - a.cx, wy = y - a.cy;
+  const t = Math.max(0, Math.min(1, (wx * vx + wy * vy) / (vx * vx + vy * vy)));
+  return Math.hypot(x - (a.cx + vx * t), y - (a.cy + vy * t));
+}
+function landness(x, y) {
+  let v = -1;
+  for (const c of CONTINENTS) v = Math.max(v, 1 - Math.hypot((x - c.cx) / CONT_RX, (y - c.cy) / CONT_RY));
+  for (const [a, b] of BRIDGES) v = Math.max(v, 0.3 - segDist(x, y, a, b) / BRIDGE_W * 0.22);
+  for (const a of LAND_ANCHORS) v = Math.max(v, 0.45 - Math.hypot(x - a.x, y - a.y) / a.r * 0.4);
+  // islands out in the sea
+  if (v < -0.12 && valueNoise(x, y, WORLD_SEED + 11, 70) > 0.8) v = Math.max(v, 0.25);
+  // a ragged coast
+  return v + (valueNoise(x, y, WORLD_SEED + 9, 34) - 0.5) * 0.3 + (valueNoise(x, y, WORLD_SEED + 10, 11) - 0.5) * 0.1;
+}
+const isLand = (x, y) => landness(x, y) > 0.08;
+const isSea = (x, y) => !isLand(x, y);
+function continentOf(x, y) {
+  let best = -1, bv = 0.2;
+  CONTINENTS.forEach((c, k) => { const v = 1 - Math.hypot((x - c.cx) / CONT_RX, (y - c.cy) / CONT_RY); if (v > bv) { bv = v; best = k; } });
+  return best;
+}
 function terrainAt(x, y) {
+  const L = landness(x, y);
+  if (L <= 0.08) return GROUND.WATER;
+  if (L < 0.125) return GROUND.SAND;   // the shore
   const h = valueNoise(x, y, WORLD_SEED, 26) * 0.6 + valueNoise(x, y, WORLD_SEED + 1, 9) * 0.3 + valueNoise(x, y, WORLD_SEED + 2, 4) * 0.1;
   if (h < 0.3) return GROUND.WATER;
   if (h < 0.34) return GROUND.SAND;
@@ -1790,7 +1825,7 @@ const TOWN_SIZES = {
   castle:  { plaza: [16, 10], houses: [[14, 3, 12, 4, 'keep'], [4, 4, 6, 4, 'smithy'], [30, 4, 6, 4, 'armoury'], [4, 22, 6, 4, 'watch'], [30, 22, 6, 4, 'inn']], folk: [2, 4], walled: true },
   grand:   { plaza: [16, 10], houses: [[12, 3, 16, 5, 'throne'], [3, 4, 7, 4, 'royal'], [31, 4, 6, 4, 'smithy'], [3, 22, 6, 4, 'armoury'], [31, 22, 6, 4, 'watch'], [14, 23, 6, 4, 'apothecary'], [22, 23, 6, 4, 'inn'], [32, 12, 5, 4, 'arena']], folk: [4, 6], walled: true },
 };
-const GRAND_CASTLE = { i: 2, j: -1 };
+const GRAND_CASTLE = { i: 3, j: -1 };
 const REALM_SEATS = { cantons: ['council', 'townhall'], aurum: [null, 'herald'], kathar: ['longhouse', 'shamanhut'], league: ['exchange', 'exchange'] };
 const REALM_ROOFS = { kathar: ['#a07a35', '#8c6a2c', '#b08840'], league: ['#4c2f7a', '#5b3a8b', '#3f2a63'], aurum: null, cantons: null };   // the King's seat, the only one of its kind
 const SPECIAL_SHOPS = ['smithy', 'armoury', 'apothecary'];
@@ -1808,7 +1843,8 @@ function townAt(i, j) {
   if (towns.has(k)) return towns.get(k);
   const origin = i === 0 && j === 0;
   const isCapital = REALM_ORDER.some((id) => REALMS[id].capital[0] === i && REALMS[id].capital[1] === j);
-  if (!origin && !isCapital && !(i === GRAND_CASTLE.i && j === GRAND_CASTLE.j) && cellRand(i, j, 90) < 0.28) { towns.set(k, null); return null; }   // some cells are just wilderness
+  const onContinent = continentOf(i * TOWN_SPACING + 20, j * TOWN_SPACING + 15) >= 0;
+  if (!origin && !isCapital && !(i === GRAND_CASTLE.i && j === GRAND_CASTLE.j) && !onContinent && cellRand(i, j, 90) < 0.28) { towns.set(k, null); return null; }   // some island cells are just wilderness
   // try a few spots in the cell and keep the one on the best land
   let cx = i * TOWN_SPACING + 20, cy = j * TOWN_SPACING + 15, best = -Infinity;
   if (!origin) {
@@ -1820,6 +1856,7 @@ function townAt(i, j) {
   }
   const x0 = cx - 20, y0 = cy - 15;
   const grand = i === GRAND_CASTLE.i && j === GRAND_CASTLE.j;
+  if (!origin && !isCapital && !grand && (landScore(cx, cy) < 8 || !isLand(cx, cy))) { towns.set(k, null); return null; }   // no towns in the sea
   const sizeRoll = cellRand(i, j, 89);
   const realm = realmAt(i, j), capitalOf = isCapital ? realm : null;
   // castles mostly belong to the Kingdom, and the Clans keep no walls
@@ -1845,8 +1882,29 @@ function townAt(i, j) {
     town.houses.push({ x: x0 + lx, y: y0 + ly, w, h, id, doorX: x0 + lx + Math.floor(w / 2), doorY: y0 + ly + h - 1, town: k, ...BUILDINGS[id], ...(roof && !['throne', 'royal'].includes(id) ? { roof: roof[(lx + ly) % roof.length] } : {}) });
   }
   towns.set(k, town);
+  town.harbour = harbourOf(town);
   return town;
 }
+// A town near the open sea is a port: find the closest sea, run a pier out into it.
+function harbourOf(town) {
+  let best = null;
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const edge = dx === 1 ? town.x0 + TW : dx === -1 ? town.x0 - 1 : dy === 1 ? town.y0 + TH : town.y0 - 1;
+    for (let along = -1; along <= 1; along++) {
+      const sx = dx ? edge : town.cx + along * 8, sy = dy ? edge : town.cy + along * 6;
+      for (let n = 1; n <= 14; n++) {
+        const x = sx + dx * n, y = sy + dy * n;
+        if (!isSea(x, y)) continue;
+        if (!best || n < best.n) best = { n, dx, dy, x: x - dx, y: y - dy };   // the last land tile
+        break;
+      }
+    }
+  }
+  if (!best) return null;
+  const len = 5;
+  return { dx: best.dx, dy: best.dy, x: best.x, y: best.y, len, end: { x: best.x + best.dx * len, y: best.y + best.dy * len }, ship: { x: best.x + best.dx * (len + 1), y: best.y + best.dy * (len + 1) } };
+}
+const portAtTile = (x, y) => nearbyTowns(x, y, 1).find((t) => t.harbour && t.harbour.ship.x === x && t.harbour.ship.y === y) || null;
 // The nearest town along one axis, skipping empty cells (up to three away).
 function neighbourTown(i, j, di, dj) {
   for (let n = 1; n <= 3; n++) { const t = townAt(i + di * n, j + dj * n); if (t) return t; }
@@ -1892,6 +1950,7 @@ const TRADES = {
   pottery:   { label: 'pottery', famous: ['blue-glazed jars', 'kilns that burn all night'], deal: null },
   brewing:   { label: 'brewing', famous: ['dark ale', 'a brewery older than the Crown'], deal: null },
   horses:    { label: 'horse-breeding', famous: ['swift bay mares', 'the spring horse fair'], deal: 'horse' },
+  shipping:  { label: 'shipping', famous: ['tall ships', 'the harbour market', "sailors' taverns that never close", 'charts of every coast'], deal: 'potions' },
   smithing:  { label: 'smithing', famous: ['blades that hold an edge', 'the ring of a hundred anvils'], deal: 'gear' },
   glass:     { label: 'glassblowing', famous: ['coloured glass', 'mirrors for the Goldspire magnates'], deal: null },
   silk:      { label: 'silk', famous: ['silk from the southern traders', 'the finest tailors in the League'], deal: null },
@@ -1937,14 +1996,16 @@ function townIdentity(town) {
   if (realm === 'league') cands.push('glass', 'silk', 'smithing');
   if (realm === 'aurum') cands.push('smithing', 'wine');
   if (realm === 'cantons') cands.push('farming', 'wool');
-  const tradeId = cands[Math.floor(cellRand(i, j, 500) * cands.length)], trade = TRADES[tradeId];
+  const port = !!town.harbour;
+  const seaTrades = ['fishing', 'fishing', 'shipping', 'shipping', 'salt'];
+  const tradeId = port ? seaTrades[Math.floor(cellRand(i, j, 500) * seaTrades.length)] : cands[Math.floor(cellRand(i, j, 500) * cands.length)], trade = TRADES[tradeId];
   const famous = trade.famous[Math.floor(cellRand(i, j, 501) * trade.famous.length)];
   const lmIds = REALM_LANDMARKS[realm], lmId = lmIds[Math.floor(cellRand(i, j, 502) * lmIds.length)], L = LANDMARKS[lmId];
   const titles = LEADER_TITLES[realm], names = LEADER_NAMES[realm];
   const leader = `${titles[town.size === 'village' || town.size === 'town' ? 0 : 1]} ${names[Math.floor(cellRand(i, j, 503) * names.length)]}`;
   const sizeWord = town.size === 'grand' ? 'royal seat' : town.size === 'castle' ? 'castle town' : town.size;
-  town.identity = { tradeId, trade, famous, landmark: { id: lmId, sprite: L.sprite, name: L.name(town, realm), lore: L.lore }, leader, sizeWord, realm,
-    kind: sizeWord === 'royal seat' ? 'royal seat' : `${trade.label} ${sizeWord}`,
+  town.identity = { tradeId, trade, famous, landmark: { id: lmId, sprite: L.sprite, name: L.name(town, realm), lore: L.lore }, leader, sizeWord, realm, port,
+    kind: sizeWord === 'royal seat' ? 'royal seat' : port ? `${trade.label} port` : `${trade.label} ${sizeWord}`,
     describe() { return `${town.name}: ${sizeWord === 'royal seat' ? 'the' : 'a'} ${TIER_WORDS[townTier(town)]} ${this.kind} of the ${REALMS[realm].name}, known for ${famous}. ${this.landmark.name[0].toUpperCase() + this.landmark.name.slice(1)} stands in the square.${trade.deal ? ' ' + DEAL_TEXT[trade.deal] + '.' : ''}`; } };
   return town.identity;
 }
@@ -1973,6 +2034,7 @@ function leaderNpc(town) {
   if (site) lines.push(`${site.name.startsWith('The ') ? site.name : 'The ' + site.name} lies ${compassWord(site.x - town.cx, site.y - town.cy).toLowerCase()} of here. ${site.danger >= 3 ? 'Folk who go in there do not always come out.' : 'Our young ones dare each other to go in.'}`);
   if (place) lines.push(`If you are walking ${compassWord(place.x - town.cx, place.y - town.cy).toLowerCase()}, look out for ${place.name}.`);
   if (I.trade.deal) lines.push(`${DEAL_TEXT[I.trade.deal]}. Tell them ${I.leader} sent you.`);
+  if (town.harbour) lines.push(`Our harbour is ${compassWord(town.harbour.dx, town.harbour.dy).toLowerCase()} of the square. The harbourmaster on the pier sells passage to any port on the sea, for those who would rather not walk the bridges.`);
   return { sprite: I.realm === 'league' ? 'merchant' : I.realm === 'aurum' ? 'guard' : 'elder', name: `${I.leader} of ${town.name}`, lines, leader: true };
 }
 // ---------- what gives each town its character ----------
@@ -2002,7 +2064,7 @@ const NAME_LORE = {
 };
 const CAPITAL_LORE = {
   '0,0': 'Hearth was the first hearth lit after the Sundering: a camp of refugees around one fire, which became a town because nobody could agree on where else to go. The Free Cantons were born from that argument.',
-  '2,-1': 'Castle Aurum has been the seat of kings since Aurel the Founder laid the crown on its cushion. Its walls have never been taken, though its hall has seen two brothers at war.',
+  '3,-1': 'Castle Aurum has been the seat of kings since Aurel the Founder laid the crown on its cushion. Its walls have never been taken, though its hall has seen two brothers at war.',
   '-3,2': "Kar Thuldun, 'the stone hearth', was raised around the Ever-Fire where the first clans swore peace with each other. The fire has not gone out since.",
   '-2,-3': 'Goldspire was a counting-house before it was a town. The merchant houses built the spire first, so that debts could be seen from the road.',
 };
@@ -2114,6 +2176,35 @@ function notableNpc(town) {
   };
   town.notable = { sprite: N.sprite, name, role: N.role, lines: N.lines(c), notable: true, tell: 0 };
   return town.notable;
+}
+// ---------- the harbour ----------
+const HARBOUR_NAMES = ['Old Salt Maggs', 'Captain Reyes', 'Harbourmaster Finn', 'Mother Carrack', 'Captain Oduya', 'Harbourmaster Lusk', 'Tam Longboat', 'Captain Vashti'];
+function harbourmasterNpc(town) {
+  const nm = HARBOUR_NAMES[Math.floor(cellRand(town.i, town.j, 850) * HARBOUR_NAMES.length)];
+  return { sprite: 'innkeeper', name: `${nm} of ${town.name}`, action: 'harbour', lines: ['Passage to any port on this sea, and the next one, for a fair fare. The bridges are for people with time.', 'Mind the gulls. They have taken a whole pie off a knight before now.'], harbour: true };
+}
+function portsNear(town, reach = 4) {
+  const out = [];
+  for (let i = town.i - reach; i <= town.i + reach; i++) for (let j = town.j - reach; j <= town.j + reach; j++) { const t = townAt(i, j); if (t && t.harbour && t.key !== town.key) out.push(t); }
+  return out.sort((a, b) => Math.hypot(a.cx - town.cx, a.cy - town.cy) - Math.hypot(b.cx - town.cx, b.cy - town.cy));
+}
+const fareTo = (from, to) => 15 + Math.round(Math.hypot(to.cx - from.cx, to.cy - from.cy) / 9);
+function sailTo(from, to) {
+  const cost = fareTo(from, to);
+  if (player.gold < cost) return;
+  player.gold -= cost;
+  const distance = Math.round(Math.hypot(to.cx - from.cx, to.cy - from.cy));
+  closeShop();
+  const H = to.harbour;
+  player.x = H.x; player.y = H.y; player.wx = player.x; player.wy = player.y;
+  turn += Math.round(distance / 3);
+  refreshTownContext(); afterSceneChange();
+  if (!player.meta.visited.includes(to.key)) player.meta.visited.push(to.key);
+  burst(player.x, player.y, '#9fd4ff', 30, 100, { glow: true, gravity: -60, life: 900 });
+  sfx.play('stairs'); unlock('sailor');
+  track('sea_travel', { cost });
+  log(`You take ship from ${from.name}. ${Math.round(distance / 3)} turns of grey water later you step onto the pier at ${to.name}.`, 'good');
+  saveProgress('progress');
 }
 // ---------- monuments heroes build for each other ----------
 // Every square has building plots. Heroes pay at an inn to build a monument on
@@ -2268,6 +2359,7 @@ function siteAt(i, j) {
   let x = i * TOWN_SPACING + 8 + Math.floor(cellRand(i, j, 302) * 80), y = j * TOWN_SPACING + 6 + Math.floor(cellRand(i, j, 303) * 80);
   const town = townAt(i, j);
   if (town && x >= town.x0 - 3 && x < town.x0 + TW + 3 && y >= town.y0 - 3 && y < town.y0 + TH + 3) { x = town.x0 + TW + 12 + Math.floor(noise(i, j, 304) * 20); }
+  if (!isLand(x, y)) { sites.set(k, null); return null; }
   const danger = Math.max(Math.abs(i), Math.abs(j)) + (type === 'tower' || type === 'crypt' ? 1 : 0);
   const floors = st.floors[0] + Math.floor(cellRand(i, j, 305) * (st.floors[1] - st.floors[0] + 1));
   const name = type === 'tower' ? `The ${st.prefixes[Math.floor(cellRand(i, j, 306) * st.prefixes.length)]} Tower`
@@ -2299,15 +2391,25 @@ function generateWorldChunk(cx, cy) {
   const mark = (wx, wy) => {
     const lx = wx - ox, ly = wy - oy;
     if (lx < 0 || ly < 0 || lx >= CHUNK || ly >= CHUNK) return;
+    if (gr[ly * CHUNK + lx] === GROUND.WATER && isSea(wx, wy)) return;   // roads stop at the shore
     gr[ly * CHUNK + lx] = GROUND.ROAD; tiles[ly * CHUNK + lx] = TILE.FLOOR;
   };
+  // the king's roads: straight across every land bridge, capital to capital
+  for (const [a, b] of BRIDGES) {
+    const steps = Math.ceil(Math.hypot(b.cx - a.cx, b.cy - a.cy));
+    for (let k = 0; k <= steps; k++) {
+      const x = Math.round(a.cx + (b.cx - a.cx) * k / steps), y = Math.round(a.cy + (b.cy - a.cy) * k / steps);
+      if (x < ox - 1 || y < oy - 1 || x > ox + CHUNK || y > oy + CHUNK) continue;
+      mark(x, y); mark(x + 1, y); mark(x, y + 1);
+    }
+  }
   // roads: every town links east and south to the next town along, skipping empty cells
   const i0 = Math.floor((ox - 20) / TOWN_SPACING), j0 = Math.floor((oy - 15) / TOWN_SPACING);
   for (let i = i0 - 3; i <= i0 + 1; i++) for (let j = j0 - 3; j <= j0 + 1; j++) {
     const a = townAt(i, j);
     if (!a) continue;
     for (const b of [neighbourTown(i, j, 1, 0), neighbourTown(i, j, 0, 1)]) {
-      if (!b) continue;
+      if (!b || continentOf(a.cx, a.cy) !== continentOf(b.cx, b.cy)) continue;   // no roads across the sea
       let x = a.cx, y = a.cy;
       while (x !== b.cx) { x += Math.sign(b.cx - x); mark(x, y); mark(x, y + 1); }
       while (y !== b.cy) { y += Math.sign(b.cy - y); mark(x, y); mark(x + 1, y); }
@@ -2356,6 +2458,17 @@ function generateWorldChunk(cx, cy) {
       tiles[(y - oy) * CHUNK + (x - ox)] = t; gr[(y - oy) * CHUNK + (x - ox)] = g;
     }
   }
+  // piers out into the sea, with a ship moored at the end
+  for (const town of nearbyTowns(ox + CHUNK / 2, oy + CHUNK / 2, 1)) {
+    const H = town.harbour; if (!H) continue;
+    for (let n = 0; n <= H.len; n++) {
+      const x = H.x + H.dx * n, y = H.y + H.dy * n, lx = x - ox, ly = y - oy;
+      if (lx < 0 || ly < 0 || lx >= CHUNK || ly >= CHUNK) continue;
+      gr[ly * CHUNK + lx] = n === 0 ? gr[ly * CHUNK + lx] : GROUND.DOCK; tiles[ly * CHUNK + lx] = TILE.FLOOR;
+    }
+    const lx = H.ship.x - ox, ly = H.ship.y - oy;
+    if (lx >= 0 && ly >= 0 && lx < CHUNK && ly < CHUNK) tiles[ly * CHUNK + lx] = TILE.SHIP;
+  }
   // beasts of the wilds: a few per chunk, never on roads or near a settlement
   const rand = seededRandom(hash32(WORLD_SEED, cx, cy));
   const danger = Math.max(Math.abs(Math.round((ox - 20) / TOWN_SPACING)), Math.abs(Math.round((oy - 15) / TOWN_SPACING)));
@@ -2401,6 +2514,7 @@ function townNpcs(town) {
     const cell = spots.splice(Math.floor(cellRand(town.i, town.j, 802) * spots.length), 1)[0];
     town.npcs.push({ ...cell, type: notableNpc(town), pause: rnd(3), home: { x: town.cx, y: town.cy } });
   }
+  if (town.harbour) { const H = town.harbour; town.npcs.push({ x: H.end.x, y: H.end.y, type: harbourmasterNpc(town), fixed: true, pause: 0, home: { x: town.cx, y: town.cy } }); }
   const count = town.key === '0,0' ? NPC_TYPES.length : town.folk[0] + Math.floor(noise(town.i, town.j, 98) * (town.folk[1] - town.folk[0] + 1));
   for (let n = 0; n < count && spots.length; n++) {
     const cell = spots.splice(Math.floor(noise(town.i, town.j, 100 + n) * spots.length), 1)[0];
@@ -3098,6 +3212,15 @@ function drawField(g, c, r, kind) {
     if (!fieldAt(c, r - 1)) { g.fillStyle = '#6b4423'; g.fillRect(X, Y + 2, T, 2); g.fillRect(X + 4, Y, 2, 8); g.fillRect(X + 24, Y, 2, 8); }   // the fence
   }
 }
+function drawDock(g, c, r) {
+  drawWater(g, c, r);
+  const X = c * T - off.x, Y = r * T - off.y;
+  g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(X + 4, Y + 6, T - 6, T - 8);
+  g.fillStyle = '#8b5a2b'; g.fillRect(X + 2, Y + 4, T - 4, T - 8);
+  g.fillStyle = '#6b4423'; for (let k = 0; k < 5; k++) g.fillRect(X + 2, Y + 4 + k * 5, T - 4, 1);
+  g.fillStyle = '#5b3a1a'; g.fillRect(X + 2, Y + 4, 3, T - 8); g.fillRect(X + T - 5, Y + 4, 3, T - 8);
+  g.fillStyle = '#3b2a1a'; g.fillRect(X + 1, Y + 2, 3, 6); g.fillRect(X + T - 4, Y + T - 8, 3, 6);   // mooring posts
+}
 function drawRampart(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 29);
   g.fillStyle = n < 0.5 ? '#64748b' : '#5b6b7f'; g.fillRect(X, Y, T, T);
@@ -3423,6 +3546,7 @@ function renderBackground() {
       else if (gnd === GROUND.SAND) drawSand(g, c, r);
       else if (gnd === GROUND.MOUNTAIN) drawMountain(g, c, r);
       else if (gnd === GROUND.ROAD) drawRoad(g, c, r);
+      else if (gnd === GROUND.DOCK) drawDock(g, c, r);
       else if (gnd === GROUND.FOREST || gnd === GROUND.TREE) {
         drawGrass(g, c, r, true);
         if (gnd === GROUND.TREE) { g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(c * T - off.x + T / 2 + 4, r * T - off.y + T - 4, T * 0.42, 6, 0, 0, Math.PI * 2); g.fill(); drawSprite(g, 'tree', c, r, 1, 1); }
@@ -3442,6 +3566,7 @@ function renderBackground() {
         drawSprite(g, 'stairs', c, r);
       }
       if (t === TILE.SITE) { const st = siteAtTile(c, r); if (st) drawSprite(g, st.sprite, c, r, 1, 0); }
+      if (t === TILE.SHIP) { drawWater(g, c, r); drawSprite(g, 'ship', c, r, 1, -2); }
       if (t === TILE.WAYSTONE) drawSprite(g, 'waystone', c, r, 1, 0);
       if (t === TILE.PLACE) { const pl = placeAtTile(c, r); if (pl) drawSprite(g, pl.sprite, c, r, 1, 0); }
       if (t === TILE.MONUMENT) { const tw = townContaining(c, r); if (tw) drawSprite(g, townIdentity(tw).landmark.sprite, c, r, 1, 0); }
@@ -4108,7 +4233,7 @@ function renderWorldMap() {
     const a = townAt(i, j);
     if (!a) continue;
     for (const b of [neighbourTown(i, j, 1, 0), neighbourTown(i, j, 0, 1)]) {
-      if (!b) continue;
+      if (!b || continentOf(a.cx, a.cy) !== continentOf(b.cx, b.cy)) continue;   // no roads across the sea
       const [ax, ay] = toPx(a.cx, a.cy), [bx, by] = toPx(b.cx, b.cy);
       g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, ay); g.lineTo(bx, by); g.stroke();
     }
@@ -4201,7 +4326,8 @@ function drawMapTown(g, t, x, y, w, h) {
   g.fillStyle = '#3b2a1a'; g.fillRect(sx - 1, sy - 9, 1, 10);
   g.fillStyle = col; g.beginPath(); g.moveTo(sx, sy - 9); g.lineTo(sx + 7, sy - 7); g.lineTo(sx, sy - 5); g.fill();
   // the name
-  const label = (t.key === homeTown ? t.name + ' (home)' : t.name) + (grand ? ' ♛' : t.capital ? ' ✦' : ''), lw = g.measureText(label).width + 8;
+  if (t.harbour) { const H = t.harbour, [hx, hy] = [x + ((H.end.x - t.x0) / MAP_STEP) * MAP_PX, y + ((H.end.y - t.y0) / MAP_STEP) * MAP_PX]; g.fillStyle = '#8b5a2b'; g.fillRect(Math.min(hx, x + ((H.x - t.x0) / MAP_STEP) * MAP_PX), Math.min(hy, y + ((H.y - t.y0) / MAP_STEP) * MAP_PX), H.dx ? Math.abs(H.dx) * H.len * MAP_PX / MAP_STEP + 2 : 3, H.dy ? H.len * MAP_PX / MAP_STEP + 2 : 3); g.fillStyle = '#f4f4f4'; g.fillRect(hx + H.dx * 3 - 2, hy + H.dy * 3 - 4, 4, 4); }
+  const label = (t.harbour ? '⚓ ' : '') + (t.key === homeTown ? t.name + ' (home)' : t.name) + (grand ? ' ♛' : t.capital ? ' ✦' : ''), lw = g.measureText(label).width + 8;
   g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(x + w / 2 - lw / 2, sy - 20, lw, 14, 3); g.fill();
   g.fillStyle = grand ? '#fbbf24' : t.capital ? col : '#ffd86b'; g.fillText(label, x + w / 2, sy - 7);
 }
@@ -4271,7 +4397,7 @@ function drawWorldMap(g, now) {
   g.font = '13px sans-serif'; g.fillStyle = '#a8c0d8';
   g.fillText(`${here ? here.name : 'The wilds'}  ·  position ${player.x}, ${player.y}  ·  each square is ${MAP_STEP} tiles  ·  click to place or remove a pin  ·  M or Esc closes`, 112, 18);
   // legend
-  const items = [['#3f7d3a', 'grass'], ['#2e7d32', 'forest'], ['#1d4ed8', 'water'], ['#6b7280', 'mountains / town'], ['#a8865a', 'road'], ['#5fe17a', 'gate'], ['#c084fc', 'cave, crypt or tower (★ danger)']];
+  const items = [['#3f7d3a', 'grass'], ['#2e7d32', 'forest'], ['#1d4ed8', 'water'], ['#6b7280', 'mountains / town'], ['#a8865a', 'road'], ['#5fe17a', 'gate'], ['#c084fc', 'cave, crypt or tower (★ danger)'], ['#8b5a2b', '⚓ port: ships sail to other ports']];
   let lx = 20; const ly = canvas.height - 26;
   g.font = '12px sans-serif'; g.textBaseline = 'middle';
   for (const [col, name] of items) { g.fillStyle = col; g.fillRect(lx, ly - 5, 10, 10); g.fillStyle = '#cfe9ff'; g.fillText(name, lx + 14, ly); lx += g.measureText(name).width + 30; }
@@ -4291,6 +4417,8 @@ function describeTile(x, y) {
   const other = mpPlayerAt(x, y);
   if (other) return `${other.data.name}${other.data.title ? ' ' + other.data.title : ''} — level ${other.data.level} ${other.data.cls}${inMyParty(other.id) ? ', in your party' : ''}${scene !== 'dungeon' ? '. Walk into them to invite or wave' : ''}`;
   if (houndAt(x, y)) return `Your hound — ${hound.hp}/${hound.maxHp} HP, bite ${hound.atk}, level ${hound.level}, ${hound.kills} kills`;
+  if (t === TILE.SHIP) { const pt = portAtTile(x, y); return pt ? `The ship of ${pt.name} — walk into it, or speak to the harbourmaster, to sail to another port` : 'A boat'; }
+  if (scene === 'world' && groundAt(x, y) === GROUND.DOCK) return 'The pier — the harbourmaster at the end sells passage by sea';
   if (t === TILE.WARCAMP) { const wc = campAtTile(x, y); if (wc) return campRazed(wc) ? `${wc.name} — razed` : `${wc.name} — orc warcamp, strength ${wc.strength}. ${armiesUnlocked() ? 'Send a realm\'s army' : `Armies open at level ${ARMY_LEVEL}`}`; }
   if (t === TILE.PLOT) { const tw = townContaining(x, y); if (tw) { const b = buildingAt(tw, plotSlot(tw, x, y)); return b ? `${b.builder}'s ${monumentName(b)}, level ${b.level}${b.upgrader && b.upgrader !== b.builder ? ` (upgraded by ${b.upgrader})` : ''} — ${levelDesc(b.type, b.level)}. Walk into it to use it${monumentUsed(tw, plotSlot(tw, x, y)) ? ' (used recently)' : ''}` : 'Empty building plot — pay an innkeeper here to build a monument for every hero'; } }
   if (t === TILE.MONUMENT) { const tw = townContaining(x, y); if (tw) { const L = townIdentity(tw).landmark; return `${L.name[0].toUpperCase() + L.name.slice(1)} — the pride of ${tw.name}. Walk into it to look closer`; } }
@@ -4355,7 +4483,7 @@ const hover = { x: null, y: null, path: [], sig: '' };
 const occupiedBy = (x, y) => getMonsterAt(x, y) || getNpcAt(x, y) || mpPlayerAt(x, y) || null;
 function interactive(x, y) {
   const t = getTile(x, y);
-  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT, TILE.CRACK, TILE.SPRING, TILE.MONUMENT, TILE.PLOT, TILE.WARCAMP].includes(t);
+  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT, TILE.CRACK, TILE.SPRING, TILE.MONUMENT, TILE.PLOT, TILE.WARCAMP, TILE.SHIP].includes(t);
 }
 // The tiles from the hero to a target (not including the hero's own tile), shortest first.
 function pathTo(tx, ty, limit = 60) {
@@ -5063,6 +5191,7 @@ function tryMove(dx, dy) {
   }
   if (t === TILE.PLACE) { usePlace(placeAtTile(nx, ny)); draw(); return; }
   if (t === TILE.PLOT) { const tw = townContaining(nx, ny); if (tw) useMonument(tw, plotSlot(tw, nx, ny)); draw(); return; }
+  if (t === TILE.SHIP) { const pt = portAtTile(nx, ny); if (pt) openShop('harbour'); else log('A boat with nobody to sail it.'); draw(); return; }
   if (t === TILE.WARCAMP) { const wc = campAtTile(nx, ny); if (wc) log(campRazed(wc) ? `The burnt-out remains of ${wc.name}. The realm's soldiers did their work.` : `${wc.name[0].toUpperCase() + wc.name.slice(1)}: palisades, drums and far too many orcs (strength ${wc.strength}). No single hero can take it. ${armiesUnlocked() ? 'Recruit an army at a realm\'s seat and send it here.' : `Heroes of level ${ARMY_LEVEL} can raise a realm's army against it.`}`, campRazed(wc) ? '' : 'bad'); draw(); return; }
   if (t === TILE.MONUMENT) { const tw = townContaining(nx, ny); if (tw) { const L = townIdentity(tw).landmark; log(`${L.name[0].toUpperCase() + L.name.slice(1)}. ${L.lore}`); } draw(); return; }
   const other = mpPlayerAt(nx, ny);
@@ -5154,7 +5283,7 @@ function showScene(pages, onDone) {
   sceneQueue = pages.slice(); sceneDone = onDone || null;
   nextScenePage();
 }
-let scenePage = null;
+let scenePage = null, choiceIndex = 0;
 // A painted backdrop for each kind of scene: sky, silhouettes and a little light.
 function sceneBackdropKey(page) {
   if (page.bg) return page.bg;
@@ -5216,6 +5345,15 @@ function drawSceneBackdrop(g, key, w, h) {
   g.fillStyle = 'rgba(6,12,20,0)'; g.fillRect(0, 0, w, h);
   const vg = g.createLinearGradient(0, h - 30, 0, h); vg.addColorStop(0, 'rgba(6,32,44,0)'); vg.addColorStop(1, 'rgba(6,32,44,0.9)'); g.fillStyle = vg; g.fillRect(0, h - 30, w, 30);
 }
+
+// The highlighted choice: arrows or W/S move it, Enter takes it; the mouse follows too.
+function moveChoice(step) {
+  const btns = [...document.querySelectorAll('#story-choices button')];
+  if (!btns.length) return;
+  for (let k = 0; k < btns.length; k++) { choiceIndex = (choiceIndex + step + btns.length) % btns.length; if (!btns[choiceIndex].disabled) break; }
+  btns.forEach((b, i) => b.classList.toggle('selected', i === choiceIndex));
+  btns[choiceIndex].focus({ preventScroll: true });
+}
 function nextScenePage() {
   const page = sceneQueue.shift();
   scenePage = page || null;
@@ -5225,12 +5363,15 @@ function nextScenePage() {
   storyEl.hidden = false;
   const choices = page.choices || [];
   document.getElementById('story-next').hidden = choices.length > 0;
+  choiceIndex = Math.max(0, choices.findIndex((c) => !c.disabled));
   choices.forEach((c, i) => {
-    const b = document.createElement('button'); b.type = 'button'; b.className = i === 0 ? 'primary' : '';
+    const b = document.createElement('button'); b.type = 'button'; b.className = i === choiceIndex ? 'selected' : '';
     b.textContent = `${i + 1}. ${c.label}`; b.disabled = !!c.disabled;
     b.addEventListener('click', () => chooseScene(i));
+    b.addEventListener('mouseenter', () => { if (!b.disabled) { choiceIndex = i; [...box.children].forEach((x, k) => x.classList.toggle('selected', k === i)); } });
     box?.appendChild(b);
   });
+  if (choices.length) setTimeout(() => document.querySelectorAll('#story-choices button')[choiceIndex]?.focus({ preventScroll: true }), 0);
   document.getElementById('story-title').textContent = page.who;
   document.getElementById('story-text').textContent = page.text;
   document.getElementById('story-next').textContent = sceneQueue.length ? 'Continue' : 'Close';
@@ -6172,6 +6313,8 @@ window.addEventListener('keydown', (e) => {
   if (storyOpen()) {
     const choices = scenePage && scenePage.choices;
     if (choices && choices.length) {
+      if (['ArrowDown', 'ArrowUp', 's', 'S', 'w', 'W', 'Tab'].includes(e.key)) { e.preventDefault(); moveChoice(['ArrowUp', 'w', 'W'].includes(e.key) || (e.key === 'Tab' && e.shiftKey) ? -1 : 1); return; }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chooseScene(choiceIndex); return; }
       if (/^[1-9]$/.test(e.key)) { e.preventDefault(); chooseScene(Number(e.key) - 1); }
       else if (e.key === 'Escape') { e.preventDefault(); chooseScene(choices.length - 1); }   // the last choice is always the way out
       return;
@@ -6553,7 +6696,7 @@ function priceMult() {
 }
 const sellRate = () => (wearing('ledger') ? 0.7 : currentRealm() === 'league' ? 0.6 : 0.5);
 const sellPrice = (id) => Math.floor(itemInfo(id).price * sellRate());
-const SERVICE_SHOPS = new Set(['travel', 'player', 'court', 'council', 'chieftain', 'shaman', 'bank', 'hermit']);
+const SERVICE_SHOPS = new Set(['travel', 'player', 'court', 'council', 'chieftain', 'shaman', 'bank', 'hermit', 'harbour']);
 const SHOPS = {
   shop: { title: 'Merchant', stock: (id, it) => it.floor <= Math.max(floor, 1) + 1, price: (it) => it.price, greet: 'The merchant greets you. Buy and sell with the buttons, Esc to leave.' },
   potions: { title: "Mara's potions", stock: (id) => id === 'potion' || id === 'manapotion', price: (it) => it.price - 2, greet: 'Mara sets out her potions. She buys gear too, at half price.' },
@@ -6575,6 +6718,7 @@ Object.assign(SHOPS, {
   shaman: { title: 'The Spirits', stock: () => false, price: (it) => it.price, greet: 'The shaman throws herbs on the fire. "Which spirit would you walk with?"' },
   bank: { title: 'The Goldspire Exchange', stock: () => false, price: (it) => it.price, greet: 'The banker steeples her fingers. "Deposits are safe from death itself. There is a small fee."' },
   caravan: { title: 'The merchant caravan', stock: (id, it) => (!!ITEMS.consumables[id] && it.floor < 99) || (it.floor >= 3 && it.floor <= 7), price: (it) => Math.round(it.price * 0.95), greet: 'The caravan master throws back a tarp. Goods from every corner of the four realms.' },
+  harbour: { title: 'The harbour', stock: () => false, price: (it) => it.price, greet: 'Gulls, tar and rope. The harbourmaster runs a finger down a list of ports.' },
   hermit: { title: "The hermit's maps", stock: () => false, price: (it) => it.price, greet: 'The hermit spreads out a bundle of hand-drawn maps. "Places I have been. Places I would not go again."' },
 });
 function openShop(kind = 'shop') {
@@ -6902,6 +7046,14 @@ function serviceRowsInner(kind) {
       unlock('guild'); track('realm_spend', { realm: 'league', what: 'guild', cost: 1000 });
       afterSpend();
     }, player.gold < 1000));
+  } else if (kind === 'harbour') {
+    const here = townContaining(player.x, player.y) || nearestTownTo(player.x, player.y);
+    const ports = here ? portsNear(here) : [];
+    if (!ports.length) rows.push(shopRow('No other port on this sea. The ship stays tied up.'));
+    for (const t of ports) {
+      const I = townIdentity(t), seen = player.meta.visited.includes(t.key), cost = fareTo(here, t);
+      rows.push(shopRow(`${t.name}, ${REALMS[I.realm].short} (${I.kind}${seen ? '' : ', never visited'}), ${compassWord(t.cx - here.cx, t.cy - here.cy).toLowerCase()}`, `Sail ${cost}g`, () => sailTo(here, t), player.gold < cost));
+    }
   } else if (kind === 'hermit') {
     const unknown = nearbyPlaces(player.x, player.y, 3).filter((p) => !discovered(p));
     rows.push(shopRow(unknown.length ? `A map of the three nearest places you have not found (${unknown.length} within a few days' walk)` : 'You have found every place the hermit knows about', unknown.length ? '60g' : null, () => {
@@ -6945,6 +7097,10 @@ document.getElementById('shop-close')?.addEventListener('click', closeShop);
 
 // ---------- setup ----------
 function afterSceneChange() {
+  if (scene === 'world' && player && !walkable(getTile(player.x, player.y)) && !townContaining(player.x, player.y)) {
+    log('The land has changed since you were last here: the sea covers where you stood. You wake in your home town.', 'bad');
+    returnHome();
+  }
   music.setMood(currentMood());
   stopWalk(); hover.path = []; hover.sig = '';
   bubble = null; closeShop(); clearInspect(); floats.length = 0; particles.length = 0; mapOpen = false;

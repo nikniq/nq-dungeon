@@ -14,6 +14,17 @@ with a helm, or dragonscale. The weapon is drawn in hand, unarmed rangers carry 
 bow and mages a staff, and the Crown of Aurum sits on your head. A large portrait
 sits beside the inventory, and in multiplayer other heroes see your gear too.
 
+The world is four continents on an open sea, one per realm and centred on its
+capital (`CONTINENTS`, elliptical with a ragged noise coast), joined by narrow land
+bridges (`BRIDGES`: the Cantons to each neighbour, and the Clans to the League)
+that each carry a king's road between capitals, with small islands beyond. The
+Deep gate sits on the Cantons–Kingdom bridge; story sites are anchored to land.
+Towns, dungeons, places and camps only generate on land, and roads never cross
+the sea. Any town near the sea is a port with a pier, a moored ship and a
+harbourmaster who sells passage to every other port within four regions, even
+ones not yet visited (`harbourOf`, `sailTo`). A hero whose saved spot is now
+sea wakes in their home town.
+
 You start in Hearth on an endless seeded overworld (`WORLD_SEED` in `script.js`).
 Settlements sit roughly every 96 tiles (some cells are empty), placed on the best
 land nearby and joined by roads: villages, towns, cities, walled castles, and one
@@ -75,7 +86,7 @@ rooms have a healing spring that restores full health once.
 Walking the wilds brings roadside encounters with choices: a merchant caravan
 with rare stock, bandits demanding a toll, a wounded knight, a gambler, a
 wayside altar, an injured wolf that may join you, a hooded stranger, a bard and
-an abandoned camp, plus ambushes at night. Number keys pick a choice; Esc takes
+an abandoned camp, plus ambushes at night. Number keys or the arrow keys and Enter pick a choice; Esc takes
 the last one, which is always the way out.
 
 Any inn rents a room for good (250 gold). It opens a storage chest of 20 items
