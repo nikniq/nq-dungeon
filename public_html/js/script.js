@@ -823,7 +823,7 @@ function questProgress(kind, target, amount = 1) {
 let questsOpen = false;
 let lastRealm = null, lastTownKey = null;
 let journalOpen = false, journalTab = 0;
-const JOURNAL_TABS = ['Story', 'Places', 'Treasures', 'Bestiary', 'World', 'Guide'];
+const JOURNAL_TABS = ['Story', 'Places', 'Towns', 'Treasures', 'Bestiary', 'World', 'Guide'];
 const MONSTER_LORE = {
   Rat: 'Fat, bold and everywhere. Where there are dungeons there are rats, and where there are rats there is something worse further down.',
   Goblin: 'Small, quick and greedy. They rob the dead, and do not always wait for them to be dead.',
@@ -842,7 +842,7 @@ function journalKey(e) {
   if (['j', 'J', 'Escape'].includes(e.key)) journalOpen = false;
   else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') journalTab = (journalTab + 1) % JOURNAL_TABS.length;
   else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') journalTab = (journalTab + JOURNAL_TABS.length - 1) % JOURNAL_TABS.length;
-  else if (['1', '2', '3', '4', '5', '6'].includes(e.key)) journalTab = Number(e.key) - 1;
+  else if (['1', '2', '3', '4', '5', '6', '7'].includes(e.key)) journalTab = Number(e.key) - 1;
   e.preventDefault(); draw();
 }
 function journalTabRects() { const w = Math.min(122, (canvas.width - 48) / JOURNAL_TABS.length - 6); return JOURNAL_TABS.map((t, i) => ({ x: 24 + i * (w + 6), y: 52, w, h: 30 })); }
@@ -861,7 +861,7 @@ function drawJournal(g) {
   g.fillStyle = 'rgba(6,12,20,0.94)'; g.fillRect(0, 0, canvas.width, canvas.height);
   g.textBaseline = 'top'; g.textAlign = 'left';
   g.fillStyle = '#ffd86b'; g.font = 'bold 20px sans-serif'; g.fillText('Journal', 24, 16);
-  g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText('J or Esc closes · ← → or 1-6 change page', 120, 22);
+  g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText('J or Esc closes · ← → or 1-7 change page', 120, 22);
   journalTabRects().forEach((r, i) => {
     g.fillStyle = i === journalTab ? '#0b3142' : 'rgba(11,49,66,0.4)'; g.beginPath(); g.roundRect(r.x, r.y, r.w, r.h, 6); g.fill();
     g.fillStyle = i === journalTab ? '#ffd86b' : '#cfe9ff'; g.font = `bold ${r.w < 90 ? 11 : 13}px sans-serif`; g.fillText(r.w < 90 ? JOURNAL_TABS[i] : `${i + 1} ${JOURNAL_TABS[i]}`, r.x + (r.w < 90 ? 6 : 12), r.y + 8);
@@ -906,6 +906,18 @@ function drawJournal(g) {
       g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText(`${PLACE_TYPES[pl.type].label} · ${REALMS[realmOfTile(pl.x, pl.y)].short}${player.meta.looted.includes(pl.key) ? ' · searched' : ''}`, cx + 40, cy + 19);
     });
   } else if (journalTab === 2) {
+    const seen = player.meta.visited.map((k) => townAt(...k.split(',').map(Number))).filter(Boolean).reverse();
+    g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.fillText(`Towns visited: ${seen.length}`, X, y); y += 26;
+    for (const t of seen) {
+      if (y > canvas.height - 60) break;
+      const I = townIdentity(t), N = notableNpc(t);
+      g.fillStyle = REALMS[I.realm].color; g.fillRect(X, y + 3, 8, 8);
+      g.fillStyle = '#e6eef8'; g.font = 'bold 14px sans-serif'; g.fillText(`${t.name} · ${TIER_WORDS[townTier(t)]} ${I.kind} of ${REALMS[I.realm].short}`, X + 14, y);
+      g.fillStyle = '#cfe9ff'; g.font = '12px sans-serif'; y = wrapText(g, townLore(t), X + 14, y + 18, W - 14, 16);
+      g.fillStyle = '#a8c0d8'; y = wrapText(g, `${I.leader} leads it. ${N.name}, ${N.role}, has a story to tell in the square.`, X + 14, y + 2, W - 14, 16) + 10;
+    }
+    if (!seen.length) { g.fillStyle = '#a8c0d8'; g.font = '13px sans-serif'; g.fillText('Every town has a history in its name and a notable local in its square. Visit some.', X, y); }
+  } else if (journalTab === 3) {
     const all = Object.keys(ITEMS.relics);
     g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.fillText(`Treasures found: ${player.meta.found.length} of ${all.length}`, X, y); y += 28;
     for (const id of all) {
@@ -914,7 +926,7 @@ function drawJournal(g) {
       g.fillStyle = got ? '#cfe9ff' : '#6b7280'; g.font = '12px sans-serif'; y = wrapText(g, got ? it.desc : `Said to be found in ${it.found}.`, X + 22, y + 18, W - 22, 16) + 8;
       if (y > canvas.height - 30) break;
     }
-  } else if (journalTab === 5) {
+  } else if (journalTab === 6) {
     g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.fillText("Adventurer's Guide", X, y); y += 22;
     g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText('Ideas for what to do next, from where you stand.', X, y); y += 26;
     for (const [head, text] of guideSuggestions()) {
@@ -922,7 +934,7 @@ function drawJournal(g) {
       g.fillStyle = '#ffd86b'; g.font = 'bold 14px sans-serif'; g.fillText(`➤ ${head}`, X, y);
       g.fillStyle = '#cfe9ff'; g.font = '12px sans-serif'; y = wrapText(g, text, X + 18, y + 18, W - 18, 16) + 10;
     }
-  } else if (journalTab === 4) {
+  } else if (journalTab === 5) {
     g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.fillText('The world', X, y); y += 26;
     const artW = Math.min(150, W * 0.3);
     if (canvas.width > 700) { g.save(); g.translate(X + W - artW, y); drawRealmArt(g, artW, artW); g.restore(); }
@@ -1916,11 +1928,147 @@ function leaderNpc(town) {
   const lines = [
     `Welcome to ${town.name}. We are a ${I.trade.label} ${I.sizeWord}, and folk come from all over for ${I.famous}.`,
     `Have you seen ${I.landmark.name}? ${I.landmark.lore}`,
+    townLore(town),
   ];
   if (site) lines.push(`${site.name.startsWith('The ') ? site.name : 'The ' + site.name} lies ${compassWord(site.x - town.cx, site.y - town.cy).toLowerCase()} of here. ${site.danger >= 3 ? 'Folk who go in there do not always come out.' : 'Our young ones dare each other to go in.'}`);
   if (place) lines.push(`If you are walking ${compassWord(place.x - town.cx, place.y - town.cy).toLowerCase()}, look out for ${place.name}.`);
   if (I.trade.deal) lines.push(`${DEAL_TEXT[I.trade.deal]}. Tell them ${I.leader} sent you.`);
   return { sprite: I.realm === 'league' ? 'merchant' : I.realm === 'aurum' ? 'guard' : 'elder', name: `${I.leader} of ${town.name}`, lines, leader: true };
+}
+// ---------- what gives each town its character ----------
+// A history read from the town's own name, syllable by syllable, and one notable
+// local whose story ties the town's name, realm and trade to the larger tale.
+const NAME_LORE = {
+  cantons: {
+    pre: { Ash: 'the ash grove the first settlers burned for charcoal', Bar: 'the barrow of a chieftain nobody remembers', Cal: 'Cal the Wanderer, who stopped here when his boots wore through', Dun: 'the dun hill it sits on', El: 'an elder tree that stood until the great storm', Fen: 'the fen it was drained from', Gar: 'the spear-garrison that once guarded the old road', Hol: 'the hollow oak the founders slept in', Ist: "an old word for 'east', from when this was the edge of the known world", Kel: 'the spring, kel in the old tongue, that never freezes', Lor: 'Lor the Lawgiver, who wrote the first canton charter', Mor: 'the moor it was carved out of', Nor: 'its founders, who came down from the north', Ost: 'its founders, who came from the east', Pem: 'the Pem family, whose descendants still argue at council', Quil: 'the reed quills its scribes were famous for', Rav: 'the ravens that roost in its roofs', Sil: 'the silver birches along the brook', Tor: 'the tor above the town', Ul: "Ul the Dyer, whose blue cloth made the town's first fortune", Vel: 'the veil of mist that lies on it every autumn morning', Wyn: 'Wyn the Miller, who built the first mill', Bre: 'the brewhouse that stood here before the houses', Cor: 'the stone ring, cor, that stood where the square is now', Dra: 'the dragon a shepherd swore he saw, three hundred years ago', Ever: 'the evergreens that shelter it from the wind', Glen: 'the glen it sits in', Har: "the hare on the founders' banner", Lin: 'the flax, lin, its weavers once spun', Thorn: 'the blackthorn hedge that was its first wall' },
+    mid: { wood: 'the wood that once covered the valley', stone: 'the standing stone the founders hauled into the square', water: 'the spring in the square', oak: 'the moot oak', ash: 'the ash grove', ling: 'the heather, ling, on the hills' },
+    suf: { bury: 'the earthwork, bury, its first families huddled behind', ford: 'the ford where the river could be crossed', gate: 'the toll-gate on the old road', haven: 'the shelter it gave travellers in the Sundering', holm: 'the river island it began on', mere: 'the mere whose fish fed the first settlers', moor: 'the moor around it', ton: 'the fenced farm, ton, it grew from', vale: 'the vale it lies in', wick: 'the dairy farm, wick, at its heart', worth: 'the enclosed homestead, worth, of its founder', by: 'the farmstead, by, of its founder', stead: 'the single steading it began as', bridge: 'the bridge that made it a market', march: 'its place on the old border between realms', field: 'the open field the first fair was held on', cross: 'the crossroads it guards', fall: 'the waterfall that turned its first mill', hollow: 'the hollow it hides in', rest: 'the resting place where pilgrims stopped' },
+  },
+  aurum: {
+    pre: { King: 'a king who slept here once and liked the beds', Crown: 'the crown lands it was built on', Lion: 'the lion on the royal arms', Rose: 'the rose gardens of Queen Isolde the Wise', Silver: 'the silver mine that paid for its walls', High: 'its place on the high road', Fair: 'the fair the first king chartered', Bright: 'the beacon fire kept burning on its hill', Royal: 'the royal charter nailed to the hall door', Swan: 'the swans the queen set loose on its river', Hart: 'the white hart that led a hunting king here', Gilden: 'the gilded roof of its first chapel' },
+    mid: {},
+    suf: { ford: 'the ford where the river could be crossed', mere: 'the lake it stands beside', crest: 'the ridge it crowns', hall: 'the hall the first lord raised', keep: 'the keep that held the road', bridge: 'the bridge the king built', haven: 'the refuge it gave in the War of Four Banners', ward: 'the ward it kept over the border', gate: 'the gate of the old kingdom', more: 'the moorland around it', leigh: 'the clearing, leigh, in the royal forest' },
+  },
+  kathar: {
+    pre: { "Ka'": "the clan-mother Ka'ra, first of her line", Ur: "ur, the old word for 'first fire'", Dro: 'Dro the Tall, who wrestled a bear on this spot', Gor: 'the gorge it stands above', Thak: 'the war-drum, thak, beaten here before every raid', Vrel: 'the river Vrel', Mok: 'the mok, the stubborn goats that graze its slopes', Zan: 'Zan the Seer, who dreamed its founding', Kesh: 'kesh, the salt the clans trade', Ruk: 'the ruk, the hawk on the clan banner', Ost: 'its founders, who came from the east', Grom: "Grom Stonehand, the chieftain's grandfather" },
+    mid: {},
+    suf: { gar: "gar, 'hearth' in the old tongue", thul: "thul, 'stone'", mok: 'the goat pens', dun: 'the dun, the earthen fort', rak: "rak, 'wall'", kesh: 'the salt pans', tor: 'the tor', zar: "zar, 'meeting-place'", vek: "vek, 'ford'", nag: "nag, 'high'" },
+  },
+  league: {
+    pre: { Gold: 'the gold that was first counted here', Silver: 'the silver that paid for its charter', Coin: 'the first mint of the League', Amber: 'the amber traders from over the sea', Ivory: 'the ivory the Orlov house made its fortune in', Velvet: 'the velvet its tailors wove', Pearl: 'the pearl divers who founded it', Gilt: 'the gilt sign of its first bank', Opal: 'the opal mines in the hills', Saffron: 'the saffron fields that made its first magnates', Marble: 'the marble quarry', Ledger: "the great ledger in which every house's debts are kept" },
+    mid: {},
+    suf: { spire: 'the spire of its counting-house', port: 'its harbour', market: 'the market the League chartered', mint: 'its mint', vault: 'the vault under the exchange', haven: 'the haven it gave to ships', reach: 'its reach of river', quay: 'its quay', court: "the merchants' court", gate: 'its toll-gate' },
+  },
+};
+const CAPITAL_LORE = {
+  '0,0': 'Hearth was the first hearth lit after the Sundering: a camp of refugees around one fire, which became a town because nobody could agree on where else to go. The Free Cantons were born from that argument.',
+  '2,-1': 'Castle Aurum has been the seat of kings since Aurel the Founder laid the crown on its cushion. Its walls have never been taken, though its hall has seen two brothers at war.',
+  '-3,2': "Kar Thuldun, 'the stone hearth', was raised around the Ever-Fire where the first clans swore peace with each other. The fire has not gone out since.",
+  '-2,-3': 'Goldspire was a counting-house before it was a town. The merchant houses built the spire first, so that debts could be seen from the road.',
+};
+function townLore(town) {
+  if (CAPITAL_LORE[town.key]) return CAPITAL_LORE[town.key];
+  const realm = town.realm || 'cantons', L = NAME_LORE[realm], [A, M, B] = REALM_NAMES[realm] || [SYL_A, SYL_M, SYL_B];
+  const h = hash32(town.i * 7919, town.j * 104729, 4242);
+  const pre = A[h % A.length], mid = M[Math.floor(h / 64) % M.length], suf = B[Math.floor(h / 4096) % B.length];
+  const parts = [L.pre[pre], L.mid[mid], L.suf[suf]].filter(Boolean);
+  const tier = townTier(town), I = townIdentity(town);
+  const age = ['was founded within living memory', 'is two hundred years old', 'was old when the Sundering came', 'has stood since the Age of the Crown'][Math.floor(cellRand(town.i, town.j, 810) * 4)];
+  const fortune = tier === 0 ? `It has known better days: the ${I.trade.label} trade has thinned and the roofs want mending.` : tier === 1 ? `It gets by on its ${I.trade.label}, and asks for little.` : tier === 2 ? `Its ${I.trade.label} keeps it comfortable.` : `The ${I.trade.label} trade has made it rich, and it likes everyone to know.`;
+  return `${town.name} takes its name from ${parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1]}. It ${age}. ${fortune}`;
+}
+const NOTABLE_NAMES = {
+  cantons: ['Old Garrick', 'Mother Wenna', 'Tobias Finch', 'Agnes Reed', 'Piet the Younger', 'Hesper Dale', 'Jonas Carrow', 'Lissa Wold'],
+  aurum: ['Sir Oswin (retired)', 'Lady Maud', 'Benedict Hale', 'Cecily Ward', 'Old Anselm', 'Mathilde Crane', 'Roland the Lame', 'Edith Marlow'],
+  kathar: ['Old Vorna', 'Brak One-Eye', 'Tessaly', 'Grim Ulfar', 'Nessa Brightspear', 'Korrin', 'Mother Halla', 'Drenn the Quiet'],
+  league: ['Magister Pell', 'Lucrezia Vane', 'Old Bartolo', 'Serena Oake', 'Cassius Mint', 'Widow Orsini', 'Fennimore', 'Dorothea Glass'],
+};
+// Twelve kinds of notable, each with a story told in three lines.
+const NOTABLES = [
+  { id: 'veteran', role: 'an old soldier', sprite: 'guard', lines: (c) => [
+    `"Forty years in the watch of ${c.town}. I buried three captains and outdrank four. Now I sit by ${c.landmark} and tell the young ones they have it easy."`,
+    c.storyTie,
+    `"When you go into ${c.site}, keep your back to a wall. That is all the wisdom I have, and it cost me a knee."`] },
+  { id: 'widow', role: 'a widow who keeps a lamp lit', sprite: 'villager', lines: (c) => [
+    `"My husband went into ${c.site} eleven years ago, for the gold. I keep a lamp in the window. People in ${c.town} think I am foolish. People in ${c.town} did not know him."`,
+    `"${c.leader} offered to have the lamp taken down, for the look of the place. I told ${c.leaderThem} where to put the ladder."`,
+    c.storyTie] },
+  { id: 'returned', role: 'the only one who came back', sprite: 'farmer', lines: (c) => [
+    `"I went down ${c.site} once, with five friends. I came back with this limp and enough gold to buy the ${c.trade} yard. Nobody else came back at all."`,
+    `"${c.town} calls me lucky. I have stopped correcting them."`,
+    c.storyTie] },
+  { id: 'witness', role: 'the child who saw the lights', sprite: 'child', lines: (c) => [
+    `"The night the crown broke I was awake, up on ${c.landmark}. Five lights went up over the hills, like falling stars going the wrong way. Nobody in ${c.town} believed me until the dungeons woke."`,
+    `"One of them came down near ${c.site}. I could show you, but Ma says I am not to go past the gate."`,
+    c.storyTie] },
+  { id: 'scholar', role: 'a scholar the library threw out', sprite: 'elder', lines: (c) => [
+    `"The library at Goldspire dismissed me for writing that the Deep dreams. Then the crown broke. I came to ${c.town} because nobody here has read my book, which is restful."`,
+    `"${c.lore}"`,
+    c.storyTie] },
+  { id: 'bard', role: 'the town bard', sprite: 'villager', lines: (c) => [
+    `"Every town has a founding song. ${c.town}'s is in a key nobody can sing. Here is the gist: ${c.lore}"`,
+    `"I wrote a verse about ${c.leader} once. I am no longer welcome at the ${c.leaderPlace}."`,
+    c.storyTie] },
+  { id: 'tradesman', role: 'the loudest voice in the trade', sprite: 'merchant', lines: (c) => [
+    `"${c.famous[0].toUpperCase() + c.famous.slice(1)}? Mine. Everything ${c.town} is known for comes out of my yard, and ${c.leader} taxes it like it grew on trees."`,
+    `"Beasts on the road are bad for trade. The watch does its best. Its best is ${c.guard}."`,
+    c.storyTie] },
+  { id: 'pilgrim', role: 'a pilgrim who never left', sprite: 'elder', lines: (c) => [
+    `"I set out for ${c.place} forty years ago and got as far as ${c.town}. It seemed far enough. The stones will keep."`,
+    `"${c.lore}"`,
+    c.storyTie] },
+  { id: 'greycloak', role: 'a stranger in a grey cloak', sprite: 'necromancer', lines: (c) => [
+    `"I served a prince once. Grey cloak, silver stag. I do not talk about it, and ${c.town} has the decency not to ask."`,
+    c.edricTie,
+    `"If you see riders with a stag on their cloaks, ride the other way. Or do not. You look like you can handle yourself."`] },
+  { id: 'healer', role: 'the healer who tends the watch', sprite: 'innkeeper', lines: (c) => [
+    `"I have stitched every member of the ${c.town} watch at least twice. ${c.guard} is my best customer. Say nothing of it to them."`,
+    `"Potions help, but so does not going into ${c.site} with a head cold. Rest first. The inn is cheap and I am not."`,
+    c.storyTie] },
+  { id: 'prophet', role: 'who says the Deep is waking', sprite: 'elder', lines: (c) => [
+    `"They laughed in ${c.town} when I said the ground was dreaming. Put your ear to ${c.landmark}. Go on. Tell me it is not breathing."`,
+    c.deepTie,
+    `"Five lights held it down. Five! And one of them in ${c.site}, or near enough. I have maps. Nobody looks at my maps."`] },
+  { id: 'orphan', role: 'who lost a farm to the orcs', sprite: 'child', lines: (c) => [
+    `"The orcs from ${c.camp} burned our farm when I was small. ${c.town} took me in. ${c.leader} says the watch will deal with the camp one day. One day is a long time."`,
+    `"I am going to be a hero like you. I am saving for a sword. I have four copper and a button."`,
+    c.storyTie] },
+];
+function storySiteNear(town) {
+  let best = null, bd = 9;
+  for (const id of STORY_ORDER) { const S = STORY_SITES[id]; const d = Math.max(Math.abs(S.i - town.i), Math.abs(S.j - town.j)); if (d < bd) { bd = d; best = id; } }
+  return bd <= 2 ? best : null;
+}
+function notableNpc(town) {
+  if (town.notable) return town.notable;
+  const I = townIdentity(town), realm = town.realm || 'cantons';
+  const pool = NOTABLES.filter((n) => !(n.id === 'greycloak' && realm === 'kathar'));
+  const N = pool[Math.floor(cellRand(town.i, town.j, 800) * pool.length)];
+  const names = NOTABLE_NAMES[realm], name = names[Math.floor(cellRand(town.i, town.j, 801) * names.length)];
+  const at = { x: town.cx, y: town.cy };
+  const site = nearbySites(town.cx, town.cy, 1).filter((st) => !st.deep).sort((a, b) => cheb(a, at) - cheb(b, at))[0];
+  const place = nearbyPlaces(town.cx, town.cy, 1).sort((a, b) => cheb(a, at) - cheb(b, at))[0];
+  const camp = campsNear(town.cx, town.cy, 2)[0];
+  const sid = storySiteNear(town), S = sid && STORY_SITES[sid];
+  const guards = townNpcs(town).filter((n) => n.type.guard);
+  const storyTie = S ? {
+    dawn: `"${S.title} is a day's walk from here. The sisters who prayed there used to buy candles in ${town.name}. Then one year they stopped coming, and the candle-maker never asked why."`,
+    tides: `"Fishermen from ${town.name} will not go near ${S.title}. The water there sings, they say, and the ones who listen too long row out and do not row back."`,
+    bones: `"The kings of Aurum lie in ${S.title}, and the old folk of ${town.name} say that on still nights you can hear them turning over. Lately the nights have not been still."`,
+    embers: `"The ground is warm for a mile around ${S.title}. ${town.name} grows winter vegetables in the open because of it. We do not talk about what else grows down there."`,
+    stars: `"You can see the top of ${S.title} from the hill above ${town.name} on a clear night, and sometimes a light in it. The wizard who built it bought a star, they say. I think he is still paying."`,
+  }[sid] : `"${town.name} is a long way from anything in the old songs, and we like it that way. Whatever broke the crown, it broke it somewhere else."`;
+  const edricTie = story().phase === 'done' ? `"The prince is pardoned now, I hear. Sitting in his brother's hall. Good for him. Some of us are still in grey cloaks with nowhere to sit."` : story().ch >= 2 ? `"He was not always what he became. He was the clever one, the elder by an hour, and he never forgave the hour."` : `"Ask me again when you know who you are hunting. You will."`;
+  const deepTie = story().phase === 'done' ? `"The gate is open now, between Hearth and the castle. I told them. I told them for thirty years."` : `"There is a gate in the hills between Hearth and Castle Aurum that is not on any map. It will be, soon."`;
+  const c = {
+    town: town.name, landmark: I.landmark.name, trade: I.trade.label, famous: I.famous, leader: I.leader, leaderThem: 'them',
+    leaderPlace: realm === 'kathar' ? 'longhouse' : realm === 'league' ? 'exchange' : realm === 'aurum' ? 'keep' : 'council hall',
+    site: site ? (site.name.startsWith('The ') ? site.name.replace(/^The /, 'the ') : 'the ' + site.name) : 'the dungeon under the square',
+    place: place ? place.name : 'the standing stones', camp: camp ? camp.name : 'the hills', guard: guards.length ? guards[0].type.name : 'the militia',
+    lore: townLore(town), storyTie, edricTie, deepTie,
+  };
+  town.notable = { sprite: N.sprite, name, role: N.role, lines: N.lines(c), notable: true, tell: 0 };
+  return town.notable;
 }
 // ---------- monuments heroes build for each other ----------
 // Every square has building plots. Heroes pay at an inn to build a monument on
@@ -2204,6 +2352,10 @@ function townNpcs(town) {
     const beat = guardBeat(town, k), post = beat[0], R = GUARD_RANKS[rank];
     town.npcs.push({ ...post, post, beat, leg: 1, type: guardNpc(town, rank, k), pause: rnd(3), home: { x: town.cx, y: town.cy }, hp: R.hp, maxHp: R.hp });
   });
+  if (spots.length) {
+    const cell = spots.splice(Math.floor(cellRand(town.i, town.j, 802) * spots.length), 1)[0];
+    town.npcs.push({ ...cell, type: notableNpc(town), pause: rnd(3), home: { x: town.cx, y: town.cy } });
+  }
   const count = town.key === '0,0' ? NPC_TYPES.length : town.folk[0] + Math.floor(noise(town.i, town.j, 98) * (town.folk[1] - town.folk[0] + 1));
   for (let n = 0; n < count && spots.length; n++) {
     const cell = spots.splice(Math.floor(noise(town.i, town.j, 100 + n) * spots.length), 1)[0];
@@ -2398,9 +2550,10 @@ function talk(n) {
   if (edricTalk(n)) return;
   if (realmQuestTalk(n)) return;
   if (n.type.action && SERVICE_SHOPS.has(n.type.action)) { log(`${n.type.name}: ${n.type.lines[rnd(n.type.lines.length)]}`); openShop(n.type.action); return; }
-  const line = n.type.lines[rnd(n.type.lines.length)];
+  const line = n.type.notable ? n.type.lines[n.type.tell++ % n.type.lines.length] : n.type.lines[rnd(n.type.lines.length)];
   log(`${n.type.name}: ${line}`);
-  bubble = { x: n.x, y: n.y, text: line, until: performance.now() + 4000 };
+  bubble = { x: n.x, y: n.y, text: line, until: performance.now() + (n.type.notable ? 6000 : 4000) };
+  if (n.type.notable) { draw(); return; }
   if (n.type.action === 'inn') openShop('inn');
   else if (n.type.action && SHOPS[n.type.action]) openShop(n.type.action);
   else if (!bountyTalk(n)) offerQuest(n);
@@ -3984,6 +4137,7 @@ function describeTile(x, y) {
   if (t === TILE.MONUMENT) { const tw = townContaining(x, y); if (tw) { const L = townIdentity(tw).landmark; return `${L.name[0].toUpperCase() + L.name.slice(1)} — the pride of ${tw.name}. Walk into it to look closer`; } }
   if (getTile(x, y) === TILE.WAYSTONE) return 'Waystone — walk into it to travel to any town you have visited';
   const n = scene !== 'dungeon' && getNpcAt(x, y);
+  if (n && n.type.notable) return `${n.type.name}, ${n.type.role} — walk into them to hear their story`;
   if (n && n.type.guard) return `${n.type.name} — the town watch (${n.hp}/${n.maxHp} HP). Keeps beasts from the gates; walk into them to chat`;
   if (n) return `${n.type.name} — walk into them to ${n.type.action === 'shop' || n.type.action === 'potions' ? 'trade' : n.type.action === 'inn' ? 'rest' : 'chat'}`;
   if (isVisible(x, y)) {
@@ -5601,7 +5755,7 @@ function endTurn(moved) {
     const here = townContaining(player.x, player.y);
     if (here && here.key !== lastTownKey) {
       const I = townIdentity(here);
-      if (!player.meta.visited.includes(here.key)) log(I.describe(), 'good');
+      if (!player.meta.visited.includes(here.key)) { log(I.describe(), 'good'); log(townLore(here)); }
       toast = { text: `${here.name}. ${here.size === 'grand' ? 'The' : 'A'} ${TIER_WORDS[townTier(here)]} ${I.kind} of ${REALMS[I.realm].short}, known for ${I.famous}.`, until: performance.now() + 3500 };
     }
     lastTownKey = here ? here.key : null;

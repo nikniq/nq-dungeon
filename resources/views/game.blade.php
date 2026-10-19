@@ -35,7 +35,7 @@
                 <li><kbd>1</kbd> class ability · <kbd>P</kbd> potion · <kbd>B</kbd> bomb · <kbd>T</kbd> scroll of return</li>
                 <li><kbd>M</kbd> world map · <kbd>Q</kbd> quests · <kbd>J</kbd> journal · <kbd>N</kbd> sound · <kbd>C</kbd> make camp in the wilds</li>
                 <li><kbd>Esc</kbd> closes menus and skips story scenes · <kbd>?</kbd> this screen · <kbd>O</kbd> settings</li>
-                <li>Not sure what to do? The Journal's Guide page (<kbd>J</kbd>, then <kbd>6</kbd>) has ideas</li>
+                <li>Not sure what to do? The Journal's Guide page (<kbd>J</kbd>, then <kbd>7</kbd>) has ideas</li>
               </ul>
             </div>
             <div>

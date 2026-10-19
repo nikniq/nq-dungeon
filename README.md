@@ -114,6 +114,13 @@ Each wave pays more gold, every fifth brings a named champion, and you can leave
 the golden door between waves. Falling there costs nothing. The best wave is saved
 as `meta.arena`; wave 10 earns Champion of Aurum.
 
+Every town also has a history read from its own name, syllable by syllable
+(`NAME_LORE`), and one notable local in the square (`NOTABLES`: an old soldier,
+a widow with a lamp in the window, the child who saw the lights fall, a deserter
+in a grey cloak and more) whose three-line story weaves in the town's name,
+trade, landmark, nearest dungeon and the main story. The Journal's Towns page
+keeps the history of every town visited.
+
 Every town has its own identity, read from its cell of the world: a trade chosen
 from the land around it (fishing, quarrying, timber, wine, horse-breeding and so on,
 some with local price breaks), a landmark in its square, and a named local leader
