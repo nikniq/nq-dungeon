@@ -82,6 +82,12 @@ twist: Dark, Swarming, Treasure or Cursed. Hovering over a monster shows how har
 hits you and how many blows it will take. Shops mark gear that beats what you wear
 and offer Buy & equip. Press ? for the controls screen.
 
+From the second floor down, rooms may hold floor events (`placeFloorEvents`): a
+chained captive who follows you once freed and pays a reward if led alive to the
+stairs or the way-out door (monsters go for them too); a goblin totem that calls a
+goblin every six turns until smashed; a lever that sinks every trap on the floor;
+and a dungeon altar with an offering, a drink from the font, or nothing.
+
 Deeper dungeons hold slimes that split in two, necromancers that keep their
 distance and raise skeletons, and mimics posing as chests from floor 2. About
 three chunks in ten hide a secret vault behind a cracked wall: three blows break

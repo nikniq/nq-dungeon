@@ -16,7 +16,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 const restartBtn = document.getElementById('restart');
 
-const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15, CRACK: 16, SPRING: 17, MONUMENT: 18, PLOT: 19, WARCAMP: 20, SHIP: 21 };
+const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15, CRACK: 16, SPRING: 17, MONUMENT: 18, PLOT: 19, WARCAMP: 20, SHIP: 21, CAPTIVE: 22, TOTEM: 23, LEVER: 24, ALTAR: 25 };
 const TOWN = 0;           // floor number of the town square
 const FINAL_FLOOR = 5;
 const VIEW_RADIUS = 8;    // how far the hero sees in the dungeon
@@ -95,6 +95,8 @@ const ACHIEVEMENTS = {
   wanderer10:  { label: 'Discovered ten places', title: 'the Pathfinder' },
   collector:   { label: 'Found five treasures', title: 'the Treasure-seeker' },
   crownbearer: { label: 'Restored the Crown of Aurum', title: 'Crownbearer' },
+  rescuer:     { label: 'Led a captive out of a dungeon', title: 'the Rescuer' },
+  liberator:   { label: 'Rescued ten captives', title: 'the Liberator' },
   lairslayer:  { label: 'Slew a super boss in its lair', title: 'the Legend-slayer' },
   legend:      { label: 'Cleared all six lairs', title: 'the Living Legend' },
   sailor:      { label: 'Took ship between ports', title: 'the Seafarer' },
@@ -230,7 +232,7 @@ function markSeen(x, y) {
   const cx = Math.floor(x / CHUNK), cy = Math.floor(y / CHUNK);
   getChunk(cx, cy).seen[(y - cy * CHUNK) * CHUNK + (x - cx * CHUNK)] = 1;
 }
-const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE && t !== TILE.WAYOUT && t !== TILE.CRACK && t !== TILE.SPRING && t !== TILE.MONUMENT && t !== TILE.PLOT && t !== TILE.WARCAMP && t !== TILE.SHIP;
+const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE && t !== TILE.WAYOUT && t !== TILE.CRACK && t !== TILE.SPRING && t !== TILE.MONUMENT && t !== TILE.PLOT && t !== TILE.WARCAMP && t !== TILE.SHIP && t !== TILE.CAPTIVE && t !== TILE.TOTEM && t !== TILE.LEVER && t !== TILE.ALTAR;
 const hazard = (x, y) => getTile(x, y) === TILE.LAVA || (getTile(x, y) === TILE.TRAP && revealedTraps.has(key(x, y)));
 
 // ---------- account save/load ----------
@@ -266,7 +268,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState() },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -1179,6 +1181,8 @@ BIG_SPRITES.ship = ['.......w........', '.......ww.......', '.......www......', 
 BIG_SPRITES.wyrm = ['......kk........', '.....krrk.......', '....krrrrk......', '...krrkrrrk.....', '..krrrrrrrrk....', '..krryyrrrrk....', '...krrrrrrrrk...', '....krrrrrrrk...', '.....krrrrrrrrk.', '....krrrrrrrrrk.', '...krrrkkrrrrk..', '..krrrk..krrk...', '..krrk....kk....', '...kk...........', '................', '................'];
 BIG_SPRITES.direwolf = ['................', '................', '..kk........kk..', '..kkk......kkk..', '..kkkkkkkkkkkk..', '..kkrkkkkkkrkk..', '..kkkkkkkkkkkk..', '...kkkwwkkkkk...', '....kkkkkkkk....', '..kkkkkkkkkkkkk.', '.kkkkkkkkkkkkkkk', '.kkkkkkkkkkkkkk.', '..kk.kk..kk.kk..', '..kk.kk..kk.kk..', '................', '................'];
 BIG_SPRITES.troll = ['.....GGGGGG.....', '....GGGGGGGG....', '....GGkGGkGG....', '....GGGGGGGG....', '.....GGwwGG.....', '....GGGGGGGG....', '..GGGGGGGGGGGG..', '.GGGGGGGGGGGGGG.', '.GGhGGGGGGGGhGG.', '.GGhGGGGGGGGhGG.', '..GGGGGGGGGGGG..', '...GGGGGGGGGG...', '...GGGG..GGGG...', '...GGGG..GGGG...', '..HHHHH..HHHHH..', '................'];
+BIG_SPRITES.totem = ['......kkkk......', '.....krrrrk.....', '.....kryyrk.....', '.....krrrrk.....', '......kkkk......', '.....hhhhhh.....', '....hkkhhkkh....', '....hhhhhhhh....', '.....hyyyyh.....', '.....hhhhhh.....', '....hkkhhkkh....', '....hhhhhhhh....', '.....hhhhhh.....', '....HHHHHHHH....', '...HHHHHHHHHH...', '................'];
+BIG_SPRITES.captive = ['.....hhhhhh.....', '....hhhhhhhh....', '....hhsssshh....', '....hsssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....HHHHHHHH....', '...HHHHHHHHHH...', '..EEHHHHHHHHEE..', '..E.HHHHHHHH.E..', '....HHHHHHHH....', '....HHH..HHH....', '..EEEEE..EEEEE..', '...HH......HH...', '................'];
 const spriteCache = {};
 // Creatures, items and props get a dark outline so they read on any ground;
 // 16px sprites also get a light top rim and a darker bottom rim for volume.
@@ -2726,7 +2730,7 @@ function refreshTownContext() {
 }
 function createWorld() {
   scene = 'world';
-  floorMod = null;
+  floorMod = null; escort = null; totems.clear();
   if (dungeonDef && dungeonDef.arena) { dungeonDef = null; ARENA.wave = 0; ARENA.between = false; }
   mp.instance = null;
   bounded = null; ground = null; decor = null; interior = null;
@@ -2916,6 +2920,7 @@ function generateChunk(cx, cy) {
 function populateChunk(chunk, rand) {
   const r = (n) => Math.floor(rand() * n);
   const ox = chunk.cx * CHUNK, oy = chunk.cy * CHUNK;
+  placeFloorEvents(chunk, rand);
   const cells = [];
   const inVault = (x, y) => (chunk.vaults || []).some((v) => Math.abs(v.x - x) <= 1 && Math.abs(v.y - y) <= 1);
   for (let y = 0; y < CHUNK; y++) for (let x = 0; x < CHUNK; x++) if (chunk.tiles[y * CHUNK + x] === TILE.FLOOR && !inVault(x, y)) cells.push({ x: ox + x, y: oy + y });
@@ -2972,6 +2977,113 @@ const FLOOR_MODS = {
 };
 let floorMod = null;
 const viewRadius = () => Math.max(3, (dungeonDef ? dungeonDef.view : VIEW_RADIUS) + (wearing('sunstone') ? 3 : 0) + (wearing('deepheart') ? 2 : 0) - (scene === 'dungeon' && floorMod === 'dark' ? 3 : 0));
+// ---------- things that happen on a floor ----------
+// From the second floor down, rooms may hold a chained captive, a goblin totem
+// that keeps spawning goblins until it is smashed, a lever that sinks the floor's
+// traps, or an altar with a choice. Each gives the hero something to decide.
+const CAPTIVE_NAMES = ['Wat the miller', 'Sister Ilse', 'Pip the apprentice', 'old Brom', 'Elka the trader', 'young Tam', 'Goody Marsh', 'Corran the scribe'];
+let escort = null;   // a freed captive following the hero
+const totems = new Map();   // "x,y" -> hits left
+let eventSeed = 0;
+function placeFloorEvents(chunk, rand) {
+  if (!dungeonDef || dungeonDef.arena || floor < 2) return;
+  const ox = chunk.cx * CHUNK, oy = chunk.cy * CHUNK, spawnChunk = chunk.cx === 0 && chunk.cy === 0;
+  chunk.rooms.forEach((rm, i) => {
+    if (spawnChunk && i === 0) return;
+    const roll = rand();
+    const kind = roll < 0.06 ? TILE.CAPTIVE : roll < 0.15 ? TILE.TOTEM : roll < 0.20 ? TILE.LEVER : roll < 0.25 ? TILE.ALTAR : null;
+    if (!kind) return;
+    const x = rm.x + 1 + Math.floor(rand() * Math.max(1, rm.w - 2)), y = rm.y + 1 + Math.floor(rand() * Math.max(1, rm.h - 2));
+    if (chunk.tiles[y * CHUNK + x] !== TILE.FLOOR) return;
+    chunk.tiles[y * CHUNK + x] = kind;
+    if (kind === TILE.TOTEM) totems.set(key(ox + x, oy + y), 3);
+  });
+}
+function freeCaptive(x, y) {
+  setTile(x, y, TILE.FLOOR); bgDirty = true;
+  const name = CAPTIVE_NAMES[(x * 7 + y * 13 + floor) % CAPTIVE_NAMES.length];
+  if (escort) { log(`You strike the chains off ${name}. "Bless you. I will follow ${escort.name}'s lead." They fall in behind the others.`, 'good'); escort.extra = (escort.extra || 0) + 1; return; }
+  escort = { x, y, rx: x, ry: y, name, hp: 14 + floor * 3, maxHp: 14 + floor * 3, face: 1 };
+  log(`You strike the chains off ${name}. "The goblins took everything but my skin. Get me to the stairs, or the door, and I will see you paid." They will follow close; keep them away from teeth.`, 'good');
+  tip('captive', 'A freed captive follows you. Lead them to the stairs or the golden door while they live and the realm pays a reward. Monsters will go for them.');
+  sfx.play('quest'); burst(x, y, '#ffd86b', 16, 90, { glow: true, gravity: -60, life: 600 });
+}
+function stepEscort() {
+  if (!escort || scene !== 'dungeon') return;
+  if (cheb(escort, player) <= 1) return;
+  const d = bfs(player.x, player.y, 14, true, true);
+  let best = null, bestD = d.get(key(escort.x, escort.y)) ?? Infinity;
+  for (const [dx, dy] of DIRS) { const nx = escort.x + dx, ny = escort.y + dy, nd = d.get(key(nx, ny)); if (nd !== undefined && nd < bestD && !getMonsterAt(nx, ny) && !houndAt(nx, ny) && !(nx === player.x && ny === player.y)) { bestD = nd; best = [nx, ny]; } }
+  if (best) { if (best[0] !== escort.x) escort.face = Math.sign(best[0] - escort.x); escort.x = best[0]; escort.y = best[1]; }
+  else if (cheb(escort, player) > 10) { escort.x = player.x; escort.y = player.y; }   // lost in the dark: they catch up
+}
+function escortHurt(m) {
+  const dmg = Math.max(1, m.atk - 1);
+  escort.hp -= dmg; floatText(escort.x, escort.y, `-${dmg}`, '#ff9b9b');
+  m.lunge = { dx: Math.sign(escort.x - m.x), dy: Math.sign(escort.y - m.y), until: performance.now() + 140 };
+  if (escort.hp > 0) { if (Math.random() < 0.3) log(`${escort.name} cries out: "Help!"`, 'bad'); return; }
+  log(`${escort.name} falls to ${nameOf(m)}. You could not save them.`, 'bad');
+  burst(escort.x, escort.y, '#9ca3af', 14, 80, { life: 500 });
+  escort = null;
+}
+// At the stairs or the way-out door with the captive beside you: a reward.
+function rescueCheck() {
+  if (!escort || cheb(escort, player) > 2) return;
+  const n = 1 + (escort.extra || 0), gold = Math.round((60 + floor * 25) * n * goldMult());
+  player.gold += gold; gainXp(10 * floor * n);
+  log(`${escort.name}${n > 1 ? ` and ${n - 1} ${n > 2 ? 'others' : 'other'}` : ''} will live. "The council will hear of this. Take this, for the road." ${gold} gold, and the thanks of the realm.`, 'good');
+  floatText(player.x, player.y, `+${gold}g`, '#f5c542'); sfx.play('win');
+  player.meta.rescued = (player.meta.rescued || 0) + n;
+  unlock('rescuer'); if (player.meta.rescued >= 10) unlock('liberator');
+  rqProgress('gold', null, gold);
+  track('captive_rescued', { floor, n });
+  escort = null;
+}
+function smashTotem(x, y) {
+  const k = key(x, y), left = (totems.get(k) || 3) - (traitOf(player.weapon) === 'warhammer' ? 3 : 1);
+  burst(x, y, '#8b5a2b', 10, 90, { life: 450, size: 3 }); sfx.play('hit'); shakeScreen(2);
+  if (left > 0) { totems.set(k, left); log(`You hack at the goblin totem. ${left} more ${left === 1 ? 'blow' : 'blows'} should do it.`); return; }
+  totems.delete(k); setTile(x, y, TILE.FLOOR); bgDirty = true;
+  const gold = Math.round((15 + floor * 5) * goldMult()); player.gold += gold; gainXp(6 + 3 * floor);
+  burst(x, y, '#ff9f43', 24, 130, { glow: true, life: 600, size: 3 }); shakeScreen(4); sfx.play('fire');
+  log(`The totem splinters. The goblins' drums fall silent. You find ${gold} gold in the offerings.`, 'good');
+  floatText(x, y, `+${gold}g`, '#f5c542');
+}
+function tickTotems() {
+  if (scene !== 'dungeon' || turn % 6 !== 0) return;
+  for (const [k, hp] of totems) {
+    const [x, y] = k.split(',').map(Number);
+    if (cheb({ x, y }, player) > SIM_RADIUS || getTile(x, y) !== TILE.TOTEM) continue;
+    if (monsters.filter((m) => m.type.name === 'Goblin' && cheb(m, { x, y }) <= 5).length >= 3) continue;
+    const spot = freeTileNear(x, y, 1); if (!spot) continue;
+    addMonster(MONSTER_TYPES.find((t) => t.name === 'Goblin'), spot.x, spot.y, { awake: isVisible(x, y) });
+    if (isVisible(x, y)) { burst(spot.x, spot.y, '#7ad36b', 10, 80, { life: 400 }); log('Drums beat, and another goblin crawls out from behind the totem.', 'bad'); tip('totem', 'A goblin totem keeps calling goblins. Walk into it to smash it (three blows, one with a warhammer).'); }
+  }
+}
+function pullLever(x, y) {
+  setTile(x, y, TILE.FLOOR); bgDirty = true;
+  let n = 0;
+  for (const ch of chunks.values()) for (let k = 0; k < ch.tiles.length; k++) if (ch.tiles[k] === TILE.TRAP) { ch.tiles[k] = TILE.FLOOR; n++; }
+  revealedTraps = new Set(); shakeScreen(4); sfx.play('chest');
+  log(n ? `A grinding of gears somewhere in the walls, and the spikes on this floor sink away for good: ${n} traps disarmed.` : 'A grinding of gears. Whatever this lever did, it did it somewhere else.', 'good');
+}
+function useAltar(x, y) {
+  showScene([{ who: 'A dungeon altar', sprite: 'shrine', bg: 'crypt',
+    text: 'An altar of black stone stands in the gloom, its carvings worn to nothing. A font of dark water bubbles at its foot. Something here still listens.',
+    choices: [
+      { label: 'Offer 50 gold', disabled: player.gold < 50, run: () => {
+        player.gold -= 50; const roll = Math.random();
+        if (roll < 0.4) { player.meta.blessing = { name: "altar's favour", atk: 2, def: 1, turns: 250 }; return 'The coins sink into the stone. Strength runs up your arms: +2 attack and +1 defence for 250 turns.'; }
+        if (roll < 0.7) { for (const ch of chunks.values()) ch.seen.fill(1); mapCache.ox = null; bgDirty = true; return 'The coins sink into the stone, and the walls of this floor unfold in your mind: you know every passage now.'; }
+        player.maxHp += 2; player.hp += 2; return 'The coins sink into the stone. You feel hardier: +2 max HP, for good.'; } },
+      { label: 'Drink from the font', run: () => {
+        const roll = Math.random();
+        if (roll < 0.5) { const h = Math.min(player.maxHp - player.hp, Math.ceil(player.maxHp / 2)); player.hp += h; return `The water is cold and tastes of iron. You recover ${h} HP.`; }
+        if (roll < 0.8) { restoreMana(); return 'The water is cold and tastes of lightning. Your mana is full.'; }
+        player.poison = 4; return 'The water is cold and tastes of something that died in it. You are poisoned.'; } },
+      { label: 'Leave it be', run: () => 'You step away. The bubbling slows, as if disappointed.' },
+    ] }], () => { setTile(x, y, TILE.FLOOR); bgDirty = true; updateStats(); draw(); });
+}
 function pickTheme() {
   if (dungeonDef && dungeonDef.theme) return dungeonDef.theme;
   if (dungeonDef && dungeonDef.endless) return DEEP_THEMES[(floor - 1) % DEEP_THEMES.length];
@@ -3716,6 +3828,10 @@ function renderBackground() {
       floorShade(g, c, r, (x, y) => getTile(x, y) === TILE.WALL);
       if (t === TILE.FLOOR && noise(c, r, 13) < thm().bones) drawSprite(g, 'bones', c, r, 0.8);
       if (t === TILE.EXIT) drawSprite(g, 'stairs', c, r);
+      if (t === TILE.CAPTIVE) drawSprite(g, 'captive', c, r, 1, 3);
+      if (t === TILE.TOTEM) drawSprite(g, 'totem', c, r, 1, 1);
+      if (t === TILE.ALTAR) drawSprite(g, 'shrine', c, r, 1, 0);
+      if (t === TILE.LEVER) { const X = c * T - off.x, Y = r * T - off.y; g.fillStyle = '#4b5563'; g.fillRect(X + 10, Y + 18, 12, 8); g.fillStyle = '#9ca3af'; g.fillRect(X + 15, Y + 6, 3, 14); g.fillStyle = '#ef4444'; g.beginPath(); g.arc(X + 16.5, Y + 6, 3, 0, Math.PI * 2); g.fill(); }
       if (t === TILE.SPRING) {
         const X = c * T - off.x, Y = r * T - off.y, dry = usedSprings.has(key(c, r));
         g.fillStyle = '#4b5563'; g.beginPath(); g.ellipse(X + T / 2, Y + T / 2 + 2, T / 2 - 1, T / 2 - 5, 0, 0, Math.PI * 2); g.fill();
@@ -4136,6 +4252,11 @@ function drawScene(now) {
   }
   drawArmies(ctx, now);
   houseSmoke(now);
+  if (escort && scene === 'dungeon' && isVisible(escort.x, escort.y)) {
+    const ex = escort.rx ?? escort.x, ey = escort.ry ?? escort.y;
+    shadow(ex, ey); drawSprite(ctx, 'villager', ex, ey - bob(escort), 1, 3, escort.face === -1);
+    ctx.fillStyle = '#300'; ctx.fillRect(ex * T - cam.x + 3, ey * T - cam.y, T - 6, 3); ctx.fillStyle = '#9ef0b0'; ctx.fillRect(ex * T - cam.x + 3, ey * T - cam.y, (T - 6) * (escort.hp / escort.maxHp), 3);
+  }
   {
     const [ldx, ldy] = lunge(player, now);
     const lx = (player.rx ?? player.x) + ldx / T, ly = (player.ry ?? player.y) + ldy / T - bob(player) - hop(player);
@@ -4584,6 +4705,10 @@ function describeTile(x, y) {
   if (t === TILE.EXIT && inTown()) { const tw = townContaining(x, y) || nearestTownTo(x, y); return `Dungeon gate — ${tw ? `${townDungeon(tw).floors} floors, ${ratingText(townDungeon(tw))}` : 'step here to begin your descent'}`; }
   if (t === TILE.EXIT) return 'Stairs down — the exit from this floor';
   if (t === TILE.CRACK) return `Cracked wall — it sounds hollow. Walk into it to break through (${player.weapon === 'warhammer' ? 'one blow with your warhammer' : 'three blows, or one with a warhammer or a bomb'}). The noise wakes monsters`;
+  if (t === TILE.CAPTIVE) return 'A captive in chains — walk into them to strike the chains off, then lead them to the stairs or the way out';
+  if (t === TILE.TOTEM) return `A goblin totem — it keeps calling goblins. Walk into it to smash it (${totems.get(key(x, y)) || 3} blows, one with a warhammer)`;
+  if (t === TILE.LEVER) return 'A lever in the wall — pull it to sink every spike trap on this floor';
+  if (t === TILE.ALTAR) return 'A dungeon altar — walk into it to make an offering, or drink from its font';
   if (t === TILE.SPRING) return usedSprings.has(key(x, y)) ? 'A dry spring' : 'Healing spring — walk into it for full health, once';
   if (t === TILE.WAYOUT) return 'Way out — walk into it twice to leave the dungeon early, keeping your loot';
   if (t === TILE.SITE && inTown()) { const sl = siteAtTile(x, y); if (sl && sl.lair) return `${sl.name} — a super boss's lair, ${ratingText(siteDungeon(sl))}. ${LAIRS[sl.lair].boss.name[0].toUpperCase() + LAIRS[sl.lair].boss.name.slice(1)} waits below${lairState().slain.includes(sl.lair) ? ' (slain before)' : ''}`; }
@@ -4615,7 +4740,7 @@ const hover = { x: null, y: null, path: [], sig: '' };
 const occupiedBy = (x, y) => getMonsterAt(x, y) || getNpcAt(x, y) || mpPlayerAt(x, y) || null;
 function interactive(x, y) {
   const t = getTile(x, y);
-  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT, TILE.CRACK, TILE.SPRING, TILE.MONUMENT, TILE.PLOT, TILE.WARCAMP, TILE.SHIP].includes(t);
+  return !!occupiedBy(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT, TILE.CRACK, TILE.SPRING, TILE.MONUMENT, TILE.PLOT, TILE.WARCAMP, TILE.SHIP, TILE.CAPTIVE, TILE.TOTEM, TILE.LEVER, TILE.ALTAR].includes(t);
 }
 // The tiles from the hero to a target (not including the hero's own tile), shortest first.
 function pathTo(tx, ty, limit = 60) {
@@ -5041,6 +5166,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
     const wake = (scene === 'world' ? (dayPhase() === 'night' ? 10 : 6) : 6) - (wearing('wardstone') ? 3 : 0);
     if (!m.awake && dist(m, H) <= wake && (H.me ? isVisible(m.x, m.y) : true) && Math.random() < 0.7) m.awake = true;
     if (m.boss && m.awake && !swiftOnly && bossTurn(m, H, heroes)) continue;
+    if (escort && scene === 'dungeon' && dist(m, escort) === 1 && !heroes.some((h) => dist(m, h) === 1) && (m.awake || Math.random() < 0.5)) { m.awake = true; escortHurt(m); if (!escort) continue; continue; }
     if (scene === 'world' && !m.bounty) {
       const gd = npcs.find((n) => n.type.guard && !n.down && dist(m, n) === 1);
       if (gd && !heroes.some((h) => dist(m, h) === 1) && (m.awake || Math.random() < 0.5)) { m.awake = true; guardHurt(gd, m); continue; }
@@ -5155,6 +5281,8 @@ function endGame(title, text) {
 function nextFloor() {
   const leading = coopHost() || (scene === 'dungeon' && mp.instance && mp.instance.shared && !coopMember());
   const runSpace = mp.instance && mp.instance.space;
+  if (scene === 'dungeon') rescueCheck();
+  escort = null; totems.clear();
   floor++;
   if (!dungeonDef) dungeonDef = townDungeon(townAt(...homeTown.split(',').map(Number)) || townAt(0, 0));
   if (floor > dungeonDef.floors) {
@@ -5296,6 +5424,7 @@ function leaveArena(fell) {
 // Leaving early through the door by the entrance: keep everything, skip the hoard.
 function leaveDungeon() {
   if (dungeonDef && dungeonDef.arena) { leaveArena(false); return; }
+  rescueCheck(); escort = null; totems.clear();
   const def = dungeonDef;
   sfx.play('stairs');
   track('dungeon_left', { dungeon: def ? (def.kind === 'site' ? def.site.type : 'town') : 'town', floor });
@@ -5323,6 +5452,10 @@ function tryMove(dx, dy) {
   if (t === TILE.WAYSTONE) { openShop('travel'); draw(); return; }
   if (t === TILE.CRACK) { hitCrack(nx, ny, traitOf(player.weapon) === 'warhammer' ? 3 : 1); endTurn(false); return; }
   if (t === TILE.SPRING) { drinkSpring(nx, ny); endTurn(false); return; }
+  if (t === TILE.CAPTIVE) { freeCaptive(nx, ny); endTurn(false); return; }
+  if (t === TILE.TOTEM) { smashTotem(nx, ny); endTurn(false); return; }
+  if (t === TILE.LEVER) { pullLever(nx, ny); endTurn(false); return; }
+  if (t === TILE.ALTAR) { useAltar(nx, ny); draw(); return; }
   if (t === TILE.WAYOUT) {
     if (turn - wayoutWarned <= 5) { wayoutWarned = -99; leaveDungeon(); return; }
     wayoutWarned = turn;
@@ -5346,6 +5479,7 @@ function tryMove(dx, dy) {
   if (dx) player.face = dx;
   if (t === TILE.CHEST) { openChest(nx, ny); endTurn(false); return; }
   if (houndAt(nx, ny)) { hound.x = player.x; hound.y = player.y; }
+  if (escort && escort.x === nx && escort.y === ny) { escort.x = player.x; escort.y = player.y; }
   const m = getMonsterAt(nx, ny);
   if (m) playerAttack(m);
   else {
@@ -6223,7 +6357,7 @@ function endTurn(moved) {
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
   if (scene !== 'dungeon') stepNpcs();
   stepGuards();
-  stepHound();
+  stepHound(); stepEscort(); tickTotems();
   // in a shared dungeon the host moves monsters on a steady beat instead of per turn
   if (scene !== 'house' && !coopActive()) {
     stepMonsters();
@@ -7345,6 +7479,7 @@ function startRun(saved) {
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
         rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
+        rescued: Number(saved.meta?.rescued) || 0,
         lairs: saved.meta?.lairs && Array.isArray(saved.meta.lairs.known) ? { known: saved.meta.lairs.known.filter((id) => LAIRS[id]), slain: (saved.meta.lairs.slain || []).filter((id) => LAIRS[id]) } : null,
         act2: saved.meta?.act2 && Number.isInteger(saved.meta.act2.s) ? { s: saved.meta.act2.s, n: 0, told: !!saved.meta.act2.told } : null,
         war: saved.meta?.war && saved.meta.war.troops ? { troops: { cantons: 0, aurum: 0, kathar: 0, league: 0, ...saved.meta.war.troops }, armies: Array.isArray(saved.meta.war.armies) ? saved.meta.war.armies.map((a) => ({ ...a, fightUntil: undefined })) : [], camps: Array.isArray(saved.meta.war.camps) ? saved.meta.war.camps : [] } : null },

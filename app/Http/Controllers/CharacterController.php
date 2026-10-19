@@ -68,6 +68,7 @@ class CharacterController extends Controller
             'meta.story.phase' => ['required_with:meta.story', Rule::in(['summons', 'seek', 'return', 'done'])],
             'meta.story.riders' => ['nullable', 'integer', 'min:0', 'max:5'],
             'meta.story.ambushed' => ['nullable', 'boolean'],
+            'meta.rescued' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'meta.lairs' => ['nullable', 'array:known,slain'],
             'meta.lairs.known' => ['nullable', 'array', 'max:12'],
             'meta.lairs.known.*' => ['string', 'max:20'],
