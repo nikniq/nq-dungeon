@@ -1978,10 +1978,10 @@ function townLore(town) {
   return `${town.name} takes its name from ${parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1]}. It ${age}. ${fortune}`;
 }
 const NOTABLE_NAMES = {
-  cantons: ['Old Garrick', 'Mother Wenna', 'Tobias Finch', 'Agnes Reed', 'Piet the Younger', 'Hesper Dale', 'Jonas Carrow', 'Lissa Wold'],
-  aurum: ['Sir Oswin (retired)', 'Lady Maud', 'Benedict Hale', 'Cecily Ward', 'Old Anselm', 'Mathilde Crane', 'Roland the Lame', 'Edith Marlow'],
-  kathar: ['Old Vorna', 'Brak One-Eye', 'Tessaly', 'Grim Ulfar', 'Nessa Brightspear', 'Korrin', 'Mother Halla', 'Drenn the Quiet'],
-  league: ['Magister Pell', 'Lucrezia Vane', 'Old Bartolo', 'Serena Oake', 'Cassius Mint', 'Widow Orsini', 'Fennimore', 'Dorothea Glass'],
+  cantons: ['Old Garrick', 'Mother Wenna', 'Tobias Finch', 'Agnes Reed', 'Piet the Younger', 'Hesper Dale', 'Jonas Carrow', 'Lissa Wold', 'Bram Tuckett', 'Mab Fenner', 'Old Corran', 'Tilly Ashdown', 'Rufus Pell', 'Nan Hollis', 'Abel Thorne', 'Greta Wick'],
+  aurum: ['Sir Oswin (retired)', 'Lady Maud', 'Benedict Hale', 'Cecily Ward', 'Old Anselm', 'Mathilde Crane', 'Roland the Lame', 'Edith Marlow', 'Dame Ottilie', 'Gervase Hart', 'Old Piers', 'Rosalind Fay', 'Hugh Lanyon', 'Isolde Vane', 'Brother Aldous', 'Joan Carver'],
+  kathar: ['Old Vorna', 'Brak One-Eye', 'Tessaly', 'Grim Ulfar', 'Nessa Brightspear', 'Korrin', 'Mother Halla', 'Drenn the Quiet', 'Ysra Stonehand', 'Orm Redbeard', 'Kaela Wolfsong', 'Old Thurn', 'Brenna Hawk', 'Varl Ironfoot', 'Sela Nightwind', 'Gorm the Elder'],
+  league: ['Magister Pell', 'Lucrezia Vane', 'Old Bartolo', 'Serena Oake', 'Cassius Mint', 'Widow Orsini', 'Fennimore', 'Dorothea Glass', 'Aurelio Spark', 'Beatrice Coin', 'Old Marcello', 'Vittoria Quill', 'Lorenzo Fane', 'Clara Ledger', 'Ambrose Dell', 'Petra Silverhand'],
 };
 // Twelve kinds of notable, each with a story told in three lines.
 const NOTABLES = [
@@ -1989,8 +1989,8 @@ const NOTABLES = [
     `"Forty years in the watch of ${c.town}. I buried three captains and outdrank four. Now I sit by ${c.landmark} and tell the young ones they have it easy."`,
     c.storyTie,
     `"When you go into ${c.site}, keep your back to a wall. That is all the wisdom I have, and it cost me a knee."`] },
-  { id: 'widow', role: 'a widow who keeps a lamp lit', sprite: 'villager', lines: (c) => [
-    `"My husband went into ${c.site} eleven years ago, for the gold. I keep a lamp in the window. People in ${c.town} think I am foolish. People in ${c.town} did not know him."`,
+  { id: 'widow', role: 'who keeps a lamp in the window', sprite: 'villager', lines: (c) => [
+    `"The one I married went into ${c.site} eleven years ago, for the gold. I keep a lamp in the window. People in ${c.town} think I am foolish. People in ${c.town} did not know my Wren."`,
     `"${c.leader} offered to have the lamp taken down, for the look of the place. I told ${c.leaderThem} where to put the ladder."`,
     c.storyTie] },
   { id: 'returned', role: 'the only one who came back', sprite: 'farmer', lines: (c) => [
@@ -2044,7 +2044,12 @@ function notableNpc(town) {
   const I = townIdentity(town), realm = town.realm || 'cantons';
   const pool = NOTABLES.filter((n) => !(n.id === 'greycloak' && realm === 'kathar'));
   const N = pool[Math.floor(cellRand(town.i, town.j, 800) * pool.length)];
-  const names = NOTABLE_NAMES[realm], name = names[Math.floor(cellRand(town.i, town.j, 801) * names.length)];
+  // a name no other town within two cells uses, so neighbours never share a notable
+  const names = NOTABLE_NAMES[realm];
+  const taken = new Set();
+  for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) { if (!di && !dj) continue; const o = townAt(town.i + di, town.j + dj); if (o && o.notable) taken.add(o.notable.name); }
+  let idx = Math.floor(cellRand(town.i, town.j, 801) * names.length), name = names[idx];
+  for (let k = 0; k < names.length && taken.has(name); k++) name = names[(idx + 1 + k) % names.length];
   const at = { x: town.cx, y: town.cy };
   const site = nearbySites(town.cx, town.cy, 1).filter((st) => !st.deep).sort((a, b) => cheb(a, at) - cheb(b, at))[0];
   const place = nearbyPlaces(town.cx, town.cy, 1).sort((a, b) => cheb(a, at) - cheb(b, at))[0];
