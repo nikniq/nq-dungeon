@@ -4266,7 +4266,19 @@ function drawScene(now) {
 // A wide view of the surface around the hero, sampled every other tile and
 // cached until the hero has moved a fair way. Towns are named, roads drawn.
 let mapOpen = false;
-const MAP_STEP = 2, MAP_PX = 3;
+const MINI_STEP = 2, MAP_PX = 3;
+// The world map zooms out in steps: 1 is the close view, 3 shows every continent.
+let MAP_STEP = 2, mapZoom = 1;
+const ZOOM_STEPS = [2, 4, 7];
+function setMapZoom(z) {
+  const nz = Math.max(1, Math.min(ZOOM_STEPS.length, z));
+  if (nz === mapZoom) return;
+  mapZoom = nz; MAP_STEP = ZOOM_STEPS[nz - 1]; mapCache.ox = null;
+  try { localStorage.setItem('dungeon-map-zoom', String(mapZoom)); } catch (e) { /* ignore */ }
+  draw();
+}
+try { const z = Number(localStorage.getItem('dungeon-map-zoom')); if (z >= 1 && z <= ZOOM_STEPS.length) { mapZoom = z; MAP_STEP = ZOOM_STEPS[z - 1]; } } catch (e) { /* ignore */ }
+const mapZoomButtons = () => { const c = mapCache.canvas, X = Math.floor((canvas.width - c.width) / 2), Y = 56; return [{ id: 'in', x: X + c.width - 70, y: Y + c.height - 34, w: 28, h: 26 }, { id: 'out', x: X + c.width - 36, y: Y + c.height - 34, w: 28, h: 26 }]; };
 const mapCache = { ox: null, oy: null, canvas: document.createElement('canvas') };
 // A pin you drop on the world map; the compass points to it until you get there.
 let mapPin = null;
@@ -4275,6 +4287,8 @@ function savePin() { try { localStorage.setItem('dungeon-pin', JSON.stringify(ma
 function mapClick(px, py) {
   const c = mapCache.canvas, X = Math.floor((canvas.width - c.width) / 2), Y = 56;
   if (mapCache.ox === null || px < X || py < Y || px > X + c.width || py > Y + c.height) return false;
+  const zb = mapZoomButtons().find((b) => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h);
+  if (zb) { setMapZoom(mapZoom + (zb.id === 'out' ? 1 : -1)); return true; }
   const wx = Math.round(mapCache.ox + ((px - X) / MAP_PX) * MAP_STEP), wy = Math.round(mapCache.oy + ((py - Y) / MAP_PX) * MAP_STEP);
   if (mapPin && Math.hypot(mapPin.x - wx, mapPin.y - wy) < MAP_STEP * 4) { mapPin = null; log('You take the pin out of your map.'); }
   else { mapPin = { x: wx, y: wy }; log('You pin the map. The compass now points to your pin.', 'good'); sfx.play('quest'); }
@@ -4332,6 +4346,7 @@ function renderWorldMap() {
     if (!st) continue;
     if (st.lair && !lairKnown(st.lair)) continue;
     const [sx, sy] = toPx(st.x, st.y);
+    if (MAP_STEP > 2) { g.fillStyle = st.lair ? '#ef4444' : '#c084fc'; g.fillRect(sx - 2, sy - 2, 4, 4); continue; }   // zoomed out: just a dot
     if (st.lair) {
       const L = LAIRS[st.lair], slain = lairState().slain.includes(st.lair);
       g.fillStyle = slain ? '#6b7280' : '#ef4444'; g.font = 'bold 16px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('☠', sx, sy);
@@ -4355,8 +4370,8 @@ function renderWorldMap() {
     if (!pl) continue;
     const [px, py] = toPx(pl.x, pl.y);
     if (px < 0 || py < 0 || px > c.width || py > c.height) continue;
-    g.fillStyle = '#9fd4ff'; g.beginPath(); g.arc(px, py, 3, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#cfe9ff'; g.fillText(pl.name.replace(/^the /, ''), px, py - 4);
+    g.fillStyle = '#9fd4ff'; g.beginPath(); g.arc(px, py, MAP_STEP > 2 ? 2 : 3, 0, Math.PI * 2); g.fill();
+    if (MAP_STEP <= 2) { g.fillStyle = '#cfe9ff'; g.fillText(pl.name.replace(/^the /, ''), px, py - 4); }
   }
   // realm names over their capitals
   g.font = 'bold 13px sans-serif';
@@ -4373,6 +4388,20 @@ function renderWorldMap() {
 // sized by its rank, walled if it is a castle, finer the more prosperous it is.
 function drawMapTown(g, t, x, y, w, h) {
   const I = townIdentity(t), realm = t.realm || 'cantons', tier = townTier(t), col = REALMS[realm].color;
+  if (MAP_STEP > 2) {   // zoomed out: a mark and, for the towns that matter, a name
+    const grand0 = t.size === 'grand', big = grand0 || t.capital || t.size === 'city' || t.walled || t.key === homeTown;
+    const cx = x + w / 2, cy = y + h / 2, r = grand0 ? 6 : t.size === 'city' || t.walled ? 5 : 3.5;
+    g.fillStyle = '#1b1b2f'; g.fillRect(cx - r - 1, cy - r - 1, r * 2 + 2, r * 2 + 2);
+    g.fillStyle = grand0 ? '#ffd86b' : t.walled ? '#cbd5e1' : '#d9b382'; g.fillRect(cx - r, cy - r, r * 2, r * 2);
+    g.fillStyle = col; g.fillRect(cx - r, cy - r, r * 2, Math.max(2, r - 1));
+    if (t.harbour) { g.fillStyle = '#8b5a2b'; g.fillRect(cx + r, cy + r - 3, 4, 3); }
+    if (big && (MAP_STEP < 7 || grand0 || t.capital)) {
+      const label = (t.key === homeTown ? t.name + ' (home)' : t.name) + (grand0 ? ' ♛' : t.capital ? ' ✦' : ''), lw = g.measureText(label).width + 8;
+      g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(cx - lw / 2, cy - r - 17, lw, 13, 3); g.fill();
+      g.fillStyle = grand0 ? '#fbbf24' : t.capital ? col : '#ffd86b'; g.fillText(label, cx, cy - r - 5);
+    }
+    return;
+  }
   const roofs = { cantons: ['#8b2e2e', '#6d3b8b', '#2e7d32', '#7a4a2a'], aurum: ['#b91c1c', '#374151', '#7c2d12', '#4b5563'], kathar: ['#a07a35', '#8c6a2c', '#b08840', '#7d5026'], league: ['#4c2f7a', '#5b3a8b', '#3f2a63', '#6d3b8b'] }[realm];
   const wall = t.walled, grand = t.size === 'grand';
   const sw = t.size === 'village' ? w * 0.55 : t.size === 'town' ? w * 0.8 : w, sh = t.size === 'village' ? h * 0.55 : t.size === 'town' ? h * 0.8 : h;
@@ -4440,13 +4469,14 @@ function drawWorldMap(g, now) {
   // warcamps and the armies on the march
   { const cx0 = mapCache.ox + (c.width / MAP_PX) * MAP_STEP / 2, cy0 = mapCache.oy + (c.height / MAP_PX) * MAP_STEP / 2;
     const [ci, cj] = cellOf(cx0, cy0);
-    for (let i = ci - 4; i <= ci + 4; i++) for (let j = cj - 3; j <= cj + 3; j++) {
+    const spanI = Math.ceil((c.width / MAP_PX) * MAP_STEP / TOWN_SPACING / 2) + 1, spanJ = Math.ceil((c.height / MAP_PX) * MAP_STEP / TOWN_SPACING / 2) + 1;
+    for (let i = ci - spanI; i <= ci + spanI; i++) for (let j = cj - spanJ; j <= cj + spanJ; j++) {
       const wc = campAt(i, j); if (!wc) continue;
       const qx = X + ((wc.x - mapCache.ox) / MAP_STEP) * MAP_PX, qy = Y + ((wc.y - mapCache.oy) / MAP_STEP) * MAP_PX;
       if (qx < X || qy < Y || qx > X + c.width || qy > Y + c.height) continue;
       const razed = campRazed(wc);
       g.fillStyle = razed ? '#6b7280' : '#dc2626'; g.beginPath(); g.moveTo(qx, qy - 5); g.lineTo(qx + 5, qy + 4); g.lineTo(qx - 5, qy + 4); g.fill();
-      if (!razed) { g.font = '9px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fca5a5'; g.fillText(`camp ${wc.strength}`, qx, qy + 13); g.textAlign = 'left'; }
+      if (!razed && MAP_STEP <= 2) { g.font = '9px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fca5a5'; g.fillText(`camp ${wc.strength}`, qx, qy + 13); g.textAlign = 'left'; }
     }
     for (const a of armiesUnlocked() ? war().armies : []) {
       const ax = X + ((a.x - mapCache.ox) / MAP_STEP) * MAP_PX, ay = Y + ((a.y - mapCache.oy) / MAP_STEP) * MAP_PX;
@@ -4484,7 +4514,15 @@ function drawWorldMap(g, now) {
   g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.textAlign = 'left'; g.textBaseline = 'top';
   g.fillText('World map', 20, 14);
   g.font = '13px sans-serif'; g.fillStyle = '#a8c0d8';
-  g.fillText(`${here ? here.name : 'The wilds'}  ·  position ${player.x}, ${player.y}  ·  each square is ${MAP_STEP} tiles  ·  click to place or remove a pin  ·  M or Esc closes`, 112, 18);
+  g.fillText(`${here ? here.name : 'The wilds'}  ·  position ${player.x}, ${player.y}  ·  each square is ${MAP_STEP} tiles  ·  + / − or scroll to zoom  ·  click to place or remove a pin  ·  M or Esc closes`, 112, 18);
+  // zoom buttons
+  for (const bz of mapZoomButtons()) {
+    const on = bz.id === 'in' ? mapZoom > 1 : mapZoom < ZOOM_STEPS.length;
+    g.fillStyle = 'rgba(6,12,20,0.85)'; g.beginPath(); g.roundRect(bz.x, bz.y, bz.w, bz.h, 5); g.fill();
+    g.strokeStyle = on ? '#ffd86b' : '#4b5563'; g.lineWidth = 1.5; g.beginPath(); g.roundRect(bz.x + 0.5, bz.y + 0.5, bz.w - 1, bz.h - 1, 5); g.stroke();
+    g.fillStyle = on ? '#ffd86b' : '#6b7280'; g.font = 'bold 18px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(bz.id === 'in' ? '+' : '−', bz.x + bz.w / 2, bz.y + bz.h / 2 + 1);
+  }
+  g.font = 'bold 11px sans-serif'; g.fillStyle = '#cfe9ff'; g.textAlign = 'right'; g.textBaseline = 'middle'; g.fillText(['close', 'far', 'the whole world'][mapZoom - 1], X + c.width - 76, Y + c.height - 21);
   // legend
   const items = [['#3f7d3a', 'grass'], ['#2e7d32', 'forest'], ['#1d4ed8', 'water'], ['#6b7280', 'mountains / town'], ['#a8865a', 'road'], ['#5fe17a', 'gate'], ['#c084fc', 'cave, crypt or tower (★ danger)'], ['#8b5a2b', '⚓ port: ships sail to other ports']];
   let lx = 20; const ly = canvas.height - 26;
@@ -4663,6 +4701,8 @@ canvas.addEventListener('mousemove', (e) => {
   if (walk.holding && walk.active && !walk.monster && performance.now() - walk.downAt > 220) { const t = tileFromEvent(e); walk.tx = t.x; walk.ty = t.y; }
 });
 window.addEventListener('mouseup', () => { walk.holding = false; });
+// The wheel zooms the world map while it is open; elsewhere it scrolls the page as usual.
+canvas.addEventListener('wheel', (e) => { if (!mapOpen) return; e.preventDefault(); setMapZoom(mapZoom + (e.deltaY > 0 ? 1 : -1)); }, { passive: false });
 // Right-click: the hero's ability, aimed at the tile under the pointer.
 canvas.addEventListener('contextmenu', (e) => {
   e.preventDefault();
@@ -6431,6 +6471,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { closeShop(); if (mapOpen || questsOpen) { mapOpen = false; questsOpen = false; draw(); } return; }
   if (shopOpen) return;
   if (e.key === 'm' || e.key === 'M') { questsOpen = false; toggleMap(); return; }
+  if (mapOpen && ['+', '=', '-', '_'].includes(e.key)) { e.preventDefault(); setMapZoom(mapZoom + (e.key === '-' || e.key === '_' ? 1 : -1)); return; }
   if (e.key === 'q' || e.key === 'Q') { mapOpen = false; questsOpen = !questsOpen; draw(); return; }
   if (e.key === 'c' || e.key === 'C') { makeCamp(); return; }
   if (e.key === 'j' || e.key === 'J') { mapOpen = false; questsOpen = false; journalOpen = true; draw(); return; }
