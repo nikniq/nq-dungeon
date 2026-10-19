@@ -3302,10 +3302,15 @@ function drawCobble(g, c, r) {
 }
 function drawGrass(g, c, r, forest = false) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 11);
-  // large soft patches from value noise so the field is not a checkerboard
-  const v = valueNoise(c, r, 61, 6);
-  g.fillStyle = forest ? (v < 0.5 ? '#2d5b2a' : '#336a30') : (v < 0.33 ? '#3c7837' : v < 0.66 ? '#418239' : '#468b3e');
-  g.fillRect(X, Y, T, T);
+  // soft meadow tones: value noise sampled per quarter tile and mixed continuously, so patches
+  // have no hard edges, with a slower yellowing noise for sun-dried stretches
+  const dry = valueNoise(c, r, 63, 15);
+  const dark = forest ? [40, 84, 40] : [56, 114, 52], light = forest ? [60, 118, 54] : [78, 150, 68];
+  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
+    const v = valueNoise(c + i * 0.5 + 0.25, r + j * 0.5 + 0.25, 61, 6);
+    const R = Math.round(dark[0] + (light[0] - dark[0]) * v + dry * 14), G = Math.round(dark[1] + (light[1] - dark[1]) * v + dry * 6), B = Math.round(dark[2] + (light[2] - dark[2]) * v - dry * 6);
+    g.fillStyle = `rgb(${R},${G},${B})`; g.fillRect(X + i * (T / 2), Y + j * (T / 2), T / 2, T / 2);
+  }
   for (let k = 0; k < 6; k++) {
     const bx = X + 2 + Math.floor(noise(c * 7 + k, r, 41) * 27), by = Y + 3 + Math.floor(noise(c, r * 7 + k, 43) * 24);
     g.fillStyle = k % 3 === 0 ? (forest ? '#244a22' : '#33692f') : (forest ? '#3f7d3a' : '#5aa352');
@@ -3406,7 +3411,7 @@ function drawField(g, c, r, kind) {
   } else if (kind === 'meadow') {
     drawGrass(g, c, r); for (let k = 0; k < 5; k++) { g.fillStyle = ['#ffd86b', '#f4f4f4', '#ff9ecf', '#c084fc'][(k + c) % 4]; g.fillRect(X + 3 + ((k * 7 + c) % 26), Y + 3 + ((k * 11 + r) % 26), 2, 2); }
   } else {   // pasture: cropped grass with a post-and-rail fence on the town side
-    g.fillStyle = (c + r) % 2 ? '#5f9f54' : '#5a9850'; g.fillRect(X, Y, T, T);
+    drawGrass(g, c, r); g.fillStyle = 'rgba(200,236,150,0.22)'; g.fillRect(X, Y, T, T);   // the same soft meadow, grazed paler
     g.fillStyle = '#4f8a46'; for (let k = 0; k < 4; k++) g.fillRect(X + 3 + ((k * 9 + r) % 26), Y + 5 + ((k * 7 + c) % 24), 2, 1);
     if (noise(c, r, 47) < 0.12) { g.fillStyle = '#f4f4f4'; g.beginPath(); g.ellipse(X + 16, Y + 18, 6, 4, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = '#1b1b2f'; g.fillRect(X + 20, Y + 15, 3, 3); g.fillRect(X + 12, Y + 21, 1, 3); g.fillRect(X + 18, Y + 21, 1, 3); }   // a sheep
     if (!fieldAt(c, r - 1)) { g.fillStyle = '#6b4423'; g.fillRect(X, Y + 2, T, 2); g.fillRect(X + 4, Y, 2, 8); g.fillRect(X + 24, Y, 2, 8); }   // the fence
@@ -3749,7 +3754,11 @@ function renderBackground() {
       else if (gnd === GROUND.DOCK) drawDock(g, c, r);
       else if (gnd === GROUND.FOREST || gnd === GROUND.TREE) {
         drawGrass(g, c, r, true);
-        if (gnd === GROUND.TREE) { g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(c * T - off.x + T / 2 + 4, r * T - off.y + T - 4, T * 0.42, 6, 0, 0, Math.PI * 2); g.fill(); drawSprite(g, 'tree', c, r, 1, 1); }
+        if (gnd === GROUND.TREE) {   // every tree a little different: size, lean and which way it faces
+          const tn = noise(c, r, 71), pad = tn < 0.25 ? -2 : tn < 0.6 ? 0 : tn < 0.85 ? 1 : 3, lean = (noise(c, r, 73) - 0.5) * 0.22;
+          g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(c * T - off.x + T / 2 + 4 + lean * T, r * T - off.y + T - 4, T * (0.46 - pad * 0.03), 6, 0, 0, Math.PI * 2); g.fill();
+          drawSprite(g, 'tree', c + lean, r - (pad < 0 ? 0.06 : 0), 1, pad, tn > 0.5);
+        }
       }
       else { const fk = t === TILE.FLOOR && fieldAt(c, r); if (fk) drawField(g, c, r, fk); else { drawGrass(g, c, r); if (t === TILE.FLOOR && noise(c, r, 9) < 0.06) drawSprite(g, 'flower', c, r); } }
       if (t === TILE.FOUNTAIN) {
@@ -4053,6 +4062,25 @@ function applyLighting(g, fill, lights) {
   }
   g.globalCompositeOperation = 'source-over';
 }
+// Cloud shadows drifting over the land by day: a few soft blobs fixed to the world
+// (so they slide over the ground as the camera moves) and pushed along by the wind.
+function drawCloudShadows(g, now, t) {
+  const fade = Math.max(0, Math.min(1, (t - 0.08) / 0.04, (0.55 - t) / 0.04));
+  if (!fade) return;
+  const SX = 2600, SY = 1800, drift = now * 0.011;
+  g.save(); g.globalAlpha = 0.2 * fade;
+  for (let i = 0; i < 8; i++) {
+    const wx = (i * 1733 + 211 + drift * (0.8 + (i % 3) * 0.15)) % SX, wy = (i * 911 + 97 + Math.sin(now / 9000 + i) * 40) % SY;
+    const sx = ((wx - cam.x) % SX + SX) % SX - 300, sy = ((wy - cam.y) % SY + SY) % SY - 200;
+    if (sx < -400 || sx > canvas.width + 400 || sy < -300 || sy > canvas.height + 300) continue;
+    for (const [ox, oy, rx, ry] of [[0, 0, 170, 90], [120, 30, 130, 70], [-110, 20, 120, 60]]) {
+      const rg = g.createRadialGradient(sx + ox, sy + oy, 10, sx + ox, sy + oy, rx);
+      rg.addColorStop(0, 'rgba(10,20,45,1)'); rg.addColorStop(1, 'rgba(10,20,45,0)');
+      g.fillStyle = rg; g.beginPath(); g.ellipse(sx + ox, sy + oy, rx, ry, 0, 0, Math.PI * 2); g.fill();
+    }
+  }
+  g.restore();
+}
 const particles = [];
 let lastFrame = 0;
 // A spray of particles from a tile. opts: life (ms), gravity (px/s²), size, glow, rise, spread, foot.
@@ -4329,6 +4357,7 @@ function drawScene(now) {
       }
       ctx.globalCompositeOperation = 'source-over';
     } else {
+      if (t >= 0.08 && t < 0.55 && !isRainy()) drawCloudShadows(ctx, now, t);
       const tint = nightTint();
       if (tint) { ctx.fillStyle = tint; ctx.fillRect(0, 0, canvas.width, canvas.height); }
     }

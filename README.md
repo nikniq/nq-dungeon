@@ -220,6 +220,11 @@ Buildings are drawn in their realm's style: timber-framed plaster in the Cantons
 stone in the Kingdom, logs and thatch in the Clans, marble in the League. Keeps,
 watch houses and the arena have battlements, halls and banks have classical fronts,
 shops have awnings, smithies a forge glow, and chimneys smoke. Windows glow at night.
+Grass and pasture are value noise sampled per quarter tile and mixed continuously
+(`drawGrass`), so meadows have soft patches and sun-dried stretches rather than
+blocks; forest trees vary in size, lean and facing; and by day the shadows of a
+few clouds drift over the land, fixed to the world and pushed by the wind
+(`drawCloudShadows`).
 
 Every town keeps a watch that patrols the square and the gate and sallies out
 after anything near the walls: a scruffy militiaman in ramshackle towns, guards
