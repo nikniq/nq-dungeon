@@ -222,3 +222,6 @@ body.wide .chat,body.wide .party{max-width:1400px;margin-left:auto;margin-right:
 /* no rubber-band or scroll chaining while playing; the canvas handles its own gestures */
 body.wide{overscroll-behavior-y:none}
 .stage .overlay{overscroll-behavior:contain}
+/* the highlighted dialogue choice (arrow keys, mouse) */
+.story-choices button.selected{background:#5fe17a;color:#06202c;box-shadow:0 0 0 2px #ffd86b}
+.story-choices button:focus{outline:none}
