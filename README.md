@@ -30,6 +30,17 @@ land. The ship waits where it was left (`meta.ship`, shown on the map) and any
 harbourmaster can fetch it for a small fee. A hero saved at sea wakes aboard;
 one whose saved spot on land is now sea wakes in their home town.
 
+The sea has its own encounters (`SEA_EVENTS`): a pirate sloop to pay, fight or
+outrun, a sea serpent, a drifting wreck to loot and a castaway to rescue, each
+settled in a scene with the hero's attack and armour deciding the toll
+(`seaFight`). Harbourmasters also sell treasure charts (`CHART_COST`, three at
+a time) that put a red ✕ on an island or lonely shore within sailing reach
+(`chartSpot`, kept in `meta.charts`); stepping onto the spot digs up a sea-chest
+of gold, the Stormcaller Pearl relic the first time (three tiles a step at sea,
+serpents shy away) and gear after that (`meta.treasures` counts them). Pirates,
+wrecks and castaways sometimes hand over a chart too. Waiting at sea with a rod
+fishes the deep water, where the catch is better.
+
 You start in Hearth on an endless seeded overworld (`WORLD_SEED` in `script.js`).
 Settlements sit roughly every 96 tiles (some cells are empty), placed on the best
 land nearby and joined by roads: villages, towns, cities, walled castles, and one

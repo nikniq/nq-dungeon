@@ -54,6 +54,7 @@ return [
         'bloodtorc' => ['name' => 'Bloodfury Torc', 'desc' => '+3 attack while you are at half health or less.', 'found' => 'the Trial of Three', 'price' => 300, 'floor' => 99],
         'ledger' => ['name' => "Vessa's Ledger", 'desc' => '+25% gold, and merchants pay 70% when you sell.', 'found' => 'a Goldspire banker', 'price' => 300, 'floor' => 99],
         'deepheart' => ['name' => 'Heart of the Deep', 'desc' => '+3 attack, +3 defence, +15 max HP, and you see two tiles further in the dark.', 'found' => 'the bottom of the Dreaming Maw', 'price' => 1500, 'floor' => 99],
+        'stormpearl' => ['name' => 'Stormcaller Pearl', 'desc' => 'Your ship sails three tiles a step, and sea beasts shy from it.', 'found' => 'a buried sea-chest', 'price' => 350, 'floor' => 99],
         'crown' => ['name' => 'Crown of Aurum', 'desc' => '+2 attack, +2 defence and +10 max HP. The King\'s own gift.', 'found' => 'the end of the story', 'price' => 1000, 'floor' => 99],
     ],
     'bag_size' => 12,

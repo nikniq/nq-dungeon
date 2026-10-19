@@ -112,6 +112,8 @@ const ACHIEVEMENTS = {
   camper:      { label: 'Made camp in the wilds', title: 'the Wanderer' },
   rider:       { label: 'Bought a horse', title: 'the Rider' },
   shipwright:  { label: 'Bought a ship', title: 'the Captain' },
+  treasure:    { label: 'Dug up buried treasure', title: 'the Fortunate' },
+  serpent:     { label: 'Killed a sea serpent', title: 'Serpentsbane' },
   champion:    { label: 'Survived ten waves in the Grand Arena', title: 'Champion of Aurum' },
   four_realms: { label: 'Finished every realm questline', title: 'Friend of Four Realms' },
   abyss10:     { label: 'Reached floor 10 of the Deep', title: 'the Deepwalker' },
@@ -271,7 +273,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -1575,6 +1577,7 @@ function guideSuggestions() {
   if (!questsActive().length) out.push(['Find work', 'Watch captains post bounties on named beasts, and townsfolk want monsters cleared.']);
   if (!hound) out.push(['A companion', `Any inn will hire you a hound for ${HOUND_COST} gold.`]);
   if (player.bag.length >= bagSize() - 2 && !player.meta.room) out.push(['Your bag is nearly full', `Rent a room at an inn (${ROOM_COST} gold) for a storage chest at every inn.`]);
+  if (player.meta.ship && !charts().length && player.gold >= CHART_COST) out.push(['Buried treasure', `Harbourmasters sell charts (${CHART_COST} gold) to sea-chests on islands. Sail there and dig.`]);
   if (!player.meta.ship && player.gold >= SHIP_COST * 0.75) out.push(['Set sail', `Harbourmasters sell ships (${SHIP_COST} gold): sail the open sea to islands and shores no road reaches.`]);
   if (!player.meta.horse && player.gold >= HORSE_COST * 0.75) out.push(['Ride', `Inns in cities and castles sell horses (${HORSE_COST} gold): two tiles a step in the wilds.`]);
   if (player.weapon && (player.weaponPlus || 0) < 3 && player.gold >= UPGRADE_COST(player.weaponPlus || 0)) out.push(['Sharpen your blade', `A smithy can make your ${itemInfo(player.weapon).name} +${(player.weaponPlus || 0) + 1}.`]);
@@ -4503,6 +4506,15 @@ function renderWorldMap() {
     g.fillStyle = '#9fd4ff'; g.beginPath(); g.arc(px, py, MAP_STEP > 2 ? 2 : 3, 0, Math.PI * 2); g.fill();
     if (MAP_STEP <= 2) { g.fillStyle = '#cfe9ff'; g.fillText(pl.name.replace(/^the /, ''), px, py - 4); }
   }
+  // treasure charts
+  g.font = 'bold 13px sans-serif'; g.textBaseline = 'middle';
+  for (const k of charts()) {
+    const [x, y] = k.split(',').map(Number), [px, py] = toPx(x, y);
+    if (px < 0 || py < 0 || px > c.width || py > c.height) continue;
+    g.fillStyle = 'rgba(6,12,20,0.6)'; g.beginPath(); g.arc(px, py, 7, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#ff6b6b'; g.fillText('✕', px, py + 1);
+  }
+  g.textBaseline = 'bottom';
   // realm names over their capitals
   g.font = 'bold 13px sans-serif';
   for (const id of REALM_ORDER) {
@@ -4700,6 +4712,7 @@ function describeTile(x, y) {
   if (other) return `${other.data.name}${other.data.title ? ' ' + other.data.title : ''} — level ${other.data.level} ${other.data.cls}${inMyParty(other.id) ? ', in your party' : ''}${scene !== 'dungeon' ? '. Walk into them to invite or wave' : ''}`;
   if (houndAt(x, y)) return `Your hound — ${hound.hp}/${hound.maxHp} HP, bite ${hound.atk}, level ${hound.level}, ${hound.kills} kills`;
   if (shipAt(x, y)) return 'Your ship — walk into her to go aboard';
+  if (charts().includes(key(x, y))) return 'X marks the spot — step here to dig';
   if (t === TILE.SHIP) { const pt = portAtTile(x, y); return pt ? `The ship of ${pt.name} — walk into it, or speak to the harbourmaster, to sail to another port` : 'A boat'; }
   if (scene === 'world' && groundAt(x, y) === GROUND.DOCK) return 'The pier — the harbourmaster at the end sells passage by sea';
   if (t === TILE.WARCAMP) { const wc = campAtTile(x, y); if (wc) return campRazed(wc) ? `${wc.name} — razed` : `${wc.name} — orc warcamp, strength ${wc.strength}. ${armiesUnlocked() ? 'Send a realm\'s army' : `Armies open at level ${ARMY_LEVEL}`}`; }
@@ -5480,6 +5493,7 @@ function tryMove(dx, dy) {
   const t = getTile(nx, ny);
   if (t === TILE.WALL && scene === 'world' && groundAt(nx, ny) === GROUND.WATER) {
     if (dx) player.face = dx;
+    if (aboard && !dx && !dy) { if (player.meta.rod) fishAt(nx, ny, true); else { log('Deep water all round. With a rod you could fish from the boat.'); draw(); } return; }
     if (aboard && seaTile(nx, ny)) { sailStep(dx, dy); return; }
     if (shipAt(nx, ny)) { boardShip(); return; }
     fishAt(nx, ny); return;
@@ -5544,6 +5558,7 @@ function tryMove(dx, dy) {
     }
     const g = getGoldAt(nx, ny);
     if (g) { const amt = Math.round(g.amount * (goldMult())); player.gold += amt; rqProgress('gold', null, amt); golds = golds.filter((x) => x !== g); log(`You pick up ${amt} gold.`, 'good'); floatText(nx, ny, `+${amt}g`, '#f5c542'); sfx.play('gold'); burst(nx, ny, '#ffd86b', 12, 70, { glow: true, gravity: -50, life: 650 }); if (player.gold >= 1000) unlock('rich'); }
+    if (scene === 'world') { const ck = chartNear(nx, ny); if (ck) digTreasure(ck); }
     if (t === TILE.SHOP) openShop('shop');
     if (t === TILE.BED) {
       if (interior && interior.house.id === 'inn') restAtInn();
@@ -5652,6 +5667,14 @@ function drawSceneBackdrop(g, key, w, h) {
     for (let k = 0; k < 5; k++) { g.fillStyle = '#6b7280'; g.fillRect(w / 2 - 60 + k * 30, h * 0.72 - (k % 2) * 6, 10, 28 + (k % 2) * 6); }   // standing stones
   } else if (key === 'lava') {
     sky('#2a0a05', '#0a0303'); glow(w / 2, h, 160, 'rgba(255,120,30,0.6)'); g.fillStyle = '#ff7a1a'; for (let x = 0; x < w; x += 6) g.fillRect(x, h - 14 + Math.sin(x / 15) * 4, 6, 20); g.fillStyle = '#1b0b05'; for (let x = 20; x < w; x += 90) { g.beginPath(); g.moveTo(x, h - 10); g.lineTo(x + 25, 30 + (x % 40)); g.lineTo(x + 50, h - 10); g.fill(); }
+  } else if (key === 'sea') {
+    sky(night ? '#0a1430' : '#8fc7ee', night ? '#1b2f5a' : '#dbeeff'); if (night) stars(60);
+    glow(w * 0.72, h * 0.3, 70, night ? 'rgba(220,230,255,0.5)' : 'rgba(255,245,200,0.8)');
+    g.fillStyle = night ? '#0d2a4a' : '#1f6fa8'; g.fillRect(0, h * 0.55, w, h);
+    g.strokeStyle = night ? 'rgba(160,200,240,0.35)' : 'rgba(230,245,255,0.6)'; g.lineWidth = 2;
+    for (let r = 0; r < 5; r++) { g.beginPath(); for (let x = 0; x <= w; x += 6) g.lineTo(x, h * (0.6 + r * 0.08) + Math.sin(x / 22 + r) * 3); g.stroke(); }
+    g.fillStyle = night ? '#1a2a3a' : '#3b2a1a'; g.fillRect(w * 0.1, h * 0.52, w * 0.18, h * 0.06);   // a far hull
+    g.fillStyle = night ? '#c8d8e8' : '#f4f0e6'; g.beginPath(); g.moveTo(w * 0.19, h * 0.52); g.lineTo(w * 0.19, h * 0.3); g.lineTo(w * 0.27, h * 0.5); g.closePath(); g.fill();
   } else if (key === 'grotto') {
     sky('#061a2e', '#02070f'); for (let x = 0; x < w; x += 45) { g.fillStyle = '#0d2a44'; g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 22, 0); g.lineTo(x + 11, 30 + (x * 7) % 40); g.fill(); }
     glow(w / 2, h * 0.9, 110, 'rgba(60,180,255,0.4)'); g.fillStyle = 'rgba(56,189,248,0.5)'; g.fillRect(0, h - 22, w, 22);
@@ -6088,14 +6111,14 @@ function startEncounter() {
 
 // ---------- fishing and camping ----------
 let fishHintShown = false, campedAt = -9999;
-function fishAt(x, y) {
+function fishAt(x, y, deep = false) {
   if (!player.meta.rod) {
     if (!fishHintShown) { log('Fish dart about in the shallows. With a rod you could catch some; the shops of fishing towns sell them.'); fishHintShown = true; }
     draw(); return;
   }
   if (bagFull()) { log('Your bag is too full to keep a catch.'); draw(); return; }
   if (dx2(x) !== 0) player.face = Math.sign(x - player.x);
-  const r = Math.random();
+  const r = deep ? 0.25 + Math.random() * 0.75 : Math.random();   // the deep water fishes better
   burst(x, y, '#9fd4ff', 8, 50, { gravity: 60, life: 400 });
   if (r < 0.4) log(Math.random() < 0.5 ? 'You cast your line. Nothing bites.' : 'A nibble, but it gets away.');
   else if (r < 0.78) { player.bag.push('fish'); log('You catch a fresh fish!', 'good'); sfx.play('gold'); }
@@ -7241,6 +7264,122 @@ function shipRows(here) {
     updateStats(); renderShop(); draw(); saveProgress('progress');
   }, player.gold < fee)];
 }
+// ---------- the open sea: charts, wrecks, pirates ----------
+const CHART_COST = 300;
+const charts = () => player.meta.charts || (player.meta.charts = []);
+// where the n-th chart bought at a port leads: an island if one is in reach, else a lonely shore
+function chartSpot(port, n) {
+  let shore = null;
+  for (let k = 0; k < 400; k++) {
+    const a = cellRand(port.i, port.j, 700 + n * 50 + k) * Math.PI * 2, d = 50 + cellRand(port.i, port.j, 720 + n * 50 + k) * 110;
+    const x = Math.round(port.cx + Math.cos(a) * d), y = Math.round(port.cy + Math.sin(a) * d);
+    if (!isLand(x, y) || charts().includes(key(x, y))) continue;
+    const g = terrainAt(x, y); if (g !== GROUND.GRASS && g !== GROUND.SAND && g !== GROUND.FOREST) continue;
+    if (nearbyTowns(x, y, 1).some((t) => x >= t.x0 - 4 && x < t.x0 + TW + 4 && y >= t.y0 - 4 && y < t.y0 + TH + 4)) continue;
+    if (continentOf(x, y) === -1) return { x, y };
+    if (!shore && [[3, 0], [-3, 0], [0, 3], [0, -3]].some(([ox, oy]) => isSea(x + ox, y + oy))) shore = { x, y };
+  }
+  return shore;
+}
+function chartRows(here) {
+  if (!here || !here.harbour) return [];
+  const n = charts().length + (player.meta.treasures || 0);
+  if (charts().length >= 3) return [shopRow('You already carry three charts. Dig one up before buying more')];
+  return [shopRow(`A chart to buried treasure, bought off a sailor: an X on an island or lonely shore within sailing reach${player.meta.ship ? '' : ' (you will want a ship)'}`, `Buy ${CHART_COST}g`, () => {
+    if (player.gold < CHART_COST) return;
+    const spot = chartSpot(here, n);
+    if (!spot) { log('The harbourmaster turns the chart over twice and admits it is a drawing of a goat.'); return; }
+    player.gold -= CHART_COST; charts().push(key(spot.x, spot.y)); sfx.play('quest');
+    const d = Math.round(Math.hypot(spot.x - here.cx, spot.y - here.cy)), island = continentOf(spot.x, spot.y) === -1;
+    log(`The chart shows an X on ${island ? 'an island' : 'a lonely shore'} about ${d} paces ${compassWord(spot.x - here.cx, spot.y - here.cy).toLowerCase()} of ${here.name}. It is marked ✕ on your map; walk onto the spot to dig.`, 'good');
+    tip('chart', 'Treasure charts mark a red ✕ on the world map (M). Sail there and step onto the spot. You can carry three at a time.');
+    mapCache.ox = null; track('chart_bought', { island }); updateStats(); renderShop(); draw(); saveProgress('progress');
+  }, player.gold < CHART_COST)];
+}
+const chartNear = (x, y) => scene === 'world' ? charts().find((k) => { const [cx, cy] = k.split(',').map(Number); return Math.max(Math.abs(cx - x), Math.abs(cy - y)) <= 1; }) || null : null;
+function digTreasure(k) {
+  player.meta.charts = charts().filter((c) => c !== k); player.meta.treasures = (player.meta.treasures || 0) + 1;
+  const n = player.meta.treasures, danger = wildDanger();
+  const gold = Math.round((200 + rnd(200) + danger * 60 + n * 40) * goldMult());
+  player.gold += gold; floatText(player.x, player.y, `+${gold}g`, '#f5c542');
+  burst(player.x, player.y, '#ffd86b', 30, 120, { glow: true, gravity: 120, life: 800, rise: 140 }); sfx.play('win'); shakeScreen(3);
+  log(`X marks the spot. Under a foot of sand your blade rings on iron: a sea-chest with ${gold} gold.`, 'good');
+  if (!player.meta.found.includes('stormpearl')) giveRelic('stormpearl');
+  else {
+    const up = upgradeFor(Math.random() < 0.5 ? 'weapon' : 'armor');
+    if (up && !bagFull()) { player.bag.push(up); log(`Wrapped in oilcloth beneath the coin: a ${itemInfo(up).name}.`, 'good'); }
+    else if (!bagFull()) { player.bag.push('goldcarp'); log('A golden carp, dried and salted, lies on top. Merchants still pay for it.', 'good'); }
+  }
+  unlock('treasure'); if (player.gold >= 1000) unlock('rich');
+  track('treasure_dug', { n }); mapCache.ox = null; updateStats(); saveProgress('progress');
+}
+// a fight on deck, settled in one go: your blade against their strength, their blows against your mail
+function seaFight(strength, hit) {
+  const rounds = Math.ceil(strength / Math.max(1, player.atk + weaponAtk()));
+  let taken = 0;
+  for (let r = 0; r < rounds; r++) taken += Math.max(0, hit - Math.floor(armorDef() / 2) + rnd(3) - 1);
+  taken = Math.min(taken, player.hp - 1);
+  if (taken > 0) { player.hp -= taken; floatText(player.x, player.y, `-${taken}`, '#ff6b6b'); }
+  shakeScreen(4); sfx.play('hurt');
+  return { rounds, taken };
+}
+let seaCalm = 0;   // sail steps before the sea may stir again
+function nearestPort() { let best = null; for (const t of nearbyTowns(player.x, player.y, 3)) if (t.harbour && (!best || Math.hypot(t.cx - player.x, t.cy - player.y) < Math.hypot(best.cx - player.x, best.cy - player.y))) best = t; return best; }
+function foundChart(where) {
+  const port = nearestPort(); if (!port || charts().length >= 3) return '';
+  const spot = chartSpot(port, charts().length + (player.meta.treasures || 0) + 7); if (!spot) return '';
+  charts().push(key(spot.x, spot.y)); mapCache.ox = null;
+  return ` ${where} you find a chart: an X ${Math.round(Math.hypot(spot.x - player.x, spot.y - player.y))} paces ${compassWord(spot.x - player.x, spot.y - player.y).toLowerCase()} of here, now marked on your map.`;
+}
+const SEA_EVENTS = {
+  pirates: () => {
+    const d = wildDanger(), toll = Math.max(20, Math.floor(player.gold * 0.15)), strength = 14 + d * 8, hit = 3 + d;
+    const win = () => { const { rounds, taken } = seaFight(strength, hit); const g = 40 + d * 25 + rnd(40); player.gold += g; gainXp(12 + d * 6);
+      const up = Math.random() < 0.3 ? upgradeFor(Math.random() < 0.5 ? 'weapon' : 'armor') : null; if (up && !bagFull()) player.bag.push(up);
+      return `Steel on steel across the gunwales. ${rounds} hard ${rounds === 1 ? 'exchange' : 'exchanges'}${taken ? ` and ${taken} damage` : ''} later the pirates are over the side. Their strongbox holds ${g} gold${up ? ` and a ${itemInfo(up).name}` : ''}.${Math.random() < 0.3 ? foundChart('In the captain\'s cabin') : ''}`; };
+    return { who: 'A pirate sloop', sprite: 'archer', bg: 'sea',
+      text: `A black-sailed sloop runs up alongside, grapples ready. "Heave to," calls a woman with a brass-hilted cutlass. "${toll} gold and we part friends. Or we come over and take it."`,
+      choices: [
+        { label: `Pay the ${toll} gold`, disabled: player.gold < toll, run: () => { player.gold -= toll; return 'You toss the purse across. "Pleasure," she says, and the sloop falls away astern.'; } },
+        { label: 'Fight them on the deck', run: win },
+        { label: 'Crowd on sail and run', run: () => { if (Math.random() < (wearing('stormpearl') ? 0.85 : 0.5)) return wearing('stormpearl') ? 'The pearl at your throat hums and the wind swings behind you. The sloop is a dot by sunset.' : 'Your little ship is faster than she looks. The sloop gives up the chase by dusk.'; return 'They are faster. Grapples bite your rail and the pirates swarm aboard. ' + win(); } },
+      ] };
+  },
+  serpent: () => {
+    const d = wildDanger(), strength = 24 + d * 12, hit = 4 + d;
+    return { who: 'A sea serpent', sprite: 'wyrm', bg: 'sea',
+      text: 'The water bulges, and a neck as thick as a mast rises dripping beside the ship. Two yellow eyes consider you, and the hull, and which would be the better meal.',
+      choices: [
+        { label: 'Fight it', run: () => { const { rounds, taken } = seaFight(strength, hit); const g = 80 + d * 40 + rnd(60); player.gold += g; gainXp(30 + d * 12); unlock('serpent'); return `You hack at the neck each time it strikes. After ${rounds} ${rounds === 1 ? 'pass' : 'passes'}${taken ? ` and ${taken} damage` : ''} it sinks, thrashing. A pearl the size of an egg floats up in its wake, worth ${g} gold to the first jeweller you meet.`; } },
+        { label: 'Hard about and flee', run: () => { if (wearing('stormpearl')) return 'The serpent recoils from the pearl at your throat as if from a torch, and slides back under.'; if (Math.random() < 0.55) return 'You throw the tiller over. The serpent snaps at your wake, loses interest, and dives.'; const dmg = Math.min(player.hp - 1, hit * 2); player.hp -= dmg; floatText(player.x, player.y, `-${dmg}`, '#ff6b6b'); shakeScreen(5); return `It catches the stern a glancing blow for ${dmg} before you pull clear.`; } },
+      ] };
+  },
+  wreck: () => ({ who: 'A drifting wreck', sprite: 'ship', bg: 'sea',
+    text: 'A dismasted hulk wallows in the swell, her name long scoured off. Nothing moves on her deck. The hatch to the hold is still battened down.',
+    choices: [
+      { label: 'Board her and open the hold', run: () => { const d = wildDanger(); const g = 30 + d * 15 + rnd(50); player.gold += g; let out = `You pry the hatch. ${g} gold in a rotten purse`;
+        if (Math.random() < 0.5) { const up = upgradeFor(Math.random() < 0.5 ? 'weapon' : 'armor'); if (up && !bagFull()) { player.bag.push(up); out += `, and a ${itemInfo(up).name} in grease that kept the rust off`; } }
+        else if (!bagFull()) { player.bag.push('fish'); out += ', and a barrel of salt fish still good'; }
+        if (Math.random() < 0.25) { const dmg = Math.min(player.hp - 1, 2 + d); player.hp -= dmg; floatText(player.x, player.y, `-${dmg}`, '#ff6b6b'); out += `. The rats object, for ${dmg}`; }
+        return out + '.' + (Math.random() < 0.35 ? foundChart("Nailed inside the hatch") : ''); } },
+      { label: 'Leave her to the sea', run: () => 'You give the hulk a wide berth. Some hatches are battened for a reason.' },
+    ] }),
+  castaway: () => ({ who: 'A castaway', sprite: 'villager', bg: 'sea',
+    text: 'A sunburnt figure waves from a raft of lashed spars, shouting hoarsely. There is a bucket, a torn sail, and a very determined expression.',
+    choices: [
+      { label: 'Haul them aboard', run: () => { const port = nearestPort(); const g = 25 + wildDanger() * 10; player.gold += g; gainXp(8); const ch = foundChart('"Take this, for your trouble." From inside a shirt'); return `They drink half your water and tell you the whole story twice. ${ch ? ch.trim() : `They press ${g} gold on you, every coin they have.`}${port ? ` You set them ashore at ${port.name} in due course.` : ''}`; } },
+      { label: 'Sail on', run: () => 'You tell yourself someone else will come along. The shouting follows you a long way.' },
+    ] }),
+};
+function seaEvent() {
+  if (seaCalm > 0) { seaCalm--; return; }
+  if (Math.random() > 0.045) return;
+  seaCalm = 20;
+  const ids = Object.keys(SEA_EVENTS), id = ids[rnd(ids.length)];
+  player.meta.encounters = (player.meta.encounters || 0) + 1;
+  sfx.play('quest'); track('sea_event', { id });
+  showScene([SEA_EVENTS[id]()]);
+}
 function boardShip() {
   const S = player.meta.ship;
   if (S.x > player.x) player.face = 1; else if (S.x < player.x) player.face = -1;
@@ -7254,9 +7393,14 @@ function sailStep(dx, dy) {
   player.x = nx; player.y = ny;
   // a following sea: the second tile comes free on open water
   const x2 = nx + dx, y2 = ny + dy;
-  if ((dx || dy) && seaTile(x2, y2) && !(walk.active && nx === walk.tx && ny === walk.ty)) { player.x = x2; player.y = y2; }
+  if ((dx || dy) && seaTile(x2, y2) && !(walk.active && nx === walk.tx && ny === walk.ty)) {
+    player.x = x2; player.y = y2;
+    const x3 = x2 + dx, y3 = y2 + dy;   // the Stormcaller Pearl: a third tile
+    if (wearing('stormpearl') && seaTile(x3, y3) && !(walk.active && x2 === walk.tx && y2 === walk.ty)) { player.x = x3; player.y = y3; }
+  }
   player.wx = player.x; player.wy = player.y; player.meta.ship = { x: player.x, y: player.y };
   endTurn(true);
+  if (aboard && !gameOver && !storyOpen() && !shopOpen) seaEvent();
 }
 function travelCost(town) { const c = 10 + Math.round((Math.abs(town.cx - player.x) + Math.abs(town.cy - player.y)) / 12); return realmState().standing >= 250 ? Math.ceil(c / 2) : c; }
 function travelTo(town) {
@@ -7492,6 +7636,7 @@ function serviceRowsInner(kind) {
     const here = townContaining(player.x, player.y) || nearestTownTo(player.x, player.y);
     const ports = here ? portsNear(here) : [];
     for (const row of shipRows(here)) rows.push(row);
+    for (const row of chartRows(here)) rows.push(row);
     if (!ports.length) rows.push(shopRow('No other port on this sea. The ship stays tied up.'));
     for (const t of ports) {
       const I = townIdentity(t), seen = player.meta.visited.includes(t.key), cost = fareTo(here, t);
@@ -7584,6 +7729,7 @@ function startRun(saved) {
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
         rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
+        charts: Array.isArray(saved.meta?.charts) ? saved.meta.charts.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 3) : [], treasures: Number(saved.meta?.treasures) || 0,
         ship: saved.meta?.ship && Number.isInteger(saved.meta.ship.x) && Number.isInteger(saved.meta.ship.y) ? { x: saved.meta.ship.x, y: saved.meta.ship.y } : null,
         rescued: Number(saved.meta?.rescued) || 0,
         lairs: saved.meta?.lairs && Array.isArray(saved.meta.lairs.known) ? { known: saved.meta.lairs.known.filter((id) => LAIRS[id]), slain: (saved.meta.lairs.slain || []).filter((id) => LAIRS[id]) } : null,
