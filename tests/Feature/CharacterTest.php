@@ -10,6 +10,13 @@ class CharacterTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_the_profile_page_names_relics_in_the_bag(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla', 'class' => 'ranger', 'relic' => 'crown', 'bag' => ['sunstone', 'potion', 'fangblade']]);
+        $this->actingAs($user)->get('/character')->assertOk()->assertSee('Crown of Aurum')->assertSee('Sunstone Amulet')->assertSee('Fangblade');
+    }
+
     public function test_guest_can_play_without_an_account(): void
     {
         $this->get('/play')->assertOk()->assertSee('Playing as a guest');
