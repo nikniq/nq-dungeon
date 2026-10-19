@@ -69,6 +69,7 @@ const PERKS = {
 const perkCount = (id) => (player && player.perks ? player.perks.filter((p) => p === id).length : 0);
 const bagSize = () => ITEMS.bag_size + 4 * perkCount('packrat');
 let perkChoices = null;   // the three on offer while the picker is open
+let perkCursor = 0;       // the card the arrow keys have highlighted
 
 // Achievements award a title the moment they unlock; the newest title shows on the profile.
 const ACHIEVEMENTS = {
@@ -4944,7 +4945,8 @@ function offerPerks() {
   const avail = Object.keys(PERKS).filter((id) => perkCount(id) < PERKS[id].max);
   perkChoices = [];
   while (perkChoices.length < 3 && avail.length) perkChoices.push(avail.splice(rnd(avail.length), 1)[0]);
-  tip('perk', 'Level up! Pick a perk with 1, 2 or 3, or click one. Perks stay with your hero for good.');
+  perkCursor = 0;
+  tip('perk', 'Level up! Pick a perk with the arrow keys and Enter, press 1, 2 or 3, or click one. Perks stay with your hero for good.');
 }
 function choosePerk(i) {
   const id = perkChoices && perkChoices[i];
@@ -4968,12 +4970,14 @@ function drawPerks(g) {
   g.textBaseline = 'top'; g.textAlign = 'center';
   const top = perkLayout().y0;
   g.fillStyle = '#ffd86b'; g.font = 'bold 22px sans-serif'; g.fillText(`Level ${player.level}! Choose a perk`, canvas.width / 2, top - 80);
-  g.fillStyle = '#a8c0d8'; g.font = '13px sans-serif'; g.fillText('Press 1, 2 or 3, or click a card', canvas.width / 2, top - 48);
+  g.fillStyle = '#a8c0d8'; g.font = '13px sans-serif'; g.fillText('Arrow keys and Enter, 1, 2 or 3, or click a card', canvas.width / 2, top - 48);
   const { w, h, gap, x0, y0 } = perkLayout();
   perkChoices.forEach((id, i) => {
     const x = x0 + i * (w + gap);
-    g.fillStyle = '#06202c'; g.beginPath(); g.roundRect(x, y0, w, h, 10); g.fill();
-    g.strokeStyle = '#12384a'; g.lineWidth = 2; g.stroke();
+    const sel = i === perkCursor;
+    g.fillStyle = sel ? '#0b2e3a' : '#06202c'; g.beginPath(); g.roundRect(x, y0, w, h, 10); g.fill();
+    g.strokeStyle = sel ? '#5fe17a' : '#12384a'; g.lineWidth = sel ? 3 : 2; g.stroke();
+    if (sel) { g.fillStyle = '#5fe17a'; g.font = 'bold 15px sans-serif'; g.fillText('▶', x + w - 24, y0 + 16); }
     g.fillStyle = '#7bdfff'; g.font = 'bold 15px sans-serif'; g.fillText(`${i + 1}`, x + 24, y0 + 16);
     g.fillStyle = '#e6eef8'; g.font = 'bold 17px sans-serif'; g.fillText(PERKS[id].name, x + w / 2, y0 + 44);
     g.fillStyle = '#cfe9ff'; g.font = '13px sans-serif';
@@ -6683,6 +6687,14 @@ window.addEventListener('keydown', (e) => {
   if (e.key === '?') { e.preventDefault(); toggleControls(true); return; }
   if (journalOpen) { journalKey(e); return; }
   sfx.unlock();
+  if (perkChoices) {   // the perk picker owns the keyboard: numbers, arrows/WASD and Enter
+    if (['1', '2', '3'].includes(e.key)) { choosePerk(Number(e.key) - 1); return; }
+    const n = perkChoices.length;
+    if (['ArrowLeft', 'ArrowUp', 'a', 'A', 'w', 'W'].includes(e.key) || (e.key === 'Tab' && e.shiftKey)) { e.preventDefault(); perkCursor = (perkCursor + n - 1) % n; draw(); return; }
+    if (['ArrowRight', 'ArrowDown', 'd', 'D', 's', 'S', 'Tab'].includes(e.key)) { e.preventDefault(); perkCursor = (perkCursor + 1) % n; draw(); return; }
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choosePerk(perkCursor); }
+    return;
+  }
   if (walk.active && !['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) stopWalk();   // any key takes back control
   if (e.key === 'Enter' && chatInput) { e.preventDefault(); chatInput.focus(); return; }
   if ((e.key === 'y' || e.key === 'Y') && mp.invites.length) { acceptInvite(); return; }
@@ -6694,7 +6706,6 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'c' || e.key === 'C') { makeCamp(); return; }
   if (e.key === 'j' || e.key === 'J') { mapOpen = false; questsOpen = false; journalOpen = true; draw(); return; }
   if (e.key === 'n' || e.key === 'N') { toggleSound(); return; }
-  if (perkChoices) { if (['1', '2', '3'].includes(e.key)) choosePerk(Number(e.key) - 1); return; }
   if (e.key === '1' || e.key === '2' || e.key === '3') { e.preventDefault(); useAbility(null, Number(e.key) - 1); return; }
   if ((mapOpen || questsOpen) && KEYS[e.key]) { mapOpen = false; questsOpen = false; }
   if (e.key === 'r' || e.key === 'R') { init(); return; }

@@ -45,7 +45,7 @@ Hire a hound at any inn: it follows, bites, levels up and is patched up free at
 inns. Every town has a waystone for paid fast travel to towns you have visited.
 Bombs (B) blast a 3×3 area; a scroll of return (T) whisks you home. Elite
 monsters (starred: armored, swift, vampiric, explosive) hit harder and pay more.
-Gamepads work. Every level up offers a choice of three perks. Achievements grant titles shown
+Gamepads work. Every level up offers a choice of three perks, picked with the arrow keys and Enter, the number keys or a click. Achievements grant titles shown
 on profiles and the leaderboard. Smithies and armouries sharpen and reinforce
 worn gear up to +3. New players get one-time tips. Press M for the world map (+ / −, the wheel or the on-screen buttons zoom it out in three steps to show every continent), J for the journal,
 Q for the quest log (with achievements and perks), N to toggle sound. Captains,
