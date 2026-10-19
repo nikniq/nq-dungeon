@@ -81,6 +81,13 @@ the last one, which is always the way out.
 Any inn rents a room for good (250 gold). It opens a storage chest of 20 items
 at every inn, kept in `characters.meta.stash` and safe when you fall.
 
+Act II, What Sleeps Below, follows the crown: the pardoned Prince Edric sits in
+the King's hall and sends the hero into the Deep in stages (floors 5, 10, 15, 20),
+with the Warden of the Deep on floor 10 and the Dreaming Maw on floor 20 as named
+guardians, reports back to Edric between stages, and an ending that grants the
+Heart of the Deep (+3 attack, +3 defence, +15 HP, +2 sight) and the title
+Deepwarden. Progress lives in `meta.act2`.
+
 The Deep is the endgame. Once the Crown is restored, the Gate of the Deep
 between Hearth and Castle Aurum opens on endless floors up to 99. Danger rises
 every two floors and a boss guards every fifth. The record is saved as

@@ -261,4 +261,16 @@ class CharacterTest extends TestCase
         $bad = $war; $bad['troops']['atlantis'] = 5;
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['war' => $bad]])->assertUnprocessable();
     }
+
+    public function test_act_two_progress_is_saved_and_checked(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla']);
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 30, 'xp' => 0, 'gold' => 10, 'hp' => 100, 'max_hp' => 100, 'atk' => 9, 'kills' => 0, 'bag' => []];
+
+        $this->actingAs($user)->postJson('/api/character', $state + ['relic' => 'deepheart', 'meta' => ['act2' => ['s' => 3, 'n' => 0, 'told' => true], 'found' => ['deepheart']]])->assertOk()
+            ->assertJson(['relic' => 'deepheart', 'meta' => ['act2' => ['s' => 3, 'told' => true]]]);
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['act2' => ['s' => 9]]])->assertUnprocessable();
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['act2' => ['told' => true]]])->assertUnprocessable();
+    }
 }

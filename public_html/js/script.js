@@ -92,6 +92,7 @@ const ACHIEVEMENTS = {
   wanderer10:  { label: 'Discovered ten places', title: 'the Pathfinder' },
   collector:   { label: 'Found five treasures', title: 'the Treasure-seeker' },
   crownbearer: { label: 'Restored the Crown of Aurum', title: 'Crownbearer' },
+  deepwarden:  { label: 'Closed the Dreaming Maw', title: 'Deepwarden' },
   general:     { label: 'Your army razed an orc warcamp', title: 'the General' },
   warlord:     { label: 'Five warcamps razed', title: 'the Warlord' },
   builder:     { label: 'Built a monument for other heroes', title: 'the Builder' },
@@ -236,8 +237,8 @@ const itemKind = (id) => ITEMS.weapons[id] ? 'weapon' : ITEMS.armor[id] ? 'armor
 const wearing = (id) => !!player && player.relic === id;
 const goldMult = () => (perkCount('lucky') ? 1.25 : 1) * (wearing('luckycoin') ? 1.4 : 1) * (wearing('ledger') ? 1.25 : 1);
 const potionHeal = (h) => h * (wearing('royalsignet') ? 2 : 1);
-const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0);
-const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0)
+const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0);
+const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
   + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.def || 0) : 0) + (realmState().rank >= 2 ? 1 : 0);
 const SAVE_EVERY_TURNS = 20;
 // What the hero has bought into in each realm: noble rank in Aurum, civic
@@ -259,7 +260,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war() },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2() },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -876,7 +877,11 @@ function drawJournal(g) {
     steps.push(['The crown restored', 'Bring all five shards to the King.', st.phase === 'done']);
     const clues = STORY_ORDER.filter((id, i) => i < st.ch || st.phase === 'done' || (i === st.ch && st.phase === 'return'));
     if (clues.length) steps.push(['Clues', clues.map((id) => SHARD_CLUE[id].who).join(', ') + (clues.length >= 2 ? '. They all point to Prince Edric.' : '.'), st.phase === 'done']);
-    if (st.phase === 'done') steps.push(['The Deep', `The Gate of the Deep lies between Hearth and Castle Aurum. Your record: floor ${player.meta.deepest || 0}.`, (player.meta.deepest || 0) >= 25]);
+    if (st.phase === 'done') {
+      const A = act2();
+      steps.push(['Act II: What Sleeps Below', A.s === 0 ? 'Prince Edric, in the King\'s hall, has a problem to solve.' : A.s >= 6 ? 'The Dreaming Maw is closed. You are the Deepwarden.' : A.s === 5 ? 'Return to Prince Edric.' : ACT2_STEPS[A.s - 1].label + '.', A.s >= 6]);
+      steps.push(['The Deep', `The Gate of the Deep lies between Hearth and Castle Aurum. Your record: floor ${player.meta.deepest || 0}.`, (player.meta.deepest || 0) >= 25]);
+    }
     for (const [name, desc, done] of steps) {
       g.fillStyle = done ? '#9ef0b0' : '#e6eef8'; g.font = 'bold 14px sans-serif'; g.fillText(`${done ? '✓' : '•'} ${name}`, X, y);
       g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText(desc, X + 22, y + 18); y += 40;
@@ -1246,6 +1251,7 @@ const INDOOR_NPCS = {
     'This castle guards the road. Bandits in the hills, worse things below.',
     'The King holds court at the grand castle. Bring him a tale worth hearing.',
     'Our smithy and armoury serve any hero who serves the realm.'] },
+  edric: { sprite: 'darkknight', name: 'Prince Edric', lines: ['"My brother keeps me close now, where he can see me."'] },
   king: { sprite: 'king', name: 'King Aldric', action: 'court', lines: [
     'Welcome, hero. The realm has need of those who go below and come back up.',
     'My quartermaster keeps the royal armoury. Dragonscale, if you have the gold.',
@@ -1434,6 +1440,12 @@ function storyObjective() {
   const castle = townAt(...REALMS.aurum.capital);
   if (st.phase === 'summons') return { text: 'Travel to Castle Aurum and speak with King Aldric', short: 'Castle Aurum', x: castle.cx, y: castle.cy };
   if (st.phase === 'return') return { text: `Bring the ${STORY_SITES[STORY_ORDER[st.ch]].shard} to King Aldric`, short: 'Castle Aurum', x: castle.cx, y: castle.cy };
+  if (st.phase === 'done' && act2().s >= 1 && act2().s <= 5) {
+    const A = act2();
+    if (A.s === 5 || (A.s >= 2 && !A.told)) return { text: A.s === 5 ? 'Return to Prince Edric at Castle Aurum' : 'Tell Prince Edric what you found', short: 'Castle Aurum', x: castle.cx, y: castle.cy };
+    const gate = siteAt(...DEEP_CELL);
+    return { text: ACT2_STEPS[A.s - 1].label, short: 'The Gate of the Deep', x: gate.x, y: gate.y };
+  }
   if (st.phase === 'seek') { const S = STORY_SITES[STORY_ORDER[st.ch]], site = siteAt(S.i, S.j); return { text: `Find the ${S.shard} in ${S.title.replace(/^The /, 'the ')}`, short: S.title, x: site.x, y: site.y }; }
   return null;
 }
@@ -1511,7 +1523,8 @@ function guideSuggestions() {
     const need = S ? recLevel(siteDungeon(siteAt(S.i, S.j))) : 0;
     out.push(['Main story', `${obj.text}. Follow the gold star on your compass.`]);
     if (S && player.level < need - 1) out.push(['Get stronger first', `${S.title} is meant for level ${need}, and you are level ${player.level}. Town dungeons (Hearth's is level 1+) and bounties are good practice.`]);
-  } else if (st.phase === 'done') out.push(['The Deep', `The Gate of the Deep lies between Hearth and Castle Aurum. Your record: floor ${player.meta.deepest || 0}.`]);
+  } else if (st.phase === 'done' && act2().s === 0) out.push(['Act II', 'Prince Edric waits in the King\'s hall at Castle Aurum with a problem only you can solve.']);
+  else if (st.phase === 'done') out.push(['The Deep', `The Gate of the Deep lies between Hearth and Castle Aurum. Your record: floor ${player.meta.deepest || 0}.`]);
   if (player.hp < player.maxHp * 0.5) out.push(['Rest', 'Inns heal you for free. In the wilds, press C to make camp.']);
   if (player.pendingPerks) out.push(['Choose a perk', 'You have a perk to pick.']);
   const realm = currentRealm(), rq = rqState(realm), Q = REALM_QUESTS[realm];
@@ -1530,6 +1543,81 @@ function guideSuggestions() {
   if (rs.rank === 0 && player.gold >= 300) out.push(['A title', 'The King or his heralds will make you a Squire of Aurum for 300 gold.']);
   if (!player.relic && player.meta.found.length) out.push(['Wear your treasure', 'You have a treasure in your bag. Wear it from the inventory.']);
   return out.slice(0, 9);
+}
+// ---------- Act II: What Sleeps Below ----------
+// After the crown is whole, the pardoned Prince Edric takes a seat in the King's
+// hall and sends the hero into the Deep in stages: s = 0 not offered, 1-4 on a
+// step, 5 ready to report, 6 done.
+const ACT2_STEPS = [
+  { floor: 5, label: 'Reach floor 5 of the Deep and bring back a stone from its walls' },
+  { floor: 10, label: 'Slay the Warden of the Deep on floor 10', boss: { type: 'Orc', name: 'the Warden of the Deep' } },
+  { floor: 15, label: 'Reach floor 15 and listen to what the walls are saying' },
+  { floor: 20, label: 'Face the Dreaming Maw on floor 20', boss: { type: 'Wraith', name: 'the Dreaming Maw' } },
+];
+const act2 = () => player.meta.act2 || (player.meta.act2 = { s: 0 });
+const act2Active = () => story().phase === 'done' && act2().s >= 1 && act2().s <= 4;
+const EDRIC_SCENES = {
+  offer: [
+    { who: 'Prince Edric', sprite: 'darkknight', text: '"My brother keeps me close now, where he can see me." Edric\'s smile has no bitterness left in it, only tiredness. "He also gave me a problem to solve, as penance. The five lights were holding something down. I broke the crown; I felt it wake. It is still awake."' },
+    { who: 'Prince Edric', sprite: 'darkknight', text: '"The Gate of the Deep opened the night the crown broke. I have read everything in the royal library about what lies beneath, and it is not enough. I need someone to go down and come back. In stages, with proof. I will pay, and I will tell you everything I learn."' },
+  ],
+  step1: '"A stone from the fifth floor." He turns it over under a lamp. "Warm. They are all warm down there, you say? The library calls the Deep a dream, and the lights its lids. Then we are inside the dream now." He makes a note. "Deeper. There is a warden on the tenth floor, the old texts say. See what it guards."',
+  step2: '"The Warden is dead, and you are not. Good." Edric unrolls a chart. "The Warden kept the lower halls closed. Below it the walls themselves are said to speak. Go to the fifteenth floor and listen. Write down what you hear, if you can bear to."',
+  step3: '"\'It should have been me.\'" Edric reads the words you copied and goes very still. "My words. Carved on my father\'s throne by my own hand, and now the Deep says them back to you." He is quiet for a long moment. "It wears the shapes of our guilt. That is how it dreams. On the twentieth floor it has a mouth. Close it."',
+  finale: [
+    { who: 'Prince Edric', sprite: 'darkknight', text: '"The Maw is closed." He says it twice, as if to be sure. "I have spent ten years believing I broke the world out of spite, and the truth is worse: I broke it out of carelessness, and a stranger mended it twice." He stands. "Aldric will want to give you a title. Let me give you something more useful."' },
+    { who: 'King Aldric', sprite: 'king', text: '"The library says the Deep will dream again, in a hundred years or a thousand. Let it. The four realms have a hero now, and my brother, and a crown that is whole." He raises your hand before the court. "Deepwarden. Wherever you walk, the gates of Aurum are open."' },
+  ],
+};
+function edricTalk(n) {
+  if (n.type.name !== 'Prince Edric') return false;
+  const A = act2();
+  if (story().phase !== 'done') return false;
+  if (A.s === 0) {
+    showScene(EDRIC_SCENES.offer.concat([{ who: 'Prince Edric', sprite: 'darkknight', text: 'The gate lies in the hills between Hearth and Castle Aurum. Will you go down?', choices: [
+      { label: 'I will go', run: () => { A.s = 1; A.n = 0; log(`Act II, What Sleeps Below: ${ACT2_STEPS[0].label}.`, 'good'); sfx.play('quest'); mapCache.ox = null; saveProgress('progress'); return '"Then go carefully. The first five floors should be within you. Bring me a stone from the fifth."'; } },
+      { label: 'Not yet', run: () => '"The Deep is patient," Edric says. "Be patient with yourself too."' },
+    ] }]));
+    return true;
+  }
+  if (A.s === 5) {
+    showScene(EDRIC_SCENES.finale, () => {
+      A.s = 6; player.gold += 500;
+      if (!giveRelic('deepheart') && !player.meta.found.includes('deepheart')) log('Your bag is too full for the gift. Come back with room.', 'bad');
+      unlock('deepwarden'); player.title = 'Deepwarden';
+      log('Act II complete: 500 gold, and the Heart of the Deep.', 'good');
+      mapCache.ox = null; updateStats(); saveProgress('progress');
+    });
+    return true;
+  }
+  const report = { 2: EDRIC_SCENES.step1, 3: EDRIC_SCENES.step2, 4: EDRIC_SCENES.step3 }[A.s];
+  if (report && !A.told) {
+    A.told = true;
+    showScene([{ who: 'Prince Edric', sprite: 'darkknight', text: report }], () => { log(`Next: ${ACT2_STEPS[A.s - 1].label}.`, 'good'); saveProgress('progress'); });
+    return true;
+  }
+  log(`Prince Edric: "${ACT2_STEPS[A.s - 1].label}. I will be here."`);
+  return true;
+}
+// Called when the hero arrives on a Deep floor, and when a Deep boss falls.
+function act2Progress(kind, fl) {
+  const A = act2();
+  if (!act2Active()) return;
+  const step = ACT2_STEPS[A.s - 1];
+  if (fl !== step.floor) return;
+  if ((step.boss && kind !== 'boss') || (!step.boss && kind !== 'floor')) return;
+  const texts = {
+    1: 'You pry a stone from the wall of the fifth floor. It is warm in your hand, like something breathing.',
+    2: 'The Warden of the Deep falls, and somewhere far below a door that has been shut for a thousand years swings open.',
+    3: 'The walls of the fifteenth floor whisper. The words are in your own voice: "It should have been me. It should have been me." You write them down with a shaking hand.',
+    4: 'The Dreaming Maw closes with a sound like the world exhaling. In the silence that follows, the Deep feels, for the first time, merely deep.',
+  };
+  A.s++; A.told = false;
+  showScene([{ who: 'The Deep', sprite: 'abyss', text: texts[A.s - 1] }], () => {
+    log(A.s === 5 ? 'Return to Prince Edric at Castle Aurum.' : `Act II: ${ACT2_STEPS[A.s - 1].label}. Prince Edric will want to hear of this first.`, 'good');
+    mapCache.ox = null; saveProgress('progress');
+  });
+  sfx.play('quest');
 }
 // The trail of clues that leads to Prince Edric, one beside each shard.
 const SHARD_CLUE = {
@@ -2284,6 +2372,7 @@ function createInterior(house) {
       npcs.push({ x, y, type: INDOOR_NPCS[def.npcs[ch]], fixed: true, pause: 0 });
     }
   }));
+  if (house.id === 'throne' && story().phase === 'done' && !npcs.some((n) => n.x === 9 && n.y === 2)) npcs.push({ x: 9, y: 2, type: INDOOR_NPCS.edric, fixed: true, pause: 0 });
 }
 
 function enterBuilding(house) {
@@ -2306,6 +2395,7 @@ function leaveBuilding() {
 
 function talk(n) {
   if (n.type.name === 'King Aldric') { unlock('royal'); if (storyKing()) return; }
+  if (edricTalk(n)) return;
   if (realmQuestTalk(n)) return;
   if (n.type.action && SERVICE_SHOPS.has(n.type.action)) { log(`${n.type.name}: ${n.type.lines[rnd(n.type.lines.length)]}`); openShop(n.type.action); return; }
   const line = n.type.lines[rnd(n.type.lines.length)];
@@ -2487,7 +2577,7 @@ const FLOOR_MODS = {
   cursed:   { label: 'Cursed', desc: 'elites everywhere, and 50% more XP' },
 };
 let floorMod = null;
-const viewRadius = () => Math.max(3, (dungeonDef ? dungeonDef.view : VIEW_RADIUS) + (wearing('sunstone') ? 3 : 0) - (scene === 'dungeon' && floorMod === 'dark' ? 3 : 0));
+const viewRadius = () => Math.max(3, (dungeonDef ? dungeonDef.view : VIEW_RADIUS) + (wearing('sunstone') ? 3 : 0) + (wearing('deepheart') ? 2 : 0) - (scene === 'dungeon' && floorMod === 'dark' ? 3 : 0));
 function pickTheme() {
   if (dungeonDef && dungeonDef.theme) return dungeonDef.theme;
   if (dungeonDef && dungeonDef.endless) return DEEP_THEMES[(floor - 1) % DEEP_THEMES.length];
@@ -4266,6 +4356,7 @@ function killMonster(m) {
     unlock('first_blood');
     if (player.lifetimeKills >= 50) unlock('slayer_50');
     if (scene === 'world' && dayPhase() === 'night') unlock('night_owl');
+    if (m.boss && dungeonDef && dungeonDef.endless) setTimeout(() => act2Progress('boss', floor), 80);
     if (m.boss) { unlock('boss_slayer'); track('boss_killed', { boss: m.name, floor }); }
     const xp = Math.round(m.type.xp * (wearing('cantonsbadge') ? 1.2 : 1) * (m.small || m.raised ? 0.4 : 1) * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1) * (m.elite ? 2 : 1) * (scene === 'dungeon' ? (floorMod === 'swarming' ? 1.25 : floorMod === 'cursed' ? 1.5 : 1) : 1));
     if (m.boss) {
@@ -4513,6 +4604,9 @@ function nextFloor() {
   }
   if (dungeonDef.endless) {
     dungeonDef.danger = 5 + Math.floor((floor - 1) / 2);   // each pair of floors is harder than the last
+    const guardian = ACT2_STEPS.find((st) => st.boss && st.floor === floor);
+    dungeonDef.boss = guardian && act2Active() && ACT2_STEPS[act2().s - 1].floor === floor ? guardian.boss : null;
+    setTimeout(() => act2Progress('floor', floor), 80);
     if (floor > (player.meta.deepest || 0)) {
       player.meta.deepest = floor;
       if (floor > 1) setTimeout(() => log(`A new record: floor ${floor} of the Deep.`, 'good'), 40);
@@ -5947,9 +6041,10 @@ function renderInventory() {
 }
 function bagFull() { return player.bag.length >= bagSize(); }
 function setRelic(id) {
-  if (player.relic === 'crown') { player.maxHp -= 10; player.hp = Math.min(player.hp, player.maxHp); }
+  const hpOf = (r) => (r === 'crown' ? 10 : r === 'deepheart' ? 15 : 0);
+  if (hpOf(player.relic)) { player.maxHp -= hpOf(player.relic); player.hp = Math.min(player.hp, player.maxHp); }
   player.relic = id;
-  if (id === 'crown') { player.maxHp += 10; player.hp += 10; }
+  if (hpOf(id)) { player.maxHp += hpOf(id); player.hp += hpOf(id); }
   if (hound) { hound.maxHp = Math.max(1, hound.maxHp + (id === 'houndcollar' ? 6 : 0) - (hound.collar ? 6 : 0)); hound.collar = id === 'houndcollar'; hound.hp = Math.min(hound.hp, hound.maxHp); }
 }
 function equip(idx) {
@@ -6501,6 +6596,7 @@ function startRun(saved) {
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
         rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
+        act2: saved.meta?.act2 && Number.isInteger(saved.meta.act2.s) ? { s: saved.meta.act2.s, n: 0, told: !!saved.meta.act2.told } : null,
         war: saved.meta?.war && saved.meta.war.troops ? { troops: { cantons: 0, aurum: 0, kathar: 0, league: 0, ...saved.meta.war.troops }, armies: Array.isArray(saved.meta.war.armies) ? saved.meta.war.armies.map((a) => ({ ...a, fightUntil: undefined })) : [], camps: Array.isArray(saved.meta.war.camps) ? saved.meta.war.camps : [] } : null },
       relic: ITEMS.relics[saved.relic] ? saved.relic : null,
       weaponPlus: saved.weapon_plus || 0, armorPlus: saved.armor_plus || 0 });
