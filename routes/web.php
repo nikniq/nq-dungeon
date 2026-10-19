@@ -18,6 +18,9 @@ Route::get('/play', fn () => response()
 
 // monuments in town squares: anyone can look, signed-in heroes build
 Route::get('/api/buildings', [TownBuildingController::class, 'index'])->name('buildings.index');
+// public glossaries, drawn in the browser from the game's own world generator
+Route::get('/world/towns', fn () => view('glossary', ['kind' => 'towns']))->name('world.towns');
+Route::get('/world/characters', fn () => view('glossary', ['kind' => 'characters']))->name('world.characters');
 Route::get('/heroes', [HeroController::class, 'index'])->name('heroes.index');
 Route::get('/heroes/{character}', [HeroController::class, 'show'])->name('heroes.show');
 

@@ -199,3 +199,18 @@ body.wide .chat,body.wide .party{max-width:1400px;margin-left:auto;margin-right:
 .setting.check{justify-content:flex-start;gap:8px}
 /* the game's HUD draws the only health bar; the page line stays for screen readers */
 .hud{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* --- public glossaries --- */
+.glossary-head .search{display:block;margin:10px 0 4px}
+.glossary-head .search input{margin-left:8px;min-width:260px;padding:6px 10px;border-radius:6px;border:1px solid #12384a;background:#06202c;color:#e6eef8}
+.glossary h3.realm{margin:26px 0 10px;padding-bottom:4px;border-bottom:1px solid #12384a}
+.glossary .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.glossary .card{background:#06202c;border:1px solid #12384a;border-radius:8px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start}
+.glossary .card[hidden]{display:none}
+.glossary .card canvas{flex:none;width:64px;height:64px;image-rendering:pixelated;border-radius:6px;background:#0f1724;border:1px solid #12384a}
+.glossary .card h4{margin:0 0 4px;font-size:1.05rem}
+.glossary .card h4 small{font-weight:400;color:#a8c0d8;margin-left:6px}
+.glossary .card p{margin:4px 0;font-size:.9rem;line-height:1.45}
+.glossary .card .tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:.78rem;background:#0f1724;color:#cfe9ff;margin:2px 4px 2px 0}
+.glossary .card .lines{margin:6px 0 0;padding-left:16px;color:#cfe9ff;font-size:.86rem}
+.glossary .card .lines li{margin-bottom:3px}
+.glossary a.plain{color:#9fd4ff}

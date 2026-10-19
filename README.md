@@ -211,6 +211,15 @@ once. Hermits tell tales and sell maps. Wells take a coin for a random boon. Pre
 the Journal, which has Story, Places, Treasures and Bestiary pages. Realm progress is kept
 in `characters.meta.realm`, and the server validates it.
 
+## Public glossaries
+
+`/world/towns` and `/world/characters` are public pages that load `script.js` in
+glossary mode (`window.DUNGEON.mode = 'glossary'`) and render the generated world
+as HTML: every town within six regions of Hearth with its realm, tier, trade,
+history, landmark, leader, watch and notable local; and every character, from the
+fixed cast to each town's leader and notable with their lines. They are linked
+from the site navigation and footer, searchable, and cross-linked by anchor.
+
 ## Multiplayer
 
 Logged-in heroes see each other live in the open world, inside buildings and in

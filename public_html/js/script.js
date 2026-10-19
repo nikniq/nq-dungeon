@@ -6835,5 +6835,94 @@ function pollGamepad(now) {
   pad.prev = gp.buttons.map((b) => b.pressed);
 }
 function loop(now) { pollGamepad(now || performance.now()); armyTick(now || performance.now()); if (!gameOver) draw(); requestAnimationFrame(loop); }
-requestAnimationFrame(loop);
-init();
+// ---------- the public glossaries ----------
+// /world/towns and /world/characters load this script in glossary mode and render
+// the generated world as HTML, so the pages always match the game.
+function renderGlossary(kind) {
+  const root = document.getElementById('glossary'), count = document.getElementById('glossary-count');
+  if (!root) return;
+  player = { x: 0, y: 0, level: 1, meta: { story: { ch: 0, phase: 'summons' } }, bag: [], quests: [] };   // enough for the generators
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const thumb = (names) => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#0f1724'; g.fillRect(0, 0, 64, 64); const list = [].concat(names).slice(0, 2); list.forEach((n, i) => { const img = sprite(n); const w = list.length === 1 ? 54 : 34; g.drawImage(img, list.length === 1 ? 5 : 2 + i * 28, list.length === 1 ? 5 : 16 + i * 6, w, w); }); return c; };
+  const towns = [];
+  for (let j = -6; j <= 6; j++) for (let i = -6; i <= 6; i++) { const t = townAt(i, j); if (t) towns.push(t); }
+  for (const t of towns) { townIdentity(t); notableNpc(t); }
+  const byRealm = (list, keyOf) => REALM_ORDER.map((r) => [r, list.filter((x) => keyOf(x) === r)]).filter(([, l]) => l.length);
+  const section = (title, cards) => { const h = document.createElement('h3'); h.className = 'realm'; h.textContent = title; root.appendChild(h); const grid = document.createElement('div'); grid.className = 'cards'; for (const c of cards) grid.appendChild(c); root.appendChild(grid); };
+  const card = (sprites, title, sub, body, search) => {
+    const el = document.createElement('div'); el.className = 'card'; el.dataset.search = search.toLowerCase(); el.id = slug(title);
+    el.appendChild(thumb(sprites));
+    const d = document.createElement('div'); d.innerHTML = `<h4>${esc(title)}${sub ? `<small>${esc(sub)}</small>` : ''}</h4>${body}`; el.appendChild(d);
+    return el;
+  };
+  const townUrl = (t) => `${ACCOUNT.townsUrl}#${slug(t.name)}`;
+  let total = 0;
+  if (kind === 'towns') {
+    for (const [realm, list] of byRealm(towns, (t) => t.realm)) {
+      const cards = list.sort((a, b) => a.name.localeCompare(b.name)).map((t) => {
+        const I = townIdentity(t), N = t.notable, guards = townNpcs(t).filter((n) => n.type.guard), site = nearbySites(t.cx, t.cy, 1).filter((st) => !st.deep)[0];
+        const tags = [`${TIER_WORDS[townTier(t)]}`, I.kind, t.walled ? 'walled' : null, t.capital || t.size === 'grand' ? 'capital' : null].filter(Boolean).map((x) => `<span class="tag">${esc(x)}</span>`).join('');
+        const body = `<p>${tags}</p><p>${esc(townLore(t))}</p><p>Known for ${esc(I.famous)}. ${esc(I.landmark.name[0].toUpperCase() + I.landmark.name.slice(1))} stands in the square.${I.trade.deal ? ' ' + esc(DEAL_TEXT[I.trade.deal]) + '.' : ''}</p>` +
+          `<p><b>Leader:</b> ${esc(I.leader)}. <b>Notable:</b> <a class="plain" href="${ACCOUNT.charactersUrl}#${slug(N.name + ' of ' + t.name)}">${esc(N.name)}</a>, ${esc(N.role)}.</p>` +
+          `<p><b>Watch:</b> ${esc(guards.map((g) => g.type.name).join(', ') || 'none')}.${site ? ` <b>Nearby:</b> ${esc(site.name)}, ${esc(site.floors)} floors.` : ''} <span class="muted small">Position ${t.cx}, ${t.cy}.</span></p>`;
+        total++;
+        return card([I.landmark.sprite], t.name, `${REALMS[realm].short}`, body, `${t.name} ${REALMS[realm].name} ${I.kind} ${I.famous} ${I.landmark.name} ${I.leader} ${N.name} ${TIER_WORDS[townTier(t)]}`);
+      });
+      section(`${REALMS[realm].name} · ${REALMS[realm].gov}`, cards);
+    }
+  } else {
+    const fixed = [
+      ['King Aldric', 'King of Aurum', 'king', 'Castle Aurum, the Royal Hall', 'Young for a king and tired. Summons every sword in the realm when the Crown of Aurum shatters, and sends the hero after its five shards. Grants titles for gold, and pardons his brother at the end.'],
+      ['Prince Edric', 'the Crownbreaker, pardoned', 'darkknight', "Castle Aurum, the Royal Hall (after the crown is whole)", "The King's exiled elder brother, who broke the crown out of spite and carelessness. He waits atop the Star Tower, yields when beaten, and in Act II sends the hero into the Deep in stages to mend what he woke."],
+      ['Speaker Maren', 'Speaker of the Free Cantons', 'elder', "Hearth, the Council Hall", 'Leads the elected council of the Cantons. Takes donations for public works, raises civic standing, and offers the errand Wolves at the Door.'],
+      ['Chieftain Ulrek Stonehand', "Chieftain of the Ka'thar Clans", 'guard', 'Kar Thuldun, the Great Longhouse', 'Chosen in battle. Swears outsiders into the clan over bread and salt, and sets the Trial of Three.'],
+      ['Banker Vessa Orlov', 'of the Goldspire League', 'merchant', 'any League bank', "Keeps deposits that survive death, sells guild seats, and treats heroes as investments in A Matter of Accounts."],
+      ['The clan shaman', 'speaks with the spirits', 'elder', "the Ka'thar longhouses and huts", 'Sells spirit blessings: wolf, bear and stag. Half price to the clan-sworn.'],
+      ['The royal herald', "the King's voice", 'guard', "Kingdom towns", 'Grants the titles of Aurum for gold: Squire, Knight, Baron. One of them rides to Hearth with the summons that starts the story.'],
+      ['A hooded stranger', 'met on the road', 'necromancer', 'the wilds', 'Sells maps of nearby places and knows more about the crown than they say.'],
+      ['Sister Vey, the Hollow Nun', 'keeper of the Shard of Dawn', 'skeleton', 'the Sunken Chapel', 'What is left of the sisters who kept a lamp burning for three hundred years, until one night it went out.'],
+      ['Morwen the Drowned', 'keeper of the Shard of Tides', 'spider', 'the Drowned Grotto', 'Nests in the deepest pool, where the water sings.'],
+      ['The Barrow King', 'keeper of the Shard of Bones', 'wraith', 'the Barrow of Kings', "Wears the crowns of the dead kings of Aurum on their own throne."],
+      ['Gorrak Emberjaw', 'keeper of the Shard of Embers', 'orc', 'the Ember Deeps', "Paid in the queen's own silver to hold the shard for the prince."],
+      ['The Warden of the Deep', 'guardian of the lower halls', 'orc', 'the Deep, floor 10', 'Kept the lower halls closed for a thousand years.'],
+      ['The Dreaming Maw', 'the mouth of the Deep', 'wraith', 'the Deep, floor 20', 'What the five lights were holding down. It dreams in the shapes of our guilt.'],
+      ['Fenwick the merchant', 'shopkeeper', 'merchant', "Hearth, Fenwick's Goods", 'Finest steel this side of the dungeon. Buys and sells gear.'],
+      ['Dottie the innkeeper', 'innkeeper', 'innkeeper', 'Hearth, the Sleeping Rat', 'A bed is a bed. Rents rooms, hires hounds, and keeps your chest.'],
+      ['Captain Orla', 'captain of the watch', 'guard', 'Hearth, the Watch House', 'Posts bounties on named beasts and asks for dungeons cleared.'],
+      ['Old Mara', 'herbalist', 'elder', "Hearth, Mara's Cottage", 'Potions, ten gold. Cheaper than Fenwick and twice as fresh.'],
+      ['Durn the smith', 'smith', 'guard', 'castle smithies', 'Blades and hammers, a tenth off. Sharpens what you carry.'],
+      ['Ysolde the armourer', 'armourer', 'guard', 'castle armouries', 'Armor only, and cheaper than any merchant. Reinforces what you wear.'],
+      ['Brother Cael', 'apothecary', 'elder', 'the Apothecary', 'Potions, elixirs and scrolls for the desperate.'],
+      ['The Royal Quartermaster', 'keeper of the Royal Armoury', 'guard', 'Castle Aurum', "The finest steel in the realm, at the King's prices."],
+      ['The Castellan', 'lord of a castle', 'guard', 'castle keeps', 'Holds the road, hands out site-clearing quests, and musters knights.'],
+      ['Bram the mason', 'mason', 'farmer', "city cottages", 'Laid every stone of the plaza. Thinks wizards should live on the ground floor.'],
+      ['Hilde', 'householder', 'villager', "town homes", 'Make yourself at home, but mind the chest.'],
+      ['The arena master', 'of the Grand Arena', 'guard', 'Castle Aurum, the Grand Arena', 'Waves of foes, gold for every wave, and no charge for being dragged out.'],
+    ];
+    const cards = fixed.map(([name, role, spr, where, blurb]) => { total++; return card([spr], name, role, `<p><b>Found:</b> ${esc(where)}.</p><p>${esc(blurb)}</p>`, `${name} ${role} ${where} ${blurb}`); });
+    section('The story and the realms', cards);
+    for (const [realm, list] of byRealm(towns, (t) => t.realm)) {
+      const cards = [];
+      for (const t of list.sort((a, b) => a.name.localeCompare(b.name))) {
+        const I = townIdentity(t), N = t.notable, L = leaderNpc(t);
+        total += 2;
+        cards.push(card([N.sprite], `${N.name} of ${t.name}`, N.role, `<p><b>Found:</b> the square of <a class="plain" href="${townUrl(t)}">${esc(t.name)}</a>, ${esc(REALMS[realm].short)}.</p><ul class="lines">${N.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>`, `${N.name} ${N.role} ${t.name} ${N.lines.join(' ')}`));
+        cards.push(card([L.sprite], L.name, `leader of ${t.name}`, `<p><b>Found:</b> the square of <a class="plain" href="${townUrl(t)}">${esc(t.name)}</a>.</p><p>${esc(L.lines[0])}</p><p>${esc(L.lines[1])}</p>`, `${L.name} leader ${t.name} ${I.trade.label}`));
+      }
+      section(`${REALMS[realm].name} · the towns' people`, cards);
+    }
+  }
+  if (count) count.textContent = `${total} entries.`;
+  const search = document.getElementById('glossary-search');
+  search?.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    let shown = 0;
+    for (const el of root.querySelectorAll('.card')) { const hit = !q || el.dataset.search.includes(q); el.hidden = !hit; if (hit) shown++; }
+    for (const h of root.querySelectorAll('h3.realm')) { const grid = h.nextElementSibling; h.hidden = grid && ![...grid.children].some((c) => !c.hidden); }
+    if (count) count.textContent = q ? `${shown} of ${total} entries match.` : `${total} entries.`;
+  });
+  if (location.hash) { const el = document.getElementById(location.hash.slice(1)); if (el) { el.scrollIntoView(); el.style.outline = '2px solid #ffd86b'; } }
+}
+if (ACCOUNT.mode === 'glossary') renderGlossary(ACCOUNT.kind);
+else { requestAnimationFrame(loop); init(); }
