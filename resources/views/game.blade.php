@@ -32,7 +32,7 @@
               <ul>
                 <li><kbd>↑ ↓ ← →</kbd> <kbd>WASD</kbd> <kbd>HJKL</kbd> move; walk into a monster to attack</li>
                 <li><kbd>Space</kbd> or <kbd>.</kbd> wait a turn</li>
-                <li><kbd>1</kbd> class ability · <kbd>P</kbd> potion · <kbd>B</kbd> bomb · <kbd>T</kbd> scroll of return</li>
+                <li><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> class abilities (the second comes at level 5, the third at 10) · <kbd>P</kbd> potion · <kbd>B</kbd> bomb · <kbd>T</kbd> scroll of return</li>
                 <li><kbd>M</kbd> world map · <kbd>Q</kbd> quests · <kbd>J</kbd> journal · <kbd>N</kbd> sound · <kbd>C</kbd> make camp in the wilds</li>
                 <li><kbd>Esc</kbd> closes menus and skips story scenes · <kbd>?</kbd> this screen · <kbd>O</kbd> settings</li>
                 <li>Not sure what to do? The Journal's Guide page (<kbd>J</kbd>, then <kbd>7</kbd>) has ideas</li>
@@ -42,7 +42,7 @@
               <h3>Mouse and touch</h3>
               <ul>
                 <li>Click a spot to walk there, a monster to fight it, people and doors to use them</li>
-                <li>Right-click to use your ability, aimed where you click</li>
+                <li>Right-click to use your first ability aimed where you click; Shift+right-click the second, Alt+right-click the third</li>
                 <li>Hover or tap anything to see what it is, and how hard a monster will be</li>
                 <li>On phones, tap or hold to walk; the round buttons use your ability, a potion, wait or the map</li>
               </ul>

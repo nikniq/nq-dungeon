@@ -44,12 +44,12 @@ const MONSTER_TYPES = [
 // Hero classes: base stats, a sprite, and one ability on the 1 key.
 // Abilities run on mana: a pool that grows with level and refills a point a turn.
 const maxMana = () => { const c = CLASSES[player.cls] || CLASSES.warrior; return c.mana + c.manaPerLevel * (player.level - 1); };
-const abilityCost = () => { const c = CLASSES[player.cls] || CLASSES.warrior; return Math.max(1, Math.ceil(c.cost * (1 - 0.2 * perkCount('quickened')) * (wearing('starring') ? 0.5 : 1))); };
+const abilityCost = (slot = 0) => { const A = (ABILITIES[player.cls] || ABILITIES.warrior)[slot]; return Math.max(1, Math.ceil(A.cost * (1 - 0.2 * perkCount('quickened')) * (wearing('starring') ? 0.5 : 1))); };
 function restoreMana(n = Infinity) { player.mana = Math.min(maxMana(), (player.mana ?? 0) + n); }
 const CLASSES = {
-  warrior: { name: 'Warrior', hp: 24, atk: 3, sprite: 'player', ability: 'Shield Wall', mana: 20, manaPerLevel: 1, cost: 18, blurb: 'Take 2 less damage from every hit for 6 turns.' },
-  ranger:  { name: 'Ranger',  hp: 18, atk: 3, sprite: 'ranger', ability: 'Arrow',       mana: 12, manaPerLevel: 1, cost: 3,  blurb: 'Shoot the nearest monster in a straight line, up to 6 tiles. Rangers also spot traps two tiles away.' },
-  mage:    { name: 'Mage',    hp: 16, atk: 2, sprite: 'mage',   ability: 'Fireball',    mana: 24, manaPerLevel: 2, cost: 8,  blurb: 'Burn every monster within 2 tiles of the nearest one in sight (range 5).' },
+  warrior: { name: 'Warrior', hp: 24, atk: 3, sprite: 'player', ability: 'Shield Wall', mana: 20, manaPerLevel: 1, cost: 18, blurb: 'Shield Wall now; Whirlwind at level 5, War Cry at level 10.' },
+  ranger:  { name: 'Ranger',  hp: 18, atk: 3, sprite: 'ranger', ability: 'Arrow',       mana: 12, manaPerLevel: 1, cost: 3,  blurb: 'Arrow now; Volley at level 5, Evade at level 10. Rangers also spot traps two tiles away.' },
+  mage:    { name: 'Mage',    hp: 16, atk: 2, sprite: 'mage',   ability: 'Fireball',    mana: 24, manaPerLevel: 2, cost: 8,  blurb: 'Fireball now; Frost Nova at level 5, Blink at level 10.' },
 };
 const heroClass = () => CLASSES[player && player.cls] || CLASSES.warrior;
 
@@ -243,7 +243,7 @@ const itemKind = (id) => ITEMS.weapons[id] ? 'weapon' : ITEMS.armor[id] ? 'armor
 const wearing = (id) => !!player && player.relic === id;
 const goldMult = () => (perkCount('lucky') ? 1.25 : 1) * (wearing('luckycoin') ? 1.4 : 1) * (wearing('ledger') ? 1.25 : 1);
 const potionHeal = (h) => h * (wearing('royalsignet') ? 2 : 1);
-const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0);
+const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0) + (player.rage > 0 ? 2 : 0);
 const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
   + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.def || 0) : 0) + (realmState().rank >= 2 ? 1 : 0);
 const SAVE_EVERY_TURNS = 20;
@@ -1561,6 +1561,7 @@ function guideSuggestions() {
   else if (st.phase === 'done') out.push(['The Deep', `The Gate of the Deep lies between Hearth and Castle Aurum. Your record: floor ${player.meta.deepest || 0}.`]);
   if (player.hp < player.maxHp * 0.5) out.push(['Rest', 'Inns heal you for free. In the wilds, press C to make camp.']);
   if (player.pendingPerks) out.push(['Choose a perk', 'You have a perk to pick.']);
+  { const next = abilityList().find((a, k) => k > 0 && player.level < a.level); if (next) out.push(['Next ability', `${next.name} comes at level ${next.level}: ${next.blurb}.`]); }
   const realm = currentRealm(), rq = rqState(realm), Q = REALM_QUESTS[realm];
   if (rq.s === 0) out.push(['Realm errand', `${Q.ruler} has work for heroes of ${REALMS[realm].short}.`]);
   else if (rq.s === 4) out.push(['Report back', `${Q.title} is done. Return to ${Q.ruler} for your reward.`]);
@@ -3800,7 +3801,9 @@ function drawHud(g, now) {
   }
   {
     const cls = heroClass();
-    const parts = [`1: ${cls.ability} (${abilityCost()} mana)`];
+    const parts = abilityList().map((A, k) => abilityUnlocked(k) ? `${k + 1}: ${A.name} (${abilityCost(k)})` : `${k + 1}: ${A.name} (Lv ${A.level})`);
+    if (player.rage > 0) parts.push(`Rage ${player.rage}`);
+    if (player.evade > 0) parts.push(`Evade ${player.evade}`);
     if (player.shield > 0) parts.push(`Shield ${player.shield}`);
     if (player.poison > 0) parts.push(`Poisoned ${player.poison}`);
     g.font = '12px sans-serif';
@@ -4713,7 +4716,7 @@ canvas.addEventListener('contextmenu', (e) => {
   if (wasWalking) { draw(); return; }   // the first right-click only stops a walk
   sfx.unlock(); clearInspect();
   const t = tileFromEvent(e);
-  useAbility(player.cls === 'warrior' ? null : t);
+  useAbility(t, e.shiftKey ? 1 : e.altKey ? 2 : 0);
 });
 
 function perkClick(e) {
@@ -4843,6 +4846,7 @@ function gainXp(n) {
     player.xp -= xpToNext(player.level);
     player.level++;
     player.maxHp += 4; player.atk += 1; player.hp = player.maxHp; mapCache.ox = null; restoreMana();
+    { const A = abilityList().find((a, k) => k > 0 && a.level === player.level); if (A) { log(`New ability: ${A.name} (key ${abilityList().indexOf(A) + 1}): ${A.blurb}.`, 'good'); toast = { text: `New ability: ${A.name}. Press ${abilityList().indexOf(A) + 1}.`, until: performance.now() + 5000 }; } }
     log(`Level up! You are now level ${player.level}. HP and attack increased.`, 'good');
     sfx.play('levelup');
     burst(player.x, player.y, '#ffd86b', 40, 170, { glow: true, gravity: -40, life: 900, size: 3 });
@@ -4993,6 +4997,7 @@ function raiseDead(m) {
 }
 function monsterAttack(m, ranged = false) {
   if (!ranged && perkCount('nimble') && Math.random() < 0.25) { log(`You dodge ${m.boss ? m.name : 'the ' + m.type.name}.`, 'good'); floatText(player.x, player.y, 'dodge', '#7bdfff'); return; }
+  if (!ranged && player.evade > 0) { player.evade--; log(`You slip aside from ${nameOf(m)}.`, 'good'); floatText(player.x, player.y, 'evade', '#7bdfff'); return; }
   if (!ranged && traitOf(player.weapon) === 'longsword' && Math.random() < 0.2) { log(`You parry ${nameOf(m)}'s blow with your longsword.`, 'good'); floatText(player.x, player.y, 'parry', '#e6eef8'); sfx.play('shield'); return; }
   const dmg = Math.max(1, m.atk - armorDef() - (player.shield > 0 ? 2 : 0));
   player.hp -= dmg;
@@ -6210,6 +6215,7 @@ function endTurn(moved) {
   if (moved && scene === 'world') { const gnd = groundAt(player.x, player.y); if (gnd === GROUND.ROAD || gnd === GROUND.SAND) burst(player.x, player.y, gnd === GROUND.SAND ? '#e7d3a1' : '#b9976a', 3, 25, { foot: true, gravity: -10, life: 380, size: 2 }); }
   if ((player.mana ?? 0) < maxMana()) player.mana = Math.min(maxMana(), (player.mana ?? 0) + 1);
   if (player.shield > 0 && --player.shield === 0) log('Your shield wall fades.');
+  if (player.rage > 0 && --player.rage === 0) log('Your war cry fades.');
   if (player.poison > 0) {
     player.poison--; player.hp -= 1; floatText(player.x, player.y, '-1', '#7ad36b');
     if (player.poison === 0) log('The poison wears off.', 'good');
@@ -6388,50 +6394,107 @@ function aimedLine(aim, range) {
   }
   return null;
 }
-function useAbility(aim = null) {
+// Three abilities per class, unlocked at levels 1, 5 and 10. Each run() returns
+// false when it could not fire (no target), and nothing is spent.
+const ABILITIES = {
+  warrior: [
+    { name: 'Shield Wall', cost: 18, level: 1, blurb: '2 less damage from every hit for 6 turns', run: () => {
+      player.shield = 6; log('You raise your shield wall: 2 less damage from every hit for 6 turns.', 'good');
+      burst(player.x, player.y, '#7bdfff', 24, 120, { glow: true, gravity: 0, life: 450 }); sfx.play('shield'); return true; } },
+    { name: 'Whirlwind', cost: 10, level: 5, blurb: 'strike every foe beside you in one swing', run: () => {
+      const foes = monsters.filter((m) => m.hp > 0 && dist(m, player) === 1);
+      if (!foes.length) { log('Nothing beside you to swing at.'); return false; }
+      shakeScreen(3); sfx.play('hit'); burst(player.x, player.y, '#fff3c4', 20, 160, { glow: true, life: 300, gravity: 0, size: 2 });
+      log(`You spin with your blade out and hit ${foes.length} ${foes.length === 1 ? 'foe' : 'foes'}.`, 'good');
+      for (const m of foes) { const dmg = Math.max(1, player.atk + weaponAtk() + rnd(2) - (m.mod === 'armored' ? 2 : 0)); m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); }
+      for (const m of foes) { if (coopMember()) coopHit(m, 1, 'hero'); else if (m.hp <= 0) killMonster(m); }
+      return true; } },
+    { name: 'War Cry', cost: 14, level: 10, blurb: 'stun every foe within 2 tiles for 2 turns and hit 2 harder for 5 turns', run: () => {
+      const foes = monsters.filter((m) => m.hp > 0 && cheb(m, player) <= 2);
+      player.rage = 5; for (const m of foes) { if (!m.boss) m.stunned = 2; m.awake = true; floatText(m.x, m.y, '✦', '#ffd86b'); }
+      shakeScreen(5); sfx.play('boss'); burst(player.x, player.y, '#ff9f43', 30, 140, { glow: true, gravity: -40, life: 600 });
+      log(`Your war cry rings off the walls: ${foes.filter((m) => !m.boss).length} foes reel, and your blows will land harder for 5 turns.`, 'good'); return true; } },
+  ],
+  ranger: [
+    { name: 'Arrow', cost: 3, level: 1, blurb: 'shoot the nearest foe in a straight line, up to 6 tiles', run: (aim) => {
+      const t = aim ? aimedLine(aim, 6) : lineTarget(6);
+      if (!t) { log(aim ? 'No clear shot there. Arrows fly straight up, down, left or right, up to 6 tiles.' : 'No target in a straight line. Arrows fly up, down, left or right.'); return false; }
+      const dmg = Math.max(1, player.atk + weaponAtk() + 1 + rnd(2) - (t.m.mod === 'armored' ? 2 : 0));
+      if (t.dx) player.face = t.dx;
+      t.m.hp -= dmg; t.m.awake = true; t.m.flashUntil = performance.now() + 120;
+      floatText(t.m.x, t.m.y, `-${dmg}`, '#ffd86b');
+      for (let d = 1; d < t.d; d++) floatText(player.x + t.dx * d, player.y + t.dy * d, '➤', '#d9b382');
+      sfx.play('arrow'); log(`Your arrow hits ${t.m.boss ? t.m.name : 'the ' + t.m.type.name} for ${dmg}.`);
+      if (coopMember()) coopHit(t.m, dmg, 'hero'); else if (t.m.hp <= 0) killMonster(t.m);
+      return true; } },
+    { name: 'Volley', cost: 6, level: 5, blurb: 'loose arrows at the three nearest foes in sight, up to 6 tiles', run: () => {
+      const foes = monsters.filter((m) => m.hp > 0 && cheb(m, player) <= 6 && isVisible(m.x, m.y)).sort((a, b) => cheb(a, player) - cheb(b, player)).slice(0, 3);
+      if (!foes.length) { log('No foe in sight for a volley.'); return false; }
+      sfx.play('arrow');
+      for (const m of foes) { const dmg = Math.max(1, Math.round((player.atk + weaponAtk() + rnd(2)) * 0.8) - (m.mod === 'armored' ? 2 : 0)); m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); floatText(player.x + Math.sign(m.x - player.x), player.y + Math.sign(m.y - player.y), '➤', '#d9b382'); }
+      log(`A volley of arrows: ${foes.length} ${foes.length === 1 ? 'foe' : 'foes'} struck.`, 'good');
+      for (const m of foes) { if (coopMember()) coopHit(m, 1, 'hero'); else if (m.hp <= 0) killMonster(m); }
+      return true; } },
+    { name: 'Evade', cost: 5, level: 10, blurb: 'slip one tile away from the nearest foe and dodge the next 3 blows', run: () => {
+      const near = monsters.filter((m) => m.hp > 0).sort((a, b) => cheb(a, player) - cheb(b, player))[0];
+      player.evade = 3;
+      if (near) {
+        const dx = Math.sign(player.x - near.x), dy = Math.sign(player.y - near.y);
+        for (const [sx, sy] of [[dx, dy], [dx, 0], [0, dy]]) { if (!sx && !sy) continue; const nx = player.x + sx, ny = player.y + sy; if (walkable(getTile(nx, ny)) && !getMonsterAt(nx, ny) && !houndAt(nx, ny) && !hazard(nx, ny)) { player.x = nx; player.y = ny; if (sx) player.face = sx; break; } }
+      }
+      burst(player.x, player.y, '#7bdfff', 16, 100, { glow: true, gravity: 0, life: 400 }); sfx.play('shield');
+      log('You slip aside. The next three blows aimed at you will miss.', 'good'); return true; } },
+  ],
+  mage: [
+    { name: 'Fireball', cost: 8, level: 1, blurb: 'burn every foe within 2 tiles of the nearest one in sight (range 5)', run: (aim) => {
+      let target = null, bd = Infinity;
+      if (aim) {
+        if (cheb(aim, player) > 5 || !isVisible(aim.x, aim.y)) { log('Too far, or out of sight. A fireball reaches 5 tiles.'); return false; }
+        if (!monsters.some((m) => cheb(m, aim) <= 2)) { log('Nothing there to burn.'); return false; }
+        target = aim;
+      }
+      else for (const m of monsters) { const d = cheb(m, player); if (d <= 5 && isVisible(m.x, m.y) && d < bd) { bd = d; target = m; } }
+      if (!target) { log('No monster in sight to aim at.'); return false; }
+      const dmg = 5 + player.level + rnd(3);
+      const hit = monsters.filter((m) => cheb(m, target) <= 2);
+      for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) if (Math.random() < 0.5) floatText(target.x + i, target.y + j, '✸', '#ff9f43');
+      sfx.play('fire');
+      log(`Your fireball bursts over ${hit.length} ${hit.length === 1 ? 'monster' : 'monsters'} for ${dmg} each.`, 'good');
+      for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) burst(target.x + i, target.y + j, Math.random() < 0.5 ? '#ff9f43' : '#ffd86b', 3, 70, { glow: true, gravity: -80, life: 600, size: 3 });
+      for (const m of hit) { m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); }
+      for (const m of hit) { if (coopMember()) coopHit(m, dmg, 'hero'); else if (m.hp <= 0) killMonster(m); }
+      return true; } },
+    { name: 'Frost Nova', cost: 10, level: 5, blurb: 'freeze every foe within 2 tiles for 2 turns and chill them', run: () => {
+      const foes = monsters.filter((m) => m.hp > 0 && cheb(m, player) <= 2);
+      if (!foes.length) { log('Nothing near enough to freeze.'); return false; }
+      const dmg = 3 + Math.floor(player.level / 2);
+      sfx.play('potion'); for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) burst(player.x + i, player.y + j, '#9fd4ff', 3, 60, { glow: true, gravity: -30, life: 700, size: 3 });
+      for (const m of foes) { if (!m.boss) m.stunned = 2; m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg} ❄`, '#9fd4ff'); }
+      log(`Frost bursts from your staff: ${foes.length} ${foes.length === 1 ? 'foe is' : 'foes are'} frozen for 2 turns.`, 'good');
+      for (const m of foes) { if (coopMember()) coopHit(m, dmg, 'hero'); else if (m.hp <= 0) killMonster(m); }
+      return true; } },
+    { name: 'Blink', cost: 6, level: 10, blurb: 'step through the air up to 5 tiles the way you face, or to where you click', run: (aim) => {
+      let dest = null;
+      if (aim && cheb(aim, player) <= 5 && isVisible(aim.x, aim.y) && walkable(getTile(aim.x, aim.y)) && !getMonsterAt(aim.x, aim.y) && !hazard(aim.x, aim.y)) dest = { x: aim.x, y: aim.y };
+      if (!dest) { const dx = player.face || 1; for (let d = 1; d <= 5; d++) { const nx = player.x + dx * d; if (!walkable(getTile(nx, player.y))) break; if (getMonsterAt(nx, player.y) || houndAt(nx, player.y) || hazard(nx, player.y)) continue; dest = { x: nx, y: player.y }; } }   // a blink passes over foes and stops only at walls
+      if (!dest) { log('No room to blink that way.'); return false; }
+      burst(player.x, player.y, '#c084fc', 20, 110, { glow: true, gravity: -60, life: 500 });
+      player.x = dest.x; player.y = dest.y; settle(player);
+      burst(player.x, player.y, '#c084fc', 20, 110, { glow: true, gravity: -60, life: 500 }); sfx.play('stairs');
+      log('You blink across the room in a shimmer of violet.', 'good'); return true; } },
+  ],
+};
+const abilityList = () => ABILITIES[player.cls] || ABILITIES.warrior;
+const abilityUnlocked = (slot) => player.level >= abilityList()[slot].level;
+function useAbility(aim = null, slot = 0) {
   if (gameOver || !player || shopOpen || scene === 'house' || perkChoices || storyOpen()) return;
-  const cls = heroClass();
-  const cost = abilityCost();
-  if ((player.mana ?? 0) < cost) { log(`Not enough mana for ${cls.ability}: it costs ${cost}, you have ${player.mana ?? 0}. Mana returns a point a turn, or drink a mana potion.`); draw(); return; }
-  const spend = () => { player.mana -= cost; };
-  if (player.cls === 'warrior') {
-    player.shield = 6; spend();
-    log('You raise your shield wall: 2 less damage from every hit for 6 turns.', 'good');
-    burst(player.x, player.y, '#7bdfff', 24, 120, { glow: true, gravity: 0, life: 450 });
-    sfx.play('shield'); endTurn(false); return;
-  }
-  if (player.cls === 'ranger') {
-    const t = aim ? aimedLine(aim, 6) : lineTarget(6);
-    if (!t) { log(aim ? 'No clear shot there. Arrows fly straight up, down, left or right, up to 6 tiles.' : 'No target in a straight line. Arrows fly up, down, left or right.'); draw(); return; }
-    const dmg = Math.max(1, player.atk + weaponAtk() + 1 + rnd(2) - (t.m.mod === 'armored' ? 2 : 0));
-    if (t.dx) player.face = t.dx;
-    t.m.hp -= dmg; t.m.awake = true; t.m.flashUntil = performance.now() + 120;
-    floatText(t.m.x, t.m.y, `-${dmg}`, '#ffd86b');
-    for (let d = 1; d < t.d; d++) floatText(player.x + t.dx * d, player.y + t.dy * d, '➤', '#d9b382');
-    sfx.play('arrow');
-    log(`Your arrow hits ${t.m.boss ? t.m.name : 'the ' + t.m.type.name} for ${dmg}.`);
-    if (coopMember()) coopHit(t.m, dmg, 'hero'); else if (t.m.hp <= 0) killMonster(t.m);
-    spend(); endTurn(false); return;
-  }
-  if (player.cls === 'mage') {
-    let target = null, bd = Infinity;
-    if (aim) {
-      if (cheb(aim, player) > 5 || !isVisible(aim.x, aim.y)) { log('Too far, or out of sight. A fireball reaches 5 tiles.'); draw(); return; }
-      if (!monsters.some((m) => cheb(m, aim) <= 2)) { log('Nothing there to burn.'); draw(); return; }
-      target = aim;
-    }
-    else for (const m of monsters) { const d = cheb(m, player); if (d <= 5 && isVisible(m.x, m.y) && d < bd) { bd = d; target = m; } }
-    if (!target) { log('No monster in sight to aim at.'); draw(); return; }
-    const dmg = 5 + player.level + rnd(3);
-    const hit = monsters.filter((m) => cheb(m, target) <= 2);
-    for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) if (Math.random() < 0.5) floatText(target.x + i, target.y + j, '✸', '#ff9f43');
-    sfx.play('fire');
-    log(`Your fireball bursts over ${hit.length} ${hit.length === 1 ? 'monster' : 'monsters'} for ${dmg} each.`, 'good');
-    for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) burst(target.x + i, target.y + j, Math.random() < 0.5 ? '#ff9f43' : '#ffd86b', 3, 70, { glow: true, gravity: -80, life: 600, size: 3 });
-    for (const m of hit) { m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); }
-    for (const m of hit) { if (coopMember()) coopHit(m, dmg, 'hero'); else if (m.hp <= 0) killMonster(m); }
-    spend(); endTurn(false); return;
-  }
+  const A = abilityList()[slot]; if (!A) return;
+  if (!abilityUnlocked(slot)) { log(`${A.name} comes at level ${A.level}. You are level ${player.level}.`); draw(); return; }
+  const cost = abilityCost(slot);
+  if ((player.mana ?? 0) < cost) { log(`Not enough mana for ${A.name}: it costs ${cost}, you have ${player.mana ?? 0}. Mana returns a point a turn, or drink a mana potion.`); draw(); return; }
+  if (!A.run(aim)) { draw(); return; }
+  player.mana -= cost;
+  endTurn(false);
 }
 
 function wait() { if (!gameOver) tryMove(0, 0); }
@@ -6478,7 +6541,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'j' || e.key === 'J') { mapOpen = false; questsOpen = false; journalOpen = true; draw(); return; }
   if (e.key === 'n' || e.key === 'N') { toggleSound(); return; }
   if (perkChoices) { if (['1', '2', '3'].includes(e.key)) choosePerk(Number(e.key) - 1); return; }
-  if (e.key === '1') { e.preventDefault(); useAbility(); return; }
+  if (e.key === '1' || e.key === '2' || e.key === '3') { e.preventDefault(); useAbility(null, Number(e.key) - 1); return; }
   if ((mapOpen || questsOpen) && KEYS[e.key]) { mapOpen = false; questsOpen = false; }
   if (e.key === 'r' || e.key === 'R') { init(); return; }
   if (e.key === 'p' || e.key === 'P') { drinkPotion(); return; }
@@ -6584,17 +6647,18 @@ function touchButtons() {
   // buttons down the right edge, fitted between the HUD and the message log:
   // one column of five when there is room, otherwise two columns (three and two)
   const top = 110 + hudExtra, logRoom = 96, room = Math.max(100, canvas.height - top - logRoom);
-  const want = canvas.width < 560 ? 24 : 28, perCol = 10 * 20 + 16 <= room ? 5 : 3;
+  const want = canvas.width < 560 ? 24 : 28, perCol = 10 * 20 + 16 <= room ? 5 : 4;
   const r = Math.max(16, Math.min(want, Math.floor((room - 4 * (perCol - 1)) / (2 * perCol)))), gap = Math.min(2 * r + 12, Math.floor((room - 2 * r) / Math.max(1, perCol - 1)));
   const at = (i) => ({ x: canvas.width - r - 12 - (i >= perCol ? 2 * r + 10 : 0), y: top + r + gap * (i % perCol) });
   const cls = heroClass();
   const canCamp = scene === 'world' && !townContaining(player.x, player.y) && !monsters.some((m) => cheb(m, player) <= 6);
   return [
-    { id: 'ability', label: (player.mana ?? 0) >= abilityCost() ? '✦' : String(abilityCost() - (player.mana ?? 0)), sub: cls.ability, ...at(0), r, active: (player.mana ?? 0) >= abilityCost() },
+    { id: 'ability', label: (player.mana ?? 0) >= abilityCost() ? '✦' : String(abilityCost() - (player.mana ?? 0)), sub: abilityList()[0].name, ...at(0), r, active: (player.mana ?? 0) >= abilityCost() },
     { id: 'potion', label: '♥', sub: 'Potion', ...at(1), r, active: player.bag.some((id) => itemKind(id) === 'consumable' && itemInfo(id).heal) },
     canCamp ? { id: 'camp', label: '▲', sub: 'Camp', ...at(2), r, active: true } : { id: 'wait', label: '⏸', sub: 'Wait', ...at(2), r, active: true },
     { id: 'map', label: scene === 'world' ? 'M' : 'Q', sub: scene === 'world' ? 'Map' : 'Quests', ...at(3), r, active: true },
     { id: 'journal', label: 'J', sub: 'Journal', ...at(4), r, active: true },
+    ...[1, 2].filter((k) => abilityUnlocked(k)).map((k, n) => ({ id: `ability${k + 1}`, label: (player.mana ?? 0) >= abilityCost(k) ? `${k + 1}✦` : String(abilityCost(k) - (player.mana ?? 0)), sub: abilityList()[k].name, ...at(5 + n), r, active: (player.mana ?? 0) >= abilityCost(k) })),
   ];
 }
 function drawTouchButtons(g) {
@@ -6650,6 +6714,8 @@ canvas.addEventListener('pointerdown', (e) => {
   const btn = touchButtons().find((b) => Math.hypot(px - b.x, py - b.y) <= b.r + 6);
   if (btn) {
     if (btn.id === 'ability') useAbility();
+    else if (btn.id === 'ability2') useAbility(null, 1);
+    else if (btn.id === 'ability3') useAbility(null, 2);
     else if (btn.id === 'potion') drinkPotion();
     else if (btn.id === 'wait') wait();
     else if (btn.id === 'map') { if (scene === 'world') toggleMap(); else { questsOpen = true; draw(); } }

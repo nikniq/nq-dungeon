@@ -32,8 +32,13 @@ grand castle, Castle Aurum, where King Aldric holds court and the Royal Armoury
 sells the realm's best gear. Cities and some towns have a specialist shop: smithy,
 armoury or apothecary. Out in the country stand caves, crypts, warrens and towers,
 short themed dungeons with their own monsters, a danger rating that grows with
-distance from Hearth, and a hoard at the bottom. Choose a class: Warrior (Shield Wall), Ranger (Arrow, spots traps) or Mage
-(Fireball); press 1 for the ability. Abilities cost mana (blue bar under health), which grows with level, refills a point a turn, and comes back at inns, camps, springs and from mana potions. Chests hold gold, spike traps hide in
+distance from Hearth, and a hoard at the bottom. Choose a class. Each has three abilities on keys 1, 2 and 3, the second from
+level 5 and the third from level 10 (`ABILITIES`): Warrior has Shield Wall,
+Whirlwind (hit every adjacent foe) and War Cry (stun all within 2 tiles, +2 attack
+for 5 turns); Ranger has Arrow, Volley (the three nearest foes in sight) and Evade
+(slip a tile away and dodge the next three blows); Mage has Fireball, Frost Nova
+(freeze all within 2 tiles) and Blink (teleport up to 5 tiles). Right-click aims
+the first, Shift+right-click the second, Alt+right-click the third. Abilities cost mana (blue bar under health), which grows with level, refills a point a turn, and comes back at inns, camps, springs and from mana potions. Chests hold gold, spike traps hide in
 corridors, spiders poison (potions cure), archers shoot from range, bats flit.
 Falling in battle costs half your gold and your potions, never level or gear.
 Hire a hound at any inn: it follows, bites, levels up and is patched up free at
