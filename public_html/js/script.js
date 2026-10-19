@@ -6167,6 +6167,8 @@ const KEYS = {
 window.addEventListener('keydown', (e) => {
   // typing in a form field never moves the hero
   if (e.target && e.target.closest && e.target.closest('input, textarea, select')) { if (e.key === 'Escape') e.target.blur(); return; }
+  // the game owns its keys: arrows, Space and the movement letters never scroll the page, whatever is open
+  if (!e.ctrlKey && !e.metaKey && !e.altKey && (KEYS[e.key] || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key))) e.preventDefault();
   if (storyOpen()) {
     const choices = scenePage && scenePage.choices;
     if (choices && choices.length) {

@@ -219,3 +219,6 @@ body.wide .chat,body.wide .party{max-width:1400px;margin-left:auto;margin-right:
 .story-row{display:flex;gap:16px;align-items:flex-start;padding:14px 16px 16px}
 .story-box .story-row canvas{margin-top:-62px;box-shadow:0 4px 14px rgba(0,0,0,.5);background:#0f1724}
 @media (max-width:560px){.story-box .story-bg{height:96px}.story-row{flex-direction:column;align-items:center}.story-box .story-row canvas{margin-top:-50px}}
+/* no rubber-band or scroll chaining while playing; the canvas handles its own gestures */
+body.wide{overscroll-behavior-y:none}
+.stage .overlay{overscroll-behavior:contain}
