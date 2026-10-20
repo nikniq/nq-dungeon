@@ -2281,6 +2281,49 @@ const GRAND_CASTLE = { i: 3, j: -1 };
 const REALM_SEATS = { cantons: ['council', 'townhall'], aurum: [null, 'herald'], kathar: ['longhouse', 'shamanhut'], league: ['exchange', 'exchange'], tianxia: ['yamen', 'magistracy'], suryadesh: ['durbar', 'kacheri'], severin: ['terem', 'prikaz'] };
 const REALM_ROOFS = { kathar: ['#a07a35', '#8c6a2c', '#b08840'], league: ['#4c2f7a', '#5b3a8b', '#3f2a63'], aurum: null, cantons: null, tianxia: ['#b91c1c', '#166534', '#9a3412'], suryadesh: ['#d97706', '#b45309', '#7c2d12'], severin: ['#1d4ed8', '#15803d', '#b91c1c'] };   // the King's seat, the only one of its kind
 const SPECIAL_SHOPS = ['smithy', 'armoury', 'apothecary'];
+// ---------- trade shops ----------
+// Every town keeps a shop of its own kind, by the trade it is known for, selling
+// specialities (items with a `trade` in the catalogue) found nowhere else.
+const TRADE_SHOP = {
+  fishing:   { name: 'The Fishmonger', sign: 'FISH', npc: 'the fishmonger', line: 'Smoked this morning. Eel for the road, and it settles a poisoned stomach.' },
+  salt:      { name: 'The Salt House', sign: 'SALT', npc: 'the salter', line: 'Hams cured in our own salt. They keep for a year, and so will you, on them.' },
+  mining:    { name: "The Miners' Store", sign: 'IRON', npc: 'the storekeeper', line: 'Iron rations. Taste of the mine, but you come up harder than you went down.' },
+  quarrying: { name: "The Mason's Yard", sign: 'STONE', npc: 'the master mason', line: 'A whetstone from our own quarry puts an edge on anything. A pick, if you want to hit things properly.' },
+  timber:    { name: 'The Woodyard', sign: 'WOOD', npc: 'the woodward', line: 'Pitch torches, from our own pines. The dark down there is only dark because nobody brought one.' },
+  hunting:   { name: "The Hunters' Lodge", sign: 'LODGE', npc: 'the huntmaster', line: 'Venison pie, and a cloak that smells of the forest, so the forest does not smell you.' },
+  farming:   { name: 'The Granary', sign: 'GRAIN', npc: 'the granary-keeper', line: 'Harvest loaf. Bread, honey and something the mages like. Keeps you going.' },
+  wine:      { name: "The Vintner's", sign: 'WINE', npc: 'the vintner', line: 'A red that stains the teeth and steadies the hand. One bottle, before you go down. Not three.' },
+  wool:      { name: 'The Woolmonger', sign: 'WOOL', npc: 'the woolmonger', line: 'Grey wool, carded here. A cloak off the rack turns a blade as well as it turns the rain, nearly.' },
+  bees:      { name: 'The Honey House', sign: 'HONEY', npc: 'the beekeeper', line: 'Mead, from heather honey. Heals what ails you and gives a mage something to think with.' },
+  pottery:   { name: "The Potter's Kiln", sign: 'KILN', npc: 'the potter', line: 'Firepots. Clay, pitch and a fuse. Cheaper than a bomb and nearly as rude.' },
+  brewing:   { name: 'The Brewery', sign: 'ALE', npc: 'the brewer', line: 'Dark ale. Two cups and you will fight a troll. One cup and you might win.' },
+  horses:    { name: 'The Saddlery', sign: 'TACK', npc: 'the saddler', line: 'Horse balm. Good for horses, better for hounds, and your bear will not complain either.' },
+  shipping:  { name: "The Chandler's", sign: 'ROPE', npc: 'the chandler', line: 'Rum, rope and tar. The rum is the only one of the three you should drink.' },
+  smithing:  { name: 'The Master Smith', sign: 'ANVIL', npc: 'the master smith', line: 'Steel axes, forged here and nowhere else. The merchants in the square sell knives.' },
+  glass:     { name: 'The Glassworks', sign: 'GLASS', npc: 'the glassblower', line: 'A spyglass, ground here. Look through it from a hilltop and every place for miles shows itself.' },
+  silk:      { name: 'The Silk House', sign: 'SILK', npc: 'the silk merchant', line: 'A silk cloak. Light as nothing, and it turns a blade better than you would think.' },
+  rice:      { name: 'The Rice Store', sign: 'RICE', npc: 'the rice merchant', line: 'Rice wine, warm. Heals the body and loosens the mind, in that order.' },
+  tea:       { name: 'The Tea House', sign: 'TEA', npc: 'the tea master', line: 'Jasmine tea. Clears the head, clears the blood, and takes a quarter of an hour you do not have. Drink it anyway.' },
+  porcelain: { name: 'The Porcelain Works', sign: 'KILN', npc: 'the kiln master', line: 'A draught in a porcelain vial. The vial is worth more than the draught, and the draught will save your life.' },
+  spices:    { name: 'The Spice Bazaar', sign: 'SPICE', npc: 'the spice merchant', line: 'Fire curry. Heals you, and for a while afterwards you hit like a man with something to prove.' },
+  cotton:    { name: "The Dyers' Hall", sign: 'CLOTH', npc: 'the dyer', line: 'Clean cotton bandage, boiled twice. Binds a wound and draws a poison.' },
+  furs:      { name: 'The Fur Trader', sign: 'FURS', npc: 'the fur trader', line: 'Sable, if you have the gold. Bear fat if you do not; it keeps the cold out either way.' },
+};
+const TRADE_SLOT = { village: [[2, 10, 6, 4], [32, 10, 6, 4], [2, 18, 6, 4]], town: [[34, 16, 5, 4], [1, 16, 5, 4], [1, 10, 5, 4]], city: [[35, 17, 5, 4], [0, 17, 5, 4], [0, 10, 5, 4]], castle: [[22, 22, 6, 4], [12, 22, 6, 4]], grand: [[2, 24, 5, 4], [53, 24, 5, 4]] };
+for (const [t, T2] of Object.entries(TRADE_SHOP)) {
+  BUILDINGS[`trade_${t}`] = { ...BUILDINGS.shop, name: T2.name, sign: T2.sign, roof: '#8b5a2b', trade: t, npcs: { M: `trader_${t}` } };
+  INDOOR_NPCS[`trader_${t}`] = { sprite: 'merchant', name: T2.npc[0].toUpperCase() + T2.npc.slice(1), action: 'trade', lines: [T2.line, 'Specialities of the house. You will not find them in the square, or in any town that does not do what we do.'] };
+}
+const tradeKey = (I) => Object.keys(TRADES).find((k) => TRADES[k] === I.trade) || 'farming';
+function addTradeShop(town) {
+  const t = tradeKey(townIdentity(town));
+  const slot = (TRADE_SLOT[town.size] || TRADE_SLOT.town).find(([lx, ly, w, h]) => !town.houses.some((o) => town.x0 + lx < o.x + o.w + 1 && town.x0 + lx + w + 1 > o.x && town.y0 + ly < o.y + o.h + 1 && town.y0 + ly + h + 1 > o.y));
+  if (!slot) return;
+  const [lx, ly, w, h] = slot, roof = REALM_ROOFS[town.realm];
+  town.tradeShop = t;
+  town.houses.push({ x: town.x0 + lx, y: town.y0 + ly, w, h, id: `trade_${t}`, doorX: town.x0 + lx + Math.floor(w / 2), doorY: town.y0 + ly + h - 1, town: town.key, ...BUILDINGS[`trade_${t}`], ...(roof ? { roof: roof[(lx + ly) % roof.length] } : {}) });
+}
+const tradeHere = () => (scene === 'house' && interior && interior.house && interior.house.trade) || null;
 // Score a candidate centre by how much solid, open ground surrounds it.
 function landScore(cx, cy) {
   let score = 0;
@@ -2337,6 +2380,7 @@ function townAt(i, j) {
   }
   towns.set(k, town);
   town.harbour = harbourOf(town);
+  addTradeShop(town);
   return town;
 }
 // A town near the open sea is a port: find the closest sea, run a pier out into it.
@@ -2475,7 +2519,7 @@ function townIdentity(town) {
   const sizeWord = town.size === 'grand' ? 'royal seat' : town.size === 'castle' ? 'castle town' : town.size;
   town.identity = { tradeId, trade, famous, landmark: { id: lmId, sprite: L.sprite, name: L.name(town, realm), lore: L.lore }, leader, sizeWord, realm, port,
     kind: sizeWord === 'royal seat' ? 'royal seat' : port ? `${trade.label} port` : `${trade.label} ${sizeWord}`,
-    describe() { return `${town.name}: ${sizeWord === 'royal seat' ? 'the' : 'a'} ${TIER_WORDS[townTier(town)]} ${this.kind} of the ${REALMS[realm].name}, known for ${famous}. ${this.landmark.name[0].toUpperCase() + this.landmark.name.slice(1)} stands in the square.${trade.deal ? ' ' + DEAL_TEXT[trade.deal] + '.' : ''}`; } };
+    describe() { const tk = Object.keys(TRADES).find((k) => TRADES[k] === trade), T2 = TRADE_SHOP[tk], wares = Object.entries(ITEMS.consumables).concat(Object.entries(ITEMS.weapons), Object.entries(ITEMS.armor)).filter(([, it]) => it.trade === tk).map(([, it]) => it.name.toLowerCase()); return `${town.name}: ${sizeWord === 'royal seat' ? 'the' : 'a'} ${TIER_WORDS[townTier(town)]} ${this.kind} of the ${REALMS[realm].name}, known for ${famous}. ${this.landmark.name[0].toUpperCase() + this.landmark.name.slice(1)} stands in the square.${trade.deal ? ' ' + DEAL_TEXT[trade.deal] + '.' : ''}${T2 ? ` ${T2.name} by the square sells ${wares.join(', ')}.` : ''}`; } };
   return town.identity;
 }
 // The town a shop belongs to, for local prices.
@@ -3446,6 +3490,7 @@ function stepNpcs() {
 function useFurniture(d) {
   const id = interior && interior.house.id;
   const counters = { shop: 'shop', market: 'shop', herbs: 'potions', smithy: 'smithy', armoury: 'armoury', apothecary: 'apothecary', royal: 'royal' };
+  if (d.sprite === 'counter' && tradeHere()) return openShop('trade');
   if (d.sprite === 'counter' && counters[id]) return openShop(counters[id]);
   if (d.sprite === 'counter' && id === 'inn') return openShop('inn');
   const flavour = {
@@ -3602,7 +3647,7 @@ const FLOOR_MODS = {
   cursed:   { label: 'Cursed', desc: 'elites everywhere, and 50% more XP' },
 };
 let floorMod = null;
-const viewRadius = () => Math.max(3, (dungeonDef ? dungeonDef.view : VIEW_RADIUS) + (wearing('sunstone') ? 3 : 0) + (wearing('deepheart') ? 2 : 0) - (scene === 'dungeon' && floorMod === 'dark' ? 3 : 0));
+const viewRadius = () => Math.max(3, (dungeonDef ? dungeonDef.view : VIEW_RADIUS) + (wearing('sunstone') ? 3 : 0) + (wearing('deepheart') ? 2 : 0) + (player && player.torch > turn ? 2 : 0) - (scene === 'dungeon' && floorMod === 'dark' ? 3 : 0));
 // ---------- things that happen on a floor ----------
 // From the second floor down, rooms may hold a chained captive, a goblin totem
 // that keeps spawning goblins until it is smashed, a lever that sinks the floor's
@@ -6391,7 +6436,7 @@ function tryMove(dx, dy) {
     const g = getGoldAt(nx, ny);
     if (g) { const amt = Math.round(g.amount * (goldMult())); player.gold += amt; rqProgress('gold', null, amt); golds = golds.filter((x) => x !== g); log(`You pick up ${amt} gold.`, 'good'); floatText(nx, ny, `+${amt}g`, '#f5c542'); sfx.play('gold'); burst(nx, ny, '#ffd86b', 12, 70, { glow: true, gravity: -50, life: 650 }); if (player.gold >= 1000) unlock('rich'); }
     if (scene === 'world') { const ck = chartNear(nx, ny); if (ck) digTreasure(ck); }
-    if (t === TILE.SHOP) openShop('shop');
+    if (t === TILE.SHOP) openShop(tradeHere() ? 'trade' : 'shop');
     if (t === TILE.BED) {
       if (interior && interior.house.id === 'inn') restAtInn();
       else log(player.hp < player.maxHp ? 'Not your bed. You lie down anyway, but it does not help.' : 'A bed. Not yours.');
@@ -7866,6 +7911,7 @@ function itemLabel(id) {
   if (it.use === 'bomb') return `${it.name} (blasts a 3×3 area)`;
   if (it.use === 'return') return `${it.name} (back to your home town)`;
   if (it.use === 'mana') return `${it.name} (+${it.mana} mana)`;
+  if (it.trade && it.desc) return `${it.name} (${it.desc})`;
   return `${it.name} (+${it.heal} HP)`;
 }
 function renderInventory() {
@@ -7983,7 +8029,19 @@ function drinkPotion(idx) {
   const it = itemInfo(player.bag[idx]), food = !['potion', 'elixir'].includes(player.bag[idx]);
   const healed = Math.min(food ? it.heal : potionHeal(it.heal), player.maxHp - player.hp);
   player.bag.splice(idx, 1);
-  if (food) { player.hp += healed; log(`You eat the ${it.name.toLowerCase()}${healed ? ` and recover ${healed} HP` : ''}.`, 'good'); updateStats(); renderShop(); draw(); return; }
+  if (food) {
+    player.hp += healed;
+    const notes = [];
+    if (it.mana) { const before = player.mana ?? 0; restoreMana(it.mana); if (player.mana > before) notes.push(`${player.mana - before} mana back`); }
+    if (it.cure && player.poison > 0) { player.poison = 0; notes.push('the poison is purged'); }
+    if (it.buff) { player.meta.blessing = { atk: it.buff.atk || 0, def: it.buff.def || 0, turns: it.buff.turns, name: it.name.toLowerCase() }; notes.push(`${[it.buff.atk ? `+${it.buff.atk} attack` : '', it.buff.def ? `+${it.buff.def} defence` : ''].filter(Boolean).join(' and ')} for ${it.buff.turns} turns`); }
+    if (it.light) { player.torch = turn + it.light; notes.push(`you will see further underground for ${it.light} turns`); bgDirty = true; if (scene === 'dungeon') updateVisibility(); }
+    if (it.reveal) { const unknown = nearbyPlaces(player.x, player.y, 2).filter((pl) => !discovered(pl)); for (const pl of unknown) player.meta.places.push(pl.key); mapCache.ox = null; notes.push(unknown.length ? `${unknown.length} place${unknown.length === 1 ? '' : 's'} marked on your map` : 'nothing new in sight'); }
+    if (it.petheal) { let n = 0; for (const pp of pets) { if (pp.down || pp.hp < pp.maxHp) n++; pp.down = false; pp.hp = pp.maxHp; } notes.push(n ? `${n} pet${n === 1 ? '' : 's'} patched up` : 'your pets were fine already'); }
+    const verb = it.verb === 'light' ? 'light' : it.verb === 'use' ? 'use' : /wine|mead|ale|rum|tea|vial|draught/i.test(it.name) ? 'drink' : 'eat';
+    log(`You ${verb} the ${it.name.toLowerCase()}${healed ? ` and recover ${healed} HP` : ''}${notes.length ? `: ${notes.join(', ')}` : ''}.`, 'good');
+    sfx.play('potion'); updateStats(); renderShop(); draw(); return;
+  }
   player.hp += healed;
   if (player.poison > 0) { player.poison = 0; log('The potion purges the poison.', 'good'); }
   log(healed > 0 ? `You drink a potion and heal ${healed} HP.` : 'You drink a potion but were already at full health.', 'good');
@@ -8028,6 +8086,7 @@ const SHOPS = {
   armoury: { title: 'The Armoury', stock: (id, it) => ITEMS.armor[id] && it.floor <= 5, price: (it) => Math.round(it.price * 0.9), greet: 'Racks of mail and plate. The armourer names fair prices.' },
   apothecary: { title: 'The Apothecary', stock: (id) => id === 'potion' || id === 'elixir', price: (it) => it.price, greet: 'Shelves of bottles. Potions, and elixirs for the desperate.' },
   royal: { title: 'The Royal Armoury', stock: (id, it) => it.floor < 99, price: (it) => it.price, greet: 'The quartermaster unlocks the cabinet. Everything the realm can forge, at the King\'s prices.' },
+  trade: { title: 'The trade shop', stock: (id, it) => !!it.trade && it.trade === tradeHere(), price: (it) => it.price, greet: '' },
   inn: { title: 'The inn', stock: () => false, price: (it) => it.price, greet: 'The innkeeper wipes the bar. A bed, or a companion for the road?' },
   travel: { title: 'Waystone', stock: () => false, price: (it) => it.price, greet: 'The runes hum under your hand. Choose a town you have visited.' },
   player: { title: 'Hero', stock: () => false, price: (it) => it.price, greet: '' },
@@ -8052,6 +8111,7 @@ Object.assign(SHOPS, {
 function openShop(kind = 'shop') {
   if (!shopEl) return;
   tip('shop', 'Buy with the buttons, sell anything at half price. Smithies and armouries also sharpen and reinforce what you wear.');
+  if (kind === 'trade' && tradeHere()) { const T2 = TRADE_SHOP[tradeHere()]; SHOPS.trade.title = T2.name; SHOPS.trade.greet = `${T2.npc[0].toUpperCase() + T2.npc.slice(1)}: ${T2.line}`; }
   shopKind = kind; shopOpen = true; shopEl.hidden = false;
   shopEl.classList.toggle('no-sell', SERVICE_SHOPS.has(kind));
   document.querySelector('#shop h2').textContent = kind === 'player' && mp.target ? `${mp.target.data.name}, level ${mp.target.data.level} ${mp.target.data.cls}` : SHOPS[kind].title;
@@ -8812,7 +8872,7 @@ function renderGlossary(kind) {
       const cards = list.sort((a, b) => a.name.localeCompare(b.name)).map((t) => {
         const I = townIdentity(t), N = t.notable, guards = townNpcs(t).filter((n) => n.type.guard), site = nearbySites(t.cx, t.cy, 1).filter((st) => !st.deep)[0];
         const tags = [`${TIER_WORDS[townTier(t)]}`, I.kind, t.walled ? 'walled' : null, t.capital || t.size === 'grand' ? 'capital' : null].filter(Boolean).map((x) => `<span class="tag">${esc(x)}</span>`).join('');
-        const body = `<p>${tags}</p><p>${esc(townLore(t))}</p><p>Known for ${esc(I.famous)}. ${esc(I.landmark.name[0].toUpperCase() + I.landmark.name.slice(1))} stands in the square.${I.trade.deal ? ' ' + esc(DEAL_TEXT[I.trade.deal]) + '.' : ''}</p>` +
+        const body = `<p>${tags}</p><p>${esc(townLore(t))}</p><p>Known for ${esc(I.famous)}. ${esc(I.landmark.name[0].toUpperCase() + I.landmark.name.slice(1))} stands in the square.${I.trade.deal ? ' ' + esc(DEAL_TEXT[I.trade.deal]) + '.' : ''}${t.tradeShop && TRADE_SHOP[t.tradeShop] ? ' ' + esc(TRADE_SHOP[t.tradeShop].name) + ' by the square sells ' + esc(Object.entries(ITEMS.consumables).concat(Object.entries(ITEMS.weapons), Object.entries(ITEMS.armor)).filter(([, it]) => it.trade === t.tradeShop).map(([, it]) => it.name.toLowerCase()).join(', ')) + '.' : ''}</p>` +
           `<p><b>Leader:</b> ${esc(I.leader)}. <b>Notable:</b> <a class="plain" href="${ACCOUNT.charactersUrl}#${slug(N.name + ' of ' + t.name)}">${esc(N.name)}</a>, ${esc(N.role)}.</p>` +
           `<p><b>Watch:</b> ${esc(guards.map((g) => g.type.name).join(', ') || 'none')}.${site ? ` <b>Nearby:</b> ${esc(site.name)}, ${esc(site.floors)} floors.` : ''} <span class="muted small">Position ${t.cx}, ${t.cy}.</span></p>`;
         total++;

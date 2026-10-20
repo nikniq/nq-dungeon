@@ -23,6 +23,13 @@ return [
         'trollhide' => ['from' => "Old Grumm, under Old Grumm's Bridge"],
         'wyrmscale' => ['from' => "Scald, the Old Wyrm, in the Wyrm's Roost"],
     ],
+    // the trade shops: one in every town, by the town's trade
+    'tradeshops' => [
+        'fishing' => 'The Fishmonger', 'salt' => 'The Salt House', 'mining' => "The Miners' Store", 'quarrying' => "The Mason's Yard", 'timber' => 'The Woodyard', 'hunting' => "The Hunters' Lodge",
+        'farming' => 'The Granary', 'wine' => "The Vintner's", 'wool' => 'The Woolmonger', 'bees' => 'The Honey House', 'pottery' => "The Potter's Kiln", 'brewing' => 'The Brewery', 'horses' => 'The Saddlery',
+        'shipping' => "The Chandler's", 'smithing' => 'The Master Smith', 'glass' => 'The Glassworks', 'silk' => 'The Silk House', 'rice' => 'The Rice Store', 'tea' => 'The Tea House', 'porcelain' => 'The Porcelain Works',
+        'spices' => 'The Spice Bazaar', 'cotton' => "The Dyers' Hall", 'furs' => 'The Fur Trader',
+    ],
     'consumables' => [
         'potion' => 'Drink (P) to heal; cures poison. Twice as strong with the Royal Signet.',
         'elixir' => 'A strong potion for the deep floors.',
@@ -34,6 +41,7 @@ return [
         'goldcarp' => 'A rare catch (also dug from sea-chests). Merchants pay well for it.',
     ],
     'where' => [
+        'tradeshops' => 'Every town also keeps a trade shop of its own kind, by the trade the town is known for: a fishmonger, a vintner, a master smith, a spice bazaar and so on. Each sells specialities found nowhere else; the town profiles on the towns page say which shop a town has.',
         'shops' => 'Merchants in every town square stock weapons, armour and consumables from the floor shown onward; specialist shops in cities and the merchant caravan on the roads carry more. Smithies and armouries sharpen and reinforce worn gear up to +3.',
         'drops' => 'Monsters drop gear and consumables as they fall, more deeply underground and from elites and bosses; treasure chests, vaults behind cracked walls, ruins and battlefields hold more.',
         'relics' => 'Relics are one of a kind. Each is found in a particular place, given by a ruler for a questline, or buried where a treasure chart points. Wear one at a time from the inventory; the rest wait in your bag or inn chest.',

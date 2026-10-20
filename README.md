@@ -367,6 +367,16 @@ three works prospers a tier. Ten sponsored structures make a Founder
 (`founderNamed`: the Founder's Seal). The heroes page ranks the builders
 (`TownProject::builders`), which is this story's leaderboard.
 
+Every town keeps a trade shop of its own kind, by the trade it is known for
+(`TRADE_SHOP`, 23 kinds: fishmonger, vintner, master smith, spice bazaar, fur
+trader and so on), built into the town beside its square (`addTradeShop`,
+`TRADE_SLOT`). Each sells the specialities of that trade, items carrying a
+`trade` in `config/items.php` that no merchant stocks: foods and drinks that
+heal and restore mana, buffs (`buff`), cures, a torch that widens sight
+underground, a spyglass that marks places on the map, a balm that heals pets,
+cheap firepots, and a few unique cloaks, a pick and a steel axe. The town's
+profile names its shop and wares; the item catalogue lists them.
+
 A public item catalogue at `/world/items` lists every weapon, armour,
 consumable and relic from `config/items.php` with its price, effect and where it
 comes from (`config/catalog.php` holds the fighting styles, legendary

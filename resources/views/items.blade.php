@@ -9,7 +9,7 @@
   </div>
   @php
     $w = config('items.weapons'); $a = config('items.armor'); $c = config('items.consumables'); $r = config('items.relics'); $n = config('catalog');
-    $shop = fn ($it) => $it['floor'] >= 99 ? null : 'merchants from floor '.$it['floor'];
+    $shop = fn ($it) => isset($it['trade']) ? ($n['tradeshops'][$it['trade']] ?? 'the trade shop').' of '.$it['trade'].' towns' : ($it['floor'] >= 99 ? null : 'merchants from floor '.$it['floor']);
   @endphp
   <section class="catalog">
     <h3>How things are found</h3>
@@ -50,7 +50,7 @@
       <thead><tr><th>Item</th><th>Effect</th><th>Price</th><th>Where</th></tr></thead>
       <tbody>
       @foreach ($c as $id => $it)
-        <tr><td><strong>{{ $it['name'] }}</strong></td><td>{{ $n['consumables'][$id] ?? '' }}{{ isset($it['heal']) ? ' Heals '.$it['heal'].' HP.' : '' }}</td><td>{{ $it['price'] }} g</td><td>{{ $shop($it) ?? 'caught, cooked or found; never stocked' }}</td></tr>
+        <tr><td><strong>{{ $it['name'] }}</strong></td><td>{{ $n['consumables'][$id] ?? (isset($it['desc']) ? ucfirst($it['desc']).'.' : '') }}{{ !empty($it['heal']) ? ' Heals '.$it['heal'].' HP.' : '' }}</td><td>{{ $it['price'] }} g</td><td>{{ $shop($it) ?? 'caught, cooked or found; never stocked' }}</td></tr>
       @endforeach
       </tbody>
     </table>
