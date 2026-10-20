@@ -23,4 +23,13 @@ return [
         ],
         'realms' => ['Celestial Empire of Tianxia (empire)', 'Rajadom of Suryadesh (rajadom)', 'Tsardom of Severin (tsardom)'],
     ],
+    [
+        'n' => 3, 'title' => 'The Frozen Gate', 'status' => 'opens when Story 2 is finished',
+        'tagline' => 'A raven from the last village before the ice, and a door in a hill that the sagas say leads to Midgard.',
+        'acts' => [
+            ['title' => 'A raven from the north', 'text' => 'When the Hollow King is dust, a raven finds the hero at a window with a strip of birch bark tied to its leg: "Hrafnvik. The gate in the hill is open. Giants. Come." Hrafnvik is the last village before the ice, forty souls with a pier and a church with a stove, on an island so far north that the sea freezes to the horizon in winter. Every harbourmaster will take the hero north through the pack ice, and a stout ship can make the crossing alone. Behind the village a door of blue ice taller than a house stands open in the hillside, with a raven on the lintel, and what has come through it so far is draugr, direwolves, and a cold that puts out fires.'],
+            ['title' => 'Midgard', 'text' => 'The sagas call the land beyond the door Midgard, the middle earth of the old world, where the roots of the World Tree run through halls of ice and the frost giants wait for a winter that never ends. Thrym, Jarl of the Frost Giants, has waited the longest, and it was his hand on the door. Eight floors of ice lead down through Midgard to his hall. When he falls like a cliff into the sea, the cold goes out of the hall with him, something drips in Midgard for the first time in a thousand years, and the door of blue ice begins, very slowly, to close. Hrafnvik meets the hero on the pier with the church bell going. The raven stays.'],
+        ],
+        'realms' => ['Hrafnvik, the last village before the ice', 'Midgard, beyond the Frozen Gate'],
+    ],
 ];

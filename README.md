@@ -325,6 +325,19 @@ Slaying him ends Story 2 (`hollowKingSlain`: 2000 gold, the Crown of the Hollow
 King, Friend of Seven Realms). The journal, objectives, quest log and map labels
 follow the story; the far realms stay off them until the Veil parts.
 
+Story 3, The Frozen Gate, opens once Story 2 is done (`story2Done`): a raven
+brings the story (`STORY3_INTRO`), `meta.story3.s` becomes 1, harbourmasters
+sell passage north through the pack ice (which turns ships back until then,
+`ICE_Y`) to Hrafnvik, a lone Severin-style village on a small icy continent far
+to the north (`THULE`, the sixth entry of `CONTINENTS`; the only town the ice
+allows). North of `ICE_Y` the land is snow (`GROUND.SNOW`, `drawSnow`) under
+falling snow and a cold light. Behind the village the Frozen Gate
+(`STORY_SITES.gate`, a fixed site with its own `frost` theme and pool of
+draugr, direwolves, trolls and wraiths) leads eight floors down through Midgard,
+the middle earth of the old sagas, to Thrym, Jarl of the Frost Giants, a
+super-boss. Slaying him ends the story (`frostJarlSlain`: 3000 gold, the
+Frostheart relic with +4 defence and poison immunity, Giantsbane).
+
 The public story page at `/world/story` (`StoryController`, `config/story.php`)
 tells both stories and carries a discussion thread under each that signed-in
 heroes can post to (`story_posts`, 600 characters, throttled).

@@ -14,7 +14,7 @@ class StoryPageTest extends TestCase
     {
         $this->get('/world/story')->assertOk()
             ->assertSee('Story 1: The Shattered Crown')->assertSee('Story 2: The Far Shore')
-            ->assertSee('Act II: What Sleeps Below')->assertSee('Tsardom of Severin')
+            ->assertSee('Act II: What Sleeps Below')->assertSee('Tsardom of Severin')->assertSee('Story 3: The Frozen Gate')->assertSee('Midgard')
             ->assertSee('Log in')->assertDontSee('<textarea', false);
         $this->get('/')->assertOk()->assertSee('/world/story');
     }
@@ -29,6 +29,7 @@ class StoryPageTest extends TestCase
         $this->assertDatabaseHas('story_posts', ['user_id' => $user->id, 'story' => 2, 'body' => 'The bear is the best character']);
         $this->get('/world/story')->assertOk()->assertSee('Ayla')->assertSee('The bear is the best character');
 
+        $this->actingAs($user)->post('/world/story', ['story' => 3, 'body' => 'Thrym was hard'])->assertRedirect();
         $this->actingAs($user)->post('/world/story', ['story' => 9, 'body' => 'x'])->assertSessionHasErrors(['story', 'body']);
         $this->actingAs($user)->post('/world/story', ['story' => 1, 'body' => str_repeat('a', 601)])->assertSessionHasErrors('body');
     }

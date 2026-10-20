@@ -119,6 +119,8 @@ const ACHIEVEMENTS = {
   farshore:    { label: 'Crossed the Veil to the Far Shore', title: 'of the Far Shore' },
   seven_realms: { label: 'Finished every questline on both shores', title: 'Friend of Seven Realms' },
   hollowking:  { label: 'Slew the Hollow King', title: 'Breaker of the Barrow' },
+  northbound:  { label: 'Answered the raven', title: 'the Far-Farer' },
+  giantsbane:  { label: 'Slew Thrym, Jarl of the Frost Giants', title: 'Giantsbane' },
   mandarin:    { label: 'Passed the imperial examination', title: 'the Mandarin' },
   pilgrim:     { label: 'Walked the nine gates of Suryapur', title: 'the Pilgrim' },
   boyar:       { label: "Seated on the Tsar's council", title: 'the Boyar' },
@@ -176,6 +178,7 @@ const THEMES = {
   flooded: { name: 'Flooded halls',   floor: ['#173f60', '#163a58', '#1a4468'], face: '#2b3e58', cap: '#4a6a8c', capHi: '#5c80a6', bricks: ['#34506c', '#304a66', '#385673', '#2e4660'], top: ['#1b2a3c', '#192737'], rim: '#33475f', moss: 0.05, bones: 0.02, puddles: true },
   bone:    { name: 'Bone crypts',     floor: ['#34343e', '#30303a', '#383844'], face: '#3b3b48', cap: '#5d5d6e', capHi: '#73738a', bricks: ['#45455a', '#404052', '#4a4a5e', '#3c3c4e'], top: ['#22222b', '#1f1f28'], rim: '#40404f', moss: 0.03, bones: 0.1 },
   lava:    { name: 'Ember deeps',     floor: ['#3a2622', '#35231f', '#402a25'], face: '#3d2a26', cap: '#6b3a2a', capHi: '#8a4a34', bricks: ['#4a302a', '#452c26', '#50342d', '#402924'], top: ['#241815', '#211613'], rim: '#4a2f28', moss: 0, bones: 0.04, lava: true },
+  frost:   { name: 'Halls of ice',     floor: ['#8fa9c0', '#86a0b8', '#98b2c9'], face: '#5c7b96', cap: '#c6d8e8', capHi: '#e3eef8', bricks: ['#7b99b3', '#7291ab', '#84a2bc', '#6c8aa4'], top: ['#48647e', '#425d76'], rim: '#6c89a3', moss: 0, bones: 0.04, puddles: false },
   arcane:  { name: 'Arcane halls',    floor: ['#2c2452', '#28214c', '#30285a'], face: '#352c5c', cap: '#5a4a8c', capHi: '#7563b0', bricks: ['#41356c', '#3c3166', '#463a73', '#382e60'], top: ['#1e1936', '#1b1631'], rim: '#3d3366', moss: 0, bones: 0.02, runes: true },
 };
 let theme = 'stone';
@@ -258,7 +261,7 @@ const wearing = (id) => !!player && player.relic === id;
 const goldMult = () => (perkCount('lucky') ? 1.25 : 1) * (wearing('luckycoin') ? 1.4 : 1) * (wearing('ledger') ? 1.25 : 1);
 const potionHeal = (h) => h * (wearing('royalsignet') ? 2 : 1);
 const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0) + (player.rage > 0 ? 2 : 0) + (wearing('bearcharm') && dayPhase() === 'night' ? 3 : 0) + (wearing('hollowcrown') ? 3 : 0);
-const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('sunlotus') && dayPhase() !== 'night' ? 2 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
+const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('sunlotus') && dayPhase() !== 'night' ? 2 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('frostheart') ? 4 : 0) + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
   + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.def || 0) : 0) + (realmState().rank >= 2 ? 1 : 0);
 const SAVE_EVERY_TURNS = 20;
 // What the hero has bought into in each realm: noble rank in Aurum, civic
@@ -280,7 +283,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -914,6 +917,7 @@ function drawJournal(g) {
       steps.push(['Story 2: The Far Shore', S2.s === 0 ? 'Story 1 is told. Stand in any town and the next story will find you.' : S2.s === 3 ? 'The Hollow King is dust. Three crowns beyond the Veil call you friend, and the sea road is open for good.' : S2.s === 2 ? 'The three keys are yours and the Barrow is open. Go down the thousand steps.' : 'The Veil was a prison wall. Earn the three keys from the three crowns beyond it.', S2.s === 3]);
       if (S2.s >= 1) for (const r of FAR_REALMS) { const Q = REALM_QUESTS[r], rq = rqState(r); steps.push([`${Q.title} (the ${itemInfo(Q.relic).name})`, rq.s === 5 ? `${Q.ruler} gave you the key.` : rq.s === 4 ? `Report to ${Q.ruler}.` : rq.s === 0 ? `${Q.ruler} waits in ${CAPITAL_NAMES[r]}.` : Q.steps[rq.s - 1].label + '.', rq.s === 5]); }
       if (S2.s >= 2) steps.push(['The Thousand-Step Barrow', S2.s === 3 ? 'The Hollow King is slain.' : 'At the heart of the Far Shore. Six floors, and the Hollow King at the bottom.', S2.s === 3]);
+      if (S2.s === 3) { const S3 = story3(); steps.push(['Story 3: The Frozen Gate', S3.s === 0 ? 'Story 2 is told. Stand in any town and a raven will find you.' : S3.s === 2 ? 'Thrym is dead and the gate is shut. The north is quiet.' : 'A door of ice on an island in the far north opens on Midgard. Take passage to Hrafnvik and go down through it to Thrym, Jarl of the Frost Giants.', S3.s === 2]); }
     }
     for (const [name, desc, done] of steps) {
       g.fillStyle = done ? '#9ef0b0' : '#e6eef8'; g.font = 'bold 14px sans-serif'; g.fillText(`${done ? '✓' : '•'} ${name}`, X, y);
@@ -1476,7 +1480,7 @@ function siteDungeon(site) {
   const def = { kind: 'site', name: site.name, floors: site.floors, pool: st.pool, gold: st.gold, potions: st.potions, view: st.view, loot: st.loot, treasure: st.treasure, danger: site.danger, xp: st.xp || 1, site };
   if (site.deep) Object.assign(def, { name: 'the Deep', endless: true, pool: null, danger: 5 });
   if (site.lair) { const L = LAIRS[site.lair]; Object.assign(def, { lair: site.lair, theme: L.theme, boss: L.boss, pool: byName(...L.pool), treasure: 200 + 40 * L.danger, xp: 2, loot: 0.3, gold: 1.5 }); }
-  if (site.story) { const S = STORY_SITES[site.story]; Object.assign(def, { story: site.story, theme: S.theme, boss: S.boss, treasure: 150 + 60 * S.danger, xp: 1.5 }); }
+  if (site.story) { const S = STORY_SITES[site.story]; Object.assign(def, { story: site.story, theme: S.theme, boss: S.boss, treasure: 150 + 60 * S.danger, xp: 1.5, ...(S.pool ? { pool: byName(...S.pool) } : {}) }); }
   return def;
 }
 // The level a hero should be to take a dungeon on: danger adds two levels a
@@ -1525,6 +1529,7 @@ const REALM_ORDER = ['cantons', 'aurum', 'kathar', 'league'];           // the f
 const FAR_REALMS = ['tianxia', 'suryadesh', 'severin'];                 // the Far Shore, Story 2
 const ALL_REALMS = [...REALM_ORDER, ...FAR_REALMS];
 function realmAt(i, j) {
+  if (i === THULE.i && j === THULE.j) return 'severin';   // Hrafnvik keeps the Tsar's ways, whoever is nearest
   let best = 'cantons', bd = Infinity;
   for (const id of ALL_REALMS) { const [ci, cj] = REALMS[id].capital; const d = (i - ci) ** 2 + (j - cj) ** 2; if (d < bd) { bd = d; best = id; } }
   return best;
@@ -1540,6 +1545,8 @@ const STORY_SITES = {
   embers: { i: -4, j: 1,  type: 'cave',  theme: 'lava',    danger: 4, floors: 4, title: 'The Ember Deeps',    shard: 'Shard of Embers', relic: 'emberbrand', boss: { type: 'Orc', name: 'Gorrak Emberjaw' } },
   // Story 2: the prison at the heart of the Far Shore, opened by the three realms' keys
   hollow: { i: 13, j: 0,  type: 'crypt', theme: 'bone',    danger: 14, floors: 6, title: 'The Thousand-Step Barrow', far: true, relic: 'hollowcrown', boss: { type: 'Necromancer', name: 'the Hollow King', hpMult: 5 } },
+  // Story 3: a portal in a hillside on the ice, and Midgard beyond it
+  gate:   { i: 0, j: -10, type: 'crypt', theme: 'frost',   danger: 16, floors: 8, title: 'The Frozen Gate', far: true, fixed: [0, -32], pool: ['Skeleton', 'Direwolf', 'Troll', 'Wraith'], relic: 'frostheart', boss: { type: 'Troll', name: 'Thrym, Jarl of the Frost Giants', hpMult: 6 } },
   stars:  { i: -2, j: -4, type: 'tower', theme: 'arcane',  danger: 5, floors: 4, title: 'The Star Tower',     shard: 'Shard of Stars',  relic: 'starring',   boss: { type: 'Knight', name: 'Prince Edric, the Crownbreaker', yields: true } },
 };
 const STORY_ORDER = ['dawn', 'tides', 'bones', 'embers', 'stars'];
@@ -1547,6 +1554,7 @@ const STORY_AT = Object.fromEntries(Object.entries(STORY_SITES).map(([id, S]) =>
 const story = () => player.meta.story || (player.meta.story = { ch: 0, phase: 'summons' });
 function storySiteOpen(id) {
   if (id === 'hollow') return story2().s >= 2;   // the three keys unseal the Barrow
+  if (id === 'gate') return story3().s >= 1;      // the raven's message opens the Frozen Gate
   const st = story(), idx = STORY_ORDER.indexOf(id);
   return st.phase === 'done' || idx < st.ch || (idx === st.ch && st.phase !== 'summons');
 }
@@ -1563,6 +1571,11 @@ function storyObjective() {
     return { text: ACT2_STEPS[A.s - 1].label, short: 'The Gate of the Deep', x: gate.x, y: gate.y };
   }
   if (st.phase === 'seek') { const S = STORY_SITES[STORY_ORDER[st.ch]], site = siteAt(S.i, S.j); return { text: `Find the ${S.shard} in ${S.title.replace(/^The /, 'the ')}`, short: S.title, x: site.x, y: site.y }; }
+  if (story3().s === 1) {
+    const S = STORY_SITES.gate, site = siteAt(S.i, S.j);
+    if (player.y >= ICE_Y) { const hp = homePort(); return { text: `Take passage north to Hrafnvik from a harbour${hp ? ` (${hp.name} is nearest Hearth)` : ''}`, short: 'The north', x: hp ? hp.cx : player.x, y: hp ? hp.cy : player.y - 100 }; }
+    return { text: 'Go through the Frozen Gate and face Thrym, Jarl of the Frost Giants', short: S.title, x: site.x, y: site.y };
+  }
   if (story2().s === 2) { const S = STORY_SITES.hollow, site = siteAt(S.i, S.j); return { text: 'Go down the Thousand-Step Barrow and face the Hollow King', short: S.title, x: site.x, y: site.y }; }
   if (story2().s === 1) {
     const next = FAR_REALMS.find((r) => rqState(r).s < 5);
@@ -1650,6 +1663,8 @@ function guideSuggestions() {
     if (S && player.level < need - 1) out.push(['Get stronger first', `${S.title} is meant for level ${need}, and you are level ${player.level}. Town dungeons (Hearth's is level 1+) and bounties are good practice.`]);
   } else if (st.phase === 'done' && act2().s === 0) out.push(['Act II', 'Prince Edric waits in the King\'s hall at Castle Aurum with a problem only you can solve.']);
   else if (story1Done() && story2().s === 0) out.push(['Story 2', 'Story 1 is told. Stand in any town and the next one will find you.']);
+  else if (story2Done() && story3().s === 0) out.push(['Story 3', 'Story 2 is told. Stand in any town and a raven will find you.']);
+  else if (story3().s === 2) out.push(['The Frozen Gate', 'Thrym is dead and the gate is shut. The north is quiet, and the raven is yours.']);
   else if (story2().s === 3) out.push(['The Far Shore', 'The Hollow King is dust and both shores are at peace. The sea road across the Veil is yours.']);
   else if (st.phase === 'done') out.push(['The Deep', `The Gate of the Deep lies between Hearth and Castle Aurum. Your record: floor ${player.meta.deepest || 0}.`]);
   if (player.hp < player.maxHp * 0.5) out.push(['Rest', 'Inns heal you for free. In the wilds, press C to make camp.']);
@@ -1726,11 +1741,45 @@ const act2 = () => player.meta.act2 || (player.meta.act2 = { s: 0 });
 // Story 2, The Far Shore: the Veil of storms parts and three realms beyond it ask for help.
 const STORIES = [
   { n: 1, title: 'The Shattered Crown', acts: ['Act I: The Five Shards', 'Act II: What Sleeps Below'] },
-  { n: 2, title: 'The Far Shore', acts: ['The Veil parts', 'Three crowns beyond the sea'] },
+  { n: 2, title: 'The Far Shore', acts: ['The Veil parts', 'Three keys, three crowns', 'The Thousand-Step Barrow'] },
+  { n: 3, title: 'The Frozen Gate', acts: ['A raven from the north', 'Midgard'] },
 ];
 const story2 = () => player.meta.story2 || (player.meta.story2 = { s: 0 });   // 0 locked, 1 the keys, 2 the Barrow open, 3 done
 const story1Done = () => !!player && !!player.meta && story().phase === 'done' && act2().s >= 6;
 const farShoreOpen = () => !!player && !!player.meta && story2().s >= 1;
+// Story 3, The Frozen Gate: a raven from the last village before the ice, and a
+// portal in a hillside to Midgard, the middle earth of the old sagas.
+const story3 = () => player.meta.story3 || (player.meta.story3 = { s: 0 });   // 0 locked, 1 open, 2 done
+const story2Done = () => !!player && !!player.meta && story2().s >= 3;
+const northOpen = () => !!player && !!player.meta && story3().s >= 1;
+const STORY3_INTRO = [
+  { who: 'A raven at the window', sprite: 'letter', bg: 'town', title: 'Story 3: The Frozen Gate',
+    text: 'It is on the sill when you wake, black and patient, with a strip of birch bark tied to its leg. The bark says, in a hand that has not written much: "Hrafnvik. The gate in the hill is open. Giants. Come." The raven watches you read it, and then watches you some more.' },
+  { who: 'Hrafnvik', sprite: 'villager:severin', bg: 'sea', title: 'Hrafnvik',
+    text: 'Hrafnvik is the last village before the ice: forty souls, a pier, a church with a stove, on an island so far north that the sea around it freezes to the horizon in winter. Behind it is a hill, and in the hill a door of blue ice taller than a house, which the sagas say was shut by the gods and which the villagers, sensibly, do not go near.' },
+  { who: 'Midgard', sprite: 'troll', bg: 'crypt', title: 'Midgard',
+    text: 'The sagas call the land beyond the door Midgard, the middle earth of the old world, where the roots of the World Tree run through halls of ice and the frost giants wait for a winter that never ends. Thrym, Jarl of the Frost Giants, has been waiting the longest. Now the door is open, and what has come through it so far is draugr, direwolves, and a cold that puts out fires.' },
+  { who: 'North', sprite: 'ship', bg: 'sea', title: 'North',
+    text: 'Any harbourmaster will take you north to Hrafnvik now, through the pack ice, or you can sail yourself if your ship is stout. Go through the Frozen Gate, go down through Midgard, and shut it from the other side, which means Thrym. The journal (J) keeps the tale.' },
+];
+const STORY3_FINALE = [
+  { who: 'Thrym falls', sprite: 'troll', bg: 'crypt', title: 'Thrym falls',
+    text: 'The Jarl of the Frost Giants goes down like a cliff into the sea, and the cold goes out of the hall with him. For the first time in a thousand years something drips in Midgard. The roots of the World Tree creak, the way wood creaks in spring, and the door of blue ice behind you begins, very slowly, to close.' },
+  { who: 'The last village', sprite: 'villager:severin', bg: 'sea', title: 'The last village',
+    text: 'Hrafnvik meets you on the pier with the church bell going and the stove lit. Forty souls, a very great deal of fish, and the raven, which lands on your shoulder, considers your ear, and decides it is yours now. You are the Giantsbane, and the north is quiet.' },
+];
+function offerStory3() {
+  if (story3().s !== 0 || !story2Done() || storyOpen()) return;
+  story3().s = 1;
+  sfx.play('quest'); unlock('northbound'); track('story3_opened');
+  showScene(STORY3_INTRO, () => { log('Story 3, The Frozen Gate: take passage north to Hrafnvik from any harbour, and go through the gate in the hill.', 'good'); mapCache.ox = null; saveProgress('progress'); });
+}
+function frostJarlSlain() {
+  if (story3().s >= 2) return;
+  story3().s = 2; player.gold += 3000; unlock('giantsbane'); track('story3_done');
+  showScene(STORY3_FINALE, () => { giveRelic('frostheart'); log('Story 3 complete: 3000 gold and the Frostheart. The Frozen Gate is shut.', 'good'); updateStats(); saveProgress('progress'); });
+}
+const thuleTown = () => townAt(THULE.i, THULE.j);
 const STORY2_INTRO = [
   { who: 'An envoy from across the Veil', sprite: 'merchant:tianxia', bg: 'sea', title: 'Story 2: The Far Shore',
     text: 'A ship with sails the colour of sunset puts into harbour, and a woman in grey silk asks for you by name. "For a thousand years the Veil of storms has closed the eastern sea," she says. "It was not weather. Our three founders raised it, to wall something in. When your Crown was mended and the Deep went quiet, the Veil fell. So did the wards beneath it."' },
@@ -1911,7 +1960,7 @@ const discovered = (p) => player.meta.places.includes(p.key);
 const WORLD_SEED = 7331, TOWN_SPACING = 96, TW = 40, TH = 30;
 const GRAND_W = 60, GRAND_H = 44;   // Castle Aurum's footprint
 const tw = (t) => t.w || TW, th = (t) => t.h || TH;
-const GROUND = { GRASS: 0, FOREST: 1, SAND: 2, WATER: 3, MOUNTAIN: 4, ROAD: 5, COBBLE: 6, TREE: 7, RAMPART: 8, DOCK: 9 };
+const GROUND = { GRASS: 0, FOREST: 1, SAND: 2, WATER: 3, MOUNTAIN: 4, ROAD: 5, COBBLE: 6, TREE: 7, RAMPART: 8, DOCK: 9, SNOW: 10 };
 const worldChunks = new Map();   // kept across scene changes
 const towns = new Map();         // lattice key -> town
 let homeTown = '0,0';            // the town whose gate you last took
@@ -1964,7 +2013,9 @@ function valueNoise(x, y, salt, scale) {
 // between them, narrow land bridges joining neighbours, and small islands beyond.
 const CONT_RX = 124, CONT_RY = 150, BRIDGE_W = 11;   // continents are taller than they are wide, so the eastern pair keeps a strait
 const CONTINENTS = [...REALM_ORDER.map((id) => ({ id, cx: REALMS[id].capital[0] * TOWN_SPACING + 20, cy: REALMS[id].capital[1] * TOWN_SPACING + 15 })),
-  { id: 'farshore', cx: 13.5 * TOWN_SPACING + 20, cy: 15, rx: 480, ry: 400 }];   // one wide continent shared by the three far realms
+  { id: 'farshore', cx: 13.5 * TOWN_SPACING + 20, cy: 15, rx: 480, ry: 400 },   // one wide continent shared by the three far realms
+  { id: 'thule', cx: 20, cy: -10 * TOWN_SPACING + 15, rx: 60, ry: 60 }];     // Story 3: an icy island far to the north, with the Frozen Gate
+const THULE = { i: 0, j: -10 }, THULE_IDX = 5, ICE_Y = -800;   // north of ICE_Y the land is snow and the sea is pack ice
 const VEIL_X = 760;   // the Veil of storms: no ship crosses this longitude until Story 2 opens
 const BRIDGES = [['cantons', 'aurum'], ['cantons', 'kathar'], ['cantons', 'league'], ['kathar', 'league']].map(([a, b]) => [CONTINENTS.find((c) => c.id === a), CONTINENTS.find((c) => c.id === b)]);
 // Six hidden lairs, each with a super boss and a one-of-a-kind reward. They stay off
@@ -2028,6 +2079,10 @@ function continentOf(x, y) {
   return best;
 }
 function terrainAt(x, y) {
+  const g = terrainAtRaw(x, y);
+  return y < ICE_Y && (g === GROUND.GRASS || g === GROUND.FOREST || g === GROUND.SAND) ? GROUND.SNOW : g;   // the far north lies under snow
+}
+function terrainAtRaw(x, y) {
   const L = landness(x, y);
   if (L <= 0.08) return GROUND.WATER;
   if (L < 0.125) return GROUND.SAND;   // the shore
@@ -2064,6 +2119,8 @@ function townAt(i, j) {
   if (towns.has(k)) return towns.get(k);
   const origin = i === 0 && j === 0;
   const isCapital = ALL_REALMS.some((id) => REALMS[id].capital[0] === i && REALMS[id].capital[1] === j);
+  const thule = i === THULE.i && j === THULE.j;
+  if (!thule && continentOf(i * TOWN_SPACING + 20, j * TOWN_SPACING + 15) === THULE_IDX) { towns.set(k, null); return null; }   // the ice holds one village only
   const onContinent = continentOf(i * TOWN_SPACING + 20, j * TOWN_SPACING + 15) >= 0;
   if (!origin && !isCapital && !(i === GRAND_CASTLE.i && j === GRAND_CASTLE.j) && !onContinent && cellRand(i, j, 90) < 0.28) { towns.set(k, null); return null; }   // some island cells are just wilderness
   // try a few spots in the cell and keep the one on the best land
@@ -2077,16 +2134,16 @@ function townAt(i, j) {
   }
   const grand = i === GRAND_CASTLE.i && j === GRAND_CASTLE.j;
   const x0 = cx - (grand ? GRAND_W / 2 : 20), y0 = cy - (grand ? GRAND_H / 2 : 15);
-  if (!origin && !isCapital && !grand && (landScore(cx, cy) < 8 || !isLand(cx, cy))) { towns.set(k, null); return null; }   // no towns in the sea
+  if (!origin && !isCapital && !grand && !thule && (landScore(cx, cy) < 8 || !isLand(cx, cy))) { towns.set(k, null); return null; }   // no towns in the sea
   const sizeRoll = cellRand(i, j, 89);
-  const realm = realmAt(i, j), capitalOf = isCapital ? realm : null;
+  const realm = thule ? 'severin' : realmAt(i, j), capitalOf = isCapital ? realm : null;
   // castles mostly belong to the Kingdom, and the Clans keep no walls
-  let size = origin ? 'town' : grand ? 'grand' : capitalOf ? 'city' : sizeRoll < 0.3 ? 'village' : sizeRoll < 0.72 ? 'town' : sizeRoll < (realm === 'aurum' ? 0.8 : 0.88) ? 'city' : 'castle';
+  let size = origin ? 'town' : grand ? 'grand' : thule ? 'village' : capitalOf ? 'city' : sizeRoll < 0.3 ? 'village' : sizeRoll < 0.72 ? 'town' : sizeRoll < (realm === 'aurum' ? 0.8 : 0.88) ? 'city' : 'castle';
   if (size === 'castle' && realm === 'kathar') size = 'town';
   const def = TOWN_SIZES[size];
   const base = origin ? 'Hearth' : CAPITAL_NAMES[capitalOf] || uniqueTownName(i, j, realm);
-  const name = grand ? 'Castle Aurum' : size === 'castle' ? `Castle ${base}` : base;
-  const town = { key: k, i, j, name, size, realm, capital: !!capitalOf, plaza: def.plaza, walled: def.walled, cx, cy, x0, y0, w: grand ? GRAND_W : TW, h: grand ? GRAND_H : TH, houses: [], npcs: null, spawn: { x: cx, y: cy + 3 }, gate: { x: cx, y: y0 + (grand ? GRAND_H - 4 : def.walled ? 26 : 28) }, folk: def.folk };
+  const name = grand ? 'Castle Aurum' : thule ? 'Hrafnvik' : size === 'castle' ? `Castle ${base}` : base;
+  const town = { key: k, i, j, name, size, realm, capital: !!capitalOf, plaza: def.plaza, walled: def.walled, thule, cx, cy, x0, y0, w: grand ? GRAND_W : TW, h: grand ? GRAND_H : TH, houses: [], npcs: null, spawn: { x: cx, y: cy + 3 }, gate: { x: cx, y: y0 + (grand ? GRAND_H - 4 : def.walled ? 26 : 28) }, folk: def.folk };
   // a specialist shop in every city, and in some towns in place of the home
   let plan = def.houses.map((h) => h.slice());
   if (!origin && !def.walled) {
@@ -2113,7 +2170,7 @@ function harbourOf(town) {
     const edge = dx === 1 ? town.x0 + tw(town) : dx === -1 ? town.x0 - 1 : dy === 1 ? town.y0 + th(town) : town.y0 - 1;
     for (let along = -1; along <= 1; along++) {
       const sx = dx ? edge : town.cx + along * 8, sy = dy ? edge : town.cy + along * 6;
-      for (let n = 1; n <= 14; n++) {
+      for (let n = 1; n <= (town.thule ? 70 : 14); n++) {   // Hrafnvik's pier runs out over the shore ice to open water
         const x = sx + dx * n, y = sy + dy * n;
         if (!isSea(x, y)) continue;
         if (!best || n < best.n) best = { n, dx, dy, x: x - dx, y: y - dy };   // the last land tile
@@ -2320,6 +2377,7 @@ const CAPITAL_LORE = {
   '-2,-3': 'Goldspire was a counting-house before it was a town. The merchant houses built the spire first, so that debts could be seen from the road.',
   '11,-2': 'Jinling, the Gold Hill, has held the Jade Throne through four dynasties. Its examination halls take in ten thousand candidates every spring and send out a hundred magistrates, and the city is run, the saying goes, by whoever wrote the best essay.',
   '11,2': 'Suryapur, the City of the Sun, climbs from its great stepwell to the Maharani\'s palace in nine terraces, one for each of its gates. Elephants are stabled at the second and the spice bazaar never closes.',
+  '0,-10': 'Hrafnvik, the raven bay, is the last village before the ice: forty souls, a pier, a church with a stove, and a gate in the hill behind it that the sagas say leads to Midgard, the middle earth of the old world. The villagers do not go up the hill. The ravens do.',
   '16,0': 'Vysokograd, the High Town, sits on a bluff above the frozen river behind log walls three trees thick. The Tsar\'s terem glitters with painted domes, and the bears in the market are, mostly, tame.',
 };
 function townLore(town) {
@@ -2626,7 +2684,7 @@ function monumentRows() {
 function townTile(town, wx, wy) {
   const lx = wx - town.x0, ly = wy - town.y0;
   const cx = town.cx - town.x0, cy = town.cy - town.y0, [pw, ph] = town.plaza;
-  let g = GROUND.GRASS, t = TILE.FLOOR;
+  let g = wy < ICE_Y ? GROUND.SNOW : GROUND.GRASS, t = TILE.FLOOR;
   if (ly >= cy - ph && ly <= cy + ph && lx >= cx - pw && lx <= cx + pw) g = GROUND.COBBLE;
   if (town.walled) {
     const W = tw(town), H = th(town);
@@ -2689,7 +2747,8 @@ function siteAt(i, j) {
     const id = STORY_AT[k], S = STORY_SITES[id];
     let x = i * TOWN_SPACING + 12 + Math.floor(cellRand(i, j, 302) * 70), y = j * TOWN_SPACING + 10 + Math.floor(cellRand(i, j, 303) * 70);
     const town = townAt(i, j);
-    if (town && x >= town.x0 - 3 && x < town.x0 + tw(town) + 3 && y >= town.y0 - 3 && y < town.y0 + th(town) + 3) x = town.x0 + tw(town) + 12;
+    if (S.fixed) { x = i * TOWN_SPACING + 20 + S.fixed[0]; y = j * TOWN_SPACING + 15 + S.fixed[1]; }
+    else if (town && x >= town.x0 - 3 && x < town.x0 + tw(town) + 3 && y >= town.y0 - 3 && y < town.y0 + th(town) + 3) x = town.x0 + tw(town) + 12;
     const site = { key: k, i, j, x, y, type: S.type, name: S.title, floors: S.floors, danger: S.danger, sprite: SITE_TYPES[S.type].sprite, story: id };
     sites.set(k, site);
     return site;
@@ -3677,6 +3736,17 @@ function drawField(g, c, r, kind) {
     if (!fieldAt(c, r - 1)) { g.fillStyle = '#6b4423'; g.fillRect(X, Y + 2, T, 2); g.fillRect(X + 4, Y, 2, 8); g.fillRect(X + 24, Y, 2, 8); }   // the fence
   }
 }
+function drawSnow(g, c, r) {
+  const X = c * T - off.x, Y = r * T - off.y;
+  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {   // drifts: soft blue-white patches
+    const v = valueNoise(c + i * 0.5 + 0.25, r + j * 0.5 + 0.25, 65, 7);
+    g.fillStyle = `rgb(${Math.round(214 + v * 30)},${Math.round(226 + v * 24)},${Math.round(240 + v * 15)})`; g.fillRect(X + i * (T / 2), Y + j * (T / 2), T / 2, T / 2);
+  }
+  const n = noise(c, r, 13);
+  g.fillStyle = 'rgba(255,255,255,0.9)'; for (let k = 0; k < 4; k++) g.fillRect(X + 3 + Math.floor(noise(c * 5 + k, r, 15) * 26), Y + 3 + Math.floor(noise(c, r * 5 + k, 17) * 26), 1, 1);   // a glitter
+  if (n < 0.08) { g.fillStyle = '#7f8a96'; g.fillRect(X + 14, Y + 18, 7, 5); g.fillStyle = '#e8f1f8'; g.fillRect(X + 14, Y + 17, 6, 2); }   // a rock under a cap of snow
+  else if (n > 0.93) { g.fillStyle = 'rgba(120,150,180,0.35)'; g.fillRect(X + 6, Y + 22, 20, 2); g.fillRect(X + 10, Y + 12, 14, 2); }   // wind-scoured ridges
+}
 function drawDock(g, c, r) {
   drawWater(g, c, r);
   const X = c * T - off.x, Y = r * T - off.y;
@@ -4069,8 +4139,9 @@ function renderBackground() {
       else if (gnd === GROUND.MOUNTAIN) drawMountain(g, c, r);
       else if (gnd === GROUND.ROAD) drawRoad(g, c, r);
       else if (gnd === GROUND.DOCK) drawDock(g, c, r);
+      else if (gnd === GROUND.SNOW) drawSnow(g, c, r);
       else if (gnd === GROUND.FOREST || gnd === GROUND.TREE) {
-        drawGrass(g, c, r, true);
+        if (r * 1 < ICE_Y) drawSnow(g, c, r); else drawGrass(g, c, r, true);
         if (gnd === GROUND.TREE) {   // every tree a little different: size, lean and which way it faces
           const tn = noise(c, r, 71), pad = tn < 0.25 ? -2 : tn < 0.6 ? 0 : tn < 0.85 ? 1 : 3, lean = (noise(c, r, 73) - 0.5) * 0.22;
           g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(c * T - off.x + T / 2 + 4 + lean * T, r * T - off.y + T - 4, T * (0.46 - pad * 0.03), 6, 0, 0, Math.PI * 2); g.fill();
@@ -4324,7 +4395,7 @@ function drawHud(g, now) {
 }
 
 // Explored tiles around the hero, dungeon only.
-const WORLD_MAP_COLORS = ['#448a3f', '#336a30', '#dfc78f', '#1d4ed8', '#6b7280', '#a8865a', '#6b7280', '#2e7d32', '#94a3b8'];
+const WORLD_MAP_COLORS = ['#448a3f', '#336a30', '#dfc78f', '#1d4ed8', '#6b7280', '#a8865a', '#6b7280', '#2e7d32', '#94a3b8', '#b08860', '#e8f1f8'];
 function drawMinimap(g) {
   // the minimap shrinks on small screens so it never hides the view
   const small = canvas.width < 640;
@@ -4637,6 +4708,11 @@ function drawScene(now) {
       }
       ctx.stroke();
       ctx.fillStyle = 'rgba(30,40,70,0.18)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    if (player.y < ICE_Y) {   // the north: snow on the wind and a cold light
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let i = 0; i < 120; i++) { const x = (i * 131 + now * 0.05 * (1 + (i % 3)) + Math.sin(now / 900 + i) * 30) % (canvas.width + 40) - 20, y = (i * 71 + now * (0.04 + (i % 4) * 0.015)) % (canvas.height + 20) - 10; ctx.fillRect(Math.round(x), Math.round(y), i % 5 ? 2 : 3, i % 5 ? 2 : 3); }
+      ctx.fillStyle = 'rgba(170,195,235,0.14)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
     const t = dayClock();
     if (t >= 0.66) {
@@ -5103,12 +5179,13 @@ function describeTile(x, y) {
   if (t === TILE.WAYOUT) return 'Way out — walk into it twice to leave the dungeon early, keeping your loot';
   if (t === TILE.SITE && inTown()) { const sl = siteAtTile(x, y); if (sl && sl.lair) return `${sl.name} — a super boss's lair, ${ratingText(siteDungeon(sl))}. ${LAIRS[sl.lair].boss.name[0].toUpperCase() + LAIRS[sl.lair].boss.name.slice(1)} waits below${lairState().slain.includes(sl.lair) ? ' (slain before)' : ''}`; }
   if (t === TILE.SITE && inTown()) { const st0 = siteAtTile(x, y); if (st0 && st0.deep) return story().phase === 'done' ? `The Gate of the Deep — endless floors, a boss every fifth, ${ratingText(siteDungeon(st0))}. Your record: floor ${player.meta.deepest || 0}` : 'A gate of black iron, sealed while the Crown lies broken'; }
-  if (t === TILE.SITE && inTown()) { const st = siteAtTile(x, y); if (st) return st.story && !storySiteOpen(st.story) ? `${st.name} — sealed with old gold` : `${st.name} — ${st.floors} floors, ${ratingText(siteDungeon(st))}${st.story ? ', a shard lies within' : ''}, step in to explore`; }
+  if (t === TILE.SITE && inTown()) { const st = siteAtTile(x, y); if (st) return st.story && !storySiteOpen(st.story) ? (st.story === 'gate' ? `${st.name} — a door of ice in the hill, shut, with a raven on it` : `${st.name} — sealed with old gold`) : `${st.name} — ${st.floors} floors, ${ratingText(siteDungeon(st))}${st.story ? ', a shard lies within' : ''}, step in to explore`; }
   if (t === TILE.PLACE && inTown()) { const pl = placeAtTile(x, y); if (pl) return discovered(pl) ? `${pl.name[0].toUpperCase() + pl.name.slice(1)} — ${PLACE_TYPES[pl.type].label}, walk into it` : 'Something old stands here — walk into it'; }
   if (inTown()) {
     const gnd = groundAt(x, y);
     if (gnd === GROUND.WATER) return seaTile(x, y) ? (aboard ? 'Open sea' : player.meta.ship ? 'The sea — your ship could sail here' : 'The sea — harbourmasters sell ships to sail it, and fish bite along the shore') : 'Water — too deep to cross';
     if (gnd === GROUND.MOUNTAIN) return 'Mountains — no way over';
+    if (gnd === GROUND.SNOW) return 'Snow — deep, cold, and quiet';
     if (gnd === GROUND.TREE) return 'Dense trees — find a way round';
     if (gnd === GROUND.ROAD) { const nt = nearestOtherTown(x, y); return `Road${nt ? ' — leads towards ' + nt.name : ''}`; }
     if (gnd === GROUND.SAND) return 'Sand';
@@ -5527,7 +5604,7 @@ function monsterAttack(m, ranged = false) {
     player.meta.second_wind = true; player.hp = 1;
     log('Second wind! You refuse to fall.', 'good'); unlock('survivor'); sfx.play('shield');
   }
-  if (m.type.poison && !player.poison && Math.random() < 0.5) { player.poison = 4; log('You are poisoned! A potion will cure it.', 'bad'); sfx.play('poison'); tip('poison', 'Poison costs 1 HP a turn for four turns. Any potion cures it. Press P to drink one from your bag.'); }
+  if (m.type.poison && !player.poison && !wearing('frostheart') && Math.random() < 0.5) { player.poison = 4; log('You are poisoned! A potion will cure it.', 'bad'); sfx.play('poison'); tip('poison', 'Poison costs 1 HP a turn for four turns. Any potion cures it. Press P to drink one from your bag.'); }
   if (ranged) { for (let d = 1; d < Math.abs(m.x - player.x) + Math.abs(m.y - player.y); d++) floatText(m.x + Math.sign(player.x - m.x) * d, m.y + Math.sign(player.y - m.y) * d, '➤', '#d9b382'); }
   const now = performance.now();
   m.lunge = { dx: Math.sign(player.x - m.x), dy: Math.sign(player.y - m.y), until: now + 140 };
@@ -5686,6 +5763,7 @@ function nextFloor() {
     if (def.kind === 'site') { questProgress('clear', def.site.key, 1); unlock(def.site.type); } else unlock('escapist');
     rqProgress('clearIn', def.kind === 'site' ? realmOfTile(def.site.x, def.site.y) : realmAt(...(def.home || '0,0').split(',').map(Number)));
     if (def.story === 'hollow') setTimeout(hollowKingSlain, 60);
+    else if (def.story === 'gate') setTimeout(frostJarlSlain, 60);
     else if (def.story) setTimeout(() => storyShardFound(def.story), 60);
     if (def.treasure) {
       const hoard = Math.round(def.treasure * (1 + def.danger * 0.5));
@@ -5930,7 +6008,7 @@ function tryMove(dx, dy) {
       const site = siteAtTile(nx, ny);
       if (site && site.deep && story().phase !== 'done') { player.x -= dx; player.y -= dy; log('A gate of black iron is set into the hillside, cold to the touch. It will not open while the Crown of Aurum lies broken.', 'bad'); draw(); return; }
       if (site && site.lair && !lairKnown(site.lair)) revealLair(site.lair, 'You stumble on it:');
-      if (site && site.story && !storySiteOpen(site.story)) { player.x -= dx; player.y -= dy; log(site.story === 'hollow' ? 'Three locks bar the door of the Barrow: jade, gold and bone. The three crowns of the Far Shore hold the keys, and they do not give them to strangers.' : `An old seal of gold bars the way into ${site.name.replace(/^The /, 'the ')}. King Aldric will know how to break it.`, 'bad'); draw(); return; }
+      if (site && site.story && !storySiteOpen(site.story)) { player.x -= dx; player.y -= dy; log(site.story === 'gate' ? 'A door of blue ice is set into the hillside, taller than a house, and a raven sits on the lintel watching you. It is shut. Whatever opens it has not happened yet.' : site.story === 'hollow' ? 'Three locks bar the door of the Barrow: jade, gold and bone. The three crowns of the Far Shore hold the keys, and they do not give them to strangers.' : `An old seal of gold bars the way into ${site.name.replace(/^The /, 'the ')}. King Aldric will know how to break it.`, 'bad'); draw(); return; }
       if (site) {
         if (!confirmEntry(siteDungeon(site), 's:' + site.key)) { player.x -= dx; player.y -= dy; draw(); return; }
         homeTown = nearestTownTo(nx, ny).key; player.wx = nx; player.wy = ny;
@@ -6819,6 +6897,7 @@ function endTurn(moved) {
   else arenaTurn();
   if (!gameOver && player.pendingPerks > 0) offerPerks();
   if (scene === 'world' && moved && story2().s === 0 && townContaining(player.x, player.y) && story1Done()) offerStory2();
+  if (scene === 'world' && moved && story3().s === 0 && townContaining(player.x, player.y) && story2Done()) offerStory3();
   if (inTown()) for (const pl of nearbyPlaces(player.x, player.y, 1)) if (!discovered(pl) && cheb(pl, player) <= 3) discoverPlace(pl);
   if (inTown()) for (const st of nearbySites(player.x, player.y, 1)) if (st.lair && !lairKnown(st.lair) && cheb(st, player) <= 4) revealLair(st.lair, 'You stumble on it:');
   if (scene === 'world' && turn % 5 === 0) spawnBounties();
@@ -7782,6 +7861,7 @@ function boardShip() {
 }
 function sailStep(dx, dy) {
   let nx = player.x + dx, ny = player.y + dy;
+  if (!northOpen() && ny < ICE_Y && player.y >= ICE_Y) { log('The sea ahead is pack ice to the horizon, groaning and shifting. Nothing with a hull goes further north than this.', 'bad'); draw(); return; }
   if (!farShoreOpen() && nx > VEIL_X && player.x <= VEIL_X) { log('A wall of black cloud stands across the eastern sea with lightning walking inside it: the Veil. No ship has passed it in a thousand years, and yours turns back of its own accord.', 'bad'); draw(); return; }
   player.x = nx; player.y = ny;
   // a following sea: the second tile comes free on open water
@@ -8042,6 +8122,10 @@ function serviceRowsInner(kind) {
     const ports = here ? portsNear(here) : [];
     for (const row of shipRows(here)) rows.push(row);
     for (const row of chartRows(here)) rows.push(row);
+    if (northOpen() && here) {   // the passage north through the ice, each way
+      const dest = here.thule ? homePort() : thuleTown();
+      if (dest && dest.harbour) { const cost = fareTo(here, dest); rows.push(shopRow(here.thule ? `Passage south to ${dest.name}, ${REALMS[dest.realm].short} (home)` : `Passage north through the pack ice to Hrafnvik and the Frozen Gate`, `Sail ${cost}g`, () => sailTo(here, dest), player.gold < cost)); }
+    }
     if (farShoreOpen() && here) {   // the passage across the Veil, each way
       const dest = here.cx > VEIL_X ? homePort() : farPort();
       if (dest) { const cost = fareTo(here, dest); rows.push(shopRow(`Passage across the Veil to ${dest.name}, ${REALMS[dest.realm].short}${here.cx > VEIL_X ? ' (home)' : ' (the Far Shore)'}`, `Sail ${cost}g`, () => sailTo(here, dest), player.gold < cost)); }
@@ -8139,6 +8223,7 @@ function startRun(saved) {
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
         rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
         story2: saved.meta?.story2 && Number.isInteger(saved.meta.story2.s) ? { s: Math.max(0, Math.min(3, saved.meta.story2.s)) } : null,
+        story3: saved.meta?.story3 && Number.isInteger(saved.meta.story3.s) ? { s: Math.max(0, Math.min(2, saved.meta.story3.s)) } : null,
         secrets: Array.isArray(saved.meta?.secrets) ? saved.meta.secrets.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 20) : [],
         charts: Array.isArray(saved.meta?.charts) ? saved.meta.charts.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 3) : [], treasures: Number(saved.meta?.treasures) || 0,
         ship: saved.meta?.ship && Number.isInteger(saved.meta.ship.x) && Number.isInteger(saved.meta.ship.y) ? { x: saved.meta.ship.x, y: saved.meta.ship.y } : null,
@@ -8237,7 +8322,7 @@ function renderGlossary(kind) {
   const slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   const thumb = (names) => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#0f1724'; g.fillRect(0, 0, 64, 64); const list = [].concat(names).slice(0, 2); list.forEach((n, i) => { const img = sprite(n); const w = list.length === 1 ? 54 : 34; g.drawImage(img, list.length === 1 ? 5 : 2 + i * 28, list.length === 1 ? 5 : 16 + i * 6, w, w); }); return c; };
   const towns = [];
-  for (let j = -6; j <= 6; j++) for (let i = -6; i <= 21; i++) { const t = townAt(i, j); if (t) towns.push(t); }
+  for (let j = -11; j <= 6; j++) for (let i = -6; i <= 21; i++) { const t = townAt(i, j); if (t) towns.push(t); }
   for (const t of towns) { townIdentity(t); notableNpc(t); }
   const byRealm = (list, keyOf) => ALL_REALMS.map((r) => [r, list.filter((x) => keyOf(x) === r)]).filter(([, l]) => l.length);
   const section = (title, cards) => { const h = document.createElement('h3'); h.className = 'realm'; h.textContent = title; root.appendChild(h); const grid = document.createElement('div'); grid.className = 'cards'; for (const c of cards) grid.appendChild(c); root.appendChild(grid); };

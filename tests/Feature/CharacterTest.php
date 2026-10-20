@@ -246,6 +246,8 @@ class CharacterTest extends TestCase
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['secrets' => ['295,-96']]])->assertOk()->assertJson(['meta' => ['secrets' => ['295,-96']]]);
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['story2' => ['s' => 3], 'rq' => ['tianxia' => ['s' => 2, 'n' => 1]], 'found' => ['jadeseal']]])->assertOk()->assertJson(['meta' => ['story2' => ['s' => 3], 'rq' => ['tianxia' => ['s' => 2, 'n' => 1]]]]);
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['story2' => ['s' => 7]]])->assertUnprocessable();
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['story3' => ['s' => 2], 'found' => ['frostheart']]])->assertOk()->assertJson(['meta' => ['story3' => ['s' => 2]]]);
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['story3' => ['s' => 5]]])->assertUnprocessable();
     }
 
     public function test_bounties_fish_and_the_rod_are_saved(): void
