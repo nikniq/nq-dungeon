@@ -343,6 +343,17 @@ the middle earth of the old sagas, to Thrym, Jarl of the Frost Giants, a
 super-boss. Slaying him ends the story (`frostJarlSlain`: 3000 gold, the
 Frostheart relic with +4 defence and poison immunity, Giantsbane).
 
+Story 4, The Long Night, opens once Story 3 is done (`story3Done`): rifts to
+Midgard tear open outside towns near the hero (`openRift`, every `RIFT_EVERY`
+turns, two at a time) and hordes of draugr, winter wolves, frost trolls and rift
+wraiths come through, marching on the town (`hordeStep`), cutting down the watch
+at the walls and setting the roofs burning (`townBurning`: flames, smoke and a
+glow at night, drawn by `drawRifts`). A rift folds shut when its horde is dead
+(`tickRifts`, paying the hero), and after `RIFTS_TO_CLOSE` closures the Rift
+Lord steps through his own rift as a super-boss; slaying him ends the story
+(`riftLordSlain`: 4000 gold, the Riftheart, every horde turned to dust).
+`meta.story4` keeps the stage and the tally.
+
 The public story page at `/world/story` (`StoryController`, `config/story.php`)
 tells both stories and carries a discussion thread under each that signed-in
 heroes can post to (`story_posts`, 600 characters, throttled).

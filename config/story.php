@@ -32,4 +32,13 @@ return [
         ],
         'realms' => ['Hrafnvik, the last village before the ice', 'Midgard, beyond the Frozen Gate'],
     ],
+    [
+        'n' => 4, 'title' => 'The Long Night', 'status' => 'opens when Story 3 is finished',
+        'tagline' => 'Thrym was the lock on every door to Midgard, and the lock is dead.',
+        'acts' => [
+            ['title' => 'Rifts', 'text' => 'The week after Thrym falls, a farmer outside Hearth sees the air above his field split like cloth. The Frozen Gate was never the only door; Thrym was the lock on all of them. Rifts tear open outside towns in every realm and the hosts of Midgard pour through: draugr in rusted mail, winter wolves, frost trolls, and the rift-wraiths that herd them. They march on the walls, cut down the watch at the gates, and set the roofs burning. A rift stays open while its horde lives; kill them to the last and it folds shut. The hero goes from town to town closing them, and every realm pays for each one.'],
+            ['title' => 'The Rift Lord', 'text' => 'Close enough rifts and whatever is opening them has to come through itself. The Rift Lord steps out of a tear in the sky outside a town with his guard around him, vast and wrong, and the last door stands open behind him. When he comes apart, every rift from the ice to the Far Shore folds shut in the same instant, the hosts of Midgard go to dust where they stand, and seven realms argue about who will pay for the roofs. The Long Night is over, and the hero, four stories on, is finally allowed to sleep late.'],
+        ],
+        'realms' => ['Every realm on both shores', 'Midgard, through the rifts'],
+    ],
 ];

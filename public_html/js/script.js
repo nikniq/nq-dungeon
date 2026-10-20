@@ -122,6 +122,9 @@ const ACHIEVEMENTS = {
   hollowking:  { label: 'Slew the Hollow King', title: 'Breaker of the Barrow' },
   northbound:  { label: 'Answered the raven', title: 'the Far-Farer' },
   giantsbane:  { label: 'Slew Thrym, Jarl of the Frost Giants', title: 'Giantsbane' },
+  longnight:   { label: 'Saw the sky tear', title: 'of the Long Night' },
+  riftwarden:  { label: 'Closed five rifts to Midgard', title: 'Warden of the Rifts' },
+  riftlord:    { label: 'Slew the Rift Lord', title: 'Shield of Seven Realms' },
   mandarin:    { label: 'Passed the imperial examination', title: 'the Mandarin' },
   pilgrim:     { label: 'Walked the nine gates of Suryapur', title: 'the Pilgrim' },
   boyar:       { label: "Seated on the Tsar's council", title: 'the Boyar' },
@@ -261,8 +264,8 @@ const itemKind = (id) => ITEMS.weapons[id] ? 'weapon' : ITEMS.armor[id] ? 'armor
 const wearing = (id) => !!player && player.relic === id;
 const goldMult = () => (perkCount('lucky') ? 1.25 : 1) * (wearing('luckycoin') ? 1.4 : 1) * (wearing('ledger') ? 1.25 : 1);
 const potionHeal = (h) => h * (wearing('royalsignet') ? 2 : 1);
-const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0) + (player.rage > 0 ? 2 : 0) + (wearing('bearcharm') && dayPhase() === 'night' ? 3 : 0) + (wearing('hollowcrown') ? 3 : 0);
-const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('sunlotus') && dayPhase() !== 'night' ? 2 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('frostheart') ? 4 : 0) + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
+const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0) + (player.rage > 0 ? 2 : 0) + (wearing('bearcharm') && dayPhase() === 'night' ? 3 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('riftheart') ? 2 : 0);
+const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('sunlotus') && dayPhase() !== 'night' ? 2 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('frostheart') ? 4 : 0) + (wearing('riftheart') ? 2 : 0) + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
   + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.def || 0) : 0) + (realmState().rank >= 2 ? 1 : 0);
 const SAVE_EVERY_TURNS = 20;
 // What the hero has bought into in each realm: noble rank in Aurum, civic
@@ -284,7 +287,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, pets: petsState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, story4: player.meta.story4 || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -918,6 +921,7 @@ function drawJournal(g) {
       steps.push(['Story 2: The Far Shore', S2.s === 0 ? 'Story 1 is told. Stand in any town and the next story will find you.' : S2.s === 3 ? 'The Hollow King is dust. Three crowns beyond the Veil call you friend, and the sea road is open for good.' : S2.s === 2 ? 'The three keys are yours and the Barrow is open. Go down the thousand steps.' : 'The Veil was a prison wall. Earn the three keys from the three crowns beyond it.', S2.s === 3]);
       if (S2.s >= 1) for (const r of FAR_REALMS) { const Q = REALM_QUESTS[r], rq = rqState(r); steps.push([`${Q.title} (the ${itemInfo(Q.relic).name})`, rq.s === 5 ? `${Q.ruler} gave you the key.` : rq.s === 4 ? `Report to ${Q.ruler}.` : rq.s === 0 ? `${Q.ruler} waits in ${CAPITAL_NAMES[r]}.` : Q.steps[rq.s - 1].label + '.', rq.s === 5]); }
       if (S2.s >= 2) steps.push(['The Thousand-Step Barrow', S2.s === 3 ? 'The Hollow King is slain.' : 'At the heart of the Far Shore. Six floors, and the Hollow King at the bottom.', S2.s === 3]);
+      if (story3Done()) { const S4 = story4(); steps.push(['Story 4: The Long Night', S4.s === 0 ? 'Story 3 is told. Stand in any town and watch the sky.' : S4.s === 2 ? 'The Rift Lord is dust and every rift is shut.' : `Rifts to Midgard open outside the towns. Kill a horde to close its rift: ${S4.closed || 0}/${RIFTS_TO_CLOSE} closed${(S4.closed || 0) >= RIFTS_TO_CLOSE ? '. The Rift Lord is coming' : ''}.`, S4.s === 2]); }
       if (S2.s === 3) { const S3 = story3(); steps.push(['Story 3: The Frozen Gate', S3.s === 0 ? 'Story 2 is told. Stand in any town and a raven will find you.' : S3.s === 2 ? 'Thrym is dead and the gate is shut. The north is quiet.' : 'A door of ice on an island in the far north opens on Midgard. Take passage to Hrafnvik and go down through it to Thrym, Jarl of the Frost Giants.', S3.s === 2]); }
     }
     for (const [name, desc, done] of steps) {
@@ -1582,6 +1586,11 @@ function storyObjective() {
     return { text: ACT2_STEPS[A.s - 1].label, short: 'The Gate of the Deep', x: gate.x, y: gate.y };
   }
   if (st.phase === 'seek') { const S = STORY_SITES[STORY_ORDER[st.ch]], site = siteAt(S.i, S.j); return { text: `Find the ${S.shard} in ${S.title.replace(/^The /, 'the ')}`, short: S.title, x: site.x, y: site.y }; }
+  if (story4().s === 1) {
+    const r = rifts[0], closed = story4().closed || 0;
+    if (r) { const tn = townAt(...r.town.split(',').map(Number)); return { text: r.lord ? `Slay the Rift Lord at ${tn ? tn.name : 'the rift'}` : `Close the rift at ${tn ? tn.name : 'the town'}: kill its horde (${closed}/${RIFTS_TO_CLOSE} closed)`, short: 'The rift', x: r.x, y: r.y }; }
+    return { text: closed >= RIFTS_TO_CLOSE ? 'Stay near a town: the Rift Lord is coming' : `Watch for rifts near the towns (${closed}/${RIFTS_TO_CLOSE} closed)`, short: 'The Long Night', x: player.x, y: player.y };
+  }
   if (story3().s === 1) {
     const S = STORY_SITES.gate, site = siteAt(S.i, S.j);
     if (player.y >= ICE_Y) { const hp = homePort(); return { text: `Take passage north to Hrafnvik from a harbour${hp ? ` (${hp.name} is nearest Hearth)` : ''}`, short: 'The north', x: hp ? hp.cx : player.x, y: hp ? hp.cy : player.y - 100 }; }
@@ -1675,6 +1684,8 @@ function guideSuggestions() {
   } else if (st.phase === 'done' && act2().s === 0) out.push(['Act II', 'Prince Edric waits in the King\'s hall at Castle Aurum with a problem only you can solve.']);
   else if (story1Done() && story2().s === 0) out.push(['Story 2', 'Story 1 is told. Stand in any town and the next one will find you.']);
   else if (story2Done() && story3().s === 0) out.push(['Story 3', 'Story 2 is told. Stand in any town and a raven will find you.']);
+  else if (story3Done() && story4().s === 0) out.push(['Story 4', 'Story 3 is told. Stand in any town, and watch the sky.']);
+  else if (story4().s === 2) out.push(['The Long Night', 'The Rift Lord is dust and every rift is shut. Four stories told.']);
   else if (story3().s === 2) out.push(['The Frozen Gate', 'Thrym is dead and the gate is shut. The north is quiet, and the raven is yours.']);
   else if (story2().s === 3) out.push(['The Far Shore', 'The Hollow King is dust and both shores are at peace. The sea road across the Veil is yours.']);
   else if (st.phase === 'done') out.push(['The Deep', `The Gate of the Deep lies between Hearth and Castle Aurum. Your record: floor ${player.meta.deepest || 0}.`]);
@@ -1754,6 +1765,7 @@ const STORIES = [
   { n: 1, title: 'The Shattered Crown', acts: ['Act I: The Five Shards', 'Act II: What Sleeps Below'] },
   { n: 2, title: 'The Far Shore', acts: ['The Veil parts', 'Three keys, three crowns', 'The Thousand-Step Barrow'] },
   { n: 3, title: 'The Frozen Gate', acts: ['A raven from the north', 'Midgard'] },
+  { n: 4, title: 'The Long Night', acts: ['Rifts', 'The Rift Lord'] },
 ];
 const story2 = () => player.meta.story2 || (player.meta.story2 = { s: 0 });   // 0 locked, 1 the keys, 2 the Barrow open, 3 done
 const story1Done = () => !!player && !!player.meta && story().phase === 'done' && act2().s >= 6;
@@ -1791,6 +1803,151 @@ function frostJarlSlain() {
   showScene(STORY3_FINALE, () => { giveRelic('frostheart'); log('Story 3 complete: 3000 gold and the Frostheart. The Frozen Gate is shut.', 'good'); updateStats(); saveProgress('progress'); });
 }
 const thuleTown = () => townAt(THULE.i, THULE.j);
+// Story 4, The Long Night: Thrym's death breaks the seal on Midgard's hosts, and
+// rifts tear open outside the towns of the realms. Hordes pour out, march on the
+// walls, cut down the watch and set the roofs burning until the hero stops them.
+const story4 = () => player.meta.story4 || (player.meta.story4 = { s: 0, closed: 0 });   // 0 locked, 1 the rifts, 2 done
+const story3Done = () => !!player && !!player.meta && story3().s >= 2;
+const RIFTS_TO_CLOSE = 5, RIFT_EVERY = 90;
+let rifts = [];   // { x, y, town, opened, lord }
+const hordeFields = new Map();   // town key + turn -> distance field to its square
+const STORY4_INTRO = [
+  { who: 'The night the sky tore', sprite: 'wraith', bg: 'crypt', title: 'Story 4: The Long Night',
+    text: 'It begins the week after Thrym falls. A farmer outside Hearth sees the air above his field split like cloth, and what comes through is not weather. The Frozen Gate was never the only door. Thrym was the lock on all of them, and the lock is dead.' },
+  { who: 'The hosts of Midgard', sprite: 'troll', bg: 'crypt', title: 'The hosts of Midgard',
+    text: 'Draugr in rusted mail, winter wolves, frost trolls, and the rift-wraiths that herd them: the hosts of the middle earth, who have waited a thousand years for a way in. Rifts open outside towns across every realm. The hordes march on the walls, the watch dies on the gate, and the roofs burn.' },
+  { who: 'Close them', sprite: 'hero', bg: 'town', title: 'Close them',
+    text: 'A rift stays open while its horde lives. Kill them to the last and it collapses. Close enough of them and whatever is opening them will have to come through itself. Watch the roads, watch the sky, and keep your pets close. The journal (J) keeps the tally.' },
+];
+const STORY4_FINALE = [
+  { who: 'The Rift Lord falls', sprite: 'wraith', bg: 'crypt', title: 'The Rift Lord falls',
+    text: 'It comes apart in a scream that is felt rather than heard, and every rift from the ice to the Far Shore folds shut in the same instant, like eyes closing. The hosts of Midgard, cut off from their door, go to dust where they stand.' },
+  { who: 'Morning', sprite: 'hero', bg: 'town', title: 'Morning',
+    text: 'The roofs are patched, the watch is buried with honours and hired again, and seven realms argue about who will pay for it. Four stories, four shores, and a hero who is, at last, allowed to sleep late. The Long Night is over.' },
+];
+function offerStory4() {
+  if (story4().s !== 0 || !story3Done() || storyOpen()) return;
+  story4().s = 1; story4().closed = 0;
+  sfx.play('boss'); shakeScreen(6, 700); unlock('longnight'); track('story4_opened');
+  showScene(STORY4_INTRO, () => { log('Story 4, The Long Night: rifts will open outside towns near you. Kill the horde to close a rift; close five and the Rift Lord comes.', 'bad'); saveProgress('progress'); });
+}
+const HORDE = [
+  { type: 'Skeleton', name: 'Draugr', weight: 4 }, { type: 'Direwolf', name: 'Winter wolf', weight: 3 }, { type: 'Troll', name: 'Frost troll', weight: 1 }, { type: 'Wraith', name: 'Rift wraith', weight: 1 },
+];
+// a rift opens on open ground outside a town, and its horde comes through
+function openRift(town, lord = false) {
+  // somewhere outside the walls with a walkable road to the square: a tile 20 to 44 steps out on the town's field
+  const field = bfs(town.cx, town.cy, 56, false, true); hordeFields.set(`${town.key}:${turn}`, field);
+  const tries = [];
+  for (const [k, d] of field) { if (d < 20 || d > 44) continue; const [x, y] = k.split(',').map(Number); if (getTile(x, y) === TILE.FLOOR && !townContaining(x, y) && !getMonsterAt(x, y) && cheb({ x, y }, player) > 6) tries.push({ x, y }); }
+  if (!tries.length) return null;
+  const { x, y } = tries[rnd(tries.length)], rift = { x, y, town: town.key, opened: turn, lord };
+  rifts.push(rift);
+  const danger = Math.max(wildDanger(), Math.floor(player.level / 6));
+  const n = lord ? 6 : 5 + Math.min(6, Math.floor(player.level / 8));
+  const pool = HORDE.flatMap((h) => Array(h.weight).fill(h));
+  for (let i = 0; i < n; i++) {
+    const h = pool[rnd(pool.length)], t = MONSTER_TYPES.find((m) => m.name === h.type), spot = freeTileNear(x, y, 3);
+    if (!t || !spot) continue;
+    addMonster(t, spot.x, spot.y, { hp: Math.round(t.hp * (1.5 + danger * 0.4)), atk: t.atk + Math.floor(danger / 2), name: h.name, horde: town.key, wild: true, purse: 15 + danger * 6, elite: h.type === 'Troll' });
+  }
+  if (lord) { const w = MONSTER_TYPES.find((m) => m.name === 'Wraith'), spot = freeTileNear(x, y, 2) || { x, y }; addMonster(w, spot.x, spot.y, { hp: Math.round(w.hp * 6 * (1 + danger * 0.3)), atk: w.atk + danger + 2, name: 'the Rift Lord', horde: town.key, wild: true, boss: true, superBoss: true, riftLord: true, purse: 500 }); }
+  monsters = worldMonsters; monstersDirty = true;
+  shakeScreen(7, 600); sfx.play('boss'); burst(x, y, '#c084fc', 40, 160, { glow: true, gravity: -40, life: 900, size: 3 });
+  log(lord ? `The sky splits outside ${town.name} and something vast steps through: the Rift Lord, with his guard. This is the last door.` : `A rift tears open ${compassWord(x - town.cx, y - town.cy).toLowerCase()} of ${town.name}, and a horde of Midgard pours out towards the walls!`, 'bad');
+  toast = { text: lord ? `The Rift Lord is at ${town.name}!` : `A rift has opened at ${town.name}! Kill the horde to close it.`, until: performance.now() + 5000 };
+  track('rift_opened', { lord }); mapCache.ox = null;
+  return rift;
+}
+const riftHorde = (r) => monsters.filter((m) => m.horde === r.town && m.hp > 0);
+function tickRifts() {
+  if (scene !== 'world' || story4().s !== 1) return;
+  // open rifts close when their horde is dead
+  for (const r of rifts.slice()) {
+    if (riftHorde(r).length) continue;
+    rifts = rifts.filter((x) => x !== r);
+    const town = townAt(...r.town.split(',').map(Number));
+    if (r.lord) continue;   // the lord's rift closes with him
+    story4().closed = (story4().closed || 0) + 1;
+    const g = 150 + 40 * story4().closed; player.gold += g; gainXp(40 + player.level * 2);
+    burst(r.x, r.y, '#c084fc', 50, 180, { glow: true, gravity: 60, life: 900 }); sfx.play('win');
+    log(`The last of the horde falls and the rift outside ${town ? town.name : 'the town'} folds shut. ${g} gold from the realm's purse. Rifts closed: ${story4().closed}/${RIFTS_TO_CLOSE}.`, 'good');
+    if (story4().closed >= RIFTS_TO_CLOSE) unlock('riftwarden');
+    saveProgress('progress');
+  }
+  // a new rift near the hero now and then; the Rift Lord once enough are closed
+  const near = nearbyTowns(player.x, player.y, 1).filter((t) => t.size !== 'grand' && !t.thule && cheb({ x: t.cx, y: t.cy }, player) <= 70);
+  if (!rifts.length && story4().closed >= RIFTS_TO_CLOSE && near.length && !monsters.some((m) => m.riftLord)) { openRift(near[rnd(near.length)], true); return; }
+  if (rifts.length < 2 && story4().closed < RIFTS_TO_CLOSE && turn % RIFT_EVERY === 0 && near.length) openRift(near[rnd(near.length)]);
+}
+// a horde monster far from the hero still marches on its town, fights the watch at the walls and sets fires
+function hordeStep(m) {
+  const town = townAt(...m.horde.split(',').map(Number)); if (!town) return;
+  const gd = npcs.find((n) => n.type.guard && !n.down && dist(m, n) === 1);
+  if (gd) { const was = gd.hp; guardHurt(gd, m); if (gd.down && was > 0 && cheb(m, player) <= 30) log(`${gd.type.name} falls to the ${mName(m)} at the walls of ${town.name}!`, 'bad'); return; }
+  const atSquare = cheb(m, { x: town.cx, y: town.cy }) <= town.plaza[0] + 2;
+  const gnear = npcs.filter((n) => n.type.guard && !n.down && cheb(n, m) <= 8).sort((a, b2) => dist(a, m) - dist(b2, m))[0];   // the watch is the first thing they go for
+  if (atSquare) { town.burning = turn; if (!town.burnLogged) { town.burnLogged = true; log(`${town.name} is burning!`, 'bad'); } if (!gnear && Math.random() < 0.6) return; }   // in the square they loot and burn
+  const goal = gnear || (atSquare ? { x: town.cx + rnd(13) - 6, y: town.cy + rnd(9) - 4 } : { x: town.cx, y: town.cy });
+  // march by a distance field: towards the guard, or down the town's field (shared by the whole horde each turn)
+  let field = null;
+  if (gnear) field = bfs(gnear.x, gnear.y, 14, false, true);
+  else if (!atSquare) { const ck = `${town.key}:${turn}`; if (!hordeFields.has(ck)) { if (hordeFields.size > 6) hordeFields.clear(); hordeFields.set(ck, bfs(town.cx, town.cy, 56, false, true)); } field = hordeFields.get(ck); }
+  if (field) {
+    let best = null, bestD = field.get(key(m.x, m.y)) ?? Infinity;
+    for (const [ax, ay] of DIRS) {
+      const nx = m.x + ax, ny = m.y + ay, nd = field.get(key(nx, ny)), t = getTile(nx, ny);
+      if (nd === undefined || nd >= bestD || (t !== TILE.FLOOR && t !== TILE.EXIT) || getMonsterAt(nx, ny) || getNpcAt(nx, ny) || houndAt(nx, ny) || (nx === player.x && ny === player.y)) continue;
+      bestD = nd; best = [nx, ny];
+    }
+    if (best) { moveMonster(m, best[0], best[1]); return; }
+  }
+  const dx = Math.sign(goal.x - m.x), dy = Math.sign(goal.y - m.y);
+  const tries = Math.abs(goal.x - m.x) >= Math.abs(goal.y - m.y) ? [[dx, 0], [0, dy], [dx, dy]] : [[0, dy], [dx, 0], [dx, dy]];
+  for (const [sx, sy] of tries) {
+    if (!sx && !sy) continue;
+    const nx = m.x + sx, ny = m.y + sy, t = getTile(nx, ny);
+    if ((t !== TILE.FLOOR && t !== TILE.EXIT) || getMonsterAt(nx, ny) || getNpcAt(nx, ny) || houndAt(nx, ny) || (nx === player.x && ny === player.y)) continue;
+    moveMonster(m, nx, ny); return;
+  }
+}
+const townBurning = (t) => !!t.burning && (turn - t.burning < 150 || monsters.some((m) => m.horde === t.key && m.hp > 0 && townContaining(m.x, m.y) === t));
+function riftLordSlain() {
+  if (story4().s >= 2) return;
+  story4().s = 2; rifts = []; player.gold += 4000; unlock('riftlord'); track('story4_done');
+  for (const m of monsters.slice()) if (m.horde) { burst(m.x, m.y, '#c084fc', 10, 80, { life: 400 }); monsters = monsters.filter((x) => x !== m); }
+  worldMonsters = monsters; monstersDirty = true;
+  showScene(STORY4_FINALE, () => { giveRelic('riftheart'); log('Story 4 complete: 4000 gold and the Riftheart. The Long Night is over.', 'good'); updateStats(); saveProgress('progress'); });
+}
+// the rifts themselves, and the fires they bring, drawn every frame
+function drawRifts(g, now) {
+  if (scene !== 'world') return;
+  for (const r of rifts) {
+    const x = r.x * T - cam.x + T / 2, y = r.y * T - cam.y + T / 2;
+    if (x < -60 || y < -60 || x > canvas.width + 60 || y > canvas.height + 60) continue;
+    const R = r.lord ? 30 : 20, rg = g.createRadialGradient(x, y, 2, x, y, R * 1.6); rg.addColorStop(0, 'rgba(192,132,252,0.55)'); rg.addColorStop(1, 'rgba(192,132,252,0)');
+    g.fillStyle = rg; g.beginPath(); g.arc(x, y, R * 1.6, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#120a24'; g.beginPath(); g.ellipse(x, y, R * 0.55, R, 0, 0, Math.PI * 2); g.fill();
+    g.lineWidth = 2;
+    for (let k = 0; k < 4; k++) { const a = now / 400 + k * 1.6; g.strokeStyle = `rgba(216,180,254,${0.5 + 0.3 * Math.sin(a)})`; g.beginPath(); g.ellipse(x, y, R * (0.3 + k * 0.15), R * (0.55 + k * 0.15), a, a, a + 2.2); g.stroke(); }
+    g.fillStyle = 'rgba(240,230,255,0.9)'; for (let k = 0; k < 6; k++) { const a = now / 300 + k; g.fillRect(x + Math.cos(a) * R * 0.5 - 1, y + Math.sin(a * 1.3) * R * 0.9 - 1, 2, 2); }
+  }
+  for (const t of nearbyTowns(player.x, player.y, 1)) {
+    if (!townBurning(t)) continue;
+    t.houses.forEach((h, i) => {
+      if ((i + t.i) % 3 === 0) return;   // not every roof catches
+      const X = h.x * T - cam.x, Y = h.y * T - cam.y, W = h.w * T;
+      if (X > canvas.width + 60 || Y > canvas.height + 60 || X + W < -60 || Y < -120) return;
+      for (let k = 0; k < Math.max(2, Math.round(W / 30)); k++) {
+        const fx = X + 10 + (((k * 37 + h.x * 5) % Math.max(1, W - 20)) + Math.max(1, W - 20)) % Math.max(1, W - 20), ph = (((now / 260 + k * 0.7 + h.y) % 1) + 1) % 1, hgt = 14 + Math.sin(now / 90 + k) * 4;   // world coordinates go negative, so keep the phases positive
+        g.fillStyle = 'rgba(255,120,30,0.85)'; g.beginPath(); g.moveTo(fx - 7, Y + 12); g.quadraticCurveTo(fx - 2, Y - 2, fx, Y + 12 - hgt); g.quadraticCurveTo(fx + 2, Y - 2, fx + 7, Y + 12); g.closePath(); g.fill();
+        g.fillStyle = 'rgba(255,220,90,0.9)'; g.beginPath(); g.moveTo(fx - 3, Y + 12); g.quadraticCurveTo(fx, Y + 4, fx, Y + 12 - hgt * 0.55); g.quadraticCurveTo(fx, Y + 4, fx + 3, Y + 12); g.closePath(); g.fill();
+        g.fillStyle = `rgba(60,55,60,${0.35 * (1 - ph)})`; g.beginPath(); g.arc(fx + Math.sin(ph * 6 + k) * 6, Y - 6 - ph * 50, 6 + ph * 10, 0, Math.PI * 2); g.fill();   // smoke
+      }
+      g.fillStyle = `rgba(255,120,30,${0.08 + 0.04 * Math.sin(now / 150 + i)})`; g.fillRect(X - 10, Y - 10, W + 20, h.h * T + 20);
+    });
+  }
+}
 const STORY2_INTRO = [
   { who: 'An envoy from across the Veil', sprite: 'merchant:tianxia', bg: 'sea', title: 'Story 2: The Far Shore',
     text: 'A ship with sails the colour of sunset puts into harbour, and a woman in grey silk asks for you by name. "For a thousand years the Veil of storms has closed the eastern sea," she says. "It was not weather. Our three founders raised it, to wall something in. When your Crown was mended and the Deep went quiet, the Veil fell. So did the wards beneath it."' },
@@ -3035,10 +3192,20 @@ function stepGuards() {
     const foe = monsters.find((m) => !m.bounty && dist(m, n) === 1);
     if (foe) { guardStrike(n, foe); continue; }
     const home = n.home;
-    const near = monsters.filter((m) => !m.bounty && Math.abs(m.x - home.x) <= 24 && Math.abs(m.y - home.y) <= 20 && cheb(m, n) <= 9).sort((a, b) => dist(a, n) - dist(b, n))[0];
+    const near = monsters.filter((m) => !m.bounty && Math.abs(m.x - home.x) <= 24 && Math.abs(m.y - home.y) <= 20 && cheb(m, n) <= (m.horde ? 20 : 9)).sort((a, b) => dist(a, n) - dist(b, n))[0];   // the watch sallies further against a horde
     if (!near && n.pause-- > 0) continue;
     const goal = near || n.beat[n.leg];
     if (!near && dist(n, goal) <= 1) { n.leg = (n.leg + 1) % n.beat.length; n.pause = 2 + rnd(4); continue; }
+    if (near) {   // with a foe in sight the watch finds a way round the fountain, the crowd and each other
+      const d = bfs(near.x, near.y, 18, false, true);
+      let best = null, bestD = d.get(key(n.x, n.y)) ?? Infinity;
+      for (const [ax, ay] of DIRS) {
+        const nx = n.x + ax, ny = n.y + ay, nd = d.get(key(nx, ny)), t = getTile(nx, ny);
+        if (nd === undefined || nd >= bestD || (t !== TILE.FLOOR && t !== TILE.EXIT) || getNpcAt(nx, ny) || getMonsterAt(nx, ny) || houndAt(nx, ny) || (nx === player.x && ny === player.y)) continue;
+        bestD = nd; best = [nx, ny];
+      }
+      if (best) { if (best[0] !== n.x) n.face = Math.sign(best[0] - n.x); n.x = best[0]; n.y = best[1]; continue; }
+    }
     const dx = Math.sign(goal.x - n.x), dy = Math.sign(goal.y - n.y);
     const tries = Math.abs(goal.x - n.x) >= Math.abs(goal.y - n.y) ? [[dx, 0], [0, dy]] : [[0, dy], [dx, 0]];
     for (const [sx, sy] of tries) {
@@ -4779,7 +4946,7 @@ function drawScene(now) {
     if (m.bounty) { ctx.fillStyle = '#ef4444'; ctx.font = 'bold 14px sans-serif'; ctx.fillText('☠', lx * T - cam.x + T / 2 - 6, ly * T - cam.y - 4); }
     if (m.mod) { ctx.fillStyle = ELITE_MODS[m.mod].color; ctx.font = 'bold 12px sans-serif'; ctx.fillText('★', lx * T - cam.x + 1, ly * T - cam.y + 10); }
   }
-  drawArmies(ctx, now);
+  drawArmies(ctx, now); drawRifts(ctx, now);
   houseSmoke(now);
   if (escort && scene === 'dungeon' && isVisible(escort.x, escort.y)) {
     const ex = escort.rx ?? escort.x, ey = escort.ry ?? escort.y;
@@ -4846,6 +5013,7 @@ function drawScene(now) {
         const roofH = Math.floor(h.h * T * 0.48), winY = h.y * T + roofH + Math.max(8, Math.floor((h.h * T - roofH - 22) / 2) - 2) + 7;
         for (const wx of houseWindows(h)) night.push({ x: wx - cam.x, y: winY - cam.y, r: T * 0.9, a: 0.9, glow: 'rgba(255,190,90,0.35)', gr: T * 0.5 });
       }
+      for (const t of nearbyTowns(player.x, player.y, 1)) if (townBurning(t)) night.push({ x: t.cx * T - cam.x + T / 2, y: t.cy * T - cam.y, r: T * 14, a: 0.9, glow: `rgba(255,120,30,${0.22 + 0.06 * Math.sin(now / 200)})`, gr: T * 8 });
       applyLighting(ctx, `rgba(6,12,40,${0.72 * k})`, night);
       // fireflies drifting about
       ctx.globalCompositeOperation = 'lighter';
@@ -5241,6 +5409,7 @@ function describeTile(x, y) {
   if (other) return `${other.data.name}${other.data.title ? ' ' + other.data.title : ''} — level ${other.data.level} ${other.data.cls}${inMyParty(other.id) ? ', in your party' : ''}${scene !== 'dungeon' ? '. Walk into them to invite or wave' : ''}`;
   { const pp = petAt(x, y); if (pp) return `Your ${petLabel(pp)} — ${pp.hp}/${pp.maxHp} HP, bite ${pp.atk}, level ${pp.level}, ${pp.kills} kills`; }
   if (shipAt(x, y)) return 'Your ship — walk into her to go aboard';
+  { const rf = rifts.find((r) => r.x === x && r.y === y); if (rf) return rf.lord ? 'The Rift Lord\'s door — it shuts when he dies' : `A rift to Midgard — it shuts when its horde (${riftHorde(rf).length} left) is dead`; }
   if (charts().includes(key(x, y))) return 'X marks the spot — step here to dig';
   if (t === TILE.SHIP) { const pt = portAtTile(x, y); return pt ? `The ship of ${pt.name} — walk into it, or speak to the harbourmaster, to sail to another port` : 'A boat'; }
   if (scene === 'world' && groundAt(x, y) === GROUND.DOCK) return 'The pier — the harbourmaster at the end sells passage by sea';
@@ -5638,6 +5807,7 @@ function killMonster(m) {
     if (player.lifetimeKills >= 50) unlock('slayer_50');
     if (scene === 'world' && dayPhase() === 'night') unlock('night_owl');
     if (m.boss && dungeonDef && dungeonDef.lair) setTimeout(() => lairSlain(dungeonDef.lair), 60);
+    if (m.riftLord) setTimeout(riftLordSlain, 60);
     if (m.boss && dungeonDef && dungeonDef.endless) setTimeout(() => act2Progress('boss', floor), 80);
     if (m.boss) { unlock('boss_slayer'); track('boss_killed', { boss: m.name, floor }); }
     const xp = Math.round(m.type.xp * (wearing('cantonsbadge') ? 1.2 : 1) * (m.small || m.raised ? 0.4 : 1) * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1) * (m.elite ? 2 : 1) * (scene === 'dungeon' ? (floorMod === 'swarming' ? 1.25 : floorMod === 'cursed' ? 1.5 : 1) : 1));
@@ -5734,6 +5904,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
     if (m.stunned > 0) { m.stunned--; continue; }
     let hi = 0, hd = Infinity;
     heroes.forEach((h, i) => { const dd = cheb(m, h); if (dd < hd) { hd = dd; hi = i; } });
+    if (m.horde && (hd > 6 || !m.awake)) { if (!swiftOnly) hordeStep(m); continue; }   // the hosts of Midgard have a town to burn
     if (hd > SIM_RADIUS) continue;
     const H = heroes[hi];
     { const pv = livePets().find((pp) => dist(m, pp) === 1);
@@ -5776,7 +5947,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
     for (const [dx, dy] of dirs) {
       const nx = m.x + dx, ny = m.y + dy;
       if (!walkable(getTile(nx, ny)) || getTile(nx, ny) === TILE.LAVA || getMonsterAt(nx, ny) || heroAt(nx, ny) || houndAt(nx, ny) || (scene === 'world' && getNpcAt(nx, ny))) continue;
-      if (scene === 'world' && townContaining(nx, ny)) continue;   // beasts keep out of settlements
+      if (scene === 'world' && !m.horde && townContaining(nx, ny)) continue;   // beasts keep out of settlements; hordes do not
       const nd = d.get(key(nx, ny));
       if (nd !== undefined && nd < bestD) { bestD = nd; best = [nx, ny]; }
     }
@@ -7034,7 +7205,7 @@ function endTurn(moved) {
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
   if (scene !== 'dungeon') stepNpcs();
   stepGuards();
-  stepHound(); stepEscort(); tickTotems();
+  stepHound(); stepEscort(); tickTotems(); tickRifts();
   // in a shared dungeon the host moves monsters on a steady beat instead of per turn
   if (scene !== 'house' && !coopActive()) {
     stepMonsters();
@@ -7057,6 +7228,7 @@ function endTurn(moved) {
   if (!gameOver && player.pendingPerks > 0) offerPerks();
   if (scene === 'world' && moved && story2().s === 0 && townContaining(player.x, player.y) && story1Done()) offerStory2();
   if (scene === 'world' && moved && story3().s === 0 && townContaining(player.x, player.y) && story2Done()) offerStory3();
+  if (scene === 'world' && moved && story4().s === 0 && townContaining(player.x, player.y) && story3Done()) offerStory4();
   if (inTown()) for (const pl of nearbyPlaces(player.x, player.y, 1)) if (!discovered(pl) && cheb(pl, player) <= 3) discoverPlace(pl);
   if (inTown()) for (const st of nearbySites(player.x, player.y, 1)) if (st.lair && !lairKnown(st.lair) && cheb(st, player) <= 4) revealLair(st.lair, 'You stumble on it:');
   if (scene === 'world' && turn % 5 === 0) spawnBounties();
@@ -8366,7 +8538,7 @@ function afterSceneChange() {
 function startRun(saved) {
   player = { x: 1, y: 1, hp: 24, maxHp: 24, atk: 3, level: 1, xp: 0, gold: 0, weapon: null, armor: null, bag: [], quests: [], questsDone: 0, cls: 'warrior', mana: 0, shield: 0, poison: 0,
     perks: [], achievements: [], title: null, meta: { visited: [], second_wind: false, places: [], looted: [], found: [], bestiary: {}, story: null, blessing: null, realm: null }, weaponPlus: 0, armorPlus: 0, lifetimeKills: 0, pendingPerks: 0, relic: null };
-  questsOpen = false; mapOpen = false; revealedTraps = new Set(); perkChoices = null; toast = null; aboard = false;
+  questsOpen = false; mapOpen = false; revealedTraps = new Set(); perkChoices = null; toast = null; aboard = false; rifts = [];
   pets = [];
   { const h = saved && saved.meta && saved.meta.hound; if (h && h.max_hp) pets.push({ kind: 'hound', x: 0, y: 0, hp: h.hp, maxHp: h.max_hp, atk: h.atk, level: h.level, kills: h.kills, down: !!h.down, face: 1 }); }   // heroes from before there were pets
   { const ps = saved && saved.meta && saved.meta.pets; if (Array.isArray(ps)) for (const h of ps.slice(0, PET_MAX)) if (h && PET_KINDS[h.kind] && h.max_hp && !pets.some((q) => q.kind === h.kind && q.level === h.level && q.kills === h.kills)) pets.push({ kind: h.kind, x: 0, y: 0, hp: h.hp, maxHp: h.max_hp, atk: h.atk, level: h.level, kills: h.kills, down: !!h.down, face: 1 }); }
@@ -8393,6 +8565,7 @@ function startRun(saved) {
         rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
         story2: saved.meta?.story2 && Number.isInteger(saved.meta.story2.s) ? { s: Math.max(0, Math.min(3, saved.meta.story2.s)) } : null,
         story3: saved.meta?.story3 && Number.isInteger(saved.meta.story3.s) ? { s: Math.max(0, Math.min(2, saved.meta.story3.s)) } : null,
+        story4: saved.meta?.story4 && Number.isInteger(saved.meta.story4.s) ? { s: Math.max(0, Math.min(2, saved.meta.story4.s)), closed: Math.max(0, Number(saved.meta.story4.closed) || 0) } : null,
         secrets: Array.isArray(saved.meta?.secrets) ? saved.meta.secrets.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 20) : [],
         charts: Array.isArray(saved.meta?.charts) ? saved.meta.charts.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 3) : [], treasures: Number(saved.meta?.treasures) || 0,
         ship: saved.meta?.ship && Number.isInteger(saved.meta.ship.x) && Number.isInteger(saved.meta.ship.y) ? { x: saved.meta.ship.x, y: saved.meta.ship.y } : null,
