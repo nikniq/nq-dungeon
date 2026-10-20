@@ -354,6 +354,12 @@ Lord steps through his own rift as a super-boss; slaying him ends the story
 (`riftLordSlain`: 4000 gold, the Riftheart, every horde turned to dust).
 `meta.story4` keeps the stage and the tally.
 
+A public item catalogue at `/world/items` lists every weapon, armour,
+consumable and relic from `config/items.php` with its price, effect and where it
+comes from (`config/catalog.php` holds the fighting styles, legendary
+provenance and the other things a hero can acquire; keep it in step with
+`WEAPON_TRAITS` and `LAIRS` in `script.js`).
+
 The public story page at `/world/story` (`StoryController`, `config/story.php`)
 tells both stories and carries a discussion thread under each that signed-in
 heroes can post to (`story_posts`, 600 characters, throttled).

@@ -23,6 +23,7 @@ Route::get('/api/buildings', [TownBuildingController::class, 'index'])->name('bu
 Route::get('/world/towns', fn () => view('glossary', ['kind' => 'towns']))->name('world.towns');
 Route::get('/world/characters', fn () => view('glossary', ['kind' => 'characters']))->name('world.characters');
 Route::get('/world/story', [StoryController::class, 'index'])->name('world.story');
+Route::get('/world/items', fn () => view('items'))->name('world.items');
 Route::post('/world/story', [StoryController::class, 'post'])->middleware(['auth', 'throttle:10,1'])->name('world.story.post');
 Route::get('/heroes', [HeroController::class, 'index'])->name('heroes.index');
 Route::get('/heroes/{character}', [HeroController::class, 'show'])->name('heroes.show');

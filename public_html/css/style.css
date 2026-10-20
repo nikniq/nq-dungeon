@@ -239,3 +239,13 @@ body.wide{overscroll-behavior-y:none}
 .post-form textarea{width:100%;box-sizing:border-box;background:#06121b;color:#e6eef8;border:1px solid #1e4a60;border-radius:6px;padding:8px;font:inherit}
 .post-form button{align-self:flex-start}
 .post-form .error{color:#ff9b9b;margin:0}
+
+/* the public item catalogue */
+.catalog h3{margin:26px 0 8px;color:#ffd86b;border-bottom:1px solid #12384a;padding-bottom:4px}
+.catalog .notes{margin:0;padding-left:20px;line-height:1.5}
+.catalog table.items{width:100%;border-collapse:collapse;font-size:.95rem}
+.catalog table.items th{text-align:left;color:#7bdfff;font-weight:600;padding:6px 8px;border-bottom:1px solid #1e4a60}
+.catalog table.items td{padding:6px 8px;border-bottom:1px solid #12303f;vertical-align:top}
+.catalog table.items tr.legendary td{background:rgba(255,216,107,0.06)}
+.catalog table.items em{color:#9fd4ff;font-style:normal}
+@media (max-width:640px){.catalog table.items{display:block;overflow-x:auto}}
