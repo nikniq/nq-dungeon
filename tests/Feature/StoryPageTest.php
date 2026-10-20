@@ -14,7 +14,7 @@ class StoryPageTest extends TestCase
     {
         $this->get('/world/story')->assertOk()
             ->assertSee('Story 1: The Shattered Crown')->assertSee('Story 2: The Far Shore')
-            ->assertSee('Act II: What Sleeps Below')->assertSee('Tsardom of Severin')->assertSee('Story 3: The Frozen Gate')->assertSee('Midgard')->assertSee('Story 4: The Long Night')->assertSee('Rift Lord')
+            ->assertSee('Act II: What Sleeps Below')->assertSee('Tsardom of Severin')->assertSee('Story 3: The Frozen Gate')->assertSee('Midgard')->assertSee('Story 4: The Long Night')->assertSee('Rift Lord')->assertSee('Story 5: The Rebuilding')
             ->assertSee('Log in')->assertDontSee('<textarea', false);
         $this->get('/')->assertOk()->assertSee('/world/story');
     }

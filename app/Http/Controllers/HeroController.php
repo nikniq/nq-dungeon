@@ -16,7 +16,7 @@ class HeroController extends Controller
             ->orderByDesc('wins')->orderByDesc('best_floor')->orderByDesc('best_gold')->orderBy('name')
             ->paginate(20)->withQueryString();
 
-        return view('heroes.index', ['heroes' => $heroes, 'q' => $q]);
+        return view('heroes.index', ['heroes' => $heroes, 'q' => $q, 'builders' => \App\Models\TownProject::builders()]);
     }
 
     public function show(Character $character): View

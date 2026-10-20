@@ -6,6 +6,18 @@
 return [
     // Realm ids the game script knows, for validating saved quest and army state.
     'realms' => ['cantons', 'aurum', 'kathar', 'league', 'tianxia', 'suryadesh', 'severin'],
+    // Story 5, the rebuilding: structures a hero can sponsor in any town. The
+    // world effects (walls, a new building, a memorial, paved roads) are in script.js.
+    'projects' => [
+        'walls' => ['name' => 'Town walls', 'cost' => 1200, 'desc' => 'a ring of stone with towers and gates, for a town that has none'],
+        'watch' => ['name' => 'A watch house', 'cost' => 450, 'desc' => 'a barracks for the town watch'],
+        'smithy' => ['name' => 'A smithy', 'cost' => 500, 'desc' => 'a forge to sharpen and reinforce gear'],
+        'market' => ['name' => 'A market hall', 'cost' => 600, 'desc' => 'a covered market with more to buy'],
+        'apothecary' => ['name' => 'An apothecary', 'cost' => 450, 'desc' => 'potions and remedies'],
+        'armoury' => ['name' => 'An armoury', 'cost' => 550, 'desc' => 'armour, and a place to mend it'],
+        'memorial' => ['name' => 'A memorial of the Long Night', 'cost' => 500, 'desc' => 'a monument in the square to those who fell, with your name on the plinth'],
+        'road' => ['name' => 'Paved roads', 'cost' => 350, 'desc' => 'the roads out of town paved in stone, and cheaper travel from its waystone'],
+    ],
     // Pet kinds the game script knows, for validating saved companions.
     'pets' => ['cat', 'hound', 'husky', 'mongoose', 'hawk', 'wolf', 'boar', 'bear', 'elephant'],
 

@@ -23,5 +23,17 @@
     </table>
     <div class="pager">{{ $heroes->links('pagination::simple-default') }}</div>
   @endif
+  @if ($builders->isNotEmpty())
+    <h3 class="board-sub">Builders of the realms</h3>
+    <p class="muted small">Story 5, the rebuilding: the heroes who have sponsored the most walls, halls, memorials and roads, with their names carved on them.</p>
+    <table class="ranks">
+      <thead><tr><th>#</th><th>Hero</th><th>Structures</th><th>Gold given</th></tr></thead>
+      <tbody>
+      @foreach ($builders as $i => $b)
+        <tr><td>{{ $i + 1 }}</td><td>{{ $b->builder_name }}</td><td>{{ $b->structures }}</td><td>{{ number_format($b->gold) }}</td></tr>
+      @endforeach
+      </tbody>
+    </table>
+  @endif
 </div>
 @endsection

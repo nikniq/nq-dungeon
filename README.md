@@ -354,6 +354,19 @@ Lord steps through his own rift as a super-boss; slaying him ends the story
 (`riftLordSlain`: 4000 gold, the Riftheart, every horde turned to dust).
 `meta.story4` keeps the stage and the tally.
 
+Story 5, The Rebuilding, opens once Story 4 is done (`story4Done`). It has no
+boss: talking to any town leader opens the rebuilding list (`rebuildRows`,
+`config/game.php` `projects`): town walls, a watch house, smithy, market hall,
+apothecary, armoury, a memorial of the Long Night and paved roads. Sponsoring
+one posts to `/api/projects` (`TownProjectController`, `town_projects` table;
+the gold comes off the saved hero), and the structure is shared with every hero
+and applied to the generated town (`applyProjects`): the wall ring appears, a
+new house is placed in a free slot, the memorial stands in the square with the
+sponsor's name, roads for sixty tiles around are paved in stone, and a town with
+three works prospers a tier. Ten sponsored structures make a Founder
+(`founderNamed`: the Founder's Seal). The heroes page ranks the builders
+(`TownProject::builders`), which is this story's leaderboard.
+
 A public item catalogue at `/world/items` lists every weapon, armour,
 consumable and relic from `config/items.php` with its price, effect and where it
 comes from (`config/catalog.php` holds the fighting styles, legendary

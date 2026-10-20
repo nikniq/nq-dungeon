@@ -8,6 +8,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MultiplayerController;
 use App\Http\Controllers\StoryController;
 use App\Http\Controllers\TownBuildingController;
+use App\Http\Controllers\TownProjectController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -19,6 +20,7 @@ Route::get('/play', fn () => response()
 
 // monuments in town squares: anyone can look, signed-in heroes build
 Route::get('/api/buildings', [TownBuildingController::class, 'index'])->name('buildings.index');
+Route::get('/api/projects', [TownProjectController::class, 'index'])->name('projects.index');
 // public glossaries, drawn in the browser from the game's own world generator
 Route::get('/world/towns', fn () => view('glossary', ['kind' => 'towns']))->name('world.towns');
 Route::get('/world/characters', fn () => view('glossary', ['kind' => 'characters']))->name('world.characters');
@@ -46,6 +48,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/api/character', [CharacterController::class, 'save'])->name('character.save');
     Route::middleware('throttle:30,1')->post('/api/buildings', [TownBuildingController::class, 'build'])->name('buildings.build');
     Route::middleware('throttle:30,1')->post('/api/buildings/upgrade', [TownBuildingController::class, 'upgrade'])->name('buildings.upgrade');
+    Route::middleware('throttle:30,1')->post('/api/projects', [TownProjectController::class, 'sponsor'])->name('projects.sponsor');
     // multiplayer relay
     Route::middleware('throttle:400,1')->post('/api/mp/sync', [MultiplayerController::class, 'sync'])->name('mp.sync');
     Route::post('/api/mp/invite', [MultiplayerController::class, 'invite'])->name('mp.invite');

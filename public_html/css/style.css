@@ -249,3 +249,5 @@ body.wide{overscroll-behavior-y:none}
 .catalog table.items tr.legendary td{background:rgba(255,216,107,0.06)}
 .catalog table.items em{color:#9fd4ff;font-style:normal}
 @media (max-width:640px){.catalog table.items{display:block;overflow-x:auto}}
+
+.board-sub{margin:30px 0 4px;color:#ffd86b}

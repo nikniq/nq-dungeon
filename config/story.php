@@ -41,4 +41,13 @@ return [
         ],
         'realms' => ['Every realm on both shores', 'Midgard, through the rifts'],
     ],
+    [
+        'n' => 5, 'title' => 'The Rebuilding', 'status' => 'opens when Story 4 is finished',
+        'tagline' => 'The hordes are dust. The roofs are not. Someone has to pay for the stone.',
+        'acts' => [
+            ['title' => 'The reckoning', 'text' => 'When the last rift shuts, seven realms count the cost: gates broken, watch houses burned, roads churned to mud, and a watch buried in every town. The treasuries are empty from the war. Every town leader keeps a list of what the town needs, and every hero who comes through the gate with gold in their purse is asked the same question. The leaders of every town, in every realm, will take a hero\'s gold for walls where there were none, a watch house, a smithy, a market hall, an apothecary, an armoury, a memorial to the fallen in the square, and paved roads out of town. What is built stands for every hero who passes, with the sponsor\'s name carved on it.'],
+            ['title' => 'The builders', 'text' => 'This story has no boss. Its heroes are the ones who build: the heroes page keeps a ranking of who has sponsored the most structures across the realms. A hero who raises ten is named a Founder, given the Founder\'s Seal, and remembered, which in the realms is the only reward that lasts.'],
+        ],
+        'realms' => ['Every town on both shores'],
+    ],
 ];

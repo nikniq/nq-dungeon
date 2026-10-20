@@ -125,6 +125,9 @@ const ACHIEVEMENTS = {
   longnight:   { label: 'Saw the sky tear', title: 'of the Long Night' },
   riftwarden:  { label: 'Closed five rifts to Midgard', title: 'Warden of the Rifts' },
   riftlord:    { label: 'Slew the Rift Lord', title: 'Shield of Seven Realms' },
+  reckoning:   { label: 'Took up the rebuilding', title: 'the Steward' },
+  mason:       { label: 'Sponsored three structures', title: 'the Mason' },
+  founder:     { label: 'Sponsored ten structures across the realms', title: 'the Founder' },
   mandarin:    { label: 'Passed the imperial examination', title: 'the Mandarin' },
   pilgrim:     { label: 'Walked the nine gates of Suryapur', title: 'the Pilgrim' },
   boyar:       { label: "Seated on the Tsar's council", title: 'the Boyar' },
@@ -262,10 +265,10 @@ const itemInfo = (id) => ITEMS.weapons[id] || ITEMS.armor[id] || ITEMS.consumabl
 const itemKind = (id) => ITEMS.weapons[id] ? 'weapon' : ITEMS.armor[id] ? 'armor' : ITEMS.relics[id] ? 'relic' : 'consumable';
 // The relic you wear changes how you play; see config/items.php for the list.
 const wearing = (id) => !!player && player.relic === id;
-const goldMult = () => (perkCount('lucky') ? 1.25 : 1) * (wearing('luckycoin') ? 1.4 : 1) * (wearing('ledger') ? 1.25 : 1);
+const goldMult = () => (perkCount('lucky') ? 1.25 : 1) * (wearing('luckycoin') ? 1.4 : 1) * (wearing('ledger') ? 1.25 : 1) * (wearing('founderseal') ? 1.15 : 1);
 const potionHeal = (h) => h * (wearing('royalsignet') ? 2 : 1);
 const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0) + (player.rage > 0 ? 2 : 0) + (wearing('bearcharm') && dayPhase() === 'night' ? 3 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('riftheart') ? 2 : 0);
-const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('sunlotus') && dayPhase() !== 'night' ? 2 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('frostheart') ? 4 : 0) + (wearing('riftheart') ? 2 : 0) + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
+const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('sunlotus') && dayPhase() !== 'night' ? 2 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('frostheart') ? 4 : 0) + (wearing('riftheart') ? 2 : 0) + (wearing('founderseal') ? 1 : 0) + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
   + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.def || 0) : 0) + (realmState().rank >= 2 ? 1 : 0);
 const SAVE_EVERY_TURNS = 20;
 // What the hero has bought into in each realm: noble rank in Aurum, civic
@@ -287,7 +290,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, pets: petsState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, story4: player.meta.story4 || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, story4: player.meta.story4 || null, story5: player.meta.story5 || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -921,6 +924,7 @@ function drawJournal(g) {
       steps.push(['Story 2: The Far Shore', S2.s === 0 ? 'Story 1 is told. Stand in any town and the next story will find you.' : S2.s === 3 ? 'The Hollow King is dust. Three crowns beyond the Veil call you friend, and the sea road is open for good.' : S2.s === 2 ? 'The three keys are yours and the Barrow is open. Go down the thousand steps.' : 'The Veil was a prison wall. Earn the three keys from the three crowns beyond it.', S2.s === 3]);
       if (S2.s >= 1) for (const r of FAR_REALMS) { const Q = REALM_QUESTS[r], rq = rqState(r); steps.push([`${Q.title} (the ${itemInfo(Q.relic).name})`, rq.s === 5 ? `${Q.ruler} gave you the key.` : rq.s === 4 ? `Report to ${Q.ruler}.` : rq.s === 0 ? `${Q.ruler} waits in ${CAPITAL_NAMES[r]}.` : Q.steps[rq.s - 1].label + '.', rq.s === 5]); }
       if (S2.s >= 2) steps.push(['The Thousand-Step Barrow', S2.s === 3 ? 'The Hollow King is slain.' : 'At the heart of the Far Shore. Six floors, and the Hollow King at the bottom.', S2.s === 3]);
+      if (story4Done()) { const S5 = story5(); steps.push(['Story 5: The Rebuilding', S5.s === 0 ? 'Story 4 is told. Stand in any town and the reckoning will find you.' : S5.s === 2 ? `You are a Founder: ${S5.n} structures stand with your name on them.` : `Talk to town leaders to sponsor walls, buildings, memorials and roads: ${S5.n || 0}/${FOUNDER_AT} sponsored. The heroes page ranks the builders.`, S5.s === 2]); }
       if (story3Done()) { const S4 = story4(); steps.push(['Story 4: The Long Night', S4.s === 0 ? 'Story 3 is told. Stand in any town and watch the sky.' : S4.s === 2 ? 'The Rift Lord is dust and every rift is shut.' : `Rifts to Midgard open outside the towns. Kill a horde to close its rift: ${S4.closed || 0}/${RIFTS_TO_CLOSE} closed${(S4.closed || 0) >= RIFTS_TO_CLOSE ? '. The Rift Lord is coming' : ''}.`, S4.s === 2]); }
       if (S2.s === 3) { const S3 = story3(); steps.push(['Story 3: The Frozen Gate', S3.s === 0 ? 'Story 2 is told. Stand in any town and a raven will find you.' : S3.s === 2 ? 'Thrym is dead and the gate is shut. The north is quiet.' : 'A door of ice on an island in the far north opens on Midgard. Take passage to Hrafnvik and go down through it to Thrym, Jarl of the Frost Giants.', S3.s === 2]); }
     }
@@ -1586,6 +1590,7 @@ function storyObjective() {
     return { text: ACT2_STEPS[A.s - 1].label, short: 'The Gate of the Deep', x: gate.x, y: gate.y };
   }
   if (st.phase === 'seek') { const S = STORY_SITES[STORY_ORDER[st.ch]], site = siteAt(S.i, S.j); return { text: `Find the ${S.shard} in ${S.title.replace(/^The /, 'the ')}`, short: S.title, x: site.x, y: site.y }; }
+  if (story5().s === 1) { const here = townContaining(player.x, player.y) || nearestTownTo(player.x, player.y); return { text: `Sponsor the rebuilding: talk to a town leader (${story5().n || 0}/${FOUNDER_AT} structures)`, short: here ? here.name : 'A town', x: here ? here.cx : player.x, y: here ? here.cy : player.y }; }
   if (story4().s === 1) {
     const r = rifts[0], closed = story4().closed || 0;
     if (r) { const tn = townAt(...r.town.split(',').map(Number)); return { text: r.lord ? `Slay the Rift Lord at ${tn ? tn.name : 'the rift'}` : `Close the rift at ${tn ? tn.name : 'the town'}: kill its horde (${closed}/${RIFTS_TO_CLOSE} closed)`, short: 'The rift', x: r.x, y: r.y }; }
@@ -1685,6 +1690,8 @@ function guideSuggestions() {
   else if (story1Done() && story2().s === 0) out.push(['Story 2', 'Story 1 is told. Stand in any town and the next one will find you.']);
   else if (story2Done() && story3().s === 0) out.push(['Story 3', 'Story 2 is told. Stand in any town and a raven will find you.']);
   else if (story3Done() && story4().s === 0) out.push(['Story 4', 'Story 3 is told. Stand in any town, and watch the sky.']);
+  else if (story4Done() && story5().s === 0) out.push(['Story 5', 'Story 4 is told. Stand in any town and the reckoning will find you.']);
+  else if (story5().s === 2) out.push(['Founder', `You are a Founder of the realms (${story5().n} structures). The leaders still keep their lists.`]);
   else if (story4().s === 2) out.push(['The Long Night', 'The Rift Lord is dust and every rift is shut. Four stories told.']);
   else if (story3().s === 2) out.push(['The Frozen Gate', 'Thrym is dead and the gate is shut. The north is quiet, and the raven is yours.']);
   else if (story2().s === 3) out.push(['The Far Shore', 'The Hollow King is dust and both shores are at peace. The sea road across the Veil is yours.']);
@@ -1766,6 +1773,7 @@ const STORIES = [
   { n: 2, title: 'The Far Shore', acts: ['The Veil parts', 'Three keys, three crowns', 'The Thousand-Step Barrow'] },
   { n: 3, title: 'The Frozen Gate', acts: ['A raven from the north', 'Midgard'] },
   { n: 4, title: 'The Long Night', acts: ['Rifts', 'The Rift Lord'] },
+  { n: 5, title: 'The Rebuilding', acts: ['The reckoning', 'The builders'] },
 ];
 const story2 = () => player.meta.story2 || (player.meta.story2 = { s: 0 });   // 0 locked, 1 the keys, 2 the Barrow open, 3 done
 const story1Done = () => !!player && !!player.meta && story().phase === 'done' && act2().s >= 6;
@@ -2774,6 +2782,120 @@ async function fetchBuildings(keys, force = false) {
     bgDirty = true; if (shopOpen) renderShop(); draw();
   } catch (e) { /* offline: keep what we had */ }
 }
+// ---------- Story 5: the rebuilding ----------
+// Structures heroes sponsor at a town's leader, shared with every hero: walls, a
+// building, a memorial in the square, paved roads. The server keeps them
+// (town_projects); here they are applied to the generated town.
+const PROJECTS = ACCOUNT.projects || {};
+// where a sponsored building may stand, by town size: clear of the square and the houses a town starts with
+const REBUILD_SLOTS = { village: [[2, 10, 6, 4], [32, 10, 6, 4], [2, 18, 6, 4], [32, 18, 6, 4], [12, 22, 6, 4], [22, 22, 6, 4]], town: [[1, 10, 5, 4], [34, 10, 5, 4], [1, 16, 5, 4], [34, 16, 5, 4], [20, 23, 6, 4]], city: [[0, 10, 5, 4], [35, 10, 5, 4], [0, 17, 5, 4], [35, 17, 5, 4]], castle: [[12, 22, 6, 4], [22, 22, 6, 4]], grand: [[24, 38, 6, 3], [2, 24, 5, 4], [53, 24, 5, 4]] };
+const freeSlot = (town) => (REBUILD_SLOTS[town.size] || REBUILD_SLOTS.town).find(([lx, ly, w, h]) => !town.houses.some((o) => town.x0 + lx < o.x + o.w + 1 && town.x0 + lx + w + 1 > o.x && town.y0 + ly < o.y + o.h + 1 && town.y0 + ly + h + 1 > o.y)) || null;
+const townProjects = new Map();   // town key -> { at, list }
+const story5 = () => player.meta.story5 || (player.meta.story5 = { s: 0, n: 0 });   // 0 locked, 1 building, 2 founder
+const story4Done = () => !!player && !!player.meta && story4().s >= 2;
+const story5Open = () => !!player && !!player.meta && story5().s >= 1;
+const FOUNDER_AT = 10;
+const projectsOf = (town) => (townProjects.get(town.key) || { list: [] }).list;
+const projectDone = (town, id) => projectsOf(town).find((p) => p.project === id) || null;
+async function fetchProjects(keys, force = false) {
+  if (!ACCOUNT.projectsUrl) return;
+  const now = performance.now();
+  const want = keys.filter((k) => force || !townProjects.has(k) || now - townProjects.get(k).at > 60000);
+  if (!want.length) return;
+  for (const k of want) if (!townProjects.has(k)) townProjects.set(k, { at: now, list: [] }); else townProjects.get(k).at = now;
+  try {
+    const r = await fetch(`${ACCOUNT.projectsUrl}?towns=${encodeURIComponent(want.join('|'))}`, { headers: { Accept: 'application/json' } });
+    if (!r.ok) return;
+    const { projects, mine } = await r.json();
+    for (const k of want) townProjects.set(k, { at: now, list: projects.filter((p) => p.town === k) });
+    if (player && player.meta && story5Open() && Number.isInteger(mine) && mine > (story5().n || 0)) story5().n = mine;
+    for (const k of want) { const t = townAt(...k.split(',').map(Number)); if (t) applyProjects(t); }
+    if (shopOpen) renderShop(); draw();
+  } catch (e) { /* offline: keep what we had */ }
+}
+// make a town's sponsored structures real: walls, a new house, the memorial, paved roads
+function applyProjects(town) {
+  const list = projectsOf(town).slice().sort((a, b2) => a.project.localeCompare(b2.project));   // the same order for every hero, so buildings land in the same slots
+  const sig = list.map((p) => p.project).join(',');
+  if (town.projectSig === sig) return;
+  town.projectSig = sig; town.projects = new Set(list.map((p) => p.project));
+  if (town.baseWalled === undefined) town.baseWalled = town.walled;
+  town.houses = town.houses.filter((h) => !h.sponsor); town.walled = town.baseWalled; town.memorial = null; town.paved = false;
+  for (const p of list) {
+    if (p.project === 'walls') town.walled = true;
+    else if (p.project === 'memorial') town.memorial = p.builder;
+    else if (p.project === 'road') town.paved = true;
+    else if (BUILDINGS[p.project] && !town.houses.some((h) => h.id === p.project)) {
+      const free = freeSlot(town);
+      if (free) { const [lx, ly, w, h] = free, roof = REALM_ROOFS[town.realm]; town.houses.push({ x: town.x0 + lx, y: town.y0 + ly, w, h, id: p.project, doorX: town.x0 + lx + Math.floor(w / 2), doorY: town.y0 + ly + h - 1, town: town.key, ...BUILDINGS[p.project], ...(roof ? { roof: roof[(lx + ly) % roof.length] } : {}), sponsor: p.builder }); }
+    }
+  }
+  // the chunks under the town (and its roads) are stamped again
+  const reach = 2;
+  for (let cy = Math.floor((town.y0 - 40) / CHUNK) - reach + 1; cy <= Math.floor((town.y0 + th(town) + 40) / CHUNK) + reach - 1; cy++) for (let cx = Math.floor((town.x0 - 40) / CHUNK) - reach + 1; cx <= Math.floor((town.x0 + tw(town) + 40) / CHUNK) + reach - 1; cx++) chunks.delete(key(cx, cy));
+  town.identity = null; town.npcs = null; bgDirty = true; mapCache.ox = null;
+  if (scene === 'world') { refreshTownContext(); if (townContaining(player.x, player.y) === town && !walkable(getTile(player.x, player.y))) { player.x = town.cx; player.y = town.cy + 3; settle(player); } placePets(); }
+}
+async function sponsorProject(town, id) {
+  const P = PROJECTS[id]; if (!P) return;
+  if (!ACCOUNT.user) { log('Create a hero (or log in) to sponsor rebuilding. What is built is shared with every hero, so it needs a name on it.', 'bad'); return; }
+  if (player.gold < P.cost) return;
+  try {
+    const r = await fetch(ACCOUNT.projectsUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': ACCOUNT.csrf }, body: JSON.stringify({ town: town.key, project: id, gold: player.gold }) });
+    const res = await r.json().catch(() => ({}));
+    if (!r.ok) { log(res.message || 'The leader shakes their head. Try again in a moment.', 'bad'); await fetchProjects([town.key], true); return; }
+    player.gold = res.gold;
+    const e = townProjects.get(town.key) || { at: performance.now(), list: [] };
+    e.list = e.list.filter((p) => p.project !== id).concat([res.project]); townProjects.set(town.key, e);
+    applyProjects(town);
+    story5().n = Number.isInteger(res.mine) ? res.mine : (story5().n || 0) + 1;   // the server's count is the truth
+    sfx.play('win'); burst(player.x, player.y, '#ffd86b', 24, 110, { glow: true, gravity: -40, life: 800 });
+    log(`${P.name} for ${town.name}: masons and carpenters set to work, and your name goes on the plinth. Structures sponsored: ${story5().n}.`, 'good');
+    unlock('builder'); if (story5().n >= 3) unlock('mason');
+    track('project_sponsored', { project: id });
+    if (story5().n >= FOUNDER_AT && story5().s === 1) founderNamed();
+    updateStats(); renderShop(); draw(); saveProgress('progress');
+  } catch (e) { log('The messenger did not get through. Try again in a moment.', 'bad'); }
+}
+const STORY5_INTRO = [
+  { who: 'The reckoning', sprite: 'elder', bg: 'town', title: 'Story 5: The Rebuilding',
+    text: 'When the last rift shuts, seven realms count the cost: gates broken, watch houses burned, roads churned to mud, a watch buried in every town, and treasuries empty from the war. Every town leader keeps a list of what the town needs. And every hero who comes through the gate with gold in their purse is asked the same question.' },
+  { who: 'What is needed', sprite: 'villager', bg: 'town', title: 'What is needed',
+    text: 'Walls, where a town has none. A watch house, a smithy, a market hall, an apothecary, an armoury. A memorial in the square to those who fell. The roads out of town paved in stone. Talk to the leader of any town and they will show you the list. What you pay for stands for every hero who passes, with your name on it.' },
+  { who: 'The builders', sprite: 'hero', bg: 'town', title: 'The builders',
+    text: 'This story has no boss. Its heroes are the ones who build, and the heroes page keeps the tally. Raise ten structures across the realms and you will be named a Founder, which in the realms is the only title that lasts.' },
+];
+const STORY5_FINALE = [
+  { who: 'Founder', sprite: 'king', bg: 'hall', title: 'Founder',
+    text: 'Ten structures stand with your name on them, from here to the far shore. The King, the Empress, the councils and the clans do not agree on much, but they agree on this, and send a seal to prove it. Walls stand where you paid for stone. The roads are dry. Children are already climbing the memorials.' },
+  { who: 'The realms rebuilt', sprite: 'hero', bg: 'town', title: 'The realms rebuilt',
+    text: 'There will always be another list. But tonight the roofs are patched, the forges are lit, and somewhere a guard who owes you a watch house is buying the drinks. Five stories told, and the realms are better for every one of them.' },
+];
+function offerStory5() {
+  if (story5().s !== 0 || !story4Done() || storyOpen()) return;
+  story5().s = 1;
+  sfx.play('quest'); unlock('reckoning'); track('story5_opened');
+  showScene(STORY5_INTRO, () => { log('Story 5, The Rebuilding: talk to the leader of any town to sponsor walls, buildings, a memorial or paved roads. The heroes page ranks the builders.', 'good'); saveProgress('progress'); });
+}
+function founderNamed() {
+  story5().s = 2; unlock('founder'); track('story5_done');
+  showScene(STORY5_FINALE, () => { giveRelic('founderseal'); log("Story 5 complete: you are a Founder of the realms, and the Founder's Seal is yours.", 'good'); updateStats(); saveProgress('progress'); });
+}
+function rebuildRows(town) {
+  const rows = [];
+  if (!town) return rows;
+  const built = projectsOf(town);
+  rows.push(shopRow(`${town.name} after the Long Night: ${built.length ? `${built.length} of ${Object.keys(PROJECTS).length} works done` : 'nothing rebuilt yet'}. You have sponsored ${story5().n || 0} structure${(story5().n || 0) === 1 ? '' : 's'} across the realms${story5().s === 2 ? ', Founder' : `; ${FOUNDER_AT} makes a Founder`}.`));
+  for (const [id, P] of Object.entries(PROJECTS)) {
+    const done = projectDone(town, id);
+    if (done) { rows.push(shopRow(`✓ ${P.name}, sponsored by ${done.builder}`)); continue; }
+    if (id === 'walls' && town.walled) { rows.push(shopRow(`✓ ${P.name}: ${town.name} has its walls already`)); continue; }
+    if (BUILDINGS[id] && town.houses.some((h) => h.id === id)) { rows.push(shopRow(`✓ ${P.name}: ${town.name} has one already`)); continue; }
+    if (BUILDINGS[id] && !freeSlot(town)) { rows.push(shopRow(`${P.name}: no room left in ${town.name} for another building`)); continue; }
+    rows.push(shopRow(`${P.name}: ${P.desc}`, `Sponsor ${P.cost}g`, () => sponsorProject(town, id), player.gold < P.cost));
+  }
+  return rows;
+}
 const aOrAn = (w) => (/^[aeiou]/i.test(w) ? 'an' : 'a');
 const monumentName = (b) => `${BUILD.types[b.type] ? BUILD.types[b.type].name : b.type}`;
 const levelDesc = (type, level) => (BUILD.types[type] ? BUILD.types[type].levels[level - 1] : '');
@@ -2885,6 +3007,7 @@ function townTile(town, wx, wy) {
   if (wx === town.gate.x && wy === town.gate.y) t = TILE.EXIT;
   if (wx === town.cx + 4 && wy === town.cy) { t = TILE.WAYSTONE; g = GROUND.COBBLE; }
   if (wx === town.cx - 6 && wy === town.cy - 2) { t = TILE.MONUMENT; g = GROUND.COBBLE; }
+  if (town.memorial && wx === town.cx - 4 && wy === town.cy + 3) { t = TILE.MONUMENT; g = GROUND.COBBLE; }   // the memorial of the Long Night
   if (plotSlot(town, wx, wy) >= 0) { t = TILE.PLOT; g = GROUND.COBBLE; }
   return [t, g];
 }
@@ -2960,7 +3083,8 @@ function generateWorldChunk(cx, cy) {
     const lx = wx - ox, ly = wy - oy;
     if (lx < 0 || ly < 0 || lx >= CHUNK || ly >= CHUNK) return;
     if (gr[ly * CHUNK + lx] === GROUND.WATER && isSea(wx, wy)) return;   // roads stop at the shore
-    gr[ly * CHUNK + lx] = GROUND.ROAD; tiles[ly * CHUNK + lx] = TILE.FLOOR;
+    const near = nearestTownTo(wx, wy);   // a town that paid for paving has stone roads for sixty tiles about
+    gr[ly * CHUNK + lx] = near && near.paved && Math.abs(wx - near.cx) <= 60 && Math.abs(wy - near.cy) <= 50 ? GROUND.COBBLE : GROUND.ROAD; tiles[ly * CHUNK + lx] = TILE.FLOOR;
   };
   // the king's roads: straight across every land bridge, capital to capital
   for (const [a, b] of BRIDGES) {
@@ -3227,7 +3351,7 @@ function refreshTownContext() {
   const near = nearbyTowns(player.x, player.y, 1);
   houses = near.flatMap((t) => t.houses);
   npcs = near.flatMap((t) => townNpcs(t));
-  fetchBuildings(near.map((t) => t.key));
+  fetchBuildings(near.map((t) => t.key)); fetchProjects(near.map((t) => t.key));
 }
 function createWorld() {
   scene = 'world';
@@ -3300,6 +3424,7 @@ function talk(n) {
   log(`${n.type.name}: ${line}`);
   bubble = { x: n.x, y: n.y, text: line, until: performance.now() + (n.type.notable ? 6000 : 4000) };
   if (n.type.notable) { draw(); return; }
+  if (n.type.leader && story5Open()) { openShop('rebuild'); return; }
   if (n.type.action === 'inn') openShop('inn');
   else if (n.type.action && SHOPS[n.type.action]) openShop(n.type.action);
   else if (!bountyTalk(n)) offerQuest(n);
@@ -4029,6 +4154,7 @@ function townTier(town) {
   const d = Math.max(Math.abs(town.i), Math.abs(town.j));
   let tier = d <= 1 ? 0 : d === 2 ? 1 : d === 3 ? 2 : 3;
   if (town.capital || town.walled) tier += 1;
+  if (town.projects && town.projects.size >= 3) tier += 1;   // a rebuilt town prospers
   return Math.min(4, tier);
 }
 const STONE_IDS = new Set(['keep', 'throne', 'royal', 'watch', 'herald', 'arena', 'armoury', 'smithy']);
@@ -4405,7 +4531,7 @@ function renderBackground() {
       if (t === TILE.SHIP) { drawWater(g, c, r); drawSprite(g, 'ship', c, r, 1, -2); }
       if (t === TILE.WAYSTONE) drawWaystone(g, c, r);
       if (t === TILE.PLACE) { const pl = placeAtTile(c, r); if (pl) drawSprite(g, pl.sprite, c, r, 1, 0); }
-      if (t === TILE.MONUMENT) { const tw = townContaining(c, r); if (tw) drawSprite(g, townIdentity(tw).landmark.sprite, c, r, 1, 0); }
+      if (t === TILE.MONUMENT) { const tw = townContaining(c, r); if (tw) drawSprite(g, tw.memorial && c === tw.cx - 4 && r === tw.cy + 3 ? 'obelisk' : townIdentity(tw).landmark.sprite, c, r, 1, 0); }
       if (t === TILE.WARCAMP) { const wc = campAtTile(c, r); drawSprite(g, wc && campRazed(wc) ? 'razedcamp' : 'warcamp', c, r, 1, 0); }
       if (t === TILE.PLOT) {
         const tw = townContaining(c, r), b = tw && buildingAt(tw, plotSlot(tw, c, r));
@@ -5415,7 +5541,7 @@ function describeTile(x, y) {
   if (scene === 'world' && groundAt(x, y) === GROUND.DOCK) return 'The pier — the harbourmaster at the end sells passage by sea';
   if (t === TILE.WARCAMP) { const wc = campAtTile(x, y); if (wc) return campRazed(wc) ? `${wc.name} — razed` : `${wc.name} — orc warcamp, strength ${wc.strength}. ${armiesUnlocked() ? 'Send a realm\'s army' : `Armies open at level ${ARMY_LEVEL}`}`; }
   if (t === TILE.PLOT) { const tw = townContaining(x, y); if (tw) { const b = buildingAt(tw, plotSlot(tw, x, y)); return b ? `${b.builder}'s ${monumentName(b)}, level ${b.level}${b.upgrader && b.upgrader !== b.builder ? ` (upgraded by ${b.upgrader})` : ''} — ${levelDesc(b.type, b.level)}. Walk into it to use it${monumentUsed(tw, plotSlot(tw, x, y)) ? ' (used recently)' : ''}` : 'Empty building plot — pay an innkeeper here to build a monument for every hero'; } }
-  if (t === TILE.MONUMENT) { const tw = townContaining(x, y); if (tw) { const L = townIdentity(tw).landmark; return `${L.name[0].toUpperCase() + L.name.slice(1)} — the pride of ${tw.name}. Walk into it to look closer`; } }
+  if (t === TILE.MONUMENT) { const tw = townContaining(x, y); if (tw && tw.memorial && x === tw.cx - 4 && y === tw.cy + 3) return `The memorial of the Long Night — raised by ${tw.memorial}. Walk into it to read the names`; if (tw) { const L = townIdentity(tw).landmark; return `${L.name[0].toUpperCase() + L.name.slice(1)} — the pride of ${tw.name}. Walk into it to look closer`; } }
   if (getTile(x, y) === TILE.WAYSTONE) return 'Waystone — walk into it to travel to any town you have visited';
   const n = scene !== 'dungeon' && getNpcAt(x, y);
   if (n && n.type.notable) return `${n.type.name}, ${n.type.role} — walk into them to hear their story`;
@@ -6225,7 +6351,7 @@ function tryMove(dx, dy) {
   if (t === TILE.PLOT) { const tw = townContaining(nx, ny); if (tw) useMonument(tw, plotSlot(tw, nx, ny)); draw(); return; }
   if (t === TILE.SHIP) { const pt = portAtTile(nx, ny); if (pt) openShop('harbour'); else log('A boat with nobody to sail it.'); draw(); return; }
   if (t === TILE.WARCAMP) { const wc = campAtTile(nx, ny); if (wc) log(campRazed(wc) ? `The burnt-out remains of ${wc.name}. The realm's soldiers did their work.` : `${wc.name[0].toUpperCase() + wc.name.slice(1)}: palisades, drums and far too many orcs (strength ${wc.strength}). No single hero can take it. ${armiesUnlocked() ? 'Recruit an army at a realm\'s seat and send it here.' : `Heroes of level ${ARMY_LEVEL} can raise a realm's army against it.`}`, campRazed(wc) ? '' : 'bad'); draw(); return; }
-  if (t === TILE.MONUMENT) { const tw = townContaining(nx, ny); if (tw) { const L = townIdentity(tw).landmark; log(`${L.name[0].toUpperCase() + L.name.slice(1)}. ${L.lore}`); } draw(); return; }
+  if (t === TILE.MONUMENT) { const tw = townContaining(nx, ny); if (tw && tw.memorial && nx === tw.cx - 4 && ny === tw.cy + 3) log(`The memorial of the Long Night: a column of grey stone with the names of the watch who fell at the walls of ${tw.name}, and on the plinth, in letters a hand high, the name of ${tw.memorial}, who paid for it.`); else if (tw) { const L = townIdentity(tw).landmark; log(`${L.name[0].toUpperCase() + L.name.slice(1)}. ${L.lore}`); } draw(); return; }
   const other = mpPlayerAt(nx, ny);
   if (other) { if (scene !== 'dungeon') openPlayerMenu(other); draw(); return; }
   if (t === TILE.DOOR) {
@@ -7229,6 +7355,7 @@ function endTurn(moved) {
   if (scene === 'world' && moved && story2().s === 0 && townContaining(player.x, player.y) && story1Done()) offerStory2();
   if (scene === 'world' && moved && story3().s === 0 && townContaining(player.x, player.y) && story2Done()) offerStory3();
   if (scene === 'world' && moved && story4().s === 0 && townContaining(player.x, player.y) && story3Done()) offerStory4();
+  if (scene === 'world' && moved && story5().s === 0 && townContaining(player.x, player.y) && story4Done()) offerStory5();
   if (inTown()) for (const pl of nearbyPlaces(player.x, player.y, 1)) if (!discovered(pl) && cheb(pl, player) <= 3) discoverPlace(pl);
   if (inTown()) for (const st of nearbySites(player.x, player.y, 1)) if (st.lair && !lairKnown(st.lair) && cheb(st, player) <= 4) revealLair(st.lair, 'You stumble on it:');
   if (scene === 'world' && turn % 5 === 0) spawnBounties();
@@ -7893,7 +8020,7 @@ function priceMult() {
 }
 const sellRate = () => (wearing('ledger') ? 0.7 : currentRealm() === 'league' ? 0.6 : 0.5);
 const sellPrice = (id) => Math.floor(itemInfo(id).price * sellRate());
-const SERVICE_SHOPS = new Set(['travel', 'player', 'court', 'council', 'chieftain', 'shaman', 'bank', 'hermit', 'harbour', 'yamen', 'durbar', 'terem']);
+const SERVICE_SHOPS = new Set(['travel', 'player', 'court', 'council', 'chieftain', 'shaman', 'bank', 'hermit', 'harbour', 'yamen', 'durbar', 'terem', 'rebuild']);
 const SHOPS = {
   shop: { title: 'Merchant', stock: (id, it) => it.floor <= Math.max(floor, 1) + 1, price: (it) => it.price, greet: 'The merchant greets you. Buy and sell with the buttons, Esc to leave.' },
   potions: { title: "Mara's potions", stock: (id) => id === 'potion' || id === 'manapotion', price: (it) => it.price - 2, greet: 'Mara sets out her potions. She buys gear too, at half price.' },
@@ -7910,6 +8037,7 @@ let shopKind = 'shop';
 const buyPrice = (id) => Math.max(1, Math.round(SHOPS[shopKind].price(itemInfo(id)) * priceMult() * (SERVICE_SHOPS.has(shopKind) ? 1 : localDeal(id))));
 Object.assign(SHOPS, {
   court: { title: 'The Court of Aurum', stock: () => false, price: (it) => it.price, greet: 'The herald unrolls a long scroll of titles. Each comes with a seal, a ribbon, and a price.' },
+  rebuild: { title: 'The rebuilding', stock: () => false, price: (it) => it.price, greet: 'The leader unrolls a list of what the town needs, and looks at your purse.' },
   yamen: { title: 'The Yamen of the Empire', stock: () => false, price: (it) => it.price, greet: 'Clerks bend over ledgers. A brush is dipped, a seal is pressed, and someone finally looks up at you.' },
   durbar: { title: 'The Durbar Hall', stock: () => false, price: (it) => it.price, greet: 'Incense, marigolds and a floor cool as a river. Petitioners wait in a patient line that parts for you.' },
   terem: { title: 'The Terem of the Tsar', stock: () => false, price: (it) => it.price, greet: 'A stove the size of a house, icons in gold, and a bear asleep by the door. Nobody seems worried about the bear.' },
@@ -8207,7 +8335,7 @@ function sailStep(dx, dy) {
   endTurn(true);
   if (aboard && !gameOver && !storyOpen() && !shopOpen) seaEvent();
 }
-function travelCost(town) { const c = 10 + Math.round((Math.abs(town.cx - player.x) + Math.abs(town.cy - player.y)) / 12); const d = realmState().standing >= 250 ? Math.ceil(c / 2) : c; return wearing('jadeseal') ? Math.ceil(d / 2) : d; }
+function travelCost(town) { const c = 10 + Math.round((Math.abs(town.cx - player.x) + Math.abs(town.cy - player.y)) / 12); let d = realmState().standing >= 250 ? Math.ceil(c / 2) : c; const here = townContaining(player.x, player.y); if (here && here.paved) d = Math.ceil(d * 0.75); return wearing('jadeseal') ? Math.ceil(d / 2) : d; }   // paved roads make for cheaper travel
 function travelTo(town) {
   const cost = travelCost(town);
   if (player.gold < cost) return;
@@ -8376,6 +8504,8 @@ function serviceRowsInner(kind) {
       }, player.gold < r.cost));
     });
     if (rs.rank >= NOBLE_RANKS.length) rows.push(shopRow('You hold every title the herald can sell'));
+  } else if (kind === 'rebuild') {
+    for (const row of rebuildRows(shopTown())) rows.push(row);
   } else if (FAR_SEATS[kind]) {
     const P = FAR_SEATS[kind], had = (player.achievements || []).includes(P.ach);
     rows.push(shopRow(P.blurb));
@@ -8565,6 +8695,7 @@ function startRun(saved) {
         rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
         story2: saved.meta?.story2 && Number.isInteger(saved.meta.story2.s) ? { s: Math.max(0, Math.min(3, saved.meta.story2.s)) } : null,
         story3: saved.meta?.story3 && Number.isInteger(saved.meta.story3.s) ? { s: Math.max(0, Math.min(2, saved.meta.story3.s)) } : null,
+        story5: saved.meta?.story5 && Number.isInteger(saved.meta.story5.s) ? { s: Math.max(0, Math.min(2, saved.meta.story5.s)), n: Math.max(0, Number(saved.meta.story5.n) || 0) } : null,
         story4: saved.meta?.story4 && Number.isInteger(saved.meta.story4.s) ? { s: Math.max(0, Math.min(2, saved.meta.story4.s)), closed: Math.max(0, Number(saved.meta.story4.closed) || 0) } : null,
         secrets: Array.isArray(saved.meta?.secrets) ? saved.meta.secrets.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 20) : [],
         charts: Array.isArray(saved.meta?.charts) ? saved.meta.charts.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 3) : [], treasures: Number(saved.meta?.treasures) || 0,

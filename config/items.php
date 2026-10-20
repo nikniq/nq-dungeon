@@ -61,6 +61,7 @@ return [
         'hollowcrown' => ['name' => 'Crown of the Hollow King', 'desc' => '+3 attack, +3 defence, and the stolen winds carry you two tiles a step in the wilds.', 'found' => 'the bottom of the Thousand-Step Barrow', 'price' => 1200, 'floor' => 99],
         'frostheart' => ['name' => 'Frostheart', 'desc' => '+4 defence, and no poison can touch you.', 'found' => 'the hall of Thrym, beyond the Frozen Gate', 'price' => 1200, 'floor' => 99],
         'riftheart' => ['name' => 'Riftheart', 'desc' => '+2 attack and +2 defence; a shard of the door between worlds.', 'found' => 'the Rift Lord', 'price' => 1500, 'floor' => 99],
+        'founderseal' => ['name' => "Founder's Seal", 'desc' => '+15% gold from the floor and from chests, and +1 defence. The realms remember who rebuilt them.', 'found' => 'the rebuilding of the realms', 'price' => 900, 'floor' => 99],
         'crown' => ['name' => 'Crown of Aurum', 'desc' => '+2 attack, +2 defence and +10 max HP. The King\'s own gift.', 'found' => 'the end of the story', 'price' => 1000, 'floor' => 99],
     ],
     'bag_size' => 12,
