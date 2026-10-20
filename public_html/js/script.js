@@ -3655,8 +3655,10 @@ function drawWater(g, c, r) {
   g.fillRect(X, Y, T, T);
   g.fillStyle = 'rgba(96,165,250,0.6)';
   if (n < 0.3) g.fillRect(X + 6, Y + 10, 10, 2); else if (n < 0.55) g.fillRect(X + 16, Y + 22, 10, 2);
-  // foam along every edge that meets land
+  // a shelf of sand under the shallows, scalloped, then foam along every edge that meets land
   const wet = (dx, dy) => groundAt(c + dx, r + dy) === GROUND.WATER;
+  const landy = (dx, dy) => { const gg = groundAt(c + dx, r + dy); return gg !== GROUND.WATER && gg !== GROUND.DOCK; };
+  edgeFringe(g, c, r, X, Y, landy, (k) => k % 2 ? 'rgba(201,181,122,0.55)' : 'rgba(214,196,140,0.55)', 2, 7);
   g.fillStyle = 'rgba(219,234,254,0.7)';
   if (!wet(0, -1)) g.fillRect(X, Y, T, 3);
   if (!wet(0, 1)) g.fillRect(X, Y + T - 3, T, 3);
@@ -3666,12 +3668,36 @@ function drawWater(g, c, r) {
   if (!wet(0, -1)) g.fillRect(X, Y + 3, T, 3);
   if (!wet(-1, 0)) g.fillRect(X + 3, Y, 3, T);
 }
+function drawWaystone(g, c, r) {
+  const X = c * T - off.x, Y = r * T - off.y;
+  g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(X + T / 2 + 2, Y + T - 4, 12, 4, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#6b7684'; g.beginPath(); g.moveTo(X + 8, Y + T - 3); g.lineTo(X + 7, Y + 10); g.quadraticCurveTo(X + 8, Y + 2, X + 16, Y + 2); g.quadraticCurveTo(X + 25, Y + 3, X + 25, Y + 11); g.lineTo(X + 24, Y + T - 3); g.closePath(); g.fill();
+  g.fillStyle = '#8a95a3'; g.beginPath(); g.moveTo(X + 9, Y + T - 4); g.lineTo(X + 9, Y + 10); g.quadraticCurveTo(X + 10, Y + 4, X + 16, Y + 4); g.lineTo(X + 18, Y + 4); g.lineTo(X + 18, Y + T - 4); g.closePath(); g.fill();   // the lit face
+  g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(X + 10, Y + 6, 2, 14);
+  g.fillStyle = '#7bdfff';   // the runes
+  for (const [rx, ry, w2, h2] of [[13, 9, 2, 2], [15, 11, 2, 1], [13, 13, 4, 1], [17, 15, 2, 2], [14, 18, 2, 2], [16, 21, 3, 1], [13, 23, 2, 2]]) g.fillRect(X + rx, Y + ry, w2, h2);
+  g.fillStyle = '#3f8a3a'; g.fillRect(X + 6, Y + T - 5, 5, 3); g.fillRect(X + 22, Y + T - 4, 6, 3); g.fillStyle = '#5aa352'; g.fillRect(X + 7, Y + T - 6, 2, 1);   // moss at the foot
+}
+// the waystone's light breathes, so it is drawn over the cached ground every frame
+function drawWaystoneGlows(g, now) {
+  for (const t of nearbyTowns(player.x, player.y, 1)) {
+    const x = (t.cx + 4) * T - cam.x + T / 2, y = t.cy * T - cam.y + T / 2;
+    if (x < -T || y < -T || x > canvas.width + T || y > canvas.height + T) continue;
+    const a = 0.22 + 0.1 * Math.sin(now / 600);
+    const rg = g.createRadialGradient(x, y, 2, x, y, T * 1.1); rg.addColorStop(0, `rgba(123,223,255,${a})`); rg.addColorStop(1, 'rgba(123,223,255,0)');
+    g.fillStyle = rg; g.beginPath(); g.arc(x, y, T * 1.1, 0, Math.PI * 2); g.fill();
+    g.fillStyle = `rgba(200,245,255,${0.5 + 0.4 * Math.sin(now / 300)})`; g.fillRect(x - 3, y - 7, 4, 1); g.fillRect(x + 1, y - 1, 2, 2);   // a rune catching the light
+  }
+}
 function drawSand(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 23);
   g.fillStyle = n < 0.5 ? '#e7d3a1' : '#dfc78f'; g.fillRect(X, Y, T, T);
   g.fillStyle = 'rgba(0,0,0,0.05)'; for (let k = 0; k < 3; k++) g.fillRect(X, Y + 6 + k * 10 + Math.floor(noise(c, r + k, 24) * 4), T, 1);   // wind ripples
   g.fillStyle = '#cdb272'; if (n < 0.3) g.fillRect(X + 9, Y + 14, 3, 3); else if (n < 0.6) g.fillRect(X + 20, Y + 6, 2, 2);
   if (n > 0.8) { g.fillStyle = '#b89a5c'; g.fillRect(X + 22, Y + 20, 3, 2); g.fillStyle = '#f3e6c4'; g.fillRect(X + 6, Y + 24, 2, 2); }   // pebbles and a shell
+  // grass laps over the sand in a scalloped fringe, and rounds off the corners
+  const grassy = (dx, dy) => { const gg = groundAt(c + dx, r + dy); return gg === GROUND.GRASS || gg === GROUND.FOREST || gg === GROUND.TREE; };
+  edgeFringe(g, c, r, X, Y, grassy, (k) => k % 2 ? '#468b3e' : '#3f8039');
   let wetSide = null; for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) if (groundAt(c + dx, r + dy) === GROUND.WATER) { wetSide = [dx, dy]; break; }
   if (wetSide) { g.fillStyle = 'rgba(120,100,60,0.25)'; const [dx, dy] = wetSide; g.fillRect(dx === 1 ? X + T - 6 : X, dy === 1 ? Y + T - 6 : Y, dx ? 6 : T, dy ? 6 : T); }   // damp sand by the water
 }
@@ -3746,6 +3772,25 @@ function drawSnow(g, c, r) {
   g.fillStyle = 'rgba(255,255,255,0.9)'; for (let k = 0; k < 4; k++) g.fillRect(X + 3 + Math.floor(noise(c * 5 + k, r, 15) * 26), Y + 3 + Math.floor(noise(c, r * 5 + k, 17) * 26), 1, 1);   // a glitter
   if (n < 0.08) { g.fillStyle = '#7f8a96'; g.fillRect(X + 14, Y + 18, 7, 5); g.fillStyle = '#e8f1f8'; g.fillRect(X + 14, Y + 17, 6, 2); }   // a rock under a cap of snow
   else if (n > 0.93) { g.fillStyle = 'rgba(120,150,180,0.35)'; g.fillRect(X + 6, Y + 22, 20, 2); g.fillRect(X + 10, Y + 12, 14, 2); }   // wind-scoured ridges
+}
+// A scalloped fringe of the neighbouring material along each edge that meets it,
+// with a rounded fill in corners where two such edges meet, so tile borders melt.
+function edgeFringe(g, c, r, X, Y, meets, colorOf, lo = 3, hi = 8) {
+  const top = meets(0, -1), bottom = meets(0, 1), left = meets(-1, 0), right = meets(1, 0);
+  for (let k = 0; k < T; k += 4) {
+    const h = lo + Math.floor(noise(c * 8 + k, r, 25) * (hi - lo)), v = lo + Math.floor(noise(c, r * 8 + k, 26) * (hi - lo));
+    g.fillStyle = colorOf(k / 4);
+    if (top) g.fillRect(X + k, Y, 4, h);
+    if (bottom) g.fillRect(X + k, Y + T - h, 4, h);
+    if (left) g.fillRect(X, Y + k, v, 4);
+    if (right) g.fillRect(X + T - v, Y + k, v, 4);
+  }
+  g.fillStyle = colorOf(0);
+  const corner = (cx, cy, a0) => { g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, hi + 4, a0, a0 + Math.PI / 2); g.closePath(); g.fill(); };
+  if (top && left) corner(X, Y, 0);
+  if (top && right) corner(X + T, Y, Math.PI / 2);
+  if (bottom && right) corner(X + T, Y + T, Math.PI);
+  if (bottom && left) corner(X, Y + T, Math.PI * 1.5);
 }
 function drawDock(g, c, r) {
   drawWater(g, c, r);
@@ -4149,13 +4194,6 @@ function renderBackground() {
         }
       }
       else { const fk = t === TILE.FLOOR && fieldAt(c, r); if (fk) drawField(g, c, r, fk); else { drawGrass(g, c, r); if (t === TILE.FLOOR && noise(c, r, 9) < 0.06) drawSprite(g, 'flower', c, r); } }
-      if (t === TILE.FOUNTAIN) {
-        const X = c * T - off.x, Y = r * T - off.y;
-        g.fillStyle = '#9ca3af'; g.fillRect(X, Y, T, T);
-        g.fillStyle = '#6b7280';
-        if (getTile(c - 1, r) !== TILE.FOUNTAIN) g.fillRect(X, Y, 5, T); else g.fillRect(X + T - 5, Y, 5, T);
-        if (getTile(c, r - 1) !== TILE.FOUNTAIN) g.fillRect(X, Y, T, 5); else g.fillRect(X, Y + T - 5, T, 5);
-      }
       if (t === TILE.EXIT) {
         const X = c * T - off.x, Y = r * T - off.y;
         g.fillStyle = '#374151'; g.fillRect(X - 6, Y - 6, T + 12, T + 12);
@@ -4164,7 +4202,7 @@ function renderBackground() {
       }
       if (t === TILE.SITE) { const st = siteAtTile(c, r); if (st) drawSprite(g, st.sprite, c, r, 1, 0); }
       if (t === TILE.SHIP) { drawWater(g, c, r); drawSprite(g, 'ship', c, r, 1, -2); }
-      if (t === TILE.WAYSTONE) drawSprite(g, 'waystone', c, r, 1, 0);
+      if (t === TILE.WAYSTONE) drawWaystone(g, c, r);
       if (t === TILE.PLACE) { const pl = placeAtTile(c, r); if (pl) drawSprite(g, pl.sprite, c, r, 1, 0); }
       if (t === TILE.MONUMENT) { const tw = townContaining(c, r); if (tw) drawSprite(g, townIdentity(tw).landmark.sprite, c, r, 1, 0); }
       if (t === TILE.WARCAMP) { const wc = campAtTile(c, r); drawSprite(g, wc && campRazed(wc) ? 'razedcamp' : 'warcamp', c, r, 1, 0); }
@@ -4286,16 +4324,21 @@ function drawHud(g, now) {
   const big = true;
   const w = Math.max(g.measureText(text).width + 20, compact ? 0 : 360), hudH = 72;
   hudExtra = hudH - 40;
-  g.fillStyle = 'rgba(6,12,20,0.78)';
-  g.beginPath(); g.roundRect(8, 8, w, hudH, 6); g.fill();
+  { const pg = g.createLinearGradient(0, 8, 0, 8 + hudH); pg.addColorStop(0, 'rgba(18,34,52,0.9)'); pg.addColorStop(1, 'rgba(5,10,18,0.9)');
+    g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.roundRect(10, 10, w, hudH, 8); g.fill();   // a soft drop shadow
+    g.fillStyle = pg; g.beginPath(); g.roundRect(8, 8, w, hudH, 8); g.fill();
+    g.strokeStyle = 'rgba(214,189,98,0.55)'; g.lineWidth = 1.5; g.beginPath(); g.roundRect(8.5, 8.5, w - 1, hudH - 1, 8); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.08)'; g.lineWidth = 1; g.beginPath(); g.roundRect(10.5, 10.5, w - 5, hudH - 5, 6); g.stroke();
+    g.fillStyle = '#d6bd62'; for (const [cx, cy] of [[14, 14], [8 + w - 6, 14], [14, 8 + hudH - 6], [8 + w - 6, 8 + hudH - 6]]) g.fillRect(cx - 1, cy - 1, 2, 2); }   // rivets
   g.fillStyle = '#e6eef8'; g.textBaseline = 'top'; g.fillText(text, 18, 14);
   const ratio = Math.max(0, Math.min(1, player.hp / player.maxHp));
   const hpCol = ratio > 0.5 ? '#5fe17a' : ratio > 0.25 ? '#f5c542' : '#ff6b6b';
   if (big) {
     const by = 32, bh = 16, bw = w - 20;
     g.fillStyle = '#06202c'; g.beginPath(); g.roundRect(18, by, bw, bh, 4); g.fill();
-    if (ratio > 0) { g.fillStyle = hpCol; g.beginPath(); g.roundRect(18, by, Math.max(6, bw * ratio), bh, 4); g.fill(); }
-    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(20, by + 2, Math.max(0, bw * ratio - 4), 3);
+    if (ratio > 0) { const bg = g.createLinearGradient(0, by, 0, by + bh); bg.addColorStop(0, shade(hpCol, 0.25)); bg.addColorStop(0.5, hpCol); bg.addColorStop(1, shade(hpCol, -0.35)); g.fillStyle = bg; g.beginPath(); g.roundRect(18, by, Math.max(6, bw * ratio), bh, 4); g.fill(); }
+    g.fillStyle = 'rgba(255,255,255,0.22)'; g.fillRect(20, by + 2, Math.max(0, bw * ratio - 4), 3);
+    g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 1; g.beginPath(); g.roundRect(18.5, by + 0.5, bw - 1, bh - 1, 4); g.stroke();
     g.font = 'bold 12px sans-serif'; g.textAlign = 'center';
     const hpText = `HP ${player.hp} / ${player.maxHp}${player.poison > 0 ? '  (poisoned)' : ''}`;
     g.lineWidth = 3; g.strokeStyle = 'rgba(6,12,20,0.9)'; g.strokeText(hpText, 18 + bw / 2, by + 2);
@@ -4304,7 +4347,8 @@ function drawHud(g, now) {
     // mana
     const my = by + bh + 3, mh = 12, mm = maxMana(), mana = Math.max(0, Math.min(mm, player.mana ?? 0)), mr = mm ? mana / mm : 0;
     g.fillStyle = '#06202c'; g.beginPath(); g.roundRect(18, my, bw, mh, 4); g.fill();
-    if (mr > 0) { g.fillStyle = mana >= abilityCost() ? '#4f7bff' : '#3b4f8f'; g.beginPath(); g.roundRect(18, my, Math.max(6, bw * mr), mh, 4); g.fill(); }
+    if (mr > 0) { const mc = mana >= abilityCost() ? '#4f7bff' : '#3b4f8f', mg = g.createLinearGradient(0, my, 0, my + mh); mg.addColorStop(0, shade(mc, 0.25)); mg.addColorStop(1, shade(mc, -0.35)); g.fillStyle = mg; g.beginPath(); g.roundRect(18, my, Math.max(6, bw * mr), mh, 4); g.fill(); }
+    g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 1; g.beginPath(); g.roundRect(18.5, my + 0.5, bw - 1, mh - 1, 4); g.stroke();
     g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(20, my + 2, Math.max(0, bw * mr - 4), 2);
     g.font = 'bold 10px sans-serif'; g.textAlign = 'center';
     const mpText = `MP ${mana} / ${mm}`;
@@ -4469,6 +4513,20 @@ function drawCloudShadows(g, now, t) {
   }
   g.restore();
 }
+// Two small flocks cross the sky by day, fixed to the world and flapping as they go.
+function drawBirds(g, now) {
+  const SX = 3000, SY = 2200;
+  g.strokeStyle = player.y < ICE_Y ? 'rgba(20,20,30,0.8)' : 'rgba(30,40,60,0.75)'; g.lineWidth = 1.5;
+  for (let f = 0; f < 2; f++) {
+    const wx = (f * 1500 + now * (0.03 + f * 0.012)) % SX, wy = (f * 1100 + 300 + Math.sin(now / 7000 + f) * 60) % SY;
+    const sx = ((wx - cam.x * 0.6) % SX + SX) % SX - 200, sy = ((wy - cam.y * 0.6) % SY + SY) % SY - 100;
+    if (sx < -100 || sx > canvas.width + 100 || sy < -60 || sy > canvas.height + 60) continue;
+    for (let i = 0; i < 4 + f; i++) {
+      const bx = sx - i * 14 - (i % 2) * 6, by = sy + Math.abs(i - 2) * 9, flap = Math.sin(now / 110 + i * 1.3) * 4;
+      g.beginPath(); g.moveTo(bx - 6, by + flap); g.quadraticCurveTo(bx - 2, by - 2, bx, by); g.quadraticCurveTo(bx + 2, by - 2, bx + 6, by + flap); g.stroke();
+    }
+  }
+}
 const particles = [];
 let lastFrame = 0;
 // A spray of particles from a tile. opts: life (ms), gravity (px/s²), size, glow, rise, spread, foot.
@@ -4530,13 +4588,26 @@ function drawScene(now) {
   const inView = (o) => o.x >= x0 && o.x <= x1 && o.y >= y0 && o.y <= y1;
   if (inTown()) for (const town of nearbyTowns(player.x, player.y, 1)) {
     if (town.cx < x0 || town.cx > x1 || town.cy < y0 || town.cy > y1) continue;
-    const X = (town.cx - 1) * T - cam.x + 5, Y = (town.cy - 1) * T - cam.y + 5, S = T * 2 - 10;
-    ctx.fillStyle = '#3b82f6'; ctx.fillRect(X, Y, S, S);
-    for (let i = 0; i < 3; i++) {
-      const rr = ((now / 900 + i / 3) % 1) * (S / 2);
-      ctx.beginPath(); ctx.arc(X + S / 2, Y + S / 2, rr, 0, Math.PI * 2); ctx.strokeStyle = `rgba(244,244,244,${0.7 - rr / (S / 2) * 0.7})`; ctx.lineWidth = 2; ctx.stroke();
+    // the town fountain: a round stone basin with a spout in the middle, drawn every frame so the water moves
+    const cx = town.cx * T - cam.x, cy = town.cy * T - cam.y, R = T - 2, tier = townTier(town);
+    const rim = tier === 0 ? '#7a6f5a' : tier >= 3 ? '#c9c2b4' : '#9ca3af', rimDark = tier === 0 ? '#5a5144' : tier >= 3 ? '#948c7c' : '#6b7280';
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(cx + 3, cy + 4, R, R * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = rimDark; ctx.beginPath(); ctx.ellipse(cx, cy + 2, R, R * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = rim; ctx.beginPath(); ctx.ellipse(cx, cy, R, R * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+    const wg = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, R - 5); wg.addColorStop(0, '#7cc4ff'); wg.addColorStop(1, '#1d4ed8');
+    ctx.fillStyle = wg; ctx.beginPath(); ctx.ellipse(cx, cy, R - 5, (R - 5) * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.beginPath(); ctx.ellipse(cx, cy, R - 5, (R - 5) * 0.8, 0, 0, Math.PI * 2); ctx.clip();
+    for (let i = 0; i < 3; i++) {   // ripples spreading from the spout
+      const rr = ((now / 1100 + i / 3) % 1) * (R - 5);
+      ctx.beginPath(); ctx.ellipse(cx, cy, rr, rr * 0.8, 0, 0, Math.PI * 2); ctx.strokeStyle = `rgba(230,245,255,${0.6 - rr / (R - 5) * 0.6})`; ctx.lineWidth = 1.5; ctx.stroke();
     }
-    ctx.fillStyle = '#f4f4f4'; ctx.fillRect(X + S / 2 - 2, Y + S / 2 - 16 + Math.sin(now / 200) * 3, 4, 16);
+    ctx.restore();
+    ctx.fillStyle = rimDark; ctx.fillRect(cx - 3, cy - 14, 6, 14); ctx.fillStyle = rim; ctx.beginPath(); ctx.ellipse(cx, cy - 14, 6, 3, 0, 0, Math.PI * 2); ctx.fill();   // the pedestal
+    ctx.strokeStyle = 'rgba(220,240,255,0.9)'; ctx.lineWidth = 2;
+    for (const dir of [-1, 1]) { ctx.beginPath(); ctx.moveTo(cx, cy - 18); ctx.quadraticCurveTo(cx + dir * 9, cy - 24, cx + dir * 12, cy - 8); ctx.stroke(); }   // two arcs of water
+    ctx.fillStyle = 'rgba(240,250,255,0.9)';
+    for (let i = 0; i < 6; i++) { const ph = (now / 700 + i / 6) % 1, dir = i % 2 ? 1 : -1; ctx.fillRect(Math.round(cx + dir * (3 + ph * 10)), Math.round(cy - 20 + ph * ph * 16 - Math.sin(ph * Math.PI) * 8), 2, 2); }   // falling drops
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(cx - 1, cy - 20, 2, 4);
   }
   const lights = [];
   if (scene === 'dungeon') {
@@ -4681,6 +4752,7 @@ function drawScene(now) {
     ctx.fillStyle = '#300'; ctx.fillRect(ex * T - cam.x + 3, ey * T - cam.y, T - 6, 3); ctx.fillStyle = '#9ef0b0'; ctx.fillRect(ex * T - cam.x + 3, ey * T - cam.y, (T - 6) * (escort.hp / escort.maxHp), 3);
   }
   if (player.meta.ship && !aboard && scene === 'world') drawSprite(ctx, 'ship', player.meta.ship.x, player.meta.ship.y + Math.sin(now / 500) * 0.04, 1, -2);   // moored where it was left
+  if (scene === 'world') drawWaystoneGlows(ctx, now);
   {
     const [ldx, ldy] = lunge(player, now);
     const lx = (player.rx ?? player.x) + ldx / T, ly = (player.ry ?? player.y) + ldy / T - bob(player) - hop(player);
@@ -4750,7 +4822,7 @@ function drawScene(now) {
       }
       ctx.globalCompositeOperation = 'source-over';
     } else {
-      if (t >= 0.08 && t < 0.55 && !isRainy()) drawCloudShadows(ctx, now, t);
+      if (t >= 0.08 && t < 0.55 && !isRainy()) { drawCloudShadows(ctx, now, t); drawBirds(ctx, now); }
       const tint = nightTint();
       if (tint) { ctx.fillStyle = tint; ctx.fillRect(0, 0, canvas.width, canvas.height); }
     }

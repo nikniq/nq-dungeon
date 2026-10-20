@@ -224,7 +224,13 @@ Grass and pasture are value noise sampled per quarter tile and mixed continuousl
 (`drawGrass`), so meadows have soft patches and sun-dried stretches rather than
 blocks; forest trees vary in size, lean and facing; and by day the shadows of a
 few clouds drift over the land, fixed to the world and pushed by the wind
-(`drawCloudShadows`).
+(`drawCloudShadows`), with small flocks of birds crossing the sky (`drawBirds`).
+Coastlines melt rather than step: grass laps over sand and a sandy shelf runs
+under the shallows in scalloped fringes with rounded corners (`edgeFringe`). The
+town fountain is a round stone basin with a spout, ripples and falling drops,
+and the waystone a carved standing stone whose runes breathe with light
+(`drawWaystone`, `drawWaystoneGlows`). The HUD is a bevelled panel with a gold rim
+and glossy bars.
 
 Castle Aurum is half again the size of any other town (`GRAND_W`×`GRAND_H`, via
 `tw()`/`th()`), with two rings of wall: an outer bailey of market, cottages and
