@@ -57,19 +57,16 @@ for 5 turns); Ranger has Arrow, Volley (the three nearest foes in sight) and Eva
 the first, Shift+right-click the second, Alt+right-click the third. Abilities cost mana (blue bar under health), which grows with level, refills a point a turn, and comes back at inns, camps, springs and from mana potions. Chests hold gold, spike traps hide in
 corridors, spiders poison (potions cure), archers shoot from range, bats flit.
 Falling in battle costs half your gold and your potions, never level or gear.
-Hire a hound at any inn: it follows, bites, levels up and is patched up free at
-inns. Every town has a waystone for paid fast travel to towns you have visited.
-Bombs (B) blast a 3×3 area; a scroll of return (T) whisks you home. Elite
-monsters (starred: armored, swift, vampiric, explosive) hit harder and pay more.
-Gamepads work. Every level up offers a choice of three perks, picked with the arrow keys and Enter, the number keys or a click. Achievements grant titles shown
-on profiles and the leaderboard. Smithies and armouries sharpen and reinforce
-worn gear up to +3. New players get one-time tips. Press M for the world map (+ / −, the wheel or the on-screen buttons zoom it out in three steps to show every continent), J for the journal,
-Q for the quest log (with achievements and perks), N to toggle sound. Captains,
-castellans and the King hand out site-clearing quests; townsfolk ask for monster
-tallies. A boss seals the stairs on the last floor of every dungeon. Beasts roam
-the wilds and grow bolder at night (a day is 480 turns). Your position, home town
-and quests are saved; a dive returns you where you went in. Clear all 5 floors to return to town with your level, gold and gear.
-Death sends you back to town as a fresh hero.
+Pets: every inn sells companions and each realm keeps its own (`INN_PETS`):
+hounds and cats in the Cantons, hounds and hawks in Aurum, wolves, boars and
+bears among the Clans, cats and hawks in the League and the Empire, mongooses
+and elephants in Suryadesh, huskies and bears in Severin. They come in three
+sizes (`PET_KINDS`); a hero keeps up to three (`PET_MAX`). Pets follow at heel,
+bite whatever comes close (the small quick ones get a second move, hawks fly
+over traps), grow with kills, limp home when badly hurt and are patched up free
+at any inn. When the hero boards a ship they scramble aboard and ride on deck,
+and land again when the ship touches shore. They are saved in `meta.pets`
+(a legacy `meta.hound` is converted on load).
 
 In the dungeon: each floor is endless, generated chunk by chunk as you explore,
 and the camera keeps you centred. Follow the compass in the corner to the stairs. Monsters sleep until they

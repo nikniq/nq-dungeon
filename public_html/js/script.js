@@ -90,7 +90,8 @@ const ACHIEVEMENTS = {
   survivor:    { label: 'Cheated death', title: 'the Unkillable' },
   night_owl:   { label: 'Killed a beast after dark', title: 'the Night Owl' },
   traveller:   { label: 'Travelled by waystone', title: 'the Wanderer' },
-  good_dog:    { label: 'Your hound made ten kills', title: 'Houndmaster' },
+  good_dog:    { label: 'A pet of yours made ten kills', title: 'Beastmaster' },
+  menagerie:   { label: 'Kept three pets at once', title: 'the Menagerist' },
   elite:       { label: 'Slew an elite monster', title: 'the Undaunted' },
   fellowship:  { label: 'Joined a party', title: 'the Companion' },
   naturalist:  { label: 'Slew every kind of monster', title: 'the Naturalist' },
@@ -280,7 +281,7 @@ async function saveProgress(event, keepalive = false) {
         quests: (player.quests || []).slice(-12).map((q) => ({ id: q.id, kind: q.kind, label: q.label, need: q.need, have: q.have, done: !!q.done, target: q.target, giver: q.giver, reward: q.reward })),
         quests_done: player.questsDone || 0, class: player.cls,
         perks: player.perks, achievements: player.achievements, title: player.title || null,
-        meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, hound: houndState(),
+        meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, pets: petsState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
           room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
@@ -370,7 +371,7 @@ async function mpSync() {
     space: mpSpace(), x: player.x, y: player.y,
     me: { face: player.face || 1, hp: player.hp, maxHp: player.maxHp, level: player.level, cls: player.cls, look: { w: player.weapon || null, a: player.armor || null, r: player.relic || null }, def: armorDef(), shield: player.shield || 0,
       floor, scene, where: mpWhere(), title: player.title || null,
-      hound: hound && !hound.down && scene !== 'house' ? { x: hound.x, y: hound.y, face: hound.face || 1 } : null },
+      hound: livePets()[0] ? { x: livePets()[0].x, y: livePets()[0].y, face: livePets()[0].face || 1, kind: livePets()[0].kind } : null },
     state: coopHost() ? hostState() : null,
     events,
   };
@@ -485,7 +486,7 @@ function coopKilled(p) {
   const m = monsterById(p.id) || mp.graveyard.get(p.id);
   if (!m || m.rewarded) return;
   m.rewarded = true;
-  if (p.src === 'hound' && hound) houndScored();
+  if (p.src === 'hound' && livePets()[0]) petScored(livePets()[0]);
   killMonster(m);
 }
 function coopAttacked(p) {
@@ -1107,6 +1108,11 @@ BIG_SPRITES.bat = ['................', '................', '................', '
 BIG_SPRITES.spider = ['................', '................', '...k........k...', '..k.k......k.k..', '..k..kkkkkk..k..', '.k..kkkkkkkk..k.', '.k.kkrkkkkrkk.k.', '..kkkkkkkkkkkk..', '.k..kkkkkkkk..k.', '.k...kkkkkk...k.', '..k..k....k..k..', '..k.k......k.k..', '...k........k...', '................', '................', '................'];
 BIG_SPRITES.archer = ['....g......g....', '...gg......gg...', '...gggggggggg...', '..gggggggggggg..', '..ggkgggggkggg..', '..gggggggggggg..', '...ggggwwgggg...', '....gggggggg....', '...hHHHHHHHHh...', '..hhHHHHHHHHhh..', '..h.HHHHHHHH.h..', '.h..HHHHHHHH..h.', '.h..HHH..HHH..h.', '.h..HHH..HHH..h.', '....hhh..hhh....', '................'];
 BIG_SPRITES.trap = ['................', '................', '................', '................', '..e.....e.....e.', '.eee...eee...eee', '.eee...eee...eee', '.EEE...EEE...EEE', '.EEE...EEE...EEE', 'EEEEEEEEEEEEEEEE', 'EEEEEEEEEEEEEEEE', '................', '................', '................', '................', '................'];
+BIG_SPRITES.cat = ['................', '................', '................', '....t..t........', '....tttt........', '....tktk........', '....tttt.......t', '.....tttttttt.t.', '....tttttttttt..', '....tttttttt....', '....tt.tt.tt....', '....tt.tt.tt....', '....HH.HH.HH....', '................', '................', '................'];
+BIG_SPRITES.boar = ['................', '................', '................', '................', '........HH......', '.......HHHHH....', '...HHHHHHHHHHk..', '..HHHHHHHHHHHH..', '..HHhhhhHHHHHHw.', '..HHhhhhhHHHHH..', '..HHHHHHHHHHHH..', '..HH.HH..HH.HH..', '..HH.HH..HH.HH..', '..kk.kk..kk.kk..', '................', '................'];
+BIG_SPRITES.hawk = ['................', '................', '................', '......hhh.......', '.....hkhhy......', '......hhh.......', '..hhhhhwwhhhhh..', '.hhhhhhwwhhhhhh.', 'hhhhhhhwwhhhhhhh', '..hhhhhwwhhhhh..', '.....hhwwhh.....', '......hhhh......', '......h..h......', '.....yy..yy.....', '................', '................'];
+BIG_SPRITES.bear = ['................', '....HH....HH....', '...HHHHHHHHHH...', '...HHHHHHHHHH...', '...HHkHHHHkHH...', '...HHHHhhHHHH...', '....HHHhkhHHH...', '..HHHHHHHHHHHHH.', '.HHHHHHHHHHHHHHH', '.HHHHHHHHHHHHHHH', '.HHHHHHHHHHHHHHH', '.HHHHHHHHHHHHHHH', '.HHHH.HHHH.HHHH.', '.HHHH.HHHH.HHHH.', '.kkkk.kkkk.kkkk.', '................'];
+BIG_SPRITES.elephant = ['................', '....EEEEEEE.....', '..EEEEEEEEEEE...', '.EEEEkEEEEEEEE..', '.EEEEEEEEEEEEEE.', '..EEEEEEEEEEEEE.', '...EEwEEEEEEEEE.', '...EE.EEEEEEEEE.', '...EE.EEEEEEEEE.', '...EE.EEEEEEEEE.', '....E.EEE..EEE..', '....E.EEE..EEE..', '....E.EEE..EEE..', '......eee..eee..', '................', '................'];
 BIG_SPRITES.hound = ['................', '................', '..........HH....', '.........HhhH...', '.........hhhhh..', '.........hkhhhk.', '.H.......hhhhhh.', '..H......hhhh...', '...hhhhhhhhhh...', '...hhhhhhhhhh...', '...hhhhhhhhhh...', '...hh.hh..hh.hh.', '...hh.hh..hh.hh.', '...HH.HH..HH.HH.', '................', '................'];
 BIG_SPRITES.waystone = ['......EEEE......', '.....EeeeeE.....', '....EeeeeeeE....', '....EeeceeeE....', '....EecccceE....', '....EeeceeeE....', '....EeeceeeE....', '....EecccceE....', '....EeeceeeE....', '....EeeeeeeE....', '....EeeeeeeE....', '...EEeeeeeeEE...', '..EEEEEEEEEEEE..', '.GEEEEEEEEEEEEG.', 'GGGGGGGGGGGGGGGG', '................'];
 BIG_SPRITES.bomb = ['................', '..........y.....', '.........o......', '........E.......', '.....kkkEkk.....', '....kkkkkkkk....', '...kkEkkkkkkk...', '...kEkkkkkkkk...', '...kkkkkkkkkk...', '...kkkkkkkkkk...', '...kkkkkkkkkk...', '....kkkkkkkk....', '.....kkkkkk.....', '................', '................', '................'];
@@ -1187,6 +1193,9 @@ BIG_SPRITES.slime = ['................', '................', '................',
 BIG_SPRITES.necromancer = ['......kkkk......', '.....kkkkkk.....', '....kkkkkkkk....', '....kkwwwwkk....', '....kwkwwkwk....', '....kkwwwwkk....', '.....kkkkkk.....', '....kpppppppk...', '...kppppppppkc..', '..wkppppppppkh..', '..w.kpppppppkh..', '....kpppppppkh..', '....kpppppppkh..', '....kpppppppkh..', '...kkkk..kkkkh..', '................'];
 BIG_SPRITES.mimic = ['................', '................', '..hhhhhhhhhhhh..', '.hHHHHHHHHHHHHh.', '.hHhhhhhhhhhhHh.', '.hHhrkhhhhrkhHh.', '.hHHHHHyyHHHHHh.', '.wkwkwkwkwkwkwk.', '.kkrrrrrrrrrrkk.', '.wkwkwkwkwkwkwk.', '.hHHHHHHHHHHHHh.', '.hHhhhhhhhhhhHh.', '.hHHHHHHHHHHHHh.', '..hhhhhhhhhhhh..', '..h..........h..', '................'];
 BIG_SPRITES.abyss = ['................', '....EEEEEEEE....', '...EeeeeeeeeE...', '..EeEEEEEEEEeE..', '..EeEkkkkkkEeE..', '..EeEkkppkkEeE..', '..EeEkpPPpkEeE..', '..EeEkpPPpkEeE..', '..EeEkkppkkEeE..', '..EeEkkkkkkEeE..', '..EeEkkkkkkEeE..', '..EeEkkkkkkEeE..', '.EEEEEEEEEEEEEE.', 'GGGGGGGGGGGGGGGG', '.GGGGGGGGGGGGGG.', '................'];
+BIG_SPRITES.wolf = BIG_SPRITES.hound.map((r) => r.replace(/h/g, 'e').replace(/H/g, 'E'));      // a grey hound is a wolf
+BIG_SPRITES.husky = BIG_SPRITES.hound.map((r) => r.replace(/h/g, 'w').replace(/H/g, 'e'));     // and a white one a husky
+BIG_SPRITES.mongoose = BIG_SPRITES.cat.map((r) => r.replace(/t/g, 'h'));                      // a brown cat shape is a mongoose
 BIG_SPRITES.horse = ['................', '................', '............HH..', '...........HhhH.', '..........Hhhkh.', '..........hhhhhh', '...hhhhhhhhhhh..', '..Hhhhhhhhhhhh..', '..hhhhhhhhhhhh..', '.H.hhhhhhhhhh...', '...hhhhhhhhhh...', '...hh.hh..hh.hh.', '...hh.hh..hh.hh.', '...hh.hh..hh.hh.', '...kk.kk..kk.kk.', '................'];
 BIG_SPRITES.statue = ['......eeee......', '.....eEEEEe.....', '.....eEeeEe.....', '......eeee......', '.....eeeeee.....', '....eeEeeEee....', '...ee.eeee.ee...', '...e..eeee..e...', '......eeee......', '......ee.ee.....', '......ee.ee.....', '....EEEEEEEE....', '...EeeeeeeeeE...', '...EEEEEEEEEE...', '..EEEEEEEEEEEE..', '................'];
 BIG_SPRITES.belltower = ['.......dd.......', '......dddd......', '.....dddddd.....', '....dddddddd....', '.....EeeeeE.....', '.....E.yy.E.....', '.....E.yy.E.....', '.....EeeeeE.....', '.....EEEEEE.....', '.....EeEEeE.....', '.....EEEEEE.....', '.....EeEEeE.....', '.....EEEEEE.....', '....EEEhhEEE....', '...EEEEhhEEEE...', '................'];
@@ -1676,7 +1685,7 @@ function guideSuggestions() {
   if (rq.s === 0) out.push(['Realm errand', `${Q.ruler} has work for heroes of ${REALMS[realm].short}.`]);
   else if (rq.s === 4) out.push(['Report back', `${Q.title} is done. Return to ${Q.ruler} for your reward.`]);
   if (!questsActive().length) out.push(['Find work', 'Watch captains post bounties on named beasts, and townsfolk want monsters cleared.']);
-  if (!hound) out.push(['A companion', `Any inn will hire you a hound for ${HOUND_COST} gold.`]);
+  if (!pets.length) out.push(['A companion', `Inns sell pets, and each realm keeps its own: hounds and cats in the Cantons, wolves, boars and bears among the Clans, hawks, huskies, elephants further afield. A hound is ${HOUND_COST} gold. You can keep ${PET_MAX}.`]);
   if (player.bag.length >= bagSize() - 2 && !player.meta.room) out.push(['Your bag is nearly full', `Rent a room at an inn (${ROOM_COST} gold) for a storage chest at every inn.`]);
   if (player.meta.ship && !charts().length && player.gold >= CHART_COST) out.push(['Buried treasure', `Harbourmasters sell charts (${CHART_COST} gold) to sea-chests on islands. Sail there and dig.`]);
   if (!player.meta.ship && player.gold >= SHIP_COST * 0.75) out.push(['Set sail', `Harbourmasters sell ships (${SHIP_COST} gold): sail the open sea to islands and shores no road reaches.`]);
@@ -3500,7 +3509,7 @@ function animate(now) {
   ease(player);
   for (const m of monsters) if (cheb(m, player) <= SIM_RADIUS) ease(m);
   for (const n of npcs) ease(n);
-  if (hound) ease(hound);
+  for (const p of pets) ease(p);
   for (const o of mp.players.values()) { ease(o); if (o.hound) ease(o.hound); }
   updateCamera();
 }
@@ -4701,7 +4710,7 @@ function drawScene(now) {
   }
   for (const o of mpHere()) {
     if (!inView(o)) continue;
-    if (o.hound && inView(o.hound)) { shadow(o.hound.rx ?? o.hound.x, o.hound.ry ?? o.hound.y); drawSprite(ctx, 'hound', o.hound.rx ?? o.hound.x, (o.hound.ry ?? o.hound.y) - hop(o.hound), 1, 3, o.hound.face === -1); }
+    if (o.hound && inView(o.hound)) { shadow(o.hound.rx ?? o.hound.x, o.hound.ry ?? o.hound.y); drawSprite(ctx, (o.hound.kind && PET_KINDS[o.hound.kind]) ? PET_KINDS[o.hound.kind].sprite : 'hound', o.hound.rx ?? o.hound.x, (o.hound.ry ?? o.hound.y) - hop(o.hound), 1, 3, o.hound.face === -1); }
     const lx = o.rx ?? o.x, ly = (o.ry ?? o.y) - hop(o) - bob(o);
     shadow(lx, o.ry ?? o.y);
     drawSprite(ctx, o.data.look ? heroLook(o.data.cls, o.data.look.w, o.data.look.a, o.data.look.r) : (CLASSES[o.data.cls] || CLASSES.warrior).sprite, lx, ly, 1, 3, (o.data.face ?? o.face) === -1);
@@ -4720,14 +4729,15 @@ function drawScene(now) {
     if (b && performance.now() < b.until) drawBubble(ctx, { x: lx, y: ly - 0.5, text: b.text });
     if (scene === 'dungeon') lights.push({ x: tx, y: ly * T - cam.y + T / 2, r: T * 4, a: 0.85 });
   }
-  if (hound && !hound.down && scene !== 'house' && inView(hound)) {
-    const [ldx, ldy] = lunge(hound, now);
-    const lx = (hound.rx ?? hound.x) + ldx / T, ly = (hound.ry ?? hound.y) + ldy / T - hop(hound);
-    shadow(lx, (hound.ry ?? hound.y));
-    drawSprite(ctx, 'hound', lx, ly, 1, 3, hound.face === -1, hound.flashUntil > now);
-    if (hound.hp < hound.maxHp) {
+  for (const p of livePets()) {
+    if (!inView(p)) continue;
+    const K = petKind(p), [ldx, ldy] = lunge(p, now);
+    const lx = (p.rx ?? p.x) + ldx / T, ly = (p.ry ?? p.y) + ldy / T - hop(p);
+    shadow(lx, (p.ry ?? p.y));
+    drawSprite(ctx, K.sprite, lx, ly - (K.flies ? 0.25 + Math.sin(now / 250) * 0.06 : 0), 1, PET_PAD[K.size], p.face === -1, p.flashUntil > now);
+    if (p.hp < p.maxHp) {
       ctx.fillStyle = '#300'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, T - 6, 3);
-      ctx.fillStyle = '#5fe17a'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, (T - 6) * (hound.hp / hound.maxHp), 3);
+      ctx.fillStyle = '#5fe17a'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, (T - 6) * (p.hp / p.maxHp), 3);
     }
   }
   for (const m of monsters) {
@@ -4785,7 +4795,7 @@ function drawScene(now) {
     if (player.shield > 0) { ctx.strokeStyle = `rgba(123,223,255,${0.5 + 0.3 * Math.sin(now / 120)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(lx * T - cam.x + T / 2, ly * T - cam.y + T / 2, T * 0.62, 0, Math.PI * 2); ctx.stroke(); }
     const mounted = riding();
     if (mounted && player.meta.horse) drawSprite(ctx, 'horse', lx, ly + 0.12, 1, 1, player.face === -1);
-    if (aboard) drawSprite(ctx, 'ship', lx, ly + 0.1 + Math.sin(now / 500) * 0.04, 1, -2, player.face === -1);
+    if (aboard) { drawSprite(ctx, 'ship', lx, ly + 0.1 + Math.sin(now / 500) * 0.04, 1, -2, player.face === -1); pets.filter((p) => p.aboard && !p.down).forEach((p, i) => drawSprite(ctx, petKind(p).sprite, lx + (i - 1) * 0.42 * (player.face === -1 ? -1 : 1), ly + 0.02 + Math.sin(now / 500) * 0.04, 1, 9, player.face === -1)); }   // the crew
     drawSprite(ctx, playerSprite(), lx, ly - (mounted && player.meta.horse ? 0.38 : aboard ? 0.3 : 0), 1, 3, player.face === -1, player.flashUntil > now || player.poison > 0 && Math.floor(now / 300) % 3 === 0);
   }
   const px = (player.rx ?? player.x) * T - cam.x + T / 2, py = (player.ry ?? player.y) * T - cam.y + T / 2;
@@ -5229,7 +5239,7 @@ function describeTile(x, y) {
   if (x === player.x && y === player.y) return `You — ${player.hp}/${player.maxHp} HP, attack ${player.atk + weaponAtk()}`;
   const other = mpPlayerAt(x, y);
   if (other) return `${other.data.name}${other.data.title ? ' ' + other.data.title : ''} — level ${other.data.level} ${other.data.cls}${inMyParty(other.id) ? ', in your party' : ''}${scene !== 'dungeon' ? '. Walk into them to invite or wave' : ''}`;
-  if (houndAt(x, y)) return `Your hound — ${hound.hp}/${hound.maxHp} HP, bite ${hound.atk}, level ${hound.level}, ${hound.kills} kills`;
+  { const pp = petAt(x, y); if (pp) return `Your ${petLabel(pp)} — ${pp.hp}/${pp.maxHp} HP, bite ${pp.atk}, level ${pp.level}, ${pp.kills} kills`; }
   if (shipAt(x, y)) return 'Your ship — walk into her to go aboard';
   if (charts().includes(key(x, y))) return 'X marks the spot — step here to dig';
   if (t === TILE.SHIP) { const pt = portAtTile(x, y); return pt ? `The ship of ${pt.name} — walk into it, or speak to the harbourmaster, to sail to another port` : 'A boat'; }
@@ -5448,7 +5458,7 @@ function buildLegend() {
     legendEl.appendChild(li);
   };
   add(playerSprite(), `You, ${heroClass().name}`, `1: ${heroClass().ability}`);
-  if (hound) add('hound', 'Your hound', hound.down ? 'resting at the inn' : `level ${hound.level}, bites ${hound.atk}`);
+  for (const pp of pets) add(petKind(pp).sprite, `Your ${petLabel(pp)}`, pp.down ? 'resting at the inn' : pp.aboard ? 'aboard your ship' : `level ${pp.level}, bites ${pp.atk}`);
   if (scene === 'house') {
     for (const n of npcs) add(n.type.sprite, n.type.name, n.type.action === 'inn' ? 'rest for free' : n.type.action ? 'buy and sell' : 'chat');
     add('bed', 'Bed', 'rest'); add('counter', 'Counter', 'trade or rest');
@@ -5602,7 +5612,7 @@ function killMonster(m) {
     burst(m.x, m.y, '#ff9f43', 36, 180, { glow: true, life: 600, size: 3 }); shakeScreen(5); sfx.play('fire');
     log(`The ${mName(m)} bursts!`, 'bad');
     if (cheb(m, player) <= 1) { player.hp -= blast; floatText(player.x, player.y, `-${blast}`, '#ff6b6b'); }
-    if (hound && !hound.down && cheb(m, hound) <= 1) houndHurt(blast);
+    for (const pp of livePets()) if (cheb(m, pp) <= 1) petHurt(pp, blast);
   }
   if (m.type.splits && !m.small && !m.boss && !coopMember()) splitSlime(m);
   if (m.purse) golds.push({ x: m.x, y: m.y, amount: m.purse });
@@ -5726,10 +5736,11 @@ function stepMonsters(swiftOnly = false, heroes = null) {
     heroes.forEach((h, i) => { const dd = cheb(m, h); if (dd < hd) { hd = dd; hi = i; } });
     if (hd > SIM_RADIUS) continue;
     const H = heroes[hi];
-    if (hound && !hound.down && scene !== 'house' && dist(m, hound) === 1 && !heroes.some((h) => dist(m, h) === 1)) {
-      if (!m.awake && Math.random() < 0.6) m.awake = true;
-      if (m.awake && Math.random() < 0.7) { houndBitten(m); continue; }
-    }
+    { const pv = livePets().find((pp) => dist(m, pp) === 1);
+      if (pv && !heroes.some((h) => dist(m, h) === 1)) {
+        if (!m.awake && Math.random() < 0.6) m.awake = true;
+        if (m.awake && Math.random() < 0.7) { petBitten(pv, m); continue; }
+      } }
     const wake = (scene === 'world' ? (dayPhase() === 'night' ? 10 : 6) : 6) - (wearing('wardstone') ? 3 : 0);
     if (!m.awake && dist(m, H) <= wake && (H.me ? isVisible(m.x, m.y) : true) && Math.random() < 0.7) m.awake = true;
     if (m.boss && m.awake && !swiftOnly && bossTurn(m, H, heroes)) continue;
@@ -5796,7 +5807,7 @@ function bossTurn(m, H, heroes) {
       if (h.me) { const a = m.atk; m.atk = a * 2; monsterAttack(m); m.atk = a; }
       else mpSend({ to: h.id, type: 'attack', payload: { id: m.id, atk: m.atk * 2, ranged: false, type: m.type.name } });
     }
-    if (hound && !hound.down && area.has(key(hound.x, hound.y))) houndHurt(m.atk);
+    for (const pp of livePets()) if (area.has(key(pp.x, pp.y))) petHurt(pp, m.atk);
     if (!hitAny) log(`${bossTitle(m)}'s blow smashes empty stone. You were clear.`, 'good');
     return true;
   }
@@ -6055,12 +6066,12 @@ function tryMove(dx, dy) {
   if (dx) player.face = dx;
   if (t === TILE.CHEST && scene === 'world') { const tn = townContaining(nx, ny); if (tn && tn.size === 'grand' && nx - tn.x0 === GRAND_TREASURY.x + 2 && ny - tn.y0 === GRAND_TREASURY.y + 2) { openTreasury(nx, ny); endTurn(false); return; } }
   if (t === TILE.CHEST) { openChest(nx, ny); endTurn(false); return; }
-  if (houndAt(nx, ny)) { hound.x = player.x; hound.y = player.y; }
+  { const sp = petAt(nx, ny); if (sp) { sp.x = player.x; sp.y = player.y; } }
   if (escort && escort.x === nx && escort.y === ny) { escort.x = player.x; escort.y = player.y; }
   const m = getMonsterAt(nx, ny);
   if (m) playerAttack(m);
   else {
-    if (aboard) { aboard = false; player.meta.ship = { x: player.x, y: player.y }; log('You run the ship in close and splash ashore. She waits here for you.'); placeHound(); }
+    if (aboard) { aboard = false; player.meta.ship = { x: player.x, y: player.y }; log(`You run the ship in close and splash ashore${pets.some((pp) => pp.aboard) ? ', your companions after you' : ''}. She waits here for you.`); for (const pp of pets) pp.aboard = false; placePets(); }
     player.x = nx; player.y = ny;
     if (t === TILE.TRAP && (dx || dy)) springTrap(nx, ny);
     if (t === TILE.LAVA) {
@@ -6121,7 +6132,7 @@ function tryMove(dx, dy) {
     const x2 = player.x + dx, y2 = player.y + dy;
     if (getTile(x2, y2) === TILE.FLOOR && !getMonsterAt(x2, y2) && !getNpcAt(x2, y2) && !townContaining(x2, y2) && !getGoldAt(x2, y2) && !mpPlayerAt(x2, y2) && !houndAt(x2, y2)) {
       player.x = x2; player.y = y2; player.wx = x2; player.wy = y2;
-      if (hound && !hound.down && cheb(hound, player) > 3) placeHound();
+      if (livePets().some((pp) => cheb(pp, player) > 3)) placePets();
     }
   }
   endTurn(!m && (dx || dy));
@@ -6577,13 +6588,13 @@ const ENCOUNTERS = {
       { label: 'Leave it alone', run: () => 'Some gods are best left forgotten. You walk on.' },
     ] }),
   wolf: () => ({ who: 'An injured wolf', sprite: 'hound',
-    text: hound ? 'A grey wolf lies in the ditch with a trap on its leg. Your hound whines at it. The wolf does not growl.' : 'A grey wolf lies in the ditch with a trap on its leg. It watches you with yellow eyes, too tired to growl.',
+    text: pets.length ? `A grey wolf lies in the ditch with a trap on its leg. Your ${petLabel(pets[0])} whines at it. The wolf does not growl.` : 'A grey wolf lies in the ditch with a trap on its leg. It watches you with yellow eyes, too tired to growl.',
     choices: [
       { label: potionIdx() >= 0 ? 'Free it and pour a potion on the wound' : 'Free it and bind the wound', run: () => {
         const usedPotion = potionIdx() >= 0; if (usedPotion) player.bag.splice(potionIdx(), 1);
         if (!usedPotion && Math.random() < 0.5) { player.hp = Math.max(1, player.hp - 2); return 'You pry the trap open. The wolf bites you, once, hard, and limps into the trees.'; }
-        if (!hound) { hound = { x: player.x, y: player.y, hp: 14, maxHp: 14, atk: 3, level: 1, kills: 0, down: false }; placeHound(); buildLegend(); return 'You pry the trap open and tend the leg. The wolf licks your hand, and when you set off it follows. You have a companion.'; }
-        hound.maxHp += 3; hound.hp = hound.maxHp; return 'You pry the trap open. The wolf and your hound touch noses, and the wolf slips away. Your hound seems prouder, and tougher: +3 max HP.'; } },
+        if (pets.length < PET_MAX) { adoptPet('wolf'); return 'You pry the trap open and tend the leg. The wolf licks your hand, and when you set off it follows. You have a companion.'; }
+        for (const pp of pets) { pp.maxHp += 3; pp.hp = pp.maxHp; } return 'You pry the trap open. The wolf touches noses with your companions and slips away. They seem prouder, and tougher: +3 max HP each.'; } },
       { label: 'Leave it', run: () => 'You leave the wolf to its fate. The road feels longer after that.' },
     ] }),
   stranger: () => {
@@ -6694,7 +6705,7 @@ function makeCamp() {
   turn += 120;
   const healed = player.maxHp - player.hp;
   player.hp = player.maxHp; player.poison = 0; restoreMana();
-  if (hound) { hound.down = false; hound.hp = hound.maxHp; }
+  for (const pp of pets) { pp.down = false; pp.hp = pp.maxHp; }
   const fish = player.bag.filter((id) => id === 'fish').length;
   if (fish) { player.bag = player.bag.map((id) => (id === 'fish' ? 'stew' : id)); }
   burst(player.x, player.y, '#ff9f43', 30, 70, { glow: true, gravity: -60, life: 1000 });
@@ -6896,66 +6907,117 @@ function drawArmies(ctx, now) {
 }
 
 // ---------- the hound ----------
-let hound = null;   // { x, y, rx, ry, hp, maxHp, atk, level, kills, down, face }
-const HOUND_COST = 80;
-const houndAt = (x, y) => !!hound && !hound.down && scene !== 'house' && hound.x === x && hound.y === y;
-function houndState() { return hound ? { hp: Math.max(0, hound.hp), max_hp: hound.maxHp, atk: hound.atk, level: hound.level, kills: hound.kills, down: !!hound.down } : null; }
-function placeHound() {
-  if (!hound || hound.down || scene === 'house') return;
-  for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
-    const x = player.x + dx, y = player.y + dy, t = getTile(x, y);
-    if (walkable(t) && t !== TILE.DOOR && t !== TILE.EXIT && t !== TILE.TRAP && t !== TILE.SITE && !getMonsterAt(x, y) && !getNpcAt(x, y)) { hound.x = x; hound.y = y; settle(hound); return; }
+// ---------- pets ----------
+// Companions of every size, sold at inns (each realm keeps its own), up to three
+// at a time. They follow at heel, bite whatever comes close, grow with kills, limp
+// home when badly hurt, get patched up at any inn, and come aboard your ship.
+const PET_KINDS = {
+  cat:      { name: 'cat',      size: 'small',  hp: 10, atk: 2, cost: 40,  swift: true, sprite: 'cat',      blurb: 'quick, and gets in a second bite' },
+  hound:    { name: 'hound',    size: 'medium', hp: 14, atk: 3, cost: 80,  sprite: 'hound',    blurb: 'loyal; follows you and fights' },
+  husky:    { name: 'husky',    size: 'medium', hp: 16, atk: 3, cost: 100, sprite: 'husky',    blurb: 'tireless, bred for the snow' },
+  mongoose: { name: 'mongoose', size: 'small',  hp: 9,  atk: 3, cost: 90,  swift: true, sprite: 'mongoose', blurb: 'fearless, and fast as a thrown knife' },
+  hawk:     { name: 'hawk',     size: 'small',  hp: 8,  atk: 3, cost: 120, swift: true, flies: true, sprite: 'hawk', blurb: 'strikes from above and never trips a trap' },
+  wolf:     { name: 'wolf',     size: 'medium', hp: 18, atk: 4, cost: 150, sprite: 'wolf',     blurb: 'hunts at your side' },
+  boar:     { name: 'boar',     size: 'medium', hp: 24, atk: 4, cost: 160, sprite: 'boar',     blurb: 'thick-hided and stubborn' },
+  bear:     { name: 'bear',     size: 'large',  hp: 40, atk: 6, cost: 400, sprite: 'bear',     blurb: 'a wall of fur and teeth' },
+  elephant: { name: 'elephant', size: 'large',  hp: 60, atk: 7, cost: 700, sprite: 'elephant', blurb: 'nothing on the road stands in its way' },
+};
+const PET_MAX = 3;
+const INN_PETS = { cantons: ['hound', 'cat'], aurum: ['hound', 'hawk'], kathar: ['wolf', 'boar', 'bear'], league: ['cat', 'hawk'], tianxia: ['cat', 'hawk'], suryadesh: ['mongoose', 'elephant'], severin: ['husky', 'bear'] };
+const PET_PAD = { small: 6, medium: 3, large: -1 };
+let pets = [];   // { kind, x, y, rx, ry, hp, maxHp, atk, level, kills, down, aboard, face }
+const HOUND_COST = PET_KINDS.hound.cost;
+const petKind = (p) => PET_KINDS[p.kind] || PET_KINDS.hound;
+const petLabel = (p) => petKind(p).name;
+const livePets = () => scene === 'house' ? [] : pets.filter((p) => !p.down && !p.aboard);
+const petAt = (x, y) => livePets().find((p) => p.x === x && p.y === y) || null;
+const houndAt = (x, y) => !!petAt(x, y);
+function makePet(kind) { const K = PET_KINDS[kind]; return { kind, x: player.x, y: player.y, hp: K.hp, maxHp: K.hp, atk: K.atk, level: 1, kills: 0, down: false, face: 1 }; }
+function adoptPet(kind) {
+  if (pets.length >= PET_MAX || !PET_KINDS[kind]) return null;
+  const p = makePet(kind); pets.push(p);
+  if (player.relic === 'houndcollar') { p.collar = true; p.maxHp += 6; p.hp = p.maxHp; }
+  placePets(); buildLegend();
+  if (pets.length >= PET_MAX) unlock('menagerie');
+  return p;
+}
+function petsState() { return pets.map((p) => ({ kind: p.kind, hp: Math.max(0, p.hp), max_hp: p.maxHp, atk: p.atk, level: p.level, kills: p.kills, down: !!p.down })); }
+function placePets() {
+  if (scene === 'house') return;
+  const taken = new Set();
+  for (const p of pets) {
+    if (p.down || p.aboard) continue;
+    let placed = false;
+    for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1], [0, 2], [-2, 0], [2, 0], [0, -2]]) {
+      const x = player.x + dx, y = player.y + dy, t = getTile(x, y), k = key(x, y);
+      if (!taken.has(k) && walkable(t) && t !== TILE.DOOR && t !== TILE.EXIT && t !== TILE.TRAP && t !== TILE.SITE && !getMonsterAt(x, y) && !getNpcAt(x, y)) { p.x = x; p.y = y; taken.add(k); settle(p); placed = true; break; }
+    }
+    if (!placed) { p.x = player.x; p.y = player.y; settle(p); }
   }
-  hound.x = player.x; hound.y = player.y; settle(hound);
 }
-function houndHurt(dmg) {
-  hound.hp -= dmg; hound.flashUntil = performance.now() + 120;
-  floatText(hound.x, hound.y, `-${dmg}`, '#ff9b9b');
-  if (hound.hp <= 0) {
-    hound.hp = 0; hound.down = true;
-    log('Your hound is badly hurt and limps off home. An innkeeper can patch it up.', 'bad'); sfx.play('hurt');
-    burst(hound.x, hound.y, '#b9976a', 12, 80, { life: 500 });
+const placeHound = placePets;
+function petHurt(p, dmg) {
+  p.hp -= dmg; p.flashUntil = performance.now() + 120;
+  floatText(p.x, p.y, `-${dmg}`, '#ff9b9b');
+  if (p.hp <= 0) {
+    p.hp = 0; p.down = true;
+    log(`Your ${petLabel(p)} is badly hurt and limps off home. An innkeeper can patch it up.`, 'bad'); sfx.play('hurt');
+    burst(p.x, p.y, '#b9976a', 12, 80, { life: 500 });
   }
 }
-function houndBitten(m) {
-  const dmg = Math.max(1, m.atk - 1);
-  m.lunge = { dx: Math.sign(hound.x - m.x), dy: Math.sign(hound.y - m.y), until: performance.now() + 140 };
-  houndHurt(dmg);
+function petBitten(p, m) {
+  const dmg = Math.max(1, m.atk - (petKind(p).size === 'large' ? 2 : 1));
+  m.lunge = { dx: Math.sign(p.x - m.x), dy: Math.sign(p.y - m.y), until: performance.now() + 140 };
+  petHurt(p, dmg);
 }
-function houndScored() {
-  hound.kills++;
-  if (hound.kills % 8 === 0) { hound.level++; hound.maxHp += 4; hound.atk += 1; hound.hp = hound.maxHp; log(`Your hound grows stronger (level ${hound.level}).`, 'good'); }
-  if (hound.kills >= 10) unlock('good_dog');
+function petScored(p) {
+  p.kills++;
+  if (p.kills % 8 === 0) { p.level++; p.maxHp += petKind(p).size === 'large' ? 8 : 4; p.atk += 1; p.hp = p.maxHp; log(`Your ${petLabel(p)} grows stronger (level ${p.level}).`, 'good'); }
+  if (p.kills >= 10) unlock('good_dog');
 }
-// One step for the hound: bite an adjacent foe, chase one near the hero, or follow.
-function stepHound() {
-  if (!hound || hound.down || scene === 'house') return;
-  if (cheb(hound, player) > 14) { placeHound(); return; }
-  const foe = monsters.find((m) => dist(m, hound) === 1 && (m.awake || dist(m, player) <= 2));
+// One step for a pet: bite an adjacent foe, chase one near the hero, or follow. Returns true after a bite.
+function stepPet(p) {
+  const K = petKind(p);
+  const foe = monsters.find((m) => dist(m, p) === 1 && (m.awake || dist(m, player) <= 2));
   if (foe) {
-    const dmg = Math.max(1, hound.atk + (wearing('houndcollar') ? 3 : 0) + rnd(2) - (foe.mod === 'armored' ? 2 : 0));
+    const dmg = Math.max(1, p.atk + (wearing('houndcollar') ? 3 : 0) + rnd(2) - (foe.mod === 'armored' ? 2 : 0));
     foe.hp -= dmg; foe.awake = true; foe.flashUntil = performance.now() + 120;
-    hound.lunge = { dx: Math.sign(foe.x - hound.x), dy: Math.sign(foe.y - hound.y), until: performance.now() + 140 };
-    if (foe.x !== hound.x) hound.face = Math.sign(foe.x - hound.x);
+    p.lunge = { dx: Math.sign(foe.x - p.x), dy: Math.sign(foe.y - p.y), until: performance.now() + 140 };
+    if (foe.x !== p.x) p.face = Math.sign(foe.x - p.x);
     floatText(foe.x, foe.y, `-${dmg}`, '#e9c48a');
-    if (coopMember()) { coopHit(foe, dmg, 'hound'); return; }
-    if (foe.hp <= 0) { houndScored(); killMonster(foe); }
-    return;
+    if (coopMember()) { coopHit(foe, dmg, 'hound'); return true; }
+    if (foe.hp <= 0) { petScored(p); killMonster(foe); }
+    return true;
   }
   // a waking foe near the hero: go for it; otherwise stay at heel
-  const target = monsters.filter((m) => m.awake && cheb(m, player) <= 4 && isVisible(m.x, m.y)).sort((a, b) => dist(a, hound) - dist(b, hound))[0];
+  const target = monsters.filter((m) => m.awake && cheb(m, player) <= 4 && isVisible(m.x, m.y)).sort((a, b) => dist(a, p) - dist(b, p))[0];
   const goal = target || player;
-  if (!target && cheb(hound, player) <= 1) return;
+  if (!target && cheb(p, player) <= 1) return false;
   const d = bfs(goal.x, goal.y, 16, false, true);
-  let best = null, bestD = d.get(key(hound.x, hound.y)) ?? Infinity;
+  let best = null, bestD = d.get(key(p.x, p.y)) ?? Infinity;
   for (const [dx, dy] of DIRS) {
-    const nx = hound.x + dx, ny = hound.y + dy, nd = d.get(key(nx, ny));
+    const nx = p.x + dx, ny = p.y + dy, nd = d.get(key(nx, ny));
     if (nd === undefined || nd >= bestD) continue;
-    if (getMonsterAt(nx, ny) || (nx === player.x && ny === player.y) || getNpcAt(nx, ny) || getTile(nx, ny) === TILE.TRAP) continue;
+    if (getMonsterAt(nx, ny) || (nx === player.x && ny === player.y) || getNpcAt(nx, ny) || petAt(nx, ny) || (!K.flies && getTile(nx, ny) === TILE.TRAP)) continue;
     bestD = nd; best = [nx, ny];
   }
-  if (best) { if (best[0] !== hound.x) hound.face = Math.sign(best[0] - hound.x); hound.x = best[0]; hound.y = best[1]; }
+  if (best) { if (best[0] !== p.x) p.face = Math.sign(best[0] - p.x); p.x = best[0]; p.y = best[1]; }
+  return false;
 }
+function stepPets() {
+  if (scene === 'house') return;
+  let needPlace = false;
+  for (const p of pets) {
+    if (p.down) continue;
+    if (aboard) { p.aboard = true; continue; }             // everyone is on the boat
+    if (p.aboard) { p.aboard = false; needPlace = true; continue; }   // back on land
+    if (cheb(p, player) > 14) { needPlace = true; continue; }
+    const bit = stepPet(p);
+    if (!bit && petKind(p).swift) stepPet(p);   // the quick ones get a second move
+  }
+  if (needPlace) placePets();
+}
+const stepHound = stepPets;
 
 function endTurn(moved) {
   turn++;
@@ -7042,7 +7104,7 @@ function die() {
     guestRespawn = { name: null, floor: 0, level: player.level, xp: player.xp, gold: player.gold - lost, hp: player.maxHp, max_hp: player.maxHp, atk: player.atk,
       weapon: player.weapon, armor: player.armor, bag: player.bag.filter((id) => itemKind(id) !== 'consumable'), quests: [], quests_done: player.questsDone || 0,
       wx: t.spawn.x, wy: t.spawn.y, home: t.key, class: player.cls, guest: true,
-      perks: player.perks, achievements: player.achievements, title: player.title, meta: { ...player.meta, hound: houndState() }, weapon_plus: player.weaponPlus, armor_plus: player.armorPlus, kills: player.lifetimeKills };
+      perks: player.perks, achievements: player.achievements, title: player.title, meta: { ...player.meta, pets: petsState() }, weapon_plus: player.weaponPlus, armor_plus: player.armorPlus, kills: player.lifetimeKills };
   }
   saveProgress('death');
 }
@@ -7099,7 +7161,7 @@ function drinkSpring(x, y) {
   usedSprings.add(k); bgDirty = true;
   const healed = player.maxHp - player.hp;
   player.hp = player.maxHp; player.poison = 0; restoreMana();
-  if (hound && hound.down) { hound.down = false; hound.hp = hound.maxHp; }
+  for (const pp of pets) if (pp.down) { pp.down = false; pp.hp = pp.maxHp; }
   burst(x, y, '#7bdfff', 30, 90, { glow: true, gravity: -80, life: 900 }); sfx.play('potion');
   floatText(player.x, player.y, healed ? `+${healed}` : '✓', '#9ef0b0');
   log(`You drink from the healing spring${healed ? ` and recover ${healed} HP` : ''}. It sinks away into the stone.`, 'good');
@@ -7535,7 +7597,7 @@ function setRelic(id) {
   if (hpOf(player.relic)) { player.maxHp -= hpOf(player.relic); player.hp = Math.min(player.hp, player.maxHp); }
   player.relic = id;
   if (hpOf(id)) { player.maxHp += hpOf(id); player.hp += hpOf(id); }
-  if (hound) { hound.maxHp = Math.max(1, hound.maxHp + (id === 'houndcollar' ? 6 : 0) - (hound.collar ? 6 : 0)); hound.collar = id === 'houndcollar'; hound.hp = Math.min(hound.hp, hound.maxHp); }
+  for (const pp of pets) { pp.maxHp = Math.max(1, pp.maxHp + (id === 'houndcollar' ? 6 : 0) - (pp.collar ? 6 : 0)); pp.collar = id === 'houndcollar'; pp.hp = Math.min(pp.hp, pp.maxHp); }
 }
 function equip(idx) {
   const id = player.bag[idx];
@@ -7667,7 +7729,7 @@ const SHOPS = {
   armoury: { title: 'The Armoury', stock: (id, it) => ITEMS.armor[id] && it.floor <= 5, price: (it) => Math.round(it.price * 0.9), greet: 'Racks of mail and plate. The armourer names fair prices.' },
   apothecary: { title: 'The Apothecary', stock: (id) => id === 'potion' || id === 'elixir', price: (it) => it.price, greet: 'Shelves of bottles. Potions, and elixirs for the desperate.' },
   royal: { title: 'The Royal Armoury', stock: (id, it) => it.floor < 99, price: (it) => it.price, greet: 'The quartermaster unlocks the cabinet. Everything the realm can forge, at the King\'s prices.' },
-  inn: { title: 'The inn', stock: () => false, price: (it) => it.price, greet: 'The innkeeper wipes the bar. A bed, or a hound for the road?' },
+  inn: { title: 'The inn', stock: () => false, price: (it) => it.price, greet: 'The innkeeper wipes the bar. A bed, or a companion for the road?' },
   travel: { title: 'Waystone', stock: () => false, price: (it) => it.price, greet: 'The runes hum under your hand. Choose a town you have visited.' },
   player: { title: 'Hero', stock: () => false, price: (it) => it.price, greet: '' },
 };
@@ -7952,7 +8014,8 @@ function boardShip() {
   const S = player.meta.ship;
   if (S.x > player.x) player.face = 1; else if (S.x < player.x) player.face = -1;
   player.x = S.x; player.y = S.y; player.wx = S.x; player.wy = S.y; aboard = true;
-  log('You climb aboard and shake out the sail. The open sea is yours.', 'good');
+  for (const pp of pets) if (!pp.down) pp.aboard = true;
+  log(`You climb aboard${livePets().length || pets.some((pp) => pp.aboard) ? ' with your companions scrambling after you' : ''} and shake out the sail. The open sea is yours.`, 'good');
   tip('ship', 'At sea the arrow keys sail your ship. Steer onto any shore to land; the ship waits where you left it, and any harbourmaster can fetch it.');
   sfx.play('stairs'); endTurn(true);
 }
@@ -7995,15 +8058,23 @@ function renderShop() {
   shopBuy.innerHTML = '';
   if (shopKind === 'inn') {
     shopBuy.appendChild(player.hp < player.maxHp ? shopRow('A bed for the night (full health)', 'Rest, free', () => { restAtInn(); renderShop(); draw(); }) : shopRow('You are already in perfect health'));
-    if (!hound) shopBuy.appendChild(shopRow('Hire a hound: 14 HP, bites for 3, follows you and fights', `Hire ${HOUND_COST}g`, () => {
-      if (player.gold < HOUND_COST) return;
-      player.gold -= HOUND_COST; hound = { x: player.x, y: player.y, hp: 14, maxHp: 14, atk: 3, level: 1, kills: 0, down: false };
-      log('A shaggy hound pads over and sits at your feet. It waits outside while you are indoors.', 'good'); sfx.play('quest');
-      tip('hound', 'Your hound follows you, bites anything that comes close, and grows stronger with kills. If it falls, an innkeeper patches it up for free.');
-      updateStats(); buildLegend(); renderShop(); draw();
-    }, player.gold < HOUND_COST));
-    else if (hound.down || hound.hp < hound.maxHp) shopBuy.appendChild(shopRow(hound.down ? 'Your hound is back, bandaged and sorry for itself' : 'Patch up your hound', 'Heal, free', () => { hound.hp = hound.maxHp; hound.down = false; log('The innkeeper patches up your hound. Its tail thumps the floor.', 'good'); buildLegend(); renderShop(); draw(); }));
-    else shopBuy.appendChild(shopRow(`Your hound is in fine fettle (level ${hound.level}, ${hound.kills} kills)`));
+    // pets: the ones you have, then the ones this realm's inns sell
+    for (const pp of pets) {
+      if (pp.down || pp.hp < pp.maxHp) shopBuy.appendChild(shopRow(pp.down ? `Your ${petLabel(pp)} is back, bandaged and sorry for itself` : `Patch up your ${petLabel(pp)}`, 'Heal, free', () => { pp.hp = pp.maxHp; pp.down = false; log(`The innkeeper patches up your ${petLabel(pp)}.`, 'good'); buildLegend(); renderShop(); draw(); }));
+      else shopBuy.appendChild(shopRow(`Your ${petLabel(pp)} is in fine fettle (level ${pp.level}, ${pp.kills} kills)`));
+    }
+    { const innTown = interior && interior.house && interior.house.town ? townAt(...interior.house.town.split(',').map(Number)) : null;
+      const kinds = INN_PETS[innTown ? innTown.realm : 'cantons'] || INN_PETS.cantons;
+      for (const kind of kinds) {
+        const K = PET_KINDS[kind], full = pets.length >= PET_MAX;
+        shopBuy.appendChild(shopRow(`${K.name[0].toUpperCase() + K.name.slice(1)} (${K.size}): ${K.hp} HP, bites for ${K.atk}; ${K.blurb}${full ? ` (you already keep ${PET_MAX})` : ''}`, `Buy ${K.cost}g`, () => {
+          if (player.gold < K.cost || pets.length >= PET_MAX) return;
+          player.gold -= K.cost; adoptPet(kind);
+          log(`A ${K.name} ${K.size === 'large' ? 'lumbers over and leans on you' : K.size === 'small' ? 'darts over and sits at your feet' : 'pads over and sits at your feet'}. It waits outside while you are indoors, and comes aboard when you sail.`, 'good'); sfx.play('quest');
+          tip('hound', `Your pets follow you, bite anything that comes close, and grow stronger with kills. You can keep ${PET_MAX}. If one falls, an innkeeper patches it up for free.`);
+          updateStats(); buildLegend(); renderShop(); draw();
+        }, player.gold < K.cost || full));
+      } }
     { const fish = player.bag.filter((id) => id === 'fish').length;
       if (fish) shopBuy.appendChild(shopRow(`Have the cook make your ${fish} fish into hearty stew (+15 HP each)`, `Cook ${fish * 2}g`, () => {
         if (player.gold < fish * 2) return; player.gold -= fish * 2; player.bag = player.bag.map((id) => (id === 'fish' ? 'stew' : id));
@@ -8296,8 +8367,9 @@ function startRun(saved) {
   player = { x: 1, y: 1, hp: 24, maxHp: 24, atk: 3, level: 1, xp: 0, gold: 0, weapon: null, armor: null, bag: [], quests: [], questsDone: 0, cls: 'warrior', mana: 0, shield: 0, poison: 0,
     perks: [], achievements: [], title: null, meta: { visited: [], second_wind: false, places: [], looted: [], found: [], bestiary: {}, story: null, blessing: null, realm: null }, weaponPlus: 0, armorPlus: 0, lifetimeKills: 0, pendingPerks: 0, relic: null };
   questsOpen = false; mapOpen = false; revealedTraps = new Set(); perkChoices = null; toast = null; aboard = false;
-  hound = null;
-  { const h = saved && saved.meta && saved.meta.hound; if (h && h.max_hp) hound = { x: 0, y: 0, hp: h.hp, maxHp: h.max_hp, atk: h.atk, level: h.level, kills: h.kills, down: !!h.down }; }
+  pets = [];
+  { const h = saved && saved.meta && saved.meta.hound; if (h && h.max_hp) pets.push({ kind: 'hound', x: 0, y: 0, hp: h.hp, maxHp: h.max_hp, atk: h.atk, level: h.level, kills: h.kills, down: !!h.down, face: 1 }); }   // heroes from before there were pets
+  { const ps = saved && saved.meta && saved.meta.pets; if (Array.isArray(ps)) for (const h of ps.slice(0, PET_MAX)) if (h && PET_KINDS[h.kind] && h.max_hp && !pets.some((q) => q.kind === h.kind && q.level === h.level && q.kills === h.kills)) pets.push({ kind: h.kind, x: 0, y: 0, hp: h.hp, maxHp: h.max_hp, atk: h.atk, level: h.level, kills: h.kills, down: !!h.down, face: 1 }); }
   floor = TOWN; interior = null; gameOver = false; turn = 0; kills = 0;
   overlay.classList.remove('show');
   logEl.innerHTML = ''; messages.length = 0;
@@ -8339,7 +8411,7 @@ function startRun(saved) {
   }
   { const ab = document.getElementById('ability'); if (ab) ab.textContent = `${heroClass().ability} (1)`; }
   player.mana = maxMana();
-  if (hound) hound.collar = player.relic === 'houndcollar';
+  for (const pp of pets) pp.collar = player.relic === 'houndcollar';
   // heroes who started before the opening existed get to see it once
   if (player.meta.story && !introSeen()) { pendingPrologue = () => { markIntroSeen(); showScene(WORLD_INTRO, () => log('Press J and choose World to read this again.', 'good')); }; if (!classPick || classPick.hidden) setTimeout(() => { const f = pendingPrologue; pendingPrologue = null; if (f) f(); }, 400); }
   if (!player.meta.story) { player.meta.story = { ch: 0, phase: 'summons' }; pendingPrologue = () => { markIntroSeen(); showScene([...WORLD_INTRO, ...PROLOGUE], () => log('Objective: travel to Castle Aurum and speak with King Aldric. The ★ on your compass and map shows the way.', 'good')); };
@@ -8461,7 +8533,7 @@ function renderGlossary(kind) {
       ['The Warden of the Deep', 'guardian of the lower halls', 'orc', 'the Deep, floor 10', 'Kept the lower halls closed for a thousand years.'],
       ['The Dreaming Maw', 'the mouth of the Deep', 'wraith', 'the Deep, floor 20', 'What the five lights were holding down. It dreams in the shapes of our guilt.'],
       ['Fenwick the merchant', 'shopkeeper', 'merchant', "Hearth, Fenwick's Goods", 'Finest steel this side of the dungeon. Buys and sells gear.'],
-      ['Dottie the innkeeper', 'innkeeper', 'innkeeper', 'Hearth, the Sleeping Rat', 'A bed is a bed. Rents rooms, hires hounds, and keeps your chest.'],
+      ['Dottie the innkeeper', 'innkeeper', 'innkeeper', 'Hearth, the Sleeping Rat', 'A bed is a bed. Rents rooms, sells pets, and keeps your chest.'],
       ['Captain Orla', 'captain of the watch', 'guard', 'Hearth, the Watch House', 'Posts bounties on named beasts and asks for dungeons cleared.'],
       ['Old Mara', 'herbalist', 'elder', "Hearth, Mara's Cottage", 'Potions, ten gold. Cheaper than Fenwick and twice as fresh.'],
       ['Durn the smith', 'smith', 'guard', 'castle smithies', 'Blades and hammers, a tenth off. Sharpens what you carry.'],

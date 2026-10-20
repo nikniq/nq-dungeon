@@ -6,6 +6,8 @@
 return [
     // Realm ids the game script knows, for validating saved quest and army state.
     'realms' => ['cantons', 'aurum', 'kathar', 'league', 'tianxia', 'suryadesh', 'severin'],
+    // Pet kinds the game script knows, for validating saved companions.
+    'pets' => ['cat', 'hound', 'husky', 'mongoose', 'hawk', 'wolf', 'boar', 'bear', 'elephant'],
 
     // Live multiplayer: seeing other heroes, chat, parties and shared dungeons.
     // When off, the game is single-player only and the relay endpoints return 404.

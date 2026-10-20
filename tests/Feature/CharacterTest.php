@@ -19,6 +19,17 @@ class CharacterTest extends TestCase
         $this->assertCount(72, $user->character->fresh()->perks);
     }
 
+    public function test_pets_are_saved_and_unknown_kinds_rejected(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla', 'class' => 'warrior']);
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 5, 'xp' => 5, 'gold' => 10, 'hp' => 30, 'max_hp' => 30, 'atk' => 5, 'kills' => 0, 'bag' => []];
+        $pets = [['kind' => 'bear', 'hp' => 40, 'max_hp' => 40, 'atk' => 6, 'level' => 1, 'kills' => 0, 'down' => false], ['kind' => 'hawk', 'hp' => 2, 'max_hp' => 8, 'atk' => 3, 'level' => 2, 'kills' => 9, 'down' => true]];
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['pets' => $pets]])->assertOk()->assertJson(['meta' => ['pets' => $pets]]);
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['pets' => [['kind' => 'dragon', 'hp' => 1, 'max_hp' => 1, 'atk' => 1, 'level' => 1, 'kills' => 0, 'down' => false]]]])->assertUnprocessable();
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['pets' => array_fill(0, 4, $pets[0])]])->assertUnprocessable();
+    }
+
     public function test_the_profile_page_names_relics_in_the_bag(): void
     {
         $user = User::factory()->create();
