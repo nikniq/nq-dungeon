@@ -10,6 +10,15 @@ class CharacterTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_a_high_level_hero_with_a_perk_every_level_can_still_save(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla', 'class' => 'warrior']);
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 73, 'xp' => 5, 'gold' => 10, 'hp' => 300, 'max_hp' => 300, 'atk' => 120, 'kills' => 0, 'bag' => [], 'perks' => array_fill(0, 72, 'brawn'), 'achievements' => array_fill(0, 70, 'first_blood')];
+        $this->actingAs($user)->postJson('/api/character', $state)->assertOk()->assertJson(['level' => 73]);
+        $this->assertCount(72, $user->character->fresh()->perks);
+    }
+
     public function test_the_profile_page_names_relics_in_the_bag(): void
     {
         $user = User::factory()->create();

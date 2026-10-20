@@ -27,9 +27,9 @@ class CharacterController extends Controller
      * event: 'progress' (periodic, on floor change, on page hide), 'death' or 'win'.
      * floor 0 is the town square: a hero there is between dives.
      */
-    public function save(Request $request): JsonResponse
+    private function validateSave(Request $request): array
     {
-        $data = $request->validate([
+        return $request->validate([
             'event' => ['required', 'in:progress,death,win'],
             'floor' => ['required', 'integer', 'min:0', 'max:99'],
             'level' => ['required', 'integer', 'min:1', 'max:999'],
@@ -54,9 +54,9 @@ class CharacterController extends Controller
             'quests.*.giver' => ['nullable', 'string', 'max:60'],
             'quests.*.reward' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'quests_done' => ['nullable', 'integer', 'min:0', 'max:100000'],
-            'perks' => ['nullable', 'array', 'max:60'],
+            'perks' => ['nullable', 'array', 'max:1200'],   // one a level, and levels go to 999
             'perks.*' => ['string', 'max:24', 'regex:/^[a-z_]+$/'],
-            'achievements' => ['nullable', 'array', 'max:60'],
+            'achievements' => ['nullable', 'array', 'max:300'],
             'achievements.*' => ['string', 'max:24', 'regex:/^[a-z_0-9]+$/'],
             'meta' => ['nullable', 'array', 'max:30'],
             'meta.visited' => ['nullable', 'array', 'max:80'],
@@ -155,6 +155,16 @@ class CharacterController extends Controller
             ))],
             'relic' => ['nullable', Rule::in(array_keys(config('items.relics')))],
         ]);
+    }
+
+    public function save(Request $request): JsonResponse
+    {
+        try {
+            $data = $this->validateSave($request);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Illuminate\Support\Facades\Log::warning('character save rejected', ['user' => $request->user()?->id, 'errors' => $e->errors()]);
+            throw $e;
+        }
 
         $c = $this->current($request);
         $c->best_floor = max($c->best_floor, $data['floor']);
