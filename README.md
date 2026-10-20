@@ -230,7 +230,9 @@ under the shallows in scalloped fringes with rounded corners (`edgeFringe`). The
 town fountain is a round stone basin with a spout, ripples and falling drops,
 and the waystone a carved standing stone whose runes breathe with light
 (`drawWaystone`, `drawWaystoneGlows`). The HUD is a bevelled panel with a gold rim
-and glossy bars.
+and glossy bars. Mountain ranges have a rounded foot of boulders, peaks with lit
+and shaded faces, and snow deep inside a range or in the north (`drawMountain`);
+forests mix oaks with pines, and in the north only snow-laden pines stand.
 
 Castle Aurum is half again the size of any other town (`GRAND_W`×`GRAND_H`, via
 `tw()`/`th()`), with two rings of wall: an outer bailey of market, cottages and

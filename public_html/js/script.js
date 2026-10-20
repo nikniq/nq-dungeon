@@ -1085,6 +1085,8 @@ const BIG_SPRITES = {
   potion: ['......wwww......', '......weew......', '......eeee......', '.......cc.......', '.....cccccc.....', '....cccccccc....', '...cccwwccccc...', '...ccwccccccc...', '...ccwccccccc...', '...cccccccccc...', '...cccccccccc...', '....cccccccc....', '.....cccccc.....', '................', '................', '................'],
   gold: ['................', '................', '.....yyyyyy.....', '....yyooooyy....', '...yyoyyyyoyy...', '...yoyyyyyyoy...', '...yoyyyyyyoy...', '...yyoyyyyoyy...', '..yyyyooooyyyy..', '.yyyyyyyyyyyyyy.', '.yooooooooooooy.', '.yyyyyyyyyyyyyy.', '..yyyyyyyyyyyy..', '................', '................', '................'],
   stairs: ['kkkkkkkkkkkkkkkk', 'kEEEEEEEEEEEEEEk', 'kEEEEEEEEEEEEEEk', 'kkkEEEEEEEEEEEEk', 'kkkEEEEEEEEEEEEk', 'kkkkkkEEEEEEEEEk', 'kkkkkkEEEEEEEEEk', 'kkkkkkkkkEEEEEEk', 'kkkkkkkkkEEEEEEk', 'kkkkkkkkkkkkEEEk', 'kkkkkkkkkkkkEEEk', 'kkkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkkk', 'kkkkkkkkkkkkkkkk'],
+  pine: ['.......G........', '......GGG.......', '.....GgGGG......', '......GGG.......', '.....GGgGG......', '....GGGGGGG.....', '...GGGgGGGGG....', '.....GGGGG......', '....GGgGGGG.....', '...GGGGGGGGG....', '..GGGgGGGGGGG...', '.GGGGGGGGgGGGG..', '.......HH.......', '.......HH.......', '.......HH.......', '......HHHH......'],
+  pinesnow: ['.......w........', '......wGw.......', '.....wwGGG......', '......GGG.......', '.....wwGGG......', '....wwwGGGG.....', '...GGGgGGGGG....', '.....wwGGG......', '....wwwGGGG.....', '...wwwGGGGGG....', '..GGGgGGGGGGG...', '.wwwwGGGGgGGGG..', '.......HH.......', '.......HH.......', '.......HH.......', '......HHHH......'],
   tree: ['......GGGG......', '....GGGGGGGG....', '...GGgGGGGGGG...', '..GGGGGGGgGGGG..', '..GgGGGGGGGGGG..', '.GGGGGGGGGGGGGG.', '.GGGGGgGGGGgGGG.', '.GGGGGGGGGGGGGG.', '..GGGGGGGGGGGG..', '..GGGgGGGGGGGG..', '...GGGGGGGGGG...', '.....GGGGGG.....', '......HHHH......', '......HHHH......', '......HHHH......', '.....HHHHHH.....'],
   player: ['.....yyyyyy.....', '....yyyyyyyy....', '....yyssssyy....', '....ysssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....bbbbbbbb....', '...bbbbbbbbbb...', '..sbbbbyybbbbs..', '..s.bbbbbbbb.s..', '....bbbbbbbb....', '....bbb..bbb....', '....bbb..bbb....', '...HHH....HHH...', '................'],
   merchant: ['.....hhhhhh.....', '....hhhhhhhh....', '....hhsssshh....', '....hsssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....hhhhhhhh....', '...hhhhhhhhhh...', '..shhhhyyhhhhs..', '..s.hhhhhhhh.s..', '....hhhhhhhh....', '....hhh..hhh....', '....hhh..hhh....', '...HHH....HHH...', '................'],
@@ -3702,16 +3704,38 @@ function drawSand(g, c, r) {
   if (wetSide) { g.fillStyle = 'rgba(120,100,60,0.25)'; const [dx, dy] = wetSide; g.fillRect(dx === 1 ? X + T - 6 : X, dy === 1 ? Y + T - 6 : Y, dx ? 6 : T, dy ? 6 : T); }   // damp sand by the water
 }
 function drawMountain(g, c, r) {
-  const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 25);
-  // the inner range is higher: rock on the fringe, snow on peaks ringed by more mountain
+  const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 25), n2 = noise(c, r, 28);
+  // how deep into the range this tile sits: the fringe is foothill, the heart is high and snowy
   let ring = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && groundAt(c + dx, r + dy) === GROUND.MOUNTAIN) ring++;
-  g.fillStyle = n < 0.5 ? '#6b7280' : '#5b6370'; g.fillRect(X, Y, T, T);
-  g.fillStyle = 'rgba(0,0,0,0.12)'; for (let k = 0; k < 3; k++) g.fillRect(X, Y + 8 + k * 9 + Math.floor(noise(c, r + k, 26) * 3), T, 1);   // strata
-  const px = X + T / 2 + Math.floor((n - 0.5) * 8), top = Y + 4 + Math.floor(noise(c, r, 28) * 4);
-  g.fillStyle = '#4b5563'; g.beginPath(); g.moveTo(X + 2, Y + T - 3); g.lineTo(px, top); g.lineTo(X + T - 2, Y + T - 3); g.closePath(); g.fill();   // the shaded face
-  g.fillStyle = '#7b8290'; g.beginPath(); g.moveTo(X + 2, Y + T - 3); g.lineTo(px, top); g.lineTo(px, Y + T - 3); g.closePath(); g.fill();   // the lit face
-  if (ring >= 5) { g.fillStyle = '#e5e7eb'; g.beginPath(); g.moveTo(px - 6, top + 8); g.lineTo(px, top); g.lineTo(px + 6, top + 8); g.lineTo(px + 3, top + 7); g.lineTo(px, top + 10); g.lineTo(px - 3, top + 7); g.closePath(); g.fill(); }
-  else if (n > 0.7) { g.fillStyle = '#9ca3af'; g.fillRect(X + 6, Y + T - 8, 3, 2); g.fillRect(X + 22, Y + T - 6, 2, 2); }   // scree
+  const snowy = r < ICE_Y, tone = valueNoise(c, r, 77, 5);
+  // the ground shows at the fringe so the range has a rounded foot instead of a square edge
+  if (ring < 8) { if (snowy) drawSnow(g, c, r); else drawGrass(g, c, r); }
+  const rock = `rgb(${Math.round(92 + tone * 30)},${Math.round(96 + tone * 26)},${Math.round(104 + tone * 24)})`, dark = `rgb(${Math.round(60 + tone * 20)},${Math.round(64 + tone * 18)},${Math.round(74 + tone * 16)})`, lit = `rgb(${Math.round(126 + tone * 30)},${Math.round(130 + tone * 26)},${Math.round(140 + tone * 22)})`;
+  const up = groundAt(c, r - 1) === GROUND.MOUNTAIN, down = groundAt(c, r + 1) === GROUND.MOUNTAIN, left = groundAt(c - 1, r) === GROUND.MOUNTAIN, right = groundAt(c + 1, r) === GROUND.MOUNTAIN;
+  if (ring >= 8) { g.fillStyle = rock; g.fillRect(X, Y, T, T); }
+  else {   // a rounded mass of rock, pushed toward its neighbours
+    g.fillStyle = rock; g.beginPath();
+    g.ellipse(X + T / 2 + (right ? 4 : 0) - (left ? 4 : 0), Y + T / 2 + (down ? 5 : 0) - (up ? 5 : 0), T / 2 + (left && right ? 4 : 1), T / 2 + (up && down ? 4 : 1), 0, 0, Math.PI * 2); g.fill();
+    if (up) g.fillRect(X + 2, Y, T - 4, T / 2); if (down) g.fillRect(X + 2, Y + T / 2, T - 4, T / 2); if (left) g.fillRect(X, Y + 2, T / 2, T - 4); if (right) g.fillRect(X + T / 2, Y + 2, T / 2, T - 4);
+  }
+  g.fillStyle = 'rgba(0,0,0,0.1)'; for (let k = 0; k < 3; k++) g.fillRect(X + 2, Y + 7 + k * 9 + Math.floor(noise(c, r + k, 26) * 3), T - 4, 1);   // strata
+  const px = X + T / 2 + Math.floor((n - 0.5) * 10), top = Y + 3 + Math.floor(n2 * 6);
+  if (n > 0.42 || ring >= 8) {   // a peak with a lit and a shaded face
+    g.fillStyle = dark; g.beginPath(); g.moveTo(X + 1, Y + T - 2); g.lineTo(px, top); g.lineTo(X + T - 1, Y + T - 2); g.closePath(); g.fill();
+    g.fillStyle = lit; g.beginPath(); g.moveTo(X + 1, Y + T - 2); g.lineTo(px, top); g.lineTo(px + 1, Y + T - 2); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(px, top + 2, 1, T - top + Y - 5);   // the ridge line
+  } else {   // a shoulder of boulders
+    g.fillStyle = dark; g.beginPath(); g.ellipse(X + 11, Y + 20, 10, 7, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = lit; g.beginPath(); g.ellipse(X + 9, Y + 18, 7, 4, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = dark; g.beginPath(); g.ellipse(X + 23, Y + 23, 7, 5, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = lit; g.beginPath(); g.ellipse(X + 22, Y + 21, 5, 3, 0, 0, Math.PI * 2); g.fill();
+  }
+  if (ring >= 8 || snowy) {   // snow lies on the high ground deep in a range, ragged at its edge
+    g.fillStyle = snowy ? '#eef3f8' : '#e5e7eb';
+    g.beginPath(); g.ellipse(px, top + 6, 8, 5, 0, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.ellipse(px - 4 + Math.floor(n * 6), top + 11, 6, 3, 0, 0, Math.PI * 2); g.fill();
+    if (ring >= 8 && (snowy || n2 > 0.5)) { g.fillStyle = 'rgba(238,243,248,0.85)'; g.beginPath(); g.ellipse(X + 8 + Math.floor(n * 10), Y + 24, 9, 4, 0, 0, Math.PI * 2); g.fill(); }
+  } else if (n2 > 0.7) { g.fillStyle = lit; g.fillRect(X + 6, Y + T - 7, 3, 2); g.fillRect(X + 22, Y + T - 5, 2, 2); }   // scree
 }
 function drawRoad(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 27);
@@ -4190,7 +4214,8 @@ function renderBackground() {
         if (gnd === GROUND.TREE) {   // every tree a little different: size, lean and which way it faces
           const tn = noise(c, r, 71), pad = tn < 0.25 ? -2 : tn < 0.6 ? 0 : tn < 0.85 ? 1 : 3, lean = (noise(c, r, 73) - 0.5) * 0.22;
           g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(c * T - off.x + T / 2 + 4 + lean * T, r * T - off.y + T - 4, T * (0.46 - pad * 0.03), 6, 0, 0, Math.PI * 2); g.fill();
-          drawSprite(g, 'tree', c + lean, r - (pad < 0 ? 0.06 : 0), 1, pad, tn > 0.5);
+          const kind = r < ICE_Y ? 'pinesnow' : noise(c, r, 75) < 0.4 ? 'pine' : 'tree';   // oaks and pines mixed; only pines stand the snow
+          drawSprite(g, kind, c + lean, r - (pad < 0 ? 0.06 : 0), 1, pad, tn > 0.5);
         }
       }
       else { const fk = t === TILE.FLOOR && fieldAt(c, r); if (fk) drawField(g, c, r, fk); else { drawGrass(g, c, r); if (t === TILE.FLOOR && noise(c, r, 9) < 0.06) drawSprite(g, 'flower', c, r); } }
