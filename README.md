@@ -451,6 +451,19 @@ background tab), so it runs on shared hosting. Turn it off with
 `MULTIPLAYER_ENABLED=false` in `.env` (then `php artisan optimize`): the game
 becomes single-player only and the relay endpoints return 404.
 
+## Accounts: email links and passwords
+
+Signing up asks for a hero name, class and email only. A signed link (two
+days, `AuthController::linkFor`, the `verify` route) goes to the address
+(`App\Mail\LoginLink`); opening it proves the email, signs the owner in and
+takes them to `/password` to choose a password, which is how they log in from
+then on. An address that was never confirmed cannot log in: a new link is sent
+instead. "Email me a sign-in link" (`/login/link`) serves both forgotten
+passwords and unconfirmed emails, and answers the same whether or not the
+address is known. Google sign-ins arrive verified. Accounts that predate this
+were marked verified by a migration. Mail goes through the mailer in `.env`
+(`sendmail` on the production host).
+
 ## Sign in with Google
 
 Optional. Create an OAuth client (Web application) in the Google Cloud console

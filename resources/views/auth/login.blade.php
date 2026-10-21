@@ -18,6 +18,7 @@
     @error('email')<p class="error">{{ $message }}</p>@enderror
     <button type="submit" class="primary">Log in</button>
   </form>
+  <p class="muted">Forgotten your password, or never set one? <a href="{{ route('login.link') }}">Email me a sign-in link</a>.</p>
   <p class="muted">No hero yet? <a href="{{ route('register') }}">Create one</a>.</p>
 </div>
 @endsection

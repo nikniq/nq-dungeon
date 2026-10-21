@@ -24,12 +24,10 @@
     </fieldset>
     @error('class')<p class="error">{{ $message }}</p>@enderror
     <label>Email <input type="email" name="email" value="{{ old('email') }}" required autocomplete="email"></label>
+    <p class="muted small">We will email you a link. Open it to confirm the address, and then choose your password.</p>
     @error('email')<p class="error">{{ $message }}</p>@enderror
-    <label>Password <input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
-    @error('password')<p class="error">{{ $message }}</p>@enderror
-    <label>Confirm password <input type="password" name="password_confirmation" required autocomplete="new-password"></label>
-    <button type="submit" class="primary">Create hero</button>
+    <button type="submit" class="primary">Create hero and email me a link</button>
   </form>
-  <p class="muted">Already have one? <a href="{{ route('login') }}">Log in</a>.</p>
+  <p class="muted">Already have one? <a href="{{ route('login') }}">Log in</a>, or <a href="{{ route('login.link') }}">email me a sign-in link</a>.</p>
 </div>
 @endsection

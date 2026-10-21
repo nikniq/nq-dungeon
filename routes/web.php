@@ -38,12 +38,19 @@ Route::middleware('guest')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
     Route::post('/login', [AuthController::class, 'login']);
+    Route::get('/login/link', [AuthController::class, 'showLinkRequest'])->name('login.link');
+    Route::middleware('throttle:5,1')->post('/login/link', [AuthController::class, 'requestLink']);
     Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('google.redirect');
     Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
 });
 
+// the link from the email: signed, two days, proves the address and signs its owner in
+Route::get('/verify/{user}/{hash}', [AuthController::class, 'verify'])->middleware('signed')->name('verify');
+
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+    Route::get('/password', [AuthController::class, 'showSetPassword'])->name('password.set');
+    Route::post('/password', [AuthController::class, 'setPassword']);
     Route::get('/character', [CharacterController::class, 'edit'])->name('character.edit');
     Route::post('/character', [CharacterController::class, 'update'])->name('character.update');
     Route::post('/character/abandon', [CharacterController::class, 'abandon'])->name('character.abandon');

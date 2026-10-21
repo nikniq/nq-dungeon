@@ -61,31 +61,63 @@ class CharacterTest extends TestCase
         $this->get('/play')->assertOk()->assertSee('Playing as a guest');
     }
 
-    public function test_registration_creates_a_character_and_logs_in(): void
+    public function test_registration_emails_a_link_and_the_password_is_set_after_it(): void
     {
-        $this->post('/register', [
-            'character' => 'Thorin',
-            'email' => 'thorin@example.com',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
-            'class' => 'ranger',
-        ])->assertRedirect('/play');
-
-        $this->assertAuthenticated();
+        \Illuminate\Support\Facades\Mail::fake();
+        $this->post('/register', ['character' => 'Thorin', 'email' => 'thorin@example.com', 'class' => 'ranger'])
+            ->assertOk()->assertSee('Check your email')->assertSee('thorin@example.com');
+        $this->assertGuest();
         $this->assertDatabaseHas('characters', ['name' => 'Thorin', 'floor' => 0, 'level' => 1, 'class' => 'ranger']);
+        $user = User::where('email', 'thorin@example.com')->first();
+        $this->assertNull($user->email_verified_at);
+
+        $url = null;
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\LoginLink::class, function ($mail) use (&$url) { $url = $mail->url; return $mail->welcome && $mail->hasTo('thorin@example.com'); });
+        $this->assertStringContainsString('/verify/'.$user->id.'/', $url);
+
+        // a password cannot be used before the link is opened
+        $this->from('/login')->post('/login', ['email' => 'thorin@example.com', 'password' => 'anything'])->assertRedirect('/login')->assertSessionHasErrors('email');
+        $this->assertGuest();
+
+        // a tampered link is refused; the real one proves the address, signs in, and asks for a password
+        $this->get(str_replace('signature=', 'signature=0', $url))->assertForbidden();
+        $this->get($url)->assertRedirect('/password');
+        $this->assertAuthenticatedAs($user);
+        $this->assertNotNull($user->fresh()->email_verified_at);
+        $this->get('/password')->assertOk()->assertSee('Choose your password');
+        $this->post('/password', ['password' => 'password123', 'password_confirmation' => 'password123'])->assertRedirect('/play');
+
+        $this->post('/logout');
+        $this->post('/login', ['email' => 'thorin@example.com', 'password' => 'password123'])->assertRedirect('/play');
+        $this->assertAuthenticatedAs($user);
         $this->get('/play')->assertOk()->assertSee('Thorin')->assertDontSee('Playing as a guest');
+    }
+
+    public function test_an_unconfirmed_account_cannot_log_in_and_gets_a_new_link(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+        $user = User::factory()->create(['email' => 'late@example.com', 'password' => 'password123', 'email_verified_at' => null]);
+        $this->from('/login')->post('/login', ['email' => 'late@example.com', 'password' => 'password123'])->assertRedirect('/login')->assertSessionHasErrors('email');
+        $this->assertGuest();
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\LoginLink::class, 1);
+
+        // "email me a link" signs an existing hero in and lets them set a new password, and says the same for an unknown address
+        $this->post('/login/link', ['email' => 'LATE@example.com'])->assertOk()->assertSee('on its way');
+        $this->post('/login/link', ['email' => 'nobody@example.com'])->assertOk()->assertSee('on its way');
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\LoginLink::class, 2);
+        $this->get(\App\Http\Controllers\AuthController::linkFor($user))->assertRedirect('/password');
+        $this->assertAuthenticatedAs($user);
+        $this->post('/password', ['password' => 'newpass123', 'password_confirmation' => 'newpass123'])->assertRedirect('/play');
+        $this->post('/logout');
+        $this->post('/login', ['email' => 'late@example.com', 'password' => 'newpass123'])->assertRedirect('/play');
     }
 
     public function test_hero_names_must_be_unique_and_safe(): void
     {
         User::factory()->create()->character()->create(['name' => 'Thorin']);
 
-        $this->from('/register')->post('/register', [
-            'character' => 'thorin', 'email' => 'x@example.com', 'password' => 'password123', 'password_confirmation' => 'password123', 'class' => 'mage',
-        ])->assertRedirect('/register')->assertSessionHasErrors('character');
-        $this->from('/register')->post('/register', [
-            'character' => '<script>', 'email' => 'y@example.com', 'password' => 'password123', 'password_confirmation' => 'password123', 'class' => 'mage',
-        ])->assertRedirect('/register')->assertSessionHasErrors('character');
+        $this->from('/register')->post('/register', ['character' => 'thorin', 'email' => 'x@example.com', 'class' => 'mage'])->assertRedirect('/register')->assertSessionHasErrors('character');
+        $this->from('/register')->post('/register', ['character' => '<script>', 'email' => 'y@example.com', 'class' => 'mage'])->assertRedirect('/register')->assertSessionHasErrors('character');
         $this->assertGuest();
     }
 
