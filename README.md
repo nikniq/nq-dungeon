@@ -398,6 +398,18 @@ The public story page at `/world/story` (`StoryController`, `config/story.php`)
 tells both stories and carries a discussion thread under each that signed-in
 heroes can post to (`story_posts`, 600 characters, throttled).
 
+## The townsfolk
+
+Every town has people of its own (`townFolk`, `FOLK_ROLES`, `FOLK_NAMES`):
+a name from its realm's pool, a trade (sixteen in the old realms, six each in
+Tianxia, Suryadesh and Severin), three things to say about their own town (its
+landmark, trade, leader, nearest site and guard captain), a habit and a piece
+of advice. The same town always has the same people, seeded by its cell, and
+no two in a square share a name or a trade. Each wears clothes in their own
+colour (`folkSprite` swaps the sprite's dominant clothing colour). Hearth keeps
+its four old hands and each Far Shore town one voice of its culture alongside
+them.
+
 ## The Sundered Blade
 
 Dawnbreaker (+16 attack, the Sundering style: every blow also strips a tenth of

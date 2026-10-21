@@ -3396,13 +3396,112 @@ function townNpcs(town) {
     town.npcs.push({ ...cell, type: notableNpc(town), pause: rnd(3), home: { x: town.cx, y: town.cy } });
   }
   if (town.harbour) { const H = town.harbour; town.npcs.push({ x: H.end.x, y: H.end.y, type: harbourmasterNpc(town), fixed: true, pause: 0, home: { x: town.cx, y: town.cy } }); }
-  const folk = FAR_FOLK[town.realm] || NPC_TYPES;
-  const count = town.key === '0,0' ? NPC_TYPES.length : town.folk[0] + Math.floor(noise(town.i, town.j, 98) * (town.folk[1] - town.folk[0] + 1));
-  for (let n = 0; n < count && spots.length; n++) {
+  // the townsfolk: Hearth keeps its four old hands, each Far Shore town one voice of its
+  // culture, and every town fills the rest of its square with people of its own
+  const far = FAR_FOLK[town.realm];
+  const fixed = town.key === '0,0' ? NPC_TYPES.slice() : far ? [far[Math.floor(noise(town.i, town.j, 99) * far.length)]] : [];
+  const count = town.key === '0,0' ? NPC_TYPES.length + 2 : Math.max(fixed.length + 2, town.folk[0] + Math.floor(noise(town.i, town.j, 98) * (town.folk[1] - town.folk[0] + 1)));
+  const types = [...fixed, ...townFolk(town, count - fixed.length)];
+  for (let n = 0; n < types.length && spots.length; n++) {
     const cell = spots.splice(Math.floor(noise(town.i, town.j, 100 + n) * spots.length), 1)[0];
-    town.npcs.push({ ...cell, type: folk[(n + Math.floor(noise(town.i, town.j, 99) * 4)) % folk.length], pause: rnd(3), home: { x: town.cx, y: town.cy } });
+    town.npcs.push({ ...cell, type: types[n], pause: rnd(3), home: { x: town.cx, y: town.cy } });
   }
   return town.npcs;
+}
+// ---------- the townsfolk ----------
+// Every town has people of its own: a name from its realm, a trade, three things to
+// say about their own town, a habit, and a piece of advice. The same town always
+// has the same people (seeded by its cell), and no two in a square share a name or
+// a trade. Each wears clothes of their own colour.
+const FOLK_NAMES = {
+  cantons: ['Hob', 'Wenna', 'Tobin', 'Agnes', 'Piet', 'Hesper', 'Jonas', 'Lissa', 'Bram', 'Mab', 'Corran', 'Tilly', 'Rufus', 'Nan', 'Abel', 'Greta', 'Wat', 'Dilly', 'Osk', 'Perrin'],
+  aurum: ['Oswin', 'Maud', 'Benedict', 'Cecily', 'Anselm', 'Mathilde', 'Roland', 'Edith', 'Ottilie', 'Gervase', 'Piers', 'Rosalind', 'Hugh', 'Isolde', 'Aldous', 'Joan', 'Walter', 'Avice', 'Giles', 'Petronel'],
+  kathar: ['Vorna', 'Brak', 'Tessaly', 'Ulfar', 'Nessa', 'Korrin', 'Halla', 'Drenn', 'Ysra', 'Orm', 'Kaela', 'Thurn', 'Brenna', 'Varl', 'Sela', 'Gorm', 'Runa', 'Skarl', 'Eyja', 'Torv'],
+  league: ['Bartolo', 'Serena', 'Cassius', 'Orsina', 'Fennimore', 'Dorothea', 'Aurelio', 'Beatrice', 'Marcello', 'Vittoria', 'Lorenzo', 'Clara', 'Ambrose', 'Petra', 'Cosimo', 'Livia', 'Nico', 'Ottavia', 'Rinaldo', 'Zita'],
+  tianxia: ['Bao', 'Lin', 'Wu', 'Shen', 'Zhang', 'Hua', 'Lu', 'Mei', 'Li', 'Qing', 'Guo', 'Chen', 'Tian', 'Yun', 'Bai', 'Feng', 'Jun', 'Xiu', 'Ping', 'Rong'],
+  suryadesh: ['Devi', 'Harish', 'Amba', 'Gopal', 'Sarla', 'Bhaskar', 'Kamala', 'Vishnu', 'Meena', 'Ravi', 'Lata', 'Padma', 'Arjun', 'Anjali', 'Kishan', 'Rukmini', 'Dev', 'Sita', 'Mohan', 'Uma'],
+  severin: ['Vera', 'Ilya', 'Katya', 'Oleg', 'Agafya', 'Grisha', 'Zoya', 'Ivan', 'Nadia', 'Lev', 'Praskovya', 'Fyodor', 'Sasha', 'Matrona', 'Yegor', 'Dunya', 'Mitya', 'Olga', 'Pyotr', 'Ksenia'],
+};
+const FOLK_QUIRKS = ['keeps bees on the roof and will not say how many', 'has not slept indoors since the comet', 'names every chicken after a king', 'whistles the same four notes all day', 'is feuding with the miller over a fence', 'reads the clouds and is wrong about rain', 'knits in the dark', 'has a goat that follows them to the tavern', 'swears the fountain spoke once', 'collects the teeth of everything they eat', 'walks the walls at dawn, counting stones', 'has never once lost at dice and will not play you', 'talks to the crows, and the crows answer', 'bakes a loaf for every traveller who comes back alive', 'keeps a jar of coins for a boat they will never buy', 'remembers every name and no face'];
+const FOLK_TIPS = ['Sleeping monsters take double damage from your first blow. Walk softly.', 'Hover over a monster to see how hard it hits and how many blows it will take.', 'The merchant pays half what he charges. Sell the junk, keep the good blade.', 'Smithies sharpen what you carry. A plus or two is the difference, deeper down.', 'A chest that bites is a mimic. Hit it anyway; it drops a fat purse.', 'A ring of stones in a dungeon room is a trial. Pass it and you leave with something magic.', 'Guards follow you to the walls if something is at the gate. They do not follow you in.', 'The harbourmasters sell charts. An X on an island is a chest.', 'Inns rent rooms for good. The chest in it is the same chest in every inn in the world.', 'Rest at a fountain when the square is quiet. Potions are for underground.', 'The trade shop sells what nobody else does. Ours is by the sign.', 'A pet grows with every kill it makes. Let the small ones finish the rats.'];
+// roles: a sprite, and three lines about the speaker's own town
+const FOLK_ROLES = {
+  old: [
+    { role: 'baker', sprite: 'villager', lines: (c) => [`"Bread by ${c.landmark} every morning but Sunday. If it is burnt, ${c.leader} had the first loaf and it was fine."`, `"Everyone in ${c.town} owes me for a loaf. That is what a baker is: the one who knows who is skint."`, `"The ${c.trade} folk eat the most. Out at dawn and back with a hunger, every one of them."`] },
+    { role: 'cooper', sprite: 'villager', lines: (c) => [`"Barrels. Everything in ${c.town} that is worth anything ends up in one of mine: ${c.famous}, mostly."`, `"They buy the staves in from ${c.realm}, and the iron hoops from wherever the iron is this year."`, `"A good barrel outlives its maker. Half the ones in the cellars under ${c.landmark} are my father's."`] },
+    { role: 'weaver', sprite: 'villager', lines: (c) => [`"I weave the pattern of ${c.realm}, nothing else. Buyers come from three towns for it."`, `"You can tell a ${c.town} cloak by the hem. We double it. The wind off ${c.site} taught us that."`, `"The loom is older than the walls. When the walls come down, as walls do, the loom will still be here."`] },
+    { role: 'midwife', sprite: 'villager', lines: (c) => [`"I delivered half of ${c.town}, including ${c.guard} at the gate, who was a difficult child and is a difficult adult."`, `"Nobody goes near ${c.site} with a baby coming. We know that much."`, `"${c.leader} sends for me when the fever comes round. I send for the apothecary. The apothecary sends for the priest."`] },
+    { role: 'shepherd', sprite: 'farmer', lines: (c) => [`"Three hundred head on the hill above ${c.town}, and I know every one. The wolves know them too."`, `"Something has been taking lambs from the fold nearest ${c.site}. Not wolves. Wolves leave something."`, `"${c.famous}, they call it, the thing ${c.town} is known for. Where do they think the wool for it comes from?"`] },
+    { role: 'miller', sprite: 'farmer', lines: (c) => [`"The mill turns when the river lets it. This year the river has been contrary."`, `"Every sack of ${c.town} flour passes through my hands, and ${c.leader} takes a tenth of it for the walls. The walls eat well."`, `"My grandfather built the mill race. The water does not know he is dead; it still goes where he told it."`] },
+    { role: 'tanner', sprite: 'farmer', lines: (c) => [`"You smell it before you see it, the tannery. That is why we are downwind of ${c.landmark}."`, `"Boar hide, wolf hide, and once something from ${c.site} that I did not ask the name of. It made a fine coat."`, `"${c.town} boots last. Ask any guard who has walked the walls in them for twenty years."`] },
+    { role: 'brewer', sprite: 'merchant', lines: (c) => [`"The ale in ${c.town} is mine, and so is the morning after. You are welcome to both."`, `"I brew for the tavern, for the guard, and for ${c.leader}, who drinks it with water. Imagine."`, `"The best barley comes from the fields toward ${c.site}, and nobody wants to harvest them. Strange, that."`] },
+    { role: 'hunter', sprite: 'farmer', lines: (c) => [`"Boar in the woods, deer on the ridge, and lately things with too many legs near ${c.site}. I leave those."`, `"${c.town} eats what I bring in. In a bad winter that is me, two dogs, and a lot of luck."`, `"The tracks near the walls last week were nothing I have a name for. I told ${c.guard}. ${c.guard} told the walls."`] },
+    { role: 'scribe', sprite: 'elder', lines: (c) => [`"I write the letters ${c.town} sends and read the ones it gets. Mostly tax. Occasionally love. Rarely both."`, `"${c.leader} cannot spell. Nobody is to know that, so I am telling only you."`, `"The chronicle of ${c.town} goes back nine hundred years. The last three pages are mine, and the least interesting."`] },
+    { role: 'priest', sprite: 'elder', lines: (c) => [`"The chapel by ${c.landmark} is open to all. The collection plate more so."`, `"I bury the ones who go into ${c.site} and come back. The ones who do not come back I pray for, which is cheaper."`, `"Bless you, traveller. ${c.town} has needed blessing more than usual lately."`] },
+    { role: 'beggar', sprite: 'elder', lines: (c) => [`"A coin for a story? No? Then a story for free: ${c.town} was not always this small."`, `"I sit by ${c.landmark} and see everyone. ${c.leader} walks past me every day and has for twenty years."`, `"I went down into ${c.site} once, when I had two good legs. That is the story of the legs."`] },
+    { role: 'stablehand', sprite: 'farmer', lines: (c) => [`"Horses, mules, and once an elephant that a lord was bringing home. The elephant ate the stable."`, `"Travellers for ${c.site} leave their horses with me and most come back for them. Most."`, `"The ${c.trade} wagons go out at dawn. If you want a ride toward ${c.realm}, be here before the rooster."`] },
+    { role: 'minstrel', sprite: 'child', lines: (c) => [`"A song for ${c.town}! It is mostly about ${c.famous}, because that rhymes with more things than you would think."`, `"I have a verse about ${c.leader}. I only sing it in other towns."`, `"The ballad of ${c.site} has forty stanzas and the hero dies in the ninth. Nobody wants to hear the other thirty-one."`] },
+    { role: 'rat-catcher', sprite: 'child', lines: (c) => [`"A copper a tail, from ${c.leader}. ${c.town} has been good to me this year, which is bad for ${c.town}."`, `"The rats come up from under the square. Where do you think the dungeon stairs go?"`, `"Big ones near ${c.site}. Big as dogs. I do not catch those. I catch the normal ones and I count myself lucky."`] },
+    { role: 'washerwoman', sprite: 'villager', lines: (c) => [`"I know what is in every pocket in ${c.town} on washing day. Mostly crumbs. Occasionally a letter. Once a finger."`, `"${c.guard} brings me a tunic a week with the same tear in the same place. I have stopped asking."`, `"The river below ${c.landmark} is the only clean water for a mile. Downstream of me is a different story."`] },
+  ],
+  tianxia: [
+    { role: 'noodle-seller', sprite: 'merchant', lines: (c) => [`"Noodles! Pulled by hand, long as your life. Longer, if you eat here."`, `"${c.leader} eats at my stall when the yamen cooks are sulking, which is most days."`, `"The porters from ${c.site} road eat four bowls each. Whatever they carry, it is heavy."`] },
+    { role: 'calligrapher', sprite: 'elder', lines: (c) => [`"One brushstroke tells me if a man will keep his word. Yours leans. Do not write anything down."`, `"I painted the sign over ${c.landmark}. Nobody looks up, so nobody knows it is the best thing in ${c.town}."`, `"The petitions to the Empress go through my brush. I make them beautiful. Beautiful petitions are still refused, but politely."`] },
+    { role: 'ferryman', sprite: 'villager', lines: (c) => [`"The river is the real road in ${c.town}. The one the Empire built floods every spring, like the Empire."`, `"I ferried a thing from the ${c.site} side once that paid in old coins and did not breathe. I took the coins."`, `"Two cash to cross. Four back. Everybody wants to come back."`] },
+    { role: 'silk-weaver', sprite: 'villager', lines: (c) => [`"Silk from ${c.town} goes to the capital and comes back on the backs of officials, three times the price."`, `"The worms eat mulberry, the weavers eat rice, and the magistrate eats both of us."`, `"A bolt of our ${c.famous} takes a season. A bandit takes it in a moment. That is why we love the guard."`] },
+    { role: 'monk', sprite: 'elder', lines: (c) => [`"The temple above ${c.town} rings its bell at dawn. The bell is older than the Empire and does not care who rules."`, `"I meditated near ${c.site} for a year. Something there meditated back. I moved."`, `"Attachment is suffering, the sutras say. I am attached to tea. I suffer gladly."`] },
+    { role: 'fortune-teller', sprite: 'child', lines: (c) => [`"Your fortune, traveller? The sticks say: a long road, a sharp blade, a short temper. The sticks say that to everyone, but for you they mean it."`, `"I told ${c.leader} the year would be hard. It was. Now I am the magistrate's fortune-teller and the year is still hard."`, `"Do not go toward ${c.site} on a day with an eight in it. Do not ask me which days have an eight in them."`] },
+  ],
+  suryadesh: [
+    { role: 'dyer', sprite: 'villager', lines: (c) => [`"Indigo, saffron, madder. My hands have not been their own colour since I was nine."`, `"The cloth of ${c.town} is ${c.famous}, and every bolt of it went through my vats first."`, `"The pilgrims to ${c.site} wear white. By the time they come back I could sell them anything."`] },
+    { role: 'bangle-seller', sprite: 'merchant', lines: (c) => [`"Glass bangles, a dozen for a copper. They break. That is the point; you come back."`, `"The Maharani bought a dozen from me once, through a servant, through a servant. I still have the copper."`, `"Nobody near ${c.site} wears bangles. Too much noise for a place that listens."`] },
+    { role: 'temple-dancer', sprite: 'child', lines: (c) => [`"I dance the story of the nine gates at ${c.landmark} every festival. It takes a night, and I have the bruises."`, `"${c.leader} watches from the dais and claps at the wrong moments. We have stopped minding."`, `"The old dance has a step for ${c.site}. We leave it out now. The drummer says it brings things."`] },
+    { role: 'boatman', sprite: 'villager', lines: (c) => [`"The river at ${c.town} is slow and brown and full of everything. I know where the crocodiles sleep."`, `"The ghats below ${c.landmark} are mine at dawn. The washermen have them by noon and the dead by dusk."`, `"I will not row toward ${c.site}. The water goes the wrong way there."`] },
+    { role: 'spice-grinder', sprite: 'merchant', lines: (c) => [`"Pepper, cumin, cardamom. Sneeze all you like; it is a sign of quality."`, `"Every kitchen in ${c.town} buys from me, including the yamen of ${c.leader}, who likes it hot and will not admit it."`, `"The caravans from ${c.realm} bring the pepper. The road past ${c.site} they will not take any more, so the pepper is dear."`] },
+    { role: 'astrologer', sprite: 'elder', lines: (c) => [`"The stars over ${c.town} are favourable this month. The stars over you are complicated."`, `"${c.leader} does nothing without my chart. I do nothing without ${c.leader}'s silver. The heavens approve of both."`, `"There is a star that sets behind ${c.site} and rises nowhere. I do not put it on the charts."`] },
+  ],
+  severin: [
+    { role: 'icon-painter', sprite: 'elder', lines: (c) => [`"Gold leaf and egg. The saints of ${c.town} have my face, slightly, because the mirror was closer than the model."`, `"The church by ${c.landmark} has forty of mine. The boyar's chapel has one, and paid for forty."`, `"I painted a saint for the chapel near ${c.site}. The painting came back by itself. We do not discuss it."`] },
+    { role: 'furrier', sprite: 'merchant', lines: (c) => [`"Sable, fox, bear. Winter in ${c.town} is nine months, and I am the reason anyone is left in spring."`, `"${c.famous}, they call our pelts in the south. In the south they have never been cold."`, `"The trappers near ${c.site} bring in hides I have no name for. I sell those to the south too."`] },
+    { role: 'bathhouse-keeper', sprite: 'villager', lines: (c) => [`"Steam, birch, cold river. If you leave ${c.town} without trying the bania you were never here."`, `"Everyone is equal in the steam. ${c.leader} is a thin old thing with a scar, like the rest of us."`, `"The men who came back from ${c.site} would not take the heat. Sat in the snow outside, shaking. I let them."`] },
+    { role: 'sled-driver', sprite: 'farmer', lines: (c) => [`"Six dogs and a sled, and the road is wherever the snow is hard. ${c.town} to ${c.realm} in three days, if the wolves are elsewhere."`, `"The dogs will not run toward ${c.site}. Dogs are not stupid. I have learned from the dogs."`, `"I carried the boyar's letter to the capital through the white wind. The answer came back by crow."`] },
+    { role: 'beekeeper', sprite: 'farmer', lines: (c) => [`"Honey, wax, and mead, which is honey with ambition. The hives are in the lime trees past ${c.landmark}."`, `"The bees know things. They swarmed the week before the dead walked. I should have listened."`, `"${c.leader} buys the candle wax for the church and haggles like a trader from the League."`] },
+    { role: 'bell-founder', sprite: 'villager', lines: (c) => [`"I cast the great bell in the tower of ${c.town}. It took a year and the voice of it is mine."`, `"A bell is bronze, tin, and a little silver, and whatever the town throws in the pour for luck. Ours has a ring in it, and a tooth."`, `"They say my bell can be heard from ${c.site}. They say things come to hear it."`] },
+  ],
+};
+// a sprite in the speaker's own colours: the dominant clothing colour swapped for one of eight
+const FOLK_TINTS = ['b', 'r', 'G', 'P', 'd', 'p', 'o', 'c'];
+function folkSprite(base, realm, k) {
+  const src = FAR_DRESS[realm] && !BIG_SPRITES[`${base}:${realm}`] ? farSprite('villager', realm) : farSprite(base, realm), name = `${src}:c${k % FOLK_TINTS.length}`;
+  if (BIG_SPRITES[name]) return name;
+  const rows = BIG_SPRITES[src]; if (!rows) return base;
+  const counts = {};
+  for (const r of rows) for (const ch of r) if (!'.skHhwe'.includes(ch)) counts[ch] = (counts[ch] || 0) + 1;
+  const cloth = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+  const tint = FOLK_TINTS[k % FOLK_TINTS.length] === cloth ? FOLK_TINTS[(k + 1) % FOLK_TINTS.length] : FOLK_TINTS[k % FOLK_TINTS.length];
+  BIG_SPRITES[name] = cloth ? rows.map((r) => r.split(cloth).join(tint)) : rows;
+  return name;
+}
+function townFolk(town, n) {
+  if (town.folkTypes) return town.folkTypes;
+  const realm = town.realm || 'cantons', I = townIdentity(town);
+  const roles = (FOLK_ROLES[realm] || FOLK_ROLES.old).slice(), names = (FOLK_NAMES[realm] || FOLK_NAMES.cantons).slice();
+  const at = { x: town.cx, y: town.cy };
+  const site = nearbySites(town.cx, town.cy, 1).filter((st) => !st.deep).sort((a, b) => cheb(a, at) - cheb(b, at))[0];
+  const c = { town: town.name, landmark: I.landmark.name, trade: I.trade.label, famous: I.famous, leader: I.leader, realm: (REALMS[realm] || REALMS.cantons).short,
+    site: site ? (site.name.startsWith('The ') ? site.name.replace(/^The /, 'the ') : 'the ' + site.name) : 'the dungeon under the square',
+    guard: guardPlan(town).length ? guardNpc(town, guardPlan(town)[0], 0).name : 'the militia' };
+  const out = [];
+  for (let k = 0; k < n && roles.length && names.length; k++) {
+    const R = roles.splice(Math.floor(cellRand(town.i, town.j, 910 + k) * roles.length), 1)[0];
+    const first = names.splice(Math.floor(cellRand(town.i, town.j, 930 + k) * names.length), 1)[0];
+    const name = realm === 'tianxia' ? `${R.role[0].toUpperCase() + R.role.slice(1)} ${first}` : `${first} the ${R.role}`;
+    const quirk = FOLK_QUIRKS[Math.floor(cellRand(town.i, town.j, 950 + k) * FOLK_QUIRKS.length)], tipLine = FOLK_TIPS[Math.floor(cellRand(town.i, town.j, 970 + k) * FOLK_TIPS.length)];
+    out.push({ sprite: folkSprite(R.sprite, realm, Math.floor(cellRand(town.i, town.j, 990 + k) * FOLK_TINTS.length)), name, role: R.role, folk: true,
+      lines: [...R.lines(c), `"They say I ${quirk}. They are not wrong."`, tipLine] });
+  }
+  town.folkTypes = out;
+  return out;
 }
 // ---------- the town watch ----------
 // Every town keeps guards who walk a beat around the square and the gate, and
