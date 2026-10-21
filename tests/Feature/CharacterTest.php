@@ -33,6 +33,16 @@ class CharacterTest extends TestCase
         $this->actingAs($user)->postJson('/api/character', array_replace($state, ['bag' => ['plate~flaming~1']]))->assertUnprocessable();
     }
 
+    public function test_dawnbreaker_and_the_forged_flag_save_and_show_in_the_catalogue(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla', 'class' => 'warrior']);
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 30, 'xp' => 5, 'gold' => 10, 'hp' => 90, 'max_hp' => 90, 'atk' => 20, 'kills' => 0, 'bag' => [], 'weapon' => 'dawnbreaker', 'meta' => ['forged' => true, 'lairs' => ['known' => ['hilt', 'blade', 'stone'], 'slain' => ['hilt', 'blade', 'stone']]]];
+        $this->actingAs($user)->postJson('/api/character', $state)->assertOk()->assertJson(['weapon' => 'dawnbreaker'])->assertJsonPath('meta.forged', true);
+        $this->actingAs($user)->get('/character')->assertOk()->assertSee('Dawnbreaker');
+        $this->get('/world/items')->assertOk()->assertSee('Dawnbreaker')->assertSee('Sundering')->assertSee('Cairn of the Sun');
+    }
+
     public function test_a_save_with_every_meta_key_is_accepted(): void
     {
         $user = User::factory()->create();

@@ -20,6 +20,8 @@ return [
         'tidecaller' => ['name' => 'Tidecaller', 'atk' => 11, 'price' => 1800, 'floor' => 99],
         'stormhammer' => ['name' => 'Stormhammer', 'atk' => 13, 'price' => 2000, 'floor' => 99],
         'staffofages' => ['name' => 'Staff of Ages', 'atk' => 10, 'price' => 1800, 'floor' => 99],
+        // the Sundered Blade: reforged by a master smith from three pieces won across three continents
+        'dawnbreaker' => ['name' => 'Dawnbreaker', 'atk' => 16, 'price' => 6000, 'floor' => 99],
     ],
     'armor' => [
         'leather' => ['name' => 'Leather armor', 'def' => 1, 'price' => 20, 'floor' => 1],

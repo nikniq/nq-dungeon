@@ -10,6 +10,7 @@ return [
         'dagger' => ['Quick', 'sneak attacks deal triple damage, and one stab in five strikes twice'],
         'short_sword' => ['Keen', 'one hit in five is a critical for double damage'],
         'mace' => ['Stunning', 'one hit in four stuns the target for a turn'],
+        'dawnbreaker' => ['Sundering', 'every blow also strips a tenth of the foe\'s full health, and the blade lights two tiles further'],
         'longsword' => ['Parrying', 'parries one melee blow in five'],
         'warhammer' => ['Crushing', 'knocks foes back a tile, or slams them into a wall for +3; breaks cracked walls and totems in one blow'],
         'greatsword' => ['Cleaving', 'also hits every other foe beside you for half damage'],
@@ -20,6 +21,7 @@ return [
         'tidecaller' => ['style' => 'longsword', 'from' => "the Drowned King, in the Drowned King's Hall"],
         'stormhammer' => ['style' => 'warhammer', 'from' => "the Direwolf matriarch, in the Direwolf's Den"],
         'staffofages' => ['style' => 'greatsword', 'from' => "the Lich, in the Lich's Observatory"],
+        'dawnbreaker' => ['style' => 'dawnbreaker', 'from' => 'any master smith, who reforges it once the Hilt of Dawn (the Forge of the First King), the Blade of Dawn (the Glass Pagoda, on the Far Shore) and the Sunstone Pommel (the Cairn of the Sun, on the ice of Thule) are won from their wardens'],
         'trollhide' => ['from' => "Old Grumm, under Old Grumm's Bridge"],
         'wyrmscale' => ['from' => "Scald, the Old Wyrm, in the Wyrm's Roost"],
     ],
@@ -46,6 +48,7 @@ return [
         'drops' => 'Monsters drop gear and consumables as they fall, more deeply underground and from elites and bosses; treasure chests, vaults behind cracked walls, ruins and battlefields hold more.',
         'relics' => 'Relics are one of a kind. Each is found in a particular place, given by a ruler for a questline, or buried where a treasure chart points. Wear one at a time from the inventory; the rest wait in your bag or inn chest.',
         'legendary' => 'Legendary gear drops only from the six super bosses in their hidden lairs, which bards, hermits and prophets can point you to.',
+        'dawnbreaker' => 'Dawnbreaker, the sword of the First King, is the one weapon above the legendaries. Any master smith (the trade shop of a smithing town) tells the tale to a hero of level 12 or more, marks the first warden on the map, and reforges the sword when all three pieces are won.',
     ],
     'other' => [
         ['A horse', '400 gold at the inns of cities and castles (a quarter off in horse-breeding towns)', 'two tiles a step in the open wilds'],

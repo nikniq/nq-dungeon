@@ -117,6 +117,7 @@ class CharacterController extends Controller
             'meta.ship.x' => ['required_with:meta.ship', 'integer'],
             'meta.ship.y' => ['required_with:meta.ship', 'integer'],
             'meta.rod' => ['nullable', 'boolean'],
+            'meta.forged' => ['nullable', 'boolean'],
             'meta.war' => ['nullable', 'array'],
             'meta.war.troops' => ['nullable', 'array:'.implode(',', config('game.realms'))],
             'meta.war.troops.*' => ['integer', 'min:0', 'max:100000'],

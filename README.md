@@ -390,6 +390,21 @@ The public story page at `/world/story` (`StoryController`, `config/story.php`)
 tells both stories and carries a discussion thread under each that signed-in
 heroes can post to (`story_posts`, 600 characters, throttled).
 
+## The Sundered Blade
+
+Dawnbreaker (+16 attack, the Sundering style: every blow also strips a tenth of
+the foe's full health, and it lights two tiles further) is the one weapon above
+the legendaries, and it is never dropped or sold. It is reforged from three
+pieces won across the three continents, each from a warden in a forge site that
+reuses the lair machinery (`LAIRS` entries with `forge`): the Hilt of Dawn at
+the Forge of the First King in the old realms, the Blade of Dawn in the Glass
+Pagoda on the Far Shore (Story 2), and the Sunstone Pommel under the Cairn of
+the Sun on the ice of Thule (Story 3). Any master smith (the trade shop of a
+smithing town) tells the tale to a hero of level 12 or more and marks the first
+site; each warden's death marks the next; the smith reforges the sword once all
+three are won (`smithTale`, `player.meta.forged`, the Dawnbringer title). The
+journal and the hints track the pieces, and the catalogue page lists the sword.
+
 ## Monsters with tricks
 
 Beyond the brutes, five monsters fight differently (`MONSTER_TYPES` flags):

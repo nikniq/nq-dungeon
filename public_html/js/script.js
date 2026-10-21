@@ -109,6 +109,7 @@ const ACHIEVEMENTS = {
   liberator:   { label: 'Rescued ten captives', title: 'the Liberator' },
   lairslayer:  { label: 'Slew a super boss in its lair', title: 'the Legend-slayer' },
   legend:      { label: 'Cleared all six lairs', title: 'the Living Legend' },
+  dawnbreaker: { label: 'Reforged Dawnbreaker, the sword of the First King', title: 'the Dawnbringer' },
   sailor:      { label: 'Took ship between ports', title: 'the Seafarer' },
   deepwarden:  { label: 'Closed the Dreaming Maw', title: 'Deepwarden' },
   general:     { label: 'Your army razed an orc warcamp', title: 'the General' },
@@ -331,7 +332,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, pets: petsState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, story4: player.meta.story4 || null, story5: player.meta.story5 || null, delve: player.meta.delve || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, story4: player.meta.story4 || null, story5: player.meta.story5 || null, delve: player.meta.delve || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, forged: !!player.meta.forged, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -953,12 +954,13 @@ function drawJournal(g) {
     g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.fillText('Story 1: The Shattered Crown', X, y); y += 26;
     const obj = storyObjective();
     g.fillStyle = '#9ef0b0'; g.font = '13px sans-serif'; y = wrapText(g, obj ? `Now: ${obj.text}.` : 'The crown is whole again. The realms are safe, for now.', X, y, W, 18) + 8;
-    const steps = [['The summons', 'Answer King Aldric\'s call at Castle Aurum.', st.phase !== 'summons']];
+    const steps = [['The summons', 'Answer King Aldric\'s call at Castle Aurum.', st.phase !== 'summons']], S0 = lairState();
     STORY_ORDER.forEach((id, i) => { const S = STORY_SITES[id]; const doneShard = i < st.ch || st.phase === 'done' || (i === st.ch && st.phase === 'return'); const known = i < st.ch || (i === st.ch && st.phase !== 'summons') || st.phase === 'done'; steps.push([known ? S.shard : '???', known ? `${S.title}, in ${REALMS[(() => { const st2 = siteAt(S.i, S.j); return realmOfTile(st2.x, st2.y); })()].short}.` : 'Not yet revealed.', doneShard]); });
     steps.push(['The crown restored', 'Bring all five shards to the King.', st.phase === 'done']);
     const clues = STORY_ORDER.filter((id, i) => i < st.ch || st.phase === 'done' || (i === st.ch && st.phase === 'return'));
     if (clues.length) steps.push(['Clues', clues.map((id) => SHARD_CLUE[id].who).join(', ') + (clues.length >= 2 ? '. They all point to Prince Edric.' : '.'), st.phase === 'done']);
-    { const S = lairState(), known = Object.keys(LAIRS).filter((id) => S.known.includes(id));
+    if (lairKnown('hilt')) steps.push(['The Sundered Blade', player.meta.forged ? 'Dawnbreaker is whole again, and yours.' : `${forgePieces().length} of 3 pieces won: ${FORGE_ORDER.map((id) => `${LAIRS[id].piece} (${LAIRS[id].title}${S0.slain.includes(id) ? ', won' : S0.known.includes(id) ? ', on your map' : ''})`).join('; ')}. A master smith reforges it.`, !!player.meta.forged]);
+    { const S = lairState(), known = LAIR_IDS.filter((id) => S.known.includes(id));
       steps.push(['Lairs of the super bosses', known.length ? known.map((id) => `${LAIRS[id].title}${S.slain.includes(id) ? ' (slain)' : ''}`).join('; ') + '.' : 'Six lie hidden in the world. Bards, hermits and prophets know the way.', S.slain.length >= Object.keys(LAIRS).length]); }
     if (st.phase === 'done') {
       const A = act2();
@@ -1763,7 +1765,9 @@ function guideSuggestions() {
   if (player.weapon && (player.weaponPlus || 0) < 3 && player.gold >= UPGRADE_COST(player.weaponPlus || 0)) out.push(['Sharpen your blade', `A smithy can make your ${itemInfo(player.weapon).name} +${(player.weaponPlus || 0) + 1}.`]);
   if (player.meta.places.length < 5) out.push(['Explore', 'Standing stones, shrines, ruins, hermits and wells lie in the wilds. Walk near them to discover them.']);
   if (!player.meta.rod) out.push(['Go fishing', 'Shops in fishing towns sell rods. Walk into water to cast a line.']);
-  if (player.level >= 15 && lairState().slain.length < Object.keys(LAIRS).length) out.push(['A legend to hunt', lairState().known.length ? `${LAIRS[lairState().known.find((id) => !lairState().slain.includes(id)) || lairState().known[0]].title[0].toUpperCase()}${LAIRS[lairState().known.find((id) => !lairState().slain.includes(id)) || lairState().known[0]].title.slice(1)} is on your map. Its master drops gear found nowhere else.` : 'Six super bosses lair in the far corners of the world. Buy a bard a drink, or a hermit a map.']);
+  if (player.level >= 12 && !lairKnown('hilt')) out.push(['A blade to reforge', 'The master smiths of the smithing towns tell of a sword broken into three. Buy one a drink, or an axe.']);
+  else if (lairKnown('hilt') && !player.meta.forged) { const next = FORGE_ORDER.find((id) => !lairState().slain.includes(id)); out.push(['The Sundered Blade', next ? `${forgePieces().length} of 3 pieces won. ${LAIRS[next].piece[0].toUpperCase() + LAIRS[next].piece.slice(1)} lies in ${LAIRS[next].title}${lairKnown(next) ? ', marked on your map' : ''}.` : 'All three pieces are won. Any master smith can reforge Dawnbreaker.']); }
+  if (player.level >= 15 && LAIR_IDS.some((id) => !lairState().slain.includes(id))) out.push(['A legend to hunt', lairState().known.length ? `${LAIRS[lairState().known.find((id) => !lairState().slain.includes(id)) || lairState().known[0]].title[0].toUpperCase()}${LAIRS[lairState().known.find((id) => !lairState().slain.includes(id)) || lairState().known[0]].title.slice(1)} is on your map. Its master drops gear found nowhere else.` : 'Six super bosses lair in the far corners of the world. Buy a bard a drink, or a hermit a map.']);
   if (player.level >= 5 && !player.meta.arena) out.push(['Test your mettle', 'The Grand Arena at Castle Aurum pays gold for every wave you survive.']);
   if (ACCOUNT.user && player.gold >= BUILD.costs[0]) out.push(['Help other heroes', `Pay an innkeeper ${BUILD.costs[0]} gold to build a monument in the square that every hero can use.`]);
   if (armiesUnlocked() && player.gold >= 150 && !war().armies.some((a) => a.mine)) out.push(['Raise an army', 'Orc warcamps threaten every realm. Recruit soldiers at a realm\'s seat (the King, a council or town hall, the clan longhouse or a League bank) and send them to raze a camp.']);
@@ -2100,7 +2104,15 @@ function lairSlain(id) {
   const first = !S.slain.includes(id);
   if (first) S.slain.push(id);
   unlock('lairslayer');
-  if (S.slain.length >= Object.keys(LAIRS).length) unlock('legend');
+  if (LAIR_IDS.every((id) => S.slain.includes(id))) unlock('legend');
+  if (L.forge) {
+    const next = FORGE_ORDER.find((id) => !S.slain.includes(id));
+    if (first) log(`Among the bones lies ${L.piece}. ${next ? `${forgePieces().length} of 3 pieces of Dawnbreaker are yours.` : 'All three pieces of Dawnbreaker are yours. Carry them to a master smith.'}`, 'good');
+    if (next && !lairKnown(next)) revealLair(next, `Scratched into the warden's armour, a map:`);
+    showScene([{ who: L.boss.name, sprite: MONSTER_TYPES.find((t) => t.name === L.boss.type).sprite, bg: L.theme === 'lava' ? 'lava' : L.theme === 'arcane' ? 'tower' : 'crypt',
+      text: first ? `${L.boss.name[0].toUpperCase() + L.boss.name.slice(1)} is dead, and ${L.piece} is yours. ${next ? `${LAIRS[next].piece[0].toUpperCase() + LAIRS[next].piece.slice(1)} waits in ${LAIRS[next].title}.` : 'The sword of the First King is whole in all but the forging. Find a master smith.'}` : `${L.boss.name[0].toUpperCase() + L.boss.name.slice(1)} is dead again. The piece was already yours.` }]);
+    track('lair_slain', { lair: id, first }); mapCache.ox = null; updateStats(); saveProgress('progress'); return;
+  }
   const it = itemInfo(L.reward);
   if (first && !bagFull()) { player.bag.push(L.reward); log(`Among the bones lies ${it.name}: ${itemLabel(L.reward)}. There is no other like it.`, 'good'); }
   else if (first) { S.slain.pop(); log(`${it.name} lies among the bones, but your bag is full. Make room and come back.`, 'bad'); }
@@ -2261,7 +2273,18 @@ const LAIRS = {
     lore: 'Vendrath counted the stars for three hundred years and found that one of them was counting back. He has not been entirely himself since.' },
   wolf:   { i: -5, j: 1,  title: "the Direwolf's Den", type: 'cave', theme: 'bone', danger: 11, pool: ['Rat', 'Goblin', 'Orc'], boss: { type: 'Direwolf', name: 'Gnashfang, the Winter Wolf', hpMult: 9 }, reward: 'stormhammer',
     lore: 'The winters are longer where Gnashfang hunts. The clans leave a goat on the hill at midwinter and hope it is enough. It is not always enough.' },
+  // The Sundered Blade: Dawnbreaker, the sword of the First King, broken into three and hidden on three
+  // continents. The master smiths know the tale; the pieces are won from the wardens, and a smith reforges it.
+  hilt:  { i: 6, j: 5,    title: 'the Forge of the First King', type: 'warren', theme: 'lava',   danger: 14, pool: ['Orc', 'Archer', 'Bomber'], boss: { type: 'Orc', name: 'Harrow, the Iron Warden', hpMult: 10 }, reward: 'dawnbreaker', forge: 'hilt', piece: 'the Hilt of Dawn',
+    lore: 'Here the First King\'s smiths beat Dawnbreaker out of a fallen star. When the King fell, the orcs took the forge and have kept the fires lit ever since, not knowing why.' },
+  blade: { i: 16, j: -2,  title: 'the Glass Pagoda', type: 'tower', theme: 'arcane', danger: 17, pool: ['Wraith', 'Necromancer', 'Shaman'], boss: { type: 'Wraith', name: 'the Hollow Smith', hpMult: 10 }, reward: 'dawnbreaker', forge: 'blade', piece: 'the Blade of Dawn',
+    lore: 'The blade was carried over the sea to keep it from the usurper, and sealed in a tower of glass on the Far Shore. Its keeper swore to hold it until the King returned. He is still holding it.' },
+  stone: { i: -2, j: -10, title: 'the Cairn of the Sun', type: 'crypt', theme: 'frost',  danger: 20, pool: ['Skeleton', 'Direwolf', 'Cave troll', 'Basilisk'], boss: { type: 'Direwolf', name: 'Hati, Who Hunts the Sun', hpMult: 11 }, reward: 'dawnbreaker', forge: 'stone', piece: 'the Sunstone Pommel',
+    lore: 'The pommel stone holds the light of the star the blade was forged from. It was buried under a cairn on the ice of Thule, and the wolf that hunts the sun lies on it, waiting for the dark.' },
 };
+const FORGE_ORDER = ['hilt', 'blade', 'stone'];
+const LAIR_IDS = Object.keys(LAIRS).filter((id) => !LAIRS[id].forge);        // the six true lairs
+const forgePieces = () => FORGE_ORDER.filter((id) => lairState().slain.includes(id));
 const LAIR_AT = Object.fromEntries(Object.entries(LAIRS).map(([id, L]) => [`${L.i},${L.j}`, id]));
 const lairState = () => player.meta.lairs || (player.meta.lairs = { known: [], slain: [] });
 const lairKnown = (id) => lairState().known.includes(id);
@@ -2275,7 +2298,7 @@ function revealLair(id, how) {
   return true;
 }
 function nearestUnknownLair(x, y) {
-  return Object.keys(LAIRS).filter((id) => !lairKnown(id)).map((id) => ({ id, site: siteAt(LAIRS[id].i, LAIRS[id].j) })).sort((a, b) => Math.hypot(a.site.x - x, a.site.y - y) - Math.hypot(b.site.x - x, b.site.y - y))[0] || null;
+  return LAIR_IDS.filter((id) => !lairKnown(id)).map((id) => ({ id, site: siteAt(LAIRS[id].i, LAIRS[id].j) })).sort((a, b) => Math.hypot(a.site.x - x, a.site.y - y) - Math.hypot(b.site.x - x, b.site.y - y))[0] || null;
 }
 function lairHint(x, y) {
   const n = nearestUnknownLair(x, y); if (!n) return null;
@@ -2779,7 +2802,7 @@ function notableNpc(town) {
     place: place ? place.name : 'the standing stones', camp: camp ? camp.name : 'the hills', guard: guards.length ? guards[0].type.name : 'the militia',
     lore: townLore(town), storyTie, edricTie, deepTie,
     hollowTie: (player && player.meta && story2().s >= 3) ? '"The Barrow is quiet now, and the dead stay down. Whoever did that, they say it was a fool from over the sea. I would buy that fool a drink."' : (player && player.meta && story2().s === 2) ? '"The mountain split last week. We all felt it. The keys are gathered, they say, and some fool from over the sea is going to walk down the thousand steps with them. Good luck to the fool."' : '"The dead walk the roads in step and the Barrow breathes at night. Our founders locked the Hollow King under the mountain with three keys. The three crowns have them. I hope they remember where."',
-    lairTie: (() => { const near = Object.keys(LAIRS).map((id) => ({ id, s: siteAt(LAIRS[id].i, LAIRS[id].j) })).sort((a, b) => Math.hypot(a.s.x - town.cx, a.s.y - town.cy) - Math.hypot(b.s.x - town.cx, b.s.y - town.cy))[0]; return `"And there is worse than the Deep, closer to home. ${LAIRS[near.id].title[0].toUpperCase() + LAIRS[near.id].title.slice(1)} lies ${compassWord(near.s.x - town.cx, near.s.y - town.cy).toLowerCase()} of ${town.name}. ${LAIRS[near.id].lore}"`; })(),
+    lairTie: (() => { const near = LAIR_IDS.map((id) => ({ id, s: siteAt(LAIRS[id].i, LAIRS[id].j) })).sort((a, b) => Math.hypot(a.s.x - town.cx, a.s.y - town.cy) - Math.hypot(b.s.x - town.cx, b.s.y - town.cy))[0]; return `"And there is worse than the Deep, closer to home. ${LAIRS[near.id].title[0].toUpperCase() + LAIRS[near.id].title.slice(1)} lies ${compassWord(near.s.x - town.cx, near.s.y - town.cy).toLowerCase()} of ${town.name}. ${LAIRS[near.id].lore}"`; })(),
   };
   town.notable = { sprite: N.sprite, name, role: N.role, lines: N.lines(c), notable: true, tell: 0 };
   return town.notable;
@@ -3767,7 +3790,7 @@ const FLOOR_MODS = {
   cursed:   { label: 'Cursed', desc: 'elites everywhere, and 50% more XP' },
 };
 let floorMod = null;
-const viewRadius = () => Math.max(3, (dungeonDef ? dungeonDef.view : VIEW_RADIUS) + (wearing('sunstone') ? 3 : 0) + (wearing('deepheart') ? 2 : 0) + (player && player.torch > turn ? 2 : 0) - (scene === 'dungeon' && floorMod === 'dark' ? 3 : 0));
+const viewRadius = () => Math.max(3, (dungeonDef ? dungeonDef.view : VIEW_RADIUS) + (wearing('sunstone') ? 3 : 0) + (wearing('deepheart') ? 2 : 0) + (player && traitOf(player.weapon) === 'dawnbreaker' ? 2 : 0) + (player && player.torch > turn ? 2 : 0) - (scene === 'dungeon' && floorMod === 'dark' ? 3 : 0));
 // ---------- things that happen on a floor ----------
 // From the second floor down, rooms may hold a chained captive, a goblin totem
 // that keeps spawning goblins until it is smashed, a lever that sinks the floor's
@@ -6024,6 +6047,7 @@ const WEAPON_TRAITS = {
   longsword:   { name: 'Parrying', desc: 'parries one melee blow in five' },
   warhammer:   { name: 'Crushing', desc: 'knocks foes back a tile, or slams them into a wall for +3' },
   greatsword:  { name: 'Cleaving', desc: 'also hits every other foe beside you for half damage' },
+  dawnbreaker: { name: 'Sundering', desc: 'every blow also strips a tenth of the foe\'s full health, and the blade lights two tiles further' },
 };
 // One-of-a-kind gear from the lairs borrows the fighting style of a common weapon.
 const LEGEND_TRAIT = { fangblade: 'dagger', tidecaller: 'longsword', stormhammer: 'warhammer', staffofages: 'greatsword' };
@@ -6045,6 +6069,7 @@ function playerAttack(m) {
     if (walkable(getTile(bx, by)) && !getMonsterAt(bx, by) && !houndAt(bx, by) && !mpPlayerAt(bx, by)) { moveMonster(m, bx, by); notes.push('Knocked back!'); }
     else if (getTile(bx, by) === TILE.WALL) { dmg += 3; notes.push('Slammed into the wall!'); shakeScreen(3); }
   }
+  if (w === 'dawnbreaker') { const sd = Math.ceil(m.maxHp * 0.1); dmg += sd; notes.push('The blade sunders!'); }
   m.hp -= dmg; m.awake = true;
   if (wa && m.hp > 0) {   // the blade's enchantment takes hold
     if (wa.id === 'flaming') { m.burn = { t: 3, d: 1 + wa.tier }; notes.push(`${nameOf(m)} catches fire!`); floatText(m.x, m.y, '🔥', '#ff9f43'); }
@@ -8262,10 +8287,27 @@ Object.assign(SHOPS, {
   harbour: { title: 'The harbour', stock: () => false, price: (it) => it.price, greet: 'Gulls, tar and rope. The harbourmaster runs a finger down a list of ports.' },
   hermit: { title: "The hermit's maps", stock: () => false, price: (it) => it.price, greet: 'The hermit spreads out a bundle of hand-drawn maps. "Places I have been. Places I would not go again."' },
 });
+// The master smith knows the tale of the Sundered Blade, and is the one who can reforge it.
+function smithTale() {
+  if (!player.meta.forged && forgePieces().length >= 3) {
+    if (bagFull()) { log('The master smith: "I can reforge Dawnbreaker, but you will need a free hand to carry it. Make room in your bag."', 'bad'); return false; }
+    player.meta.forged = true; player.bag.push('dawnbreaker'); sfx.play('quest'); unlock('dawnbreaker');
+    showScene([{ who: 'The master smith', sprite: 'merchant', bg: 'town', text: 'The smith lays the hilt, the blade and the stone on the anvil and looks at them for a long time. Then the fires are stoked higher than they have been in a lifetime, and the hammer falls through the night.' },
+      { who: 'The master smith', sprite: 'merchant', bg: 'town', text: `At dawn the smith hands you Dawnbreaker, the sword of the First King. ${itemLabel('dawnbreaker')}. "I never thought I would see it. Mind what you do with it."` }]);
+    track('forged', {}); updateStats(); saveProgress('progress'); return true;
+  }
+  if (player.level >= 12 && !lairKnown('hilt')) {
+    showScene([{ who: 'The master smith', sprite: 'merchant', bg: 'town', text: 'The smith looks you over. "You have the arm for it. There is a tale we smiths keep: Dawnbreaker, the First King\'s sword, broken into three when he fell and hidden where no usurper would look. The hilt is still at the forge where it was made. The orcs hold it now."' },
+      { who: 'The master smith', sprite: 'merchant', bg: 'town', text: '"Bring me the hilt, the blade and the stone, and I will reforge it. There has not been a sword like it since, and there will not be again."' }], () => revealLair('hilt', 'The master smith tells of'));
+    return true;
+  }
+  return false;
+}
 function openShop(kind = 'shop') {
   if (!shopEl) return;
   tip('shop', 'Buy with the buttons, sell anything at half price. Smithies and armouries also sharpen and reinforce what you wear.');
   if (kind === 'trade' && tradeHere()) { const T2 = TRADE_SHOP[tradeHere()]; SHOPS.trade.title = T2.name; SHOPS.trade.greet = `${T2.npc[0].toUpperCase() + T2.npc.slice(1)}: ${T2.line}`; }
+  if (kind === 'trade' && tradeHere() === 'smithing' && smithTale()) return;
   shopKind = kind; shopOpen = true; shopEl.hidden = false;
   shopEl.classList.toggle('no-sell', SERVICE_SHOPS.has(kind));
   document.querySelector('#shop h2').textContent = kind === 'player' && mp.target ? `${mp.target.data.name}, level ${mp.target.data.level} ${mp.target.data.cls}` : SHOPS[kind].title;
@@ -8934,7 +8976,7 @@ function startRun(saved) {
         story: saved.meta?.story && saved.meta.story.phase ? saved.meta.story : null, blessing: saved.meta?.blessing || null,
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
-        rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
+        rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, forged: !!saved.meta?.forged, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
         story2: saved.meta?.story2 && Number.isInteger(saved.meta.story2.s) ? { s: Math.max(0, Math.min(3, saved.meta.story2.s)) } : null,
         story3: saved.meta?.story3 && Number.isInteger(saved.meta.story3.s) ? { s: Math.max(0, Math.min(2, saved.meta.story3.s)) } : null,
         delve: typeof saved.meta?.delve === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(saved.meta.delve) ? saved.meta.delve : null,
