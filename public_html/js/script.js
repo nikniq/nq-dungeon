@@ -16,7 +16,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 const restartBtn = document.getElementById('restart');
 
-const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15, CRACK: 16, SPRING: 17, MONUMENT: 18, PLOT: 19, WARCAMP: 20, SHIP: 21, CAPTIVE: 22, TOTEM: 23, LEVER: 24, ALTAR: 25 };
+const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15, CRACK: 16, SPRING: 17, MONUMENT: 18, PLOT: 19, WARCAMP: 20, SHIP: 21, CAPTIVE: 22, TOTEM: 23, LEVER: 24, ALTAR: 25, TRIAL: 26 };
 const TOWN = 0;           // floor number of the town square
 const FINAL_FLOOR = 5;
 const VIEW_RADIUS = 8;    // how far the hero sees in the dungeon
@@ -110,6 +110,8 @@ const ACHIEVEMENTS = {
   lairslayer:  { label: 'Slew a super boss in its lair', title: 'the Legend-slayer' },
   legend:      { label: 'Cleared all six lairs', title: 'the Living Legend' },
   dawnbreaker: { label: 'Reforged Dawnbreaker, the sword of the First King', title: 'the Dawnbringer' },
+  proven:      { label: 'Passed a dungeon trial', title: 'the Proven' },
+  unbroken:    { label: 'Passed ten dungeon trials', title: 'the Unbroken' },
   sailor:      { label: 'Took ship between ports', title: 'the Seafarer' },
   deepwarden:  { label: 'Closed the Dreaming Maw', title: 'Deepwarden' },
   general:     { label: 'Your army razed an orc warcamp', title: 'the General' },
@@ -266,7 +268,7 @@ function markSeen(x, y) {
   const cx = Math.floor(x / CHUNK), cy = Math.floor(y / CHUNK);
   getChunk(cx, cy).seen[(y - cy * CHUNK) * CHUNK + (x - cx * CHUNK)] = 1;
 }
-const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE && t !== TILE.WAYOUT && t !== TILE.CRACK && t !== TILE.SPRING && t !== TILE.MONUMENT && t !== TILE.PLOT && t !== TILE.WARCAMP && t !== TILE.SHIP && t !== TILE.CAPTIVE && t !== TILE.TOTEM && t !== TILE.LEVER && t !== TILE.ALTAR;
+const walkable = (t) => t !== TILE.WALL && t !== TILE.FOUNTAIN && t !== TILE.FURNITURE && t !== TILE.CHEST && t !== TILE.WAYSTONE && t !== TILE.PLACE && t !== TILE.WAYOUT && t !== TILE.CRACK && t !== TILE.SPRING && t !== TILE.MONUMENT && t !== TILE.PLOT && t !== TILE.WARCAMP && t !== TILE.SHIP && t !== TILE.CAPTIVE && t !== TILE.TOTEM && t !== TILE.LEVER && t !== TILE.ALTAR && t !== TILE.TRIAL;
 const hazard = (x, y) => getTile(x, y) === TILE.LAVA || (getTile(x, y) === TILE.TRAP && revealedTraps.has(key(x, y)));
 
 // ---------- account save/load ----------
@@ -332,7 +334,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, pets: petsState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, story4: player.meta.story4 || null, story5: player.meta.story5 || null, delve: player.meta.delve || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, forged: !!player.meta.forged, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, story4: player.meta.story4 || null, story5: player.meta.story5 || null, delve: player.meta.delve || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, forged: !!player.meta.forged, trials: player.meta.trials || 0, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -3542,7 +3544,7 @@ function refreshTownContext() {
 }
 function createWorld() {
   scene = 'world';
-  floorMod = null; escort = null; totems.clear();
+  floorMod = null; escort = null; totems.clear(); trial = null;
   if (dungeonDef && dungeonDef.arena) { dungeonDef = null; ARENA.wave = 0; ARENA.between = false; }
   mp.instance = null;
   bounded = null; ground = null; decor = null; interior = null;
@@ -3805,7 +3807,7 @@ function placeFloorEvents(chunk, rand) {
   chunk.rooms.forEach((rm, i) => {
     if (spawnChunk && i === 0) return;
     const roll = rand();
-    const kind = roll < 0.06 ? TILE.CAPTIVE : roll < 0.15 ? TILE.TOTEM : roll < 0.20 ? TILE.LEVER : roll < 0.25 ? TILE.ALTAR : null;
+    const kind = roll < 0.06 ? TILE.CAPTIVE : roll < 0.15 ? TILE.TOTEM : roll < 0.20 ? TILE.LEVER : roll < 0.25 ? TILE.ALTAR : roll < 0.31 ? TILE.TRIAL : null;
     if (!kind) return;
     const x = rm.x + 1 + Math.floor(rand() * Math.max(1, rm.w - 2)), y = rm.y + 1 + Math.floor(rand() * Math.max(1, rm.h - 2));
     if (chunk.tiles[y * CHUNK + x] !== TILE.FLOOR) return;
@@ -3873,6 +3875,71 @@ function tickTotems() {
     addMonster(MONSTER_TYPES.find((t) => t.name === 'Goblin'), spot.x, spot.y, { awake: isVisible(x, y) });
     if (isVisible(x, y)) { burst(spot.x, spot.y, '#7ad36b', 10, 80, { life: 400 }); log('Drums beat, and another goblin crawls out from behind the totem.', 'bad'); tip('totem', 'A goblin totem keeps calling goblins. Walk into it to smash it (three blows, one with a warhammer).'); }
   }
+}
+// Trials: a ring of stones in a room from the second floor down. Take one up and the
+// stones wake: the Swarm sends a monster every other turn for twelve turns and asks
+// only that you stand; Blood loose five at once and asks for all of them dead within
+// twenty turns. Pass, and the stones pay gold and a sure magic item. Fail, or walk
+// away, and they go dark. A trial ends with the floor.
+const TRIALS = {
+  swarm: { label: 'Trial of the Swarm', turns: 12, need: 0, desc: 'Stand your ground twelve turns while the stones send what they will, every other turn.' },
+  blood: { label: 'Trial of Blood', turns: 20, need: 5, desc: 'Five foes at once. All of them dead within twenty turns.' },
+};
+let trial = null;   // { kind, x, y, turns, kills, need }
+const trialKindAt = (x, y) => (hash32(x * 31 + y * 17 + floor * 7) & 1) ? 'blood' : 'swarm';
+function trialSpawn(x, y, n) {
+  const pool = (dungeonDef && dungeonDef.pool) || MONSTER_TYPES.filter((t) => !t.noSpawn && t.minFloor <= floor);
+  let made = 0;
+  for (let i = 0; i < n * 4 && made < n; i++) {
+    const spot = freeTileNear(x + rnd(7) - 3, y + rnd(7) - 3, 1); if (!spot || cheb(spot, player) < 2 || getMonsterAt(spot.x, spot.y)) continue;
+    const t = pool[rnd(pool.length)]; addMonster(t, spot.x, spot.y, { awake: true, trial: true }); burst(spot.x, spot.y, '#ff8c5a', 10, 80, { life: 400 }); made++;
+  }
+  return made;
+}
+function useTrial(x, y) {
+  if (trial) { log(`${TRIALS[trial.kind].label} is already under way. ${trial.turns} turns to go.`, 'bad'); return; }
+  const kind = trialKindAt(x, y), Tr = TRIALS[kind];
+  showScene([{ who: Tr.label, sprite: 'shrine', bg: 'crypt', text: `Four standing stones round a rune that glows when you come near. The old words on them promise a reward to the proven. ${Tr.desc}`,
+    choices: [
+      { label: 'Take up the trial', run: () => { startTrial(kind, x, y); return `The rune flares red. ${kind === 'blood' ? 'Shapes tear themselves out of the dark on every side.' : 'Something stirs in the dark beyond the stones.'}`; } },
+      { label: 'Not today', run: () => 'The glow fades. The stones can wait; they have waited long enough.' },
+    ] }], () => { updateStats(); draw(); });
+}
+function startTrial(kind, x, y) {
+  const Tr = TRIALS[kind];
+  trial = { kind, x, y, turns: Tr.turns, kills: 0, need: Tr.need, started: turn };
+  sfx.play('boss'); shakeScreen(3);
+  if (kind === 'blood') trial.need = trialSpawn(x, y, 5) || 1;
+  tip('trial', 'A trial is under way: the turns left show in the location line. Stay within twelve tiles of the stones or they go dark.');
+  track('trial_start', { kind, floor });
+}
+function tickTrial() {
+  if (!trial || scene !== 'dungeon') return;
+  if (cheb(trial, player) > 12) { endTrial(false, 'You have left the stones behind. The rune goes dark.'); return; }
+  trial.turns--;
+  if (trial.kind === 'swarm' && trial.turns > 0 && trial.turns % 2 === 0) { if (trialSpawn(trial.x, trial.y, 1) && isVisible(trial.x, trial.y)) log('The stones send another.', 'bad'); }
+  if (trial.kind === 'blood' && trial.kills >= trial.need) { endTrial(true); return; }
+  if (trial.turns <= 0) { if (trial.kind === 'swarm') endTrial(true); else endTrial(false, 'The twentieth turn passes with foes still standing. The rune goes dark.'); }
+}
+function endTrial(won, why) {
+  const { x, y, kind } = trial; trial = null;
+  setTile(x, y, TILE.FLOOR); bgDirty = true;
+  if (!won) { log(why, 'bad'); track('trial_fail', { kind, floor }); return; }
+  const danger = dungeonDef ? dungeonDef.danger || 0 : 0;
+  const gold = Math.round((40 + 20 * floor) * (1 + danger * 0.5) * goldMult());
+  player.gold += gold; player.meta.trials = (player.meta.trials || 0) + 1;
+  const bases = Object.entries({ ...ITEMS.weapons, ...ITEMS.armor }).filter(([, it]) => it.floor < 99 && it.floor <= floor + 1 && !it.trade).sort((a, b) => b[1].floor - a[1].floor).slice(0, 4);
+  let gift = '';
+  if (bases.length && !bagFull()) {
+    const [base] = bases[rnd(bases.length)], kindOf = itemKind(base), pool = Object.keys(AFFIXES[kindOf]);
+    const id = `${base}~${pool[rnd(pool.length)]}~${Math.min(3, 1 + (floor >= 4 ? 1 : 0) + (kind === 'blood' ? 1 : 0))}`;
+    player.bag.push(id); gift = ` and ${itemLabel(id)}`; floatText(player.x, player.y, '✦ magic', '#c084fc'); unlock('enchanted');
+  } else if (bases.length) gift = '. A blade lies among the stones too, but your bag is full';
+  gainXp(10 + floor * 4 + danger * 3);
+  log(`${TRIALS[kind].label} is passed. The stones crumble and leave ${gold} gold${gift}.`, 'good');
+  burst(x, y, '#ffd86b', 30, 120, { glow: true, gravity: 100, life: 800 }); sfx.play('win');
+  unlock('proven'); if (player.meta.trials >= 10) unlock('unbroken');
+  track('trial_won', { kind, floor }); updateStats();
 }
 function pullLever(x, y) {
   setTile(x, y, TILE.FLOOR); bgDirty = true;
@@ -4788,6 +4855,12 @@ function renderBackground() {
       if (t === TILE.CAPTIVE) drawSprite(g, 'captive', c, r, 1, 3);
       if (t === TILE.TOTEM) drawSprite(g, 'totem', c, r, 1, 1);
       if (t === TILE.ALTAR) drawSprite(g, 'shrine', c, r, 1, 0);
+      if (t === TILE.TRIAL) {   // a ring of standing stones round a rune that breathes
+        const X = c * T - off.x, Y = r * T - off.y, live = trial && trial.x === c && trial.y === r, pulse = 0.55 + 0.45 * Math.sin(performance.now() / (live ? 120 : 600));
+        g.fillStyle = '#4b5563'; for (const [sx, sy] of [[3, 4], [22, 3], [4, 21], [21, 22]]) g.fillRect(X + sx, Y + sy, 7, 7);
+        g.fillStyle = '#6b7280'; g.fillRect(X + 10, Y + 10, 12, 12);
+        g.fillStyle = live ? `rgba(255,120,80,${pulse})` : `rgba(160,200,255,${pulse * 0.8})`; g.fillRect(X + 13, Y + 12, 6, 2); g.fillRect(X + 15, Y + 12, 2, 8); g.fillRect(X + 13, Y + 18, 6, 2);
+      }
       if (t === TILE.LEVER) { const X = c * T - off.x, Y = r * T - off.y; g.fillStyle = '#4b5563'; g.fillRect(X + 10, Y + 18, 12, 8); g.fillStyle = '#9ca3af'; g.fillRect(X + 15, Y + 6, 3, 14); g.fillStyle = '#ef4444'; g.beginPath(); g.arc(X + 16.5, Y + 6, 3, 0, Math.PI * 2); g.fill(); }
       if (t === TILE.SPRING) {
         const X = c * T - off.x, Y = r * T - off.y, dry = usedSprings.has(key(c, r));
@@ -4829,7 +4902,7 @@ function drawBubble(g, b) {
 
 let hudExtra = 0;   // how much taller the HUD box is than usual (full screen)
 function drawHud(g, now) {
-  const where = scene === 'house' ? interior.house.name : scene === 'dungeon' && dungeonDef && dungeonDef.delve ? `${dungeonDef.name[0].toUpperCase() + dungeonDef.name.slice(1)} ${floor}/5 · Daily` : inTown() ? `${townContaining(player.x, player.y)?.name ?? 'The wilds'}, ${REALMS[realmOfTile(player.x, player.y)].short} · day ${dayNumber()}, ${dayPhase()}` : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floorText()}${dungeonDef ? ` · Lv ${recLevel(dungeonDef)}+` : ''}${floorMod ? ` · ${FLOOR_MODS[floorMod].label}` : ''}`;
+  const where = scene === 'house' ? interior.house.name : scene === 'dungeon' && dungeonDef && dungeonDef.delve ? `${dungeonDef.name[0].toUpperCase() + dungeonDef.name.slice(1)} ${floor}/5 · Daily` : inTown() ? `${townContaining(player.x, player.y)?.name ?? 'The wilds'}, ${REALMS[realmOfTile(player.x, player.y)].short} · day ${dayNumber()}, ${dayPhase()}` : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floorText()}${dungeonDef ? ` · Lv ${recLevel(dungeonDef)}+` : ''}${floorMod ? ` · ${FLOOR_MODS[floorMod].label}` : ''}${trial ? ` · ${TRIALS[trial.kind].label}: ${trial.turns} turns${trial.need ? `, ${trial.kills}/${trial.need} slain` : ''}` : ''}`;
   const compact = canvas.width < 560;
   const text = compact
     ? `HP ${player.hp}/${player.maxHp}  ATK ${player.atk + weaponAtk()}  DEF ${armorDef()}  Lv ${player.level}  ${player.gold}g`
@@ -5765,6 +5838,7 @@ function describeTile(x, y) {
   if (t === TILE.TOTEM) return `A goblin totem — it keeps calling goblins. Walk into it to smash it (${totems.get(key(x, y)) || 3} blows, one with a warhammer)`;
   if (t === TILE.LEVER) return 'A lever in the wall — pull it to sink every spike trap on this floor';
   if (t === TILE.ALTAR) return 'A dungeon altar — walk into it to make an offering, or drink from its font';
+  if (t === TILE.TRIAL) return trial && trial.x === x && trial.y === y ? `${TRIALS[trial.kind].label} is under way: ${trial.turns} turns left` : 'A ring of trial stones — walk into it to take up a trial for a sure reward';
   if (t === TILE.SPRING) return usedSprings.has(key(x, y)) ? 'A dry spring' : 'Healing spring — walk into it for full health, once';
   if (t === TILE.WAYOUT) return 'Way out — walk into it twice to leave the dungeon early, keeping your loot';
   if (t === TILE.SITE && inTown()) { const sl = siteAtTile(x, y); if (sl && sl.lair) return `${sl.name} — a super boss's lair, ${ratingText(siteDungeon(sl))}. ${LAIRS[sl.lair].boss.name[0].toUpperCase() + LAIRS[sl.lair].boss.name.slice(1)} waits below${lairState().slain.includes(sl.lair) ? ' (slain before)' : ''}`; }
@@ -5797,7 +5871,7 @@ const hover = { x: null, y: null, path: [], sig: '' };
 const occupiedBy = (x, y) => getMonsterAt(x, y) || getNpcAt(x, y) || mpPlayerAt(x, y) || null;
 function interactive(x, y) {
   const t = getTile(x, y);
-  return !!occupiedBy(x, y) || shipAt(x, y) || [TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT, TILE.CRACK, TILE.SPRING, TILE.MONUMENT, TILE.PLOT, TILE.WARCAMP, TILE.SHIP, TILE.CAPTIVE, TILE.TOTEM, TILE.LEVER, TILE.ALTAR].includes(t);
+  return !!occupiedBy(x, y) || shipAt(x, y) || [TILE.TRIAL, TILE.DOOR, TILE.SHOP, TILE.FURNITURE, TILE.CHEST, TILE.WAYSTONE, TILE.PLACE, TILE.WAYOUT, TILE.CRACK, TILE.SPRING, TILE.MONUMENT, TILE.PLOT, TILE.WARCAMP, TILE.SHIP, TILE.CAPTIVE, TILE.TOTEM, TILE.LEVER, TILE.ALTAR].includes(t);
 }
 // The tiles from the hero to a target (not including the hero's own tile), shortest first.
 function pathTo(tx, ty, limit = 60) {
@@ -6100,6 +6174,7 @@ function playerAttack(m) {
 }
 function killMonster(m) {
   if (m.id) { mp.dead.add(m.id); mp.graveyard.set(m.id, m); }
+  if (m.trial && trial) trial.kills++;
   if (m.mod === 'explosive' || m.type.bomber) {
     const blast = 3 + floor;
     burst(m.x, m.y, '#ff9f43', 36, 180, { glow: true, life: 600, size: 3 }); shakeScreen(5); sfx.play('fire');
@@ -6370,7 +6445,7 @@ function nextFloor() {
   const leading = coopHost() || (scene === 'dungeon' && mp.instance && mp.instance.shared && !coopMember());
   const runSpace = mp.instance && mp.instance.space;
   if (scene === 'dungeon') rescueCheck();
-  escort = null; totems.clear();
+  escort = null; totems.clear(); trial = null;
   floor++;
   if (!dungeonDef) dungeonDef = townDungeon(townAt(...homeTown.split(',').map(Number)) || townAt(0, 0));
   if (floor > dungeonDef.floors) {
@@ -6515,7 +6590,7 @@ function leaveArena(fell) {
 // Leaving early through the door by the entrance: keep everything, skip the hoard.
 function leaveDungeon() {
   if (dungeonDef && dungeonDef.arena) { leaveArena(false); return; }
-  rescueCheck(); escort = null; totems.clear();
+  rescueCheck(); escort = null; totems.clear(); trial = null;
   const def = dungeonDef;
   if (def && def.delve) recordDelve(false);
   sfx.play('stairs');
@@ -6556,6 +6631,7 @@ function tryMove(dx, dy) {
   if (t === TILE.TOTEM) { smashTotem(nx, ny); endTurn(false); return; }
   if (t === TILE.LEVER) { pullLever(nx, ny); endTurn(false); return; }
   if (t === TILE.ALTAR) { useAltar(nx, ny); draw(); return; }
+  if (t === TILE.TRIAL) { useTrial(nx, ny); draw(); return; }
   if (t === TILE.WAYOUT) {
     if (turn - wayoutWarned <= 5) { wayoutWarned = -99; leaveDungeon(); return; }
     wayoutWarned = turn;
@@ -7547,7 +7623,7 @@ function endTurn(moved) {
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
   if (scene !== 'dungeon') stepNpcs();
   stepGuards();
-  stepHound(); stepEscort(); tickTotems(); tickRifts();
+  stepHound(); stepEscort(); tickTotems(); tickTrial(); tickRifts();
   // in a shared dungeon the host moves monsters on a steady beat instead of per turn
   if (scene !== 'house' && !coopActive()) {
     stepMonsters();
@@ -7610,7 +7686,7 @@ function endTurn(moved) {
 function die() {
   if (dungeonDef && dungeonDef.arena && scene === 'dungeon') { leaveArena(true); return; }
   if (dungeonDef && dungeonDef.delve && scene === 'dungeon') {   // the dream breaks; the hero only wakes
-    recordDelve(false); escort = null; totems.clear(); sfx.play('die'); shakeScreen(6, 500);
+    recordDelve(false); escort = null; totems.clear(); trial = null; sfx.play('die'); shakeScreen(6, 500);
     floor = TOWN; createWorld(); returnHome(); player.hp = Math.max(1, Math.round(player.maxHp * 0.25)); dungeonDef = null; afterSceneChange();
     log(`You fall in the delve, and wake at the inn with a cry and ${player.hp} HP. It was a dream; the gold and the score are real.`, 'bad');
     updateStats(); saveProgress('progress'); return;
@@ -8976,7 +9052,7 @@ function startRun(saved) {
         story: saved.meta?.story && saved.meta.story.phase ? saved.meta.story : null, blessing: saved.meta?.blessing || null,
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
-        rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, forged: !!saved.meta?.forged, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
+        rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, forged: !!saved.meta?.forged, trials: Number(saved.meta?.trials) || 0, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
         story2: saved.meta?.story2 && Number.isInteger(saved.meta.story2.s) ? { s: Math.max(0, Math.min(3, saved.meta.story2.s)) } : null,
         story3: saved.meta?.story3 && Number.isInteger(saved.meta.story3.s) ? { s: Math.max(0, Math.min(2, saved.meta.story3.s)) } : null,
         delve: typeof saved.meta?.delve === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(saved.meta.delve) ? saved.meta.delve : null,

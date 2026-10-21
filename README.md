@@ -104,6 +104,14 @@ stairs or the way-out door (monsters go for them too); a goblin totem that calls
 goblin every six turns until smashed; a lever that sinks every trap on the floor;
 and a dungeon altar with an offering, a drink from the font, or nothing.
 
+Some rooms from the second floor down hold a ring of trial stones (`TILE.TRIAL`,
+`TRIALS`): walk in and take up the Trial of the Swarm (stand twelve turns while a
+monster arrives every other turn) or the Trial of Blood (five at once, all dead
+within twenty turns). The location line counts the turns down. Pass and the stones
+pay gold, XP and a sure magic item; fail, or stray more than twelve tiles, and they
+go dark. Trials passed count toward the Proven and Unbroken titles
+(`meta.trials`).
+
 Deeper dungeons hold slimes that split in two, necromancers that keep their
 distance and raise skeletons, and mimics posing as chests from floor 2. About
 three chunks in ten hide a secret vault behind a cracked wall: three blows break
