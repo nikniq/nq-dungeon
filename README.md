@@ -398,6 +398,17 @@ The public story page at `/world/story` (`StoryController`, `config/story.php`)
 tells both stories and carries a discussion thread under each that signed-in
 heroes can post to (`story_posts`, 600 characters, throttled).
 
+## Enemies on the water
+
+The open sea has beasts in plain sight (`MONSTER_TYPES` with `sea`, spawned
+per chunk on open water away from coasts and harbours): pirate sloops with a
+strongbox and sometimes a chart, sea serpents, and krakens in the far deeps.
+They wake when a ship comes within seven tiles, close over water only
+(`seaMonsterStep`), strike from alongside and lose interest fourteen tiles
+out. Sail into one to fight it from the deck, or strike it from the shore;
+gold from a kill at sea goes straight to the purse. A hero beaten on deck
+washes ashore instead of dying. Sea-wolf and Kraken-killer titles.
+
 ## The townsfolk
 
 Every town has people of its own (`townFolk`, `FOLK_ROLES`, `FOLK_NAMES`):

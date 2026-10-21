@@ -47,6 +47,10 @@ const MONSTER_TYPES = [
   { name: 'Bomber',   sprite: 'bomber',   hp: 5,  atk: 2, xp: 10, minFloor: 3, bomber: true },
   { name: 'Basilisk', sprite: 'basilisk', hp: 14, atk: 4, xp: 22, minFloor: 5, gaze: true },
   { name: 'Cave troll', sprite: 'cavetroll', hp: 22, atk: 6, xp: 34, minFloor: 6, regen: 2 },
+  // the beasts of the open sea: seen from the deck, hunted or avoided, never underground
+  { name: 'Sea serpent', sprite: 'serpent', hp: 26, atk: 6, xp: 40, minFloor: 99, noSpawn: true, sea: true },
+  { name: 'Pirate sloop', sprite: 'sloop', hp: 20, atk: 5, xp: 30, minFloor: 99, noSpawn: true, sea: true, purse: true },
+  { name: 'Kraken', sprite: 'kraken', hp: 60, atk: 9, xp: 120, minFloor: 99, noSpawn: true, sea: true },
 ];
 // Hero classes: base stats, a sprite, and one ability on the 1 key.
 // Abilities run on mana: a pool that grows with level and refills a point a turn.
@@ -112,6 +116,8 @@ const ACHIEVEMENTS = {
   dawnbreaker: { label: 'Reforged Dawnbreaker, the sword of the First King', title: 'the Dawnbringer' },
   proven:      { label: 'Passed a dungeon trial', title: 'the Proven' },
   unbroken:    { label: 'Passed ten dungeon trials', title: 'the Unbroken' },
+  seawolf:     { label: 'Sank a pirate sloop', title: 'the Sea-wolf' },
+  krakenslayer: { label: 'Killed a kraken', title: 'the Kraken-killer' },
   sailor:      { label: 'Took ship between ports', title: 'the Seafarer' },
   deepwarden:  { label: 'Closed the Dreaming Maw', title: 'Deepwarden' },
   general:     { label: 'Your army razed an orc warcamp', title: 'the General' },
@@ -920,6 +926,9 @@ const MONSTER_LORE = {
   Bomber: 'A goblin with a clay pot of pitch and a short fuse. Whatever kills it, it goes off, and it goes off beside you by choice.',
   Basilisk: 'A lizard the length of a man with a gaze that stiffens the blood. Its bite can leave you standing stone-still for a turn while it takes another.',
   'Cave troll': 'The grey troll of the deep halls knits its flesh back together as you watch. Fire stops the knitting.',
+  'Sea serpent': 'A neck as thick as a mast, seen from a long way off if you are watching the water. It takes ships for whales. Steer round it, or meet it with a blade and a full belly.',
+  'Pirate sloop': 'Black sails on the horizon. The sloop will run you down if it can, and it carries a strongbox, and sometimes a chart to where the rest of the strongbox went.',
+  Kraken: 'The deep water of the far seas has something in it that the sloops will not talk about. It is the colour of a bruise and the size of a church. Harpoon it only with a very good reason.',
   Mimic: 'Not every chest wants to be opened. Some want to open you. Mimics pay well, if you live.',
 };
 function journalKey(e) {
@@ -1273,6 +1282,9 @@ BIG_SPRITES.razedcamp = ['................', '................', '..............
 BIG_SPRITES.soldier = ['.....eeeeee.....', '....eeeeeeee....', '....eessssee....', '....esssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....eeeeeeee....', '...eeeeeeeeee.e.', '..seeeeeeeeeese.', '..s.eeeeeeee.se.', '....eeeeeeee..e.', '....EEE..EEE..e.', '....EEE..EEE..e.', '...HHH....HHH...', '................'];
 BIG_SPRITES.ship = ['.......w........', '.......ww.......', '.......www......', '.......wwww.....', '.......wwwww....', '.......wwwwww...', '.......wwwww....', '.......www......', '.......w........', '..HHHHHHHHHHHH..', '.HhhhhhhhhhhhhH.', '.HhhhhhhhhhhhhH.', '..HHHHHHHHHHHH..', '...hhhhhhhhhh...', '................', '................'];
 BIG_SPRITES.wyrm = ['......kk........', '.....krrk.......', '....krrrrk......', '...krrkrrrk.....', '..krrrrrrrrk....', '..krryyrrrrk....', '...krrrrrrrrk...', '....krrrrrrrk...', '.....krrrrrrrrk.', '....krrrrrrrrrk.', '...krrrkkrrrrk..', '..krrrk..krrk...', '..krrk....kk....', '...kk...........', '................', '................'];
+BIG_SPRITES.serpent = BIG_SPRITES.wyrm.map((r) => r.replace(/r/g, 'G').replace(/d/g, 'g').replace(/o/g, 'c'));   // green coils, pale belly
+BIG_SPRITES.kraken = BIG_SPRITES.wyrm.map((r) => r.replace(/r/g, 'p').replace(/d/g, 'P').replace(/o/g, 'B'));    // purple, and hungrier
+BIG_SPRITES.sloop = BIG_SPRITES.ship.map((r) => r.replace(/w/g, 'E').replace(/h/g, 'H'));   // black sails
 BIG_SPRITES.direwolf = ['................', '................', '..kk........kk..', '..kkk......kkk..', '..kkkkkkkkkkkk..', '..kkrkkkkkkrkk..', '..kkkkkkkkkkkk..', '...kkkwwkkkkk...', '....kkkkkkkk....', '..kkkkkkkkkkkkk.', '.kkkkkkkkkkkkkkk', '.kkkkkkkkkkkkkk.', '..kk.kk..kk.kk..', '..kk.kk..kk.kk..', '................', '................'];
 BIG_SPRITES.basilisk = ['................', '................', '..............GG', '.............GkG', '............GGGG', '....GGGGGGGGGGy.', '...GGgGGGGGGGG..', '..GGGGGGGgGGG...', '..GGgGGGGGGGG...', '...GG.GG.GG.....', '...GG.GG.GG.....', '...HH.HH.HH.....', '................', '................', '................', '................'];
 BIG_SPRITES.troll = ['.....GGGGGG.....', '....GGGGGGGG....', '....GGkGGkGG....', '....GGGGGGGG....', '.....GGwwGG.....', '....GGGGGGGG....', '..GGGGGGGGGGGG..', '.GGGGGGGGGGGGGG.', '.GGhGGGGGGGGhGG.', '.GGhGGGGGGGGhGG.', '..GGGGGGGGGGGG..', '...GGGGGGGGGG...', '...GGGG..GGGG...', '...GGGG..GGGG...', '..HHHHH..HHHHH..', '................'];
@@ -3369,6 +3381,23 @@ function generateWorldChunk(cx, cy) {
     const hp = t.hp + danger;
     worldMonsters.push({ ...cell, type: t, hp, maxHp: hp, atk: t.atk + Math.floor(danger / 2), awake: false, wild: true });
   }
+  // the open sea has beasts of its own, in plain sight: sloops and serpents, and krakens in the far deeps
+  const seaSpots = [];
+  for (let y = 2; y < CHUNK - 2; y += 2) for (let x = 2; x < CHUNK - 2; x += 2) {
+    const wx = ox + x, wy = oy + y;
+    if (gr[y * CHUNK + x] !== GROUND.WATER || !isSea(wx, wy) || isLand(wx + 3, wy) || isLand(wx - 3, wy) || isLand(wx, wy + 3) || isLand(wx, wy - 3)) continue;
+    if (nearbyTowns(wx, wy, 1).some((t) => Math.abs(t.cx - wx) < 26 && Math.abs(t.cy - wy) < 26)) continue;
+    seaSpots.push({ x: wx, y: wy });
+  }
+  if (seaSpots.length >= 40) {
+    const n = rand() < 0.35 ? 1 + Math.floor(rand() * 2) : 0;
+    for (let i = 0; i < n; i++) {
+      const cell = seaSpots.splice(Math.floor(rand() * seaSpots.length), 1)[0], roll = rand();
+      const t = byName(roll < 0.5 ? 'Pirate sloop' : roll < 0.9 || danger < 4 ? 'Sea serpent' : 'Kraken')[0];
+      const hp = Math.round(t.hp * (1 + danger * 0.25));
+      worldMonsters.push({ ...cell, type: t, hp, maxHp: hp, atk: t.atk + Math.floor(danger / 2), awake: false, wild: true, sea: true, purse: t.purse ? 30 + danger * 20 + Math.floor(rand() * 30) : 0 });
+    }
+  }
   return { tiles, seen: new Uint8Array(CHUNK * CHUNK), rooms: [], ground: gr };
 }
 function groundAt(x, y) {
@@ -3581,6 +3610,12 @@ function guardStrike(n, m) {
   if (m.hp > 0) return;
   log(`${n.type.name} cuts down the ${mName(m)}.`, 'good');
   burst(m.x, m.y, '#e5e7eb', 10, 110, { life: 500 });
+  if (m.sea) {
+    if (m.purse) { player.gold += m.purse; floatText(m.x, m.y, `+${m.purse}g`, '#f5c542'); log(`${nameOf(m)[0].toUpperCase() + nameOf(m).slice(1)} goes down. You fish ${m.purse} gold out of the wreckage.`, 'good'); }
+    if (m.type.name === 'Pirate sloop') { unlock('seawolf'); const ch = Math.random() < 0.35 ? foundChart('Pinned to the sloop\'s mast,') : ''; if (ch) log(ch.trim(), 'good'); }
+    if (m.type.name === 'Kraken') unlock('krakenslayer');
+    m.purse = 0;
+  }
   if (m.purse) golds.push({ x: m.x, y: m.y, amount: m.purse });
   monsters = monsters.filter((x) => x !== m); if (scene === 'world') worldMonsters = monsters; monstersDirty = true;
 }
@@ -3963,6 +3998,21 @@ function smashTotem(x, y) {
   burst(x, y, '#ff9f43', 24, 130, { glow: true, life: 600, size: 3 }); shakeScreen(4); sfx.play('fire');
   log(`The totem splinters. The goblins' drums fall silent. You find ${gold} gold in the offerings.`, 'good');
   floatText(x, y, `+${gold}g`, '#f5c542');
+}
+// Sea beasts wake when a ship comes within seven tiles, close over open water, and
+// strike from alongside. They lose interest fourteen tiles out.
+function seaMonsterStep(m, H) {
+  const free = (x, y) => seaTile(x, y) && !getMonsterAt(x, y) && !(player.x === x && player.y === y) && !mpPlayerAt(x, y) && !shipAt(x, y);
+  if (!m.awake) {
+    if (cheb(m, H) <= 7 && Math.random() < 0.5) { m.awake = true; if (isVisible(m.x, m.y)) log(`${nameOf(m)[0].toUpperCase() + nameOf(m).slice(1)} turns toward your sail.`, 'bad'); }
+    else if (Math.random() < 0.3) { const [dx, dy] = DIRS[rnd(4)]; if (free(m.x + dx, m.y + dy)) moveMonster(m, m.x + dx, m.y + dy); }
+    return;
+  }
+  if (dist(m, H) === 1) { strike(m, H, false); return; }
+  if (cheb(m, H) > 14) { m.awake = false; return; }
+  let best = null, bestD = cheb(m, H);
+  for (const [dx, dy] of DIRS.slice().sort(() => Math.random() - 0.5)) { const nx = m.x + dx, ny = m.y + dy; if (!free(nx, ny)) continue; const nd = cheb({ x: nx, y: ny }, H); if (nd < bestD) { bestD = nd; best = [nx, ny]; } }
+  if (best) moveMonster(m, best[0], best[1]);
 }
 function tickTotems() {
   if (scene !== 'dungeon' || turn % 6 !== 0) return;
@@ -6282,6 +6332,12 @@ function killMonster(m) {
     for (const pp of livePets()) if (cheb(m, pp) <= 1) petHurt(pp, blast);
   }
   if (m.type.splits && !m.small && !m.boss && !coopMember()) splitSlime(m);
+  if (m.sea) {
+    if (m.purse) { player.gold += m.purse; floatText(m.x, m.y, `+${m.purse}g`, '#f5c542'); log(`${nameOf(m)[0].toUpperCase() + nameOf(m).slice(1)} goes down. You fish ${m.purse} gold out of the wreckage.`, 'good'); }
+    if (m.type.name === 'Pirate sloop') { unlock('seawolf'); const ch = Math.random() < 0.35 ? foundChart('Pinned to the sloop\'s mast,') : ''; if (ch) log(ch.trim(), 'good'); }
+    if (m.type.name === 'Kraken') unlock('krakenslayer');
+    m.purse = 0;
+  }
   if (m.purse) golds.push({ x: m.x, y: m.y, amount: m.purse });
   if (m.type.name === 'Mimic') { golds.push({ x: m.x, y: m.y, amount: 40 + floor * 15 + (dungeonDef ? dungeonDef.danger * 10 : 0) }); }
   if (m.elite) {
@@ -6414,6 +6470,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
     if (m.horde && (hd > 6 || !m.awake)) { if (!swiftOnly) hordeStep(m); continue; }   // the hosts of Midgard have a town to burn
     if (hd > SIM_RADIUS) continue;
     const H = heroes[hi];
+    if (m.sea) { seaMonsterStep(m, H); continue; }
     { const pv = livePets().find((pp) => dist(m, pp) === 1);
       if (pv && !heroes.some((h) => dist(m, h) === 1)) {
         if (!m.awake && Math.random() < 0.6) m.awake = true;
@@ -6713,6 +6770,7 @@ function tryMove(dx, dy) {
   const t = getTile(nx, ny);
   if (t === TILE.WALL && scene === 'world' && groundAt(nx, ny) === GROUND.WATER) {
     if (dx) player.face = dx;
+    const sm = (dx || dy) && getMonsterAt(nx, ny); if (sm) { playerAttack(sm); endTurn(false); return; }
     if (aboard && !dx && !dy) { if (player.meta.rod) fishAt(nx, ny, true); else { log('Deep water all round. With a rod you could fish from the boat.'); draw(); } return; }
     if (aboard && seaTile(nx, ny)) { sailStep(dx, dy); return; }
     if (shipAt(nx, ny)) { boardShip(); return; }
@@ -7784,6 +7842,7 @@ function endTurn(moved) {
 
 function die() {
   if (dungeonDef && dungeonDef.arena && scene === 'dungeon') { leaveArena(true); return; }
+  if (scene === 'world' && aboard && !gameOver) { player.hp = 1; washAshore('a sea beast'); updateStats(); draw(); return; }
   if (dungeonDef && dungeonDef.delve && scene === 'dungeon') {   // the dream breaks; the hero only wakes
     recordDelve(false); escort = null; totems.clear(); trial = null; sfx.play('die'); shakeScreen(6, 500);
     floor = TOWN; createWorld(); returnHome(); player.hp = Math.max(1, Math.round(player.maxHp * 0.25)); dungeonDef = null; afterSceneChange();
@@ -8784,10 +8843,10 @@ function sailStep(dx, dy) {
   player.x = nx; player.y = ny;
   // a following sea: the second tile comes free on open water
   const x2 = nx + dx, y2 = ny + dy;
-  if ((dx || dy) && seaTile(x2, y2) && !(walk.active && nx === walk.tx && ny === walk.ty)) {
+  if ((dx || dy) && seaTile(x2, y2) && !getMonsterAt(x2, y2) && !(walk.active && nx === walk.tx && ny === walk.ty)) {
     player.x = x2; player.y = y2;
     const x3 = x2 + dx, y3 = y2 + dy;   // the Stormcaller Pearl: a third tile
-    if (wearing('stormpearl') && seaTile(x3, y3) && !(walk.active && x2 === walk.tx && y2 === walk.ty)) { player.x = x3; player.y = y3; }
+    if (wearing('stormpearl') && seaTile(x3, y3) && !getMonsterAt(x3, y3) && !(walk.active && x2 === walk.tx && y2 === walk.ty)) { player.x = x3; player.y = y3; }
   }
   player.wx = player.x; player.wy = player.y; player.meta.ship = { x: player.x, y: player.y };
   endTurn(true);
