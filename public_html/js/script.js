@@ -4189,6 +4189,40 @@ function updateVisibility() {
 // Everything that moves has a render position (rx, ry) that glides to its
 // tile position; the camera follows the hero's render position so the hero
 // stays centred while the world slides underneath.
+// Projectiles: an arrow is drawn in flight from shooter to target (shaft, head and
+// fletching, turned to its line, with a fading trail), and a shaman's hex as a
+// glowing orb with sparks. The damage lands at once; this is what you see.
+const shots = [];
+function shoot(x0, y0, x1, y1, kind = 'arrow') {
+  const tiles = Math.max(1, Math.hypot(x1 - x0, y1 - y0));
+  shots.push({ x0, y0, x1, y1, kind, at: performance.now(), dur: Math.max(140, 55 * tiles), done: false });
+}
+function drawShots(g, now) {
+  for (let i = shots.length - 1; i >= 0; i--) {
+    const sh = shots[i], p = Math.min(1, (now - sh.at) / sh.dur);
+    const sx = sh.x0 * T - cam.x + T / 2, sy = sh.y0 * T - cam.y + T / 2, ex = sh.x1 * T - cam.x + T / 2, ey = sh.y1 * T - cam.y + T / 2;
+    const ang = Math.atan2(ey - sy, ex - sx), x = sx + (ex - sx) * p, y = sy + (ey - sy) * p - Math.sin(p * Math.PI) * (sh.kind === 'arrow' ? 6 : 2);
+    if (p >= 1) {
+      if (!sh.done) { sh.done = true; burst(sh.x1, sh.y1, sh.kind === 'hex' ? '#c084fc' : '#d9b382', sh.kind === 'hex' ? 10 : 5, 70, { life: 260, size: 1, glow: sh.kind === 'hex' }); }
+      if (now - sh.at > sh.dur + 60) shots.splice(i, 1);
+      continue;
+    }
+    if (sh.kind === 'hex') {
+      for (let k = 3; k >= 1; k--) { const q = Math.max(0, p - k * 0.07), tx = sx + (ex - sx) * q, ty = sy + (ey - sy) * q; g.globalAlpha = 0.25 - k * 0.06; g.fillStyle = '#c084fc'; g.beginPath(); g.arc(tx, ty, 4 - k * 0.6, 0, Math.PI * 2); g.fill(); }
+      g.globalAlpha = 1; g.shadowColor = '#c084fc'; g.shadowBlur = 10; g.fillStyle = '#e9d5ff'; g.beginPath(); g.arc(x, y, 3.5, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0;
+      g.fillStyle = '#7c3aed'; g.beginPath(); g.arc(x + Math.cos(now / 40) * 5, y + Math.sin(now / 40) * 5, 1.5, 0, Math.PI * 2); g.fill();
+      continue;
+    }
+    // the trail: two ghosts of the arrow behind it
+    for (let k = 2; k >= 1; k--) { const q = Math.max(0, p - k * 0.06), tx = sx + (ex - sx) * q, ty = sy + (ey - sy) * q - Math.sin(q * Math.PI) * 6; g.globalAlpha = 0.18 - k * 0.05; g.strokeStyle = '#e6d3a3'; g.lineWidth = 2; g.beginPath(); g.moveTo(tx - Math.cos(ang) * 7, ty - Math.sin(ang) * 7); g.lineTo(tx + Math.cos(ang) * 7, ty + Math.sin(ang) * 7); g.stroke(); }
+    g.globalAlpha = 1; g.save(); g.translate(x, y); g.rotate(ang);
+    g.strokeStyle = '#1b1b2f'; g.lineWidth = 4; g.beginPath(); g.moveTo(-9, 0); g.lineTo(7, 0); g.stroke();   // outline
+    g.strokeStyle = '#a0703c'; g.lineWidth = 2; g.beginPath(); g.moveTo(-9, 0); g.lineTo(6, 0); g.stroke();   // shaft
+    g.fillStyle = '#e6eef8'; g.beginPath(); g.moveTo(10, 0); g.lineTo(5, -2.5); g.lineTo(5, 2.5); g.closePath(); g.fill();   // head
+    g.fillStyle = '#e74c3c'; g.beginPath(); g.moveTo(-9, 0); g.lineTo(-12, -3); g.lineTo(-7, -2.5); g.closePath(); g.fill(); g.beginPath(); g.moveTo(-9, 0); g.lineTo(-12, 3); g.lineTo(-7, 2.5); g.closePath(); g.fill();   // fletching
+    g.restore();
+  }
+}
 const floats = [];
 function floatText(x, y, text, color) {
   if (!settings.numbers && /^[-+]\d/.test(String(text))) return;
@@ -5580,6 +5614,7 @@ function drawScene(now) {
     applyLighting(ctx, 'rgba(25,12,2,0.32)', lights);
   }
   drawParticles(ctx, now);
+  drawShots(ctx, now);
   for (let i = floats.length - 1; i >= 0; i--) {
     const f = floats[i], age = now - f.at;
     if (age > 800) { floats.splice(i, 1); continue; }
@@ -6491,7 +6526,7 @@ function monsterAttack(m, ranged = false) {
   if (m.type.thief && !m.loot && player.gold > 0) { const take = Math.min(player.gold, Math.max(5, Math.floor(player.gold * 0.1))); player.gold -= take; m.loot = take; m.purse = (m.purse || 0) + take; m.fleeUntil = turn + 12; log(`The thief snatches ${take} gold from your belt and runs for the dark!`, 'bad'); floatText(player.x, player.y, `-${take}g`, '#f5c542'); tip('thief', 'Thieves grab a tenth of your purse and run. Kill one before it gets away and the gold drops back.'); }
   if (m.type.gaze && !player.stunned && Math.random() < 0.3) { player.stunned = 1; log('The basilisk\'s eyes catch yours. Your limbs turn to stone!', 'bad'); floatText(player.x, player.y, 'petrified', '#cbd5e1'); sfx.play('shield'); }
   if (m.type.poison && !player.poison && !wearing('frostheart') && !(aa && aa.id === 'warded') && Math.random() < 0.5) { player.poison = 4; log('You are poisoned! A potion will cure it.', 'bad'); sfx.play('poison'); tip('poison', 'Poison costs 1 HP a turn for four turns. Any potion cures it. Press P to drink one from your bag.'); }
-  if (ranged) { for (let d = 1; d < Math.abs(m.x - player.x) + Math.abs(m.y - player.y); d++) floatText(m.x + Math.sign(player.x - m.x) * d, m.y + Math.sign(player.y - m.y) * d, '➤', '#d9b382'); }
+  if (ranged) shoot(m.x, m.y, player.x, player.y, m.type.name === 'Shaman' ? 'hex' : 'arrow');
   const now = performance.now();
   m.lunge = { dx: Math.sign(player.x - m.x), dy: Math.sign(player.y - m.y), until: now + 140 };
   if (player.x !== m.x) m.face = Math.sign(player.x - m.x);
@@ -8042,14 +8077,14 @@ const ABILITIES = {
       if (t.dx) player.face = t.dx;
       t.m.hp -= dmg; t.m.awake = true; t.m.flashUntil = performance.now() + 120;
       floatText(t.m.x, t.m.y, `-${dmg}`, '#ffd86b');
-      for (let d = 1; d < t.d; d++) floatText(player.x + t.dx * d, player.y + t.dy * d, '➤', '#d9b382');
+      shoot(player.x, player.y, t.m.x, t.m.y, 'arrow');
       sfx.play('arrow'); log(`Your arrow hits ${t.m.boss ? t.m.name : 'the ' + t.m.type.name} for ${dmg}.`);
       if (coopMember()) coopHit(t.m, dmg, 'hero'); else if (t.m.hp <= 0) killMonster(t.m);
       return true; } },
     { name: 'Volley', cost: 6, level: 5, blurb: 'loose arrows at the three nearest foes in sight, up to 6 tiles', run: () => {
       const foes = monsters.filter((m) => m.hp > 0 && cheb(m, player) <= 6 && isVisible(m.x, m.y)).sort((a, b) => cheb(a, player) - cheb(b, player)).slice(0, 3);
       if (!foes.length) { log('No foe in sight for a volley.'); return false; }
-      sfx.play('arrow');
+      sfx.play('arrow'); for (const m of foes) shoot(player.x, player.y, m.x, m.y, 'arrow');
       for (const m of foes) { const dmg = Math.max(1, Math.round((player.atk + weaponAtk() + rnd(2)) * 0.8) - (m.mod === 'armored' ? 2 : 0)); m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); floatText(player.x + Math.sign(m.x - player.x), player.y + Math.sign(m.y - player.y), '➤', '#d9b382'); }
       log(`A volley of arrows: ${foes.length} ${foes.length === 1 ? 'foe' : 'foes'} struck.`, 'good');
       for (const m of foes) { if (coopMember()) coopHit(m, 1, 'hero'); else if (m.hp <= 0) killMonster(m); }
@@ -9227,7 +9262,7 @@ function afterSceneChange() {
   }
   music.setMood(currentMood());
   stopWalk(); hover.path = []; hover.sig = '';
-  bubble = null; closeShop(); clearInspect(); floats.length = 0; particles.length = 0; mapOpen = false;
+  bubble = null; closeShop(); clearInspect(); floats.length = 0; particles.length = 0; shots.length = 0; mapOpen = false;
   mp.players.clear(); mpKick();
   settle(player); for (const n of npcs) settle(n);
   placeHound();

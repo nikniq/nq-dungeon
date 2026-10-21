@@ -118,6 +118,11 @@ pay gold, XP and a sure magic item; fail, or stray more than twelve tiles, and t
 go dark. Trials passed count toward the Proven and Unbroken titles
 (`meta.trials`).
 
+Arrows are drawn in flight (`shots`, `shoot`, `drawShots`): the archer's shot, the
+Ranger's Arrow and Volley, a shaft with a steel head and red fletching turned to its
+line with a fading trail and a puff where it lands; a shaman's hex flies as a glowing
+violet orb with sparks.
+
 Deeper dungeons hold slimes that split in two, necromancers that keep their
 distance and raise skeletons, and mimics posing as chests from floor 2. About
 three chunks in ten hide a secret vault behind a cracked wall: three blows break
