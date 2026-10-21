@@ -16,7 +16,7 @@ class HeroController extends Controller
             ->orderByDesc('wins')->orderByDesc('best_floor')->orderByDesc('best_gold')->orderBy('name')
             ->paginate(20)->withQueryString();
 
-        return view('heroes.index', ['heroes' => $heroes, 'q' => $q, 'builders' => \App\Models\TownProject::builders()]);
+        return view('heroes.index', ['heroes' => $heroes, 'q' => $q, 'builders' => \App\Models\TownProject::builders(), 'delves' => \App\Models\DailyDelve::board(now()->toDateString()), 'yesterday' => \App\Models\DailyDelve::board(now()->subDay()->toDateString(), 1)->first()]);
     }
 
     public function show(Character $character): View

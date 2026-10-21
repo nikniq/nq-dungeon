@@ -19,6 +19,16 @@ class CharacterTest extends TestCase
         $this->assertCount(72, $user->character->fresh()->perks);
     }
 
+    public function test_a_save_with_every_meta_key_is_accepted(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla', 'class' => 'warrior']);
+        $meta = array_fill_keys(['visited', 'places', 'looted', 'found', 'charts', 'secrets', 'stash'], []) + ['second_wind' => false, 'room' => false, 'horse' => false, 'rod' => false, 'bestiary' => [], 'encounters' => 1, 'deepest' => 1, 'treasures' => 0, 'arena' => 0, 'rescued' => 0, 'delve' => '2026-10-21', 'story2' => ['s' => 1], 'story3' => ['s' => 1], 'story4' => ['s' => 1, 'closed' => 0], 'story5' => ['s' => 1, 'n' => 0], 'ship' => ['x' => 1, 'y' => 2], 'realm' => ['rank' => 0, 'standing' => 0, 'oath' => false, 'guild' => false, 'bank' => 0], 'pets' => [], 'rq' => [], 'war' => ['troops' => [], 'armies' => [], 'camps' => []], 'act2' => ['s' => 0], 'lairs' => ['known' => [], 'slain' => []], 'blessing' => null, 'story' => null];
+        $this->assertGreaterThan(30, count($meta));
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 5, 'xp' => 5, 'gold' => 10, 'hp' => 30, 'max_hp' => 30, 'atk' => 5, 'kills' => 0, 'bag' => [], 'meta' => $meta];
+        $this->actingAs($user)->postJson('/api/character', $state)->assertOk()->assertJsonPath('meta.delve', '2026-10-21');
+    }
+
     public function test_an_overfull_bag_still_saves(): void
     {
         $user = User::factory()->create();

@@ -390,6 +390,19 @@ The public story page at `/world/story` (`StoryController`, `config/story.php`)
 tells both stories and carries a discussion thread under each that signed-in
 heroes can post to (`story_posts`, 600 characters, throttled).
 
+## The Daily Delve
+
+Every inn offers the Daily Delve: a five-floor dungeon generated from the date
+(`delveDef`, seeded through `floorSeed`), so every hero gets the same one, with
+a theme and monster pool that rotate by day (`DELVE_THEMES`) and danger scaled
+to the hero's level. One try a day: it is a dream, so falling in it only wakes
+the hero at the inn with a quarter of their health, keeping the gold. Leaving,
+clearing or falling scores it (`recordDelve`: a hundred a floor, five a kill,
+every coin, 250 for clearing) and posts it to `/api/delve` (`DelveController`,
+`daily_delves`, one row per hero per day, the server recomputes the score). The
+heroes page shows today's board and yesterday's champion; the inn shows the
+top three. `meta.delve` remembers the day's attempt.
+
 ## Operating it: deploy.sh and cx.sh
 
 `deploy.sh` runs on the server (pull, dependencies, migrate, caches, verify).

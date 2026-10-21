@@ -177,6 +177,7 @@
       multiplayer: @json((bool) config('game.multiplayer')),
       buildingsUrl: @json(route('buildings.index')),
       projectsUrl: @json(route('projects.index')), projects: @json(config('game.projects')),
+      delveUrl: @json(route('delve.today')),
       buildings: @json(['slots' => config('game.building_slots'), 'costs' => config('game.building_costs'), 'types' => config('game.buildings')]),
     };
   </script>

@@ -123,6 +123,8 @@ const ACHIEVEMENTS = {
   northbound:  { label: 'Answered the raven', title: 'the Far-Farer' },
   giantsbane:  { label: 'Slew Thrym, Jarl of the Frost Giants', title: 'Giantsbane' },
   castaway:    { label: 'Washed up on a shore after losing at sea', title: 'the Castaway' },
+  delver:      { label: 'Took on the Daily Delve', title: 'the Delver' },
+  delve_champion: { label: 'Topped the Daily Delve board', title: 'Champion of the Delve' },
   longnight:   { label: 'Saw the sky tear', title: 'of the Long Night' },
   riftwarden:  { label: 'Closed five rifts to Midgard', title: 'Warden of the Rifts' },
   riftlord:    { label: 'Slew the Rift Lord', title: 'Shield of Seven Realms' },
@@ -291,7 +293,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, pets: petsState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, story4: player.meta.story4 || null, story5: player.meta.story5 || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, story4: player.meta.story4 || null, story5: player.meta.story5 || null, delve: player.meta.delve || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -525,7 +527,7 @@ function coopTick() {
 async function enterDungeon(dkey) {
   entering = true;
   mp.instance = null;
-  if (mp.on) {
+  if (mp.on && !(dungeonDef && dungeonDef.delve)) {   // the Daily Delve is a dream, and solo
     try {
       const r = await mpApi(ACCOUNT.mpUrl + '/enter', { dungeon: dkey });
       mp.instance = { space: r.space, seed: r.seed, shared: r.shared };
@@ -1706,6 +1708,7 @@ function guideSuggestions() {
   if (!questsActive().length) out.push(['Find work', 'Watch captains post bounties on named beasts, and townsfolk want monsters cleared.']);
   if (!pets.length) out.push(['A companion', `Inns sell pets, and each realm keeps its own: hounds and cats in the Cantons, wolves, boars and bears among the Clans, hawks, huskies, elephants further afield. A hound is ${HOUND_COST} gold. You can keep ${PET_MAX}.`]);
   if (player.bag.length >= bagSize() - 2 && !player.meta.room) out.push(['Your bag is nearly full', `Rent a room at an inn (${ROOM_COST} gold) for a storage chest at every inn.`]);
+  if (!delveDone() && player.level >= 3) out.push(['Today\'s Delve', `Lie down at any inn for the Delve of ${delveTheme().name}: the same dungeon for every hero today, one try, scored on the heroes page.`]);
   if (player.meta.ship && !charts().length && player.gold >= CHART_COST) out.push(['Buried treasure', `Harbourmasters sell charts (${CHART_COST} gold) to sea-chests on islands. Sail there and dig.`]);
   if (!player.meta.ship && player.gold >= SHIP_COST * 0.75) out.push(['Set sail', `Harbourmasters sell ships (${SHIP_COST} gold): sail the open sea to islands and shores no road reaches.`]);
   if (!player.meta.horse && player.gold >= HORSE_COST * 0.75) out.push(['Ride', `Inns in cities and castles sell horses (${HORSE_COST} gold): two tiles a step in the wilds.`]);
@@ -2941,6 +2944,74 @@ function rebuildRows(town) {
   }
   return rows;
 }
+// ---------- the Daily Delve ----------
+// One dungeon a day, generated from the date so every hero gets the same one,
+// one scored try each: a hundred points a floor, five a kill, every coin, and a
+// bonus for clearing it. It is a dream: falling in it ends the delve, not the hero.
+const DELVE_THEMES = [
+  { name: 'Embers', theme: 'lava', pool: ['Orc', 'Goblin', 'Bat', 'Slime'] }, { name: 'Bones', theme: 'bone', pool: ['Skeleton', 'Wraith', 'Necromancer', 'Spider'] },
+  { name: 'Moss', theme: 'moss', pool: ['Spider', 'Goblin', 'Slime', 'Rat', 'Bat'] }, { name: 'Tides', theme: 'flooded', pool: ['Slime', 'Spider', 'Archer', 'Rat'] },
+  { name: 'Stars', theme: 'arcane', pool: ['Wraith', 'Archer', 'Skeleton', 'Bat'] }, { name: 'Frost', theme: 'frost', pool: ['Skeleton', 'Direwolf', 'Troll', 'Wraith'] },
+  { name: 'Stone', theme: 'stone', pool: ['Goblin', 'Orc', 'Archer', 'Mimic'] },
+];
+const delveDay = () => new Date().toISOString().slice(0, 10);
+const delveDayNum = () => Math.floor(Date.parse(delveDay()) / 86400000);
+const delveTheme = () => DELVE_THEMES[delveDayNum() % DELVE_THEMES.length];
+let delve = null;   // { day, kills0, gold0 } while inside today's delve
+let delveBoard = { at: 0, data: null };
+function delveDef() {
+  const T = delveTheme(), danger = Math.max(1, Math.min(14, Math.floor(player.level / 5)));
+  return { kind: 'delve', delve: true, name: `the Delve of ${T.name}`, floors: 5, pool: byName(...T.pool), theme: T.theme, danger, gold: 1.4, potions: 1, view: 8, loot: 0.2, treasure: 120, xp: 1.2, seed: hash32(delveDayNum(), 7331, 99) };
+}
+const delveDone = () => !!player && !!player.meta && player.meta.delve === delveDay();
+async function fetchDelveBoard(force = false) {
+  if (!ACCOUNT.delveUrl || (!force && performance.now() - delveBoard.at < 60000)) return delveBoard.data;
+  delveBoard.at = performance.now();
+  try { const r = await fetch(ACCOUNT.delveUrl, { headers: { Accept: 'application/json' } }); if (r.ok) { delveBoard.data = await r.json(); if (delveBoard.data.mine && player && player.meta) player.meta.delve = delveDay(); if (shopOpen) renderShop(); } } catch (e) { /* offline */ }
+  return delveBoard.data;
+}
+function enterDelve() {
+  if (delveDone()) return;
+  const here = townContaining(player.x, player.y) || nearestTownTo(player.x, player.y);
+  closeShop(); if (scene === 'house') leaveBuilding();
+  homeTown = here.key; player.wx = here.gate.x; player.wy = here.gate.y + 1;
+  delve = { day: delveDay(), kills0: player.lifetimeKills, gold0: player.gold };
+  dungeonDef = delveDef();
+  log(`You lie down at the inn and the Delve of ${delveTheme().name} opens under you: five floors, danger ${stars(dungeonDef.danger)}, the same for every hero today. Floors, kills and gold all count. If you fall, you only wake.`, 'good');
+  tip('delve', 'The Daily Delve is a dream: the same dungeon for everyone today, one try each. Score a hundred a floor, five a kill and every coin; clear all five floors for a bonus. Falling only wakes you.');
+  track('delve_enter', { theme: delveTheme().name, danger: dungeonDef.danger });
+  enterDungeon('delve:' + delveDay());
+}
+// the delve is over, cleared or not: score it, post it, and tell the hero where they stand
+async function recordDelve(cleared) {
+  if (!delve) return;
+  const floorReached = cleared ? 5 : Math.max(1, Math.min(5, floor)), kills = Math.max(0, player.lifetimeKills - delve.kills0), gold = Math.max(0, player.gold - delve.gold0);
+  const score = floorReached * 100 + kills * 5 + gold + (cleared ? 250 : 0);
+  delve = null; player.meta.delve = delveDay(); unlock('delver');
+  log(`The Delve of ${delveTheme().name}: ${cleared ? 'cleared' : `floor ${floorReached}`}, ${kills} kill${kills === 1 ? '' : 's'}, ${gold} gold. Score ${score}.`, 'good');
+  track('delve_done', { score, floor: floorReached, cleared });
+  if (!ACCOUNT.user) { log('Create a hero (or log in) and tomorrow\'s delve goes on the board.'); return; }
+  try {
+    const r = await fetch(ACCOUNT.delveUrl.replace(/\/today$/, ''), { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': ACCOUNT.csrf }, body: JSON.stringify({ floor: floorReached, kills, gold, cleared }) });
+    const res = await r.json().catch(() => ({}));
+    if (!r.ok) { log(res.message || 'The board did not take your score. Try again tomorrow.', 'bad'); return; }
+    const m = res.mine, nth = (n) => n + (n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th');
+    log(`You stand ${nth(m.rank)} of ${res.entries} on today's board${m.rank === 1 ? '. Champion, for now' : ''}. See the heroes page.`, 'good');
+    if (m.rank === 1 && res.entries >= 3) unlock('delve_champion');
+    delveBoard.at = 0; saveProgress('progress');
+  } catch (e) { /* offline */ }
+}
+function delveRows() {
+  const rows = [], T = delveTheme(), d = delveBoard.data;
+  const def = delveDef();
+  rows.push(shopRow(`Today's Delve of ${T.name} (danger ${stars(def.danger)}, ${ratingText(def)}): a dream-dungeon of five floors, the same for every hero today, one try each. A hundred points a floor, five a kill, every coin, and 250 for clearing it. Falling only wakes you.`,
+    delveDone() ? 'Done today' : 'Enter', () => enterDelve(), delveDone()));
+  if (d && d.mine) rows.push(shopRow(`Your delve today: ${d.mine.score} points (floor ${d.mine.floor}${d.mine.cleared ? ', cleared' : ''}, ${d.mine.kills} kills), ${d.mine.rank === 1 ? 'top of the board' : `${d.mine.rank} of ${d.entries}`}`));
+  if (d && d.board && d.board.length) rows.push(shopRow(`Today's board: ${d.board.slice(0, 3).map((b, i) => `${i + 1}. ${b.name} ${b.score}`).join(' · ')}${d.yesterday ? ` · yesterday's champion ${d.yesterday.name} (${d.yesterday.score})` : ''}`));
+  else if (d) rows.push(shopRow(d.yesterday ? `Nobody has delved yet today. Yesterday's champion: ${d.yesterday.name} with ${d.yesterday.score}.` : 'Nobody has delved yet today. Be the first on the board.'));
+  if (!d) fetchDelveBoard();
+  return rows;
+}
 const aOrAn = (w) => (/^[aeiou]/i.test(w) ? 'an' : 'a');
 const monumentName = (b) => `${BUILD.types[b.type] ? BUILD.types[b.type].name : b.type}`;
 const levelDesc = (type, level) => (BUILD.types[type] ? BUILD.types[type].levels[level - 1] : '');
@@ -3767,7 +3838,7 @@ function createDungeon() {
   bounded = null; ground = null; decor = null; houses = []; npcs = []; interior = null;
   chunks = new Map(); monsters = []; potions = []; golds = []; shops = []; monstersDirty = true; revealedTraps = new Set();
   // a party's run digs every floor from the same seed, so all of them see the same cave
-  floorSeed = mp.instance ? hash32(mp.instance.seed, floor, 7) : hash32(Date.now() & 0xffff, floor, rnd(1e6));
+  floorSeed = dungeonDef && dungeonDef.seed ? hash32(dungeonDef.seed, floor, 7) : mp.instance ? hash32(mp.instance.seed, floor, 7) : hash32(Date.now() & 0xffff, floor, rnd(1e6));   // a seeded dungeon (the Daily Delve) is the same for everyone
   mp.dead = new Set(); mp.graveyard = new Map();
   theme = pickTheme();
   { const roll = hash32(floorSeed, 99) % 100, gentle = floor === 1 && !(dungeonDef && dungeonDef.danger);
@@ -4687,7 +4758,7 @@ function drawBubble(g, b) {
 
 let hudExtra = 0;   // how much taller the HUD box is than usual (full screen)
 function drawHud(g, now) {
-  const where = scene === 'house' ? interior.house.name : inTown() ? `${townContaining(player.x, player.y)?.name ?? 'The wilds'}, ${REALMS[realmOfTile(player.x, player.y)].short} · day ${dayNumber()}, ${dayPhase()}` : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floorText()}${dungeonDef ? ` · Lv ${recLevel(dungeonDef)}+` : ''}${floorMod ? ` · ${FLOOR_MODS[floorMod].label}` : ''}`;
+  const where = scene === 'house' ? interior.house.name : scene === 'dungeon' && dungeonDef && dungeonDef.delve ? `${dungeonDef.name[0].toUpperCase() + dungeonDef.name.slice(1)} ${floor}/5 · Daily` : inTown() ? `${townContaining(player.x, player.y)?.name ?? 'The wilds'}, ${REALMS[realmOfTile(player.x, player.y)].short} · day ${dayNumber()}, ${dayPhase()}` : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floorText()}${dungeonDef ? ` · Lv ${recLevel(dungeonDef)}+` : ''}${floorMod ? ` · ${FLOOR_MODS[floorMod].label}` : ''}`;
   const compact = canvas.width < 560;
   const text = compact
     ? `HP ${player.hp}/${player.maxHp}  ATK ${player.atk + weaponAtk()}  DEF ${armorDef()}  Lv ${player.level}  ${player.gold}g`
@@ -5826,7 +5897,7 @@ function buildLegend() {
 }
 
 function updateStats() {
-  const where = scene === 'house' ? interior.house.name : inTown() ? (townContaining(player.x, player.y)?.name ?? 'The wilds') : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floorText()}`;
+  const where = scene === 'house' ? interior.house.name : scene === 'dungeon' && dungeonDef && dungeonDef.delve ? `${dungeonDef.name[0].toUpperCase() + dungeonDef.name.slice(1)} ${floor}/5 · Daily` : inTown() ? (townContaining(player.x, player.y)?.name ?? 'The wilds') : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floorText()}`;
   statsEl.textContent = `${where} | HP ${player.hp}/${player.maxHp} | ATK ${player.atk}${weaponAtk() ? '+' + weaponAtk() : ''} | DEF ${armorDef()} | Lv ${player.level} (${player.xp}/${xpToNext(player.level)} XP) | Gold ${player.gold}`;
   hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
   hpBar.style.background = player.hp / player.maxHp > 0.5 ? '#5fe17a' : player.hp / player.maxHp > 0.25 ? '#f5c542' : '#ff6b6b';
@@ -6227,9 +6298,10 @@ function nextFloor() {
       afterSceneChange();
       log(`You climb back out of the ${def.name} into daylight.`, 'good');
     } else {
+      if (def.delve) recordDelve(true);
       returnHome();
       afterSceneChange();
-      log(`You escaped the dungeon with ${player.gold} gold at level ${player.level}! The town square welcomes you back.`, 'good');
+      log(def.delve ? `You wake at the inn with the dream's gold still in your purse. The Delve of ${delveTheme().name} is cleared.` : `You escaped the dungeon with ${player.gold} gold at level ${player.level}! The town square welcomes you back.`, 'good');
     }
     dungeonDef = null;
     saveProgress('win');
@@ -6349,6 +6421,7 @@ function leaveDungeon() {
   if (dungeonDef && dungeonDef.arena) { leaveArena(false); return; }
   rescueCheck(); escort = null; totems.clear();
   const def = dungeonDef;
+  if (def && def.delve) recordDelve(false);
   sfx.play('stairs');
   track('dungeon_left', { dungeon: def ? (def.kind === 'site' ? def.site.type : 'town') : 'town', floor });
   floor = TOWN; createWorld();
@@ -7438,6 +7511,12 @@ function endTurn(moved) {
 
 function die() {
   if (dungeonDef && dungeonDef.arena && scene === 'dungeon') { leaveArena(true); return; }
+  if (dungeonDef && dungeonDef.delve && scene === 'dungeon') {   // the dream breaks; the hero only wakes
+    recordDelve(false); escort = null; totems.clear(); sfx.play('die'); shakeScreen(6, 500);
+    floor = TOWN; createWorld(); returnHome(); player.hp = Math.max(1, Math.round(player.maxHp * 0.25)); dungeonDef = null; afterSceneChange();
+    log(`You fall in the delve, and wake at the inn with a cry and ${player.hp} HP. It was a dream; the gold and the score are real.`, 'bad');
+    updateStats(); saveProgress('progress'); return;
+  }
   player.hp = 0; updateStats();
   const t = townAt(...homeTown.split(',').map(Number)) || townAt(0, 0);
   const lost = Math.ceil(player.gold / 2);
@@ -8468,6 +8547,7 @@ function renderShop() {
         if (player.gold < fish * 2) return; player.gold -= fish * 2; player.bag = player.bag.map((id) => (id === 'fish' ? 'stew' : id));
         log(`The cook turns your catch into ${fish} bowls of steaming stew.`, 'good'); sfx.play('potion'); updateStats(); renderShop(); draw();
       }, player.gold < fish * 2)); }
+    for (const row of delveRows()) shopBuy.appendChild(row);
     for (const row of horseRows()) shopBuy.appendChild(row);
     for (const row of monumentRows()) shopBuy.appendChild(row);
     for (const row of stashRows()) shopBuy.appendChild(row);
@@ -8783,6 +8863,7 @@ function startRun(saved) {
         rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
         story2: saved.meta?.story2 && Number.isInteger(saved.meta.story2.s) ? { s: Math.max(0, Math.min(3, saved.meta.story2.s)) } : null,
         story3: saved.meta?.story3 && Number.isInteger(saved.meta.story3.s) ? { s: Math.max(0, Math.min(2, saved.meta.story3.s)) } : null,
+        delve: typeof saved.meta?.delve === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(saved.meta.delve) ? saved.meta.delve : null,
         story5: saved.meta?.story5 && Number.isInteger(saved.meta.story5.s) ? { s: Math.max(0, Math.min(2, saved.meta.story5.s)), n: Math.max(0, Number(saved.meta.story5.n) || 0) } : null,
         story4: saved.meta?.story4 && Number.isInteger(saved.meta.story4.s) ? { s: Math.max(0, Math.min(2, saved.meta.story4.s)), closed: Math.max(0, Number(saved.meta.story4.closed) || 0) } : null,
         secrets: Array.isArray(saved.meta?.secrets) ? saved.meta.secrets.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 20) : [],

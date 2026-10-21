@@ -58,7 +58,7 @@ class CharacterController extends Controller
             'perks.*' => ['string', 'max:24', 'regex:/^[a-z_]+$/'],
             'achievements' => ['nullable', 'array', 'max:300'],
             'achievements.*' => ['string', 'max:24', 'regex:/^[a-z_0-9]+$/'],
-            'meta' => ['nullable', 'array', 'max:30'],
+            'meta' => ['nullable', 'array', 'max:48'],   // one key per system; raise this when a new one is added
             'meta.visited' => ['nullable', 'array', 'max:80'],
             'meta.visited.*' => ['string', 'max:16', 'regex:/^-?\d+,-?\d+$/'],
             'meta.second_wind' => ['nullable', 'boolean'],
@@ -101,6 +101,7 @@ class CharacterController extends Controller
             'meta.story2.s' => ['required_with:meta.story2', 'integer', 'min:0', 'max:3'],
             'meta.story3' => ['nullable', 'array:s'],
             'meta.story3.s' => ['required_with:meta.story3', 'integer', 'min:0', 'max:2'],
+            'meta.delve' => ['nullable', 'string', 'regex:/^\d{4}-\d{2}-\d{2}$/'],
             'meta.story5' => ['nullable', 'array:s,n'],
             'meta.story5.s' => ['required_with:meta.story5', 'integer', 'min:0', 'max:2'],
             'meta.story5.n' => ['nullable', 'integer', 'min:0', 'max:100000'],
