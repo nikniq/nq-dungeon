@@ -84,7 +84,7 @@ class CharacterController extends Controller
             'meta.looted.*' => ['string', 'max:24', 'regex:/^-?\d+,-?\d+$/'],
             'meta.found' => ['nullable', 'array', 'max:20'],
             'meta.found.*' => [Rule::in(array_keys(config('items.relics')))],
-            'meta.bestiary' => ['nullable', 'array', 'max:40'],
+            'meta.bestiary' => ['nullable', 'array', 'max:120'],
             'meta.bestiary.*' => ['integer', 'min:0', 'max:1000000'],
             'meta.blessing' => ['nullable', 'array'],
             'meta.blessing.turns' => ['required_with:meta.blessing', 'integer', 'min:0', 'max:5000'],

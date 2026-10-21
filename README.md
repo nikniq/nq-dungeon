@@ -390,6 +390,19 @@ The public story page at `/world/story` (`StoryController`, `config/story.php`)
 tells both stories and carries a discussion thread under each that signed-in
 heroes can post to (`story_posts`, 600 characters, throttled).
 
+## Monsters with tricks
+
+Beyond the brutes, five monsters fight differently (`MONSTER_TYPES` flags):
+the **Thief** (floor 2+) grabs a tenth of your gold on a hit and runs for the
+dark, vanishing for good if it gets far enough; kill it first and the gold
+drops back. The **Shaman** (3+) keeps its distance, spits hexes and mends every
+wound within two tiles of it each turn. The **Bomber** (3+) goes off when it
+dies, whoever killed it, hurting everything beside it. The **Basilisk** (5+)
+has a bite that can turn you to stone for a turn (`player.stunned`). The **Cave
+troll** (6+) regenerates two points a turn unless it is burning. They join the
+site pools (thieves and bombers in caves and warrens, shamans in warrens,
+basilisks in crypts) and the town dungeons by floor, with bestiary entries.
+
 ## Magic items
 
 Weapons and armour dropped underground (and from chests) may come enchanted:

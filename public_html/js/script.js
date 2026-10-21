@@ -40,6 +40,13 @@ const MONSTER_TYPES = [
   { name: 'Wyrm',     sprite: 'wyrm',     hp: 30, atk: 9, xp: 60, minFloor: 99, noSpawn: true },
   { name: 'Direwolf', sprite: 'direwolf', hp: 18, atk: 7, xp: 30, minFloor: 99, noSpawn: true },
   { name: 'Troll',    sprite: 'troll',    hp: 28, atk: 8, xp: 50, minFloor: 99, noSpawn: true },
+  // the ones with tricks: a thief who robs and runs, a shaman who mends its pack and keeps its distance,
+  // a troll that knits itself back together, a basilisk whose bite turns you to stone, a goblin with a bomb
+  { name: 'Thief',    sprite: 'thief',    hp: 6,  atk: 2, xp: 8,  minFloor: 2, thief: true },
+  { name: 'Shaman',   sprite: 'shaman',   hp: 7,  atk: 1, xp: 14, minFloor: 3, ranged: 3, healer: true },
+  { name: 'Bomber',   sprite: 'bomber',   hp: 5,  atk: 2, xp: 10, minFloor: 3, bomber: true },
+  { name: 'Basilisk', sprite: 'basilisk', hp: 14, atk: 4, xp: 22, minFloor: 5, gaze: true },
+  { name: 'Cave troll', sprite: 'cavetroll', hp: 22, atk: 6, xp: 34, minFloor: 6, regen: 2 },
 ];
 // Hero classes: base stats, a sprite, and one ability on the 1 key.
 // Abilities run on mana: a pool that grows with level and refills a point a turn.
@@ -905,6 +912,11 @@ const MONSTER_LORE = {
   Wyrm: 'The last of the old dragons, or near enough. It sleeps on gold and wakes hungry.',
   Direwolf: 'A wolf the size of a horse, with a pack that follows it like a shadow.',
   Troll: 'Trolls regrow what you cut off. Hit them hard, hit them often, and do not stop to admire your work.',
+  Thief: 'A goblin with ambition. It will take a tenth of your purse in one grab and run for the dark; cut it down before it is gone and the gold comes back.',
+  Shaman: 'The clever one of a goblin pack. It keeps its distance, spits hexes, and mends every wound around it. Kill it first.',
+  Bomber: 'A goblin with a clay pot of pitch and a short fuse. Whatever kills it, it goes off, and it goes off beside you by choice.',
+  Basilisk: 'A lizard the length of a man with a gaze that stiffens the blood. Its bite can leave you standing stone-still for a turn while it takes another.',
+  'Cave troll': 'The grey troll of the deep halls knits its flesh back together as you watch. Fire stops the knitting.',
   Mimic: 'Not every chest wants to be opened. Some want to open you. Mimics pay well, if you live.',
 };
 function journalKey(e) {
@@ -1235,6 +1247,9 @@ BIG_SPRITES.slime = ['................', '................', '................',
 BIG_SPRITES.necromancer = ['......kkkk......', '.....kkkkkk.....', '....kkkkkkkk....', '....kkwwwwkk....', '....kwkwwkwk....', '....kkwwwwkk....', '.....kkkkkk.....', '....kpppppppk...', '...kppppppppkc..', '..wkppppppppkh..', '..w.kpppppppkh..', '....kpppppppkh..', '....kpppppppkh..', '....kpppppppkh..', '...kkkk..kkkkh..', '................'];
 BIG_SPRITES.mimic = ['................', '................', '..hhhhhhhhhhhh..', '.hHHHHHHHHHHHHh.', '.hHhhhhhhhhhhHh.', '.hHhrkhhhhrkhHh.', '.hHHHHHyyHHHHHh.', '.wkwkwkwkwkwkwk.', '.kkrrrrrrrrrrkk.', '.wkwkwkwkwkwkwk.', '.hHHHHHHHHHHHHh.', '.hHhhhhhhhhhhHh.', '.hHHHHHHHHHHHHh.', '..hhhhhhhhhhhh..', '..h..........h..', '................'];
 BIG_SPRITES.abyss = ['................', '....EEEEEEEE....', '...EeeeeeeeeE...', '..EeEEEEEEEEeE..', '..EeEkkkkkkEeE..', '..EeEkkppkkEeE..', '..EeEkpPPpkEeE..', '..EeEkpPPpkEeE..', '..EeEkkppkkEeE..', '..EeEkkkkkkEeE..', '..EeEkkkkkkEeE..', '..EeEkkkkkkEeE..', '.EEEEEEEEEEEEEE.', 'GGGGGGGGGGGGGGGG', '.GGGGGGGGGGGGGG.', '................'];
+BIG_SPRITES.thief = BIG_SPRITES.goblin.map((r) => r.replace(/g/g, 'e').replace(/G/g, 'E'));      // a goblin in grey rags
+BIG_SPRITES.shaman = BIG_SPRITES.goblin.map((r) => r.replace(/G/g, 'p').replace(/w/g, 'y'));      // in a purple robe, with a bone in its teeth
+BIG_SPRITES.bomber = BIG_SPRITES.goblin.map((r, i) => (i === 0 ? '....g..oo..g....' : r.replace(/G/g, 'r')));   // red-jacketed, fuse lit
 BIG_SPRITES.wolf = BIG_SPRITES.hound.map((r) => r.replace(/h/g, 'e').replace(/H/g, 'E'));      // a grey hound is a wolf
 BIG_SPRITES.husky = BIG_SPRITES.hound.map((r) => r.replace(/h/g, 'w').replace(/H/g, 'e'));     // and a white one a husky
 BIG_SPRITES.mongoose = BIG_SPRITES.cat.map((r) => r.replace(/t/g, 'h'));                      // a brown cat shape is a mongoose
@@ -1255,7 +1270,9 @@ BIG_SPRITES.soldier = ['.....eeeeee.....', '....eeeeeeee....', '....eessssee....
 BIG_SPRITES.ship = ['.......w........', '.......ww.......', '.......www......', '.......wwww.....', '.......wwwww....', '.......wwwwww...', '.......wwwww....', '.......www......', '.......w........', '..HHHHHHHHHHHH..', '.HhhhhhhhhhhhhH.', '.HhhhhhhhhhhhhH.', '..HHHHHHHHHHHH..', '...hhhhhhhhhh...', '................', '................'];
 BIG_SPRITES.wyrm = ['......kk........', '.....krrk.......', '....krrrrk......', '...krrkrrrk.....', '..krrrrrrrrk....', '..krryyrrrrk....', '...krrrrrrrrk...', '....krrrrrrrk...', '.....krrrrrrrrk.', '....krrrrrrrrrk.', '...krrrkkrrrrk..', '..krrrk..krrk...', '..krrk....kk....', '...kk...........', '................', '................'];
 BIG_SPRITES.direwolf = ['................', '................', '..kk........kk..', '..kkk......kkk..', '..kkkkkkkkkkkk..', '..kkrkkkkkkrkk..', '..kkkkkkkkkkkk..', '...kkkwwkkkkk...', '....kkkkkkkk....', '..kkkkkkkkkkkkk.', '.kkkkkkkkkkkkkkk', '.kkkkkkkkkkkkkk.', '..kk.kk..kk.kk..', '..kk.kk..kk.kk..', '................', '................'];
+BIG_SPRITES.basilisk = ['................', '................', '..............GG', '.............GkG', '............GGGG', '....GGGGGGGGGGy.', '...GGgGGGGGGGG..', '..GGGGGGGgGGG...', '..GGgGGGGGGGG...', '...GG.GG.GG.....', '...GG.GG.GG.....', '...HH.HH.HH.....', '................', '................', '................', '................'];
 BIG_SPRITES.troll = ['.....GGGGGG.....', '....GGGGGGGG....', '....GGkGGkGG....', '....GGGGGGGG....', '.....GGwwGG.....', '....GGGGGGGG....', '..GGGGGGGGGGGG..', '.GGGGGGGGGGGGGG.', '.GGhGGGGGGGGhGG.', '.GGhGGGGGGGGhGG.', '..GGGGGGGGGGGG..', '...GGGGGGGGGG...', '...GGGG..GGGG...', '...GGGG..GGGG...', '..HHHHH..HHHHH..', '................'];
+BIG_SPRITES.cavetroll = BIG_SPRITES.troll.map((r) => r.replace(/G/g, 'E').replace(/g/g, 'e'));   // the grey, deep-dwelling kind
 BIG_SPRITES.totem = ['......kkkk......', '.....krrrrk.....', '.....kryyrk.....', '.....krrrrk.....', '......kkkk......', '.....hhhhhh.....', '....hkkhhkkh....', '....hhhhhhhh....', '.....hyyyyh.....', '.....hhhhhh.....', '....hkkhhkkh....', '....hhhhhhhh....', '.....hhhhhh.....', '....HHHHHHHH....', '...HHHHHHHHHH...', '................'];
 BIG_SPRITES.captive = ['.....hhhhhh.....', '....hhhhhhhh....', '....hhsssshh....', '....hsssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....HHHHHHHH....', '...HHHHHHHHHH...', '..EEHHHHHHHHEE..', '..E.HHHHHHHH.E..', '....HHHHHHHH....', '....HHH..HHH....', '..EEEEE..EEEEE..', '...HH......HH...', '................'];
 const spriteCache = {};
@@ -1513,9 +1530,9 @@ const DEEP_CELL = [1, -1];
 const floorText = () => (dungeonDef && dungeonDef.arena ? `wave ${ARENA.wave} (best ${player.meta.arena || 0})` : dungeonDef && dungeonDef.endless ? `floor ${floor} (record ${player.meta.deepest || floor})` : `${floor}/${dungeonDef ? dungeonDef.floors : FINAL_FLOOR}`);
 const DEEP_THEMES = ['stone', 'moss', 'flooded', 'bone', 'lava', 'arcane'];
 const SITE_TYPES = {
-  cave:   { label: 'Goblin Cave', sprite: 'cave',   floors: [2, 3], pool: byName('Rat', 'Goblin', 'Bat', 'Spider', 'Orc', 'Slime'), gold: 1.6, potions: 1, view: 7, loot: 0.12, treasure: 60, prefixes: ['Mossy', 'Dripping', 'Echoing', 'Low', 'Black'] },
-  warren: { label: 'Orc Warren',  sprite: 'warren', floors: [2, 2], pool: byName('Goblin', 'Archer', 'Orc'),         gold: 1.2, potions: 1, view: 8, loot: 0.3,  treasure: 80, prefixes: ['Bloody', 'Broken-Tusk', 'Red', 'Grim', 'Ironhide'] },
-  crypt:  { label: 'Crypt',       sprite: 'crypt',  floors: [3, 3], pool: byName('Skeleton', 'Spider', 'Wraith', 'Necromancer'),    gold: 1,   potions: 1, view: 6, loot: 0.15, treasure: 120, prefixes: ['Forgotten', 'Silent', 'Weeping', 'Sunken', 'Nameless'], xp: 1.5 },
+  cave:   { label: 'Goblin Cave', sprite: 'cave',   floors: [2, 3], pool: byName('Rat', 'Goblin', 'Bat', 'Spider', 'Orc', 'Slime', 'Thief', 'Bomber'), gold: 1.6, potions: 1, view: 7, loot: 0.12, treasure: 60, prefixes: ['Mossy', 'Dripping', 'Echoing', 'Low', 'Black'] },
+  warren: { label: 'Orc Warren',  sprite: 'warren', floors: [2, 2], pool: byName('Goblin', 'Archer', 'Orc', 'Shaman', 'Bomber'),         gold: 1.2, potions: 1, view: 8, loot: 0.3,  treasure: 80, prefixes: ['Bloody', 'Broken-Tusk', 'Red', 'Grim', 'Ironhide'] },
+  crypt:  { label: 'Crypt',       sprite: 'crypt',  floors: [3, 3], pool: byName('Skeleton', 'Spider', 'Wraith', 'Necromancer', 'Basilisk'),    gold: 1,   potions: 1, view: 6, loot: 0.15, treasure: 120, prefixes: ['Forgotten', 'Silent', 'Weeping', 'Sunken', 'Nameless'], xp: 1.5 },
   deep:   { label: 'The Deep', sprite: 'abyss', floors: [99, 99], pool: null, gold: 1.6, potions: 1.3, view: 7, loot: 0.22, treasure: 0, prefixes: [''], xp: 1.5 },
   tower:  { label: "Wizard's Tower", sprite: 'tower', floors: [3, 4], pool: byName('Wraith', 'Skeleton', 'Bat', 'Archer', 'Necromancer'), gold: 1.3, potions: 2, view: 9, loot: 0.18, treasure: 200, prefixes: ['Leaning', 'Glass', 'Moonlit', 'Shattered', 'Violet'] },
 };
@@ -6058,7 +6075,7 @@ function playerAttack(m) {
 }
 function killMonster(m) {
   if (m.id) { mp.dead.add(m.id); mp.graveyard.set(m.id, m); }
-  if (m.mod === 'explosive') {
+  if (m.mod === 'explosive' || m.type.bomber) {
     const blast = 3 + floor;
     burst(m.x, m.y, '#ff9f43', 36, 180, { glow: true, life: 600, size: 3 }); shakeScreen(5); sfx.play('fire');
     log(`The ${mName(m)} bursts!`, 'bad');
@@ -6166,6 +6183,8 @@ function monsterAttack(m, ranged = false) {
     player.meta.second_wind = true; player.hp = 1;
     log('Second wind! You refuse to fall.', 'good'); unlock('survivor'); sfx.play('shield');
   }
+  if (m.type.thief && !m.loot && player.gold > 0) { const take = Math.min(player.gold, Math.max(5, Math.floor(player.gold * 0.1))); player.gold -= take; m.loot = take; m.purse = (m.purse || 0) + take; m.fleeUntil = turn + 12; log(`The thief snatches ${take} gold from your belt and runs for the dark!`, 'bad'); floatText(player.x, player.y, `-${take}g`, '#f5c542'); tip('thief', 'Thieves grab a tenth of your purse and run. Kill one before it gets away and the gold drops back.'); }
+  if (m.type.gaze && !player.stunned && Math.random() < 0.3) { player.stunned = 1; log('The basilisk\'s eyes catch yours. Your limbs turn to stone!', 'bad'); floatText(player.x, player.y, 'petrified', '#cbd5e1'); sfx.play('shield'); }
   if (m.type.poison && !player.poison && !wearing('frostheart') && !(aa && aa.id === 'warded') && Math.random() < 0.5) { player.poison = 4; log('You are poisoned! A potion will cure it.', 'bad'); sfx.play('poison'); tip('poison', 'Poison costs 1 HP a turn for four turns. Any potion cures it. Press P to drink one from your bag.'); }
   if (ranged) { for (let d = 1; d < Math.abs(m.x - player.x) + Math.abs(m.y - player.y); d++) floatText(m.x + Math.sign(player.x - m.x) * d, m.y + Math.sign(player.y - m.y) * d, '➤', '#d9b382'); }
   const now = performance.now();
@@ -6189,6 +6208,8 @@ function stepMonsters(swiftOnly = false, heroes = null) {
     for (const st of ['burn', 'venom']) { const e = m[st]; if (!e || e.t <= 0 || swiftOnly) continue; e.t--; m.hp -= e.d; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${e.d}`, st === 'burn' ? '#ff9f43' : '#7ad36b'); if (e.t <= 0) m[st] = null; }
     if (m.hp <= 0) { if (coopMember()) coopHit(m, 0, 'hero'); else killMonster(m); continue; }
     if (m.stunned > 0) { m.stunned--; continue; }
+    if (m.type.regen && m.hp < m.maxHp && !(m.burn && m.burn.t > 0)) { const h = Math.min(m.type.regen, m.maxHp - m.hp); m.hp += h; if (isVisible(m.x, m.y)) floatText(m.x, m.y, `+${h}`, '#9ef0b0'); }
+    if (m.type.healer) { let mended = 0; for (const o of monsters) { if (o !== m && o.hp > 0 && o.hp < o.maxHp && cheb(o, m) <= 2) { const h = Math.min(2, o.maxHp - o.hp); o.hp += h; mended++; if (isVisible(o.x, o.y)) floatText(o.x, o.y, `+${h}`, '#9ef0b0'); } } if (mended && isVisible(m.x, m.y) && Math.random() < 0.3) log('The shaman chants, and its pack\'s wounds close.', 'bad'); }
     let hi = 0, hd = Infinity;
     heroes.forEach((h, i) => { const dd = cheb(m, h); if (dd < hd) { hd = dd; hi = i; } });
     if (m.horde && (hd > 6 || !m.awake)) { if (!swiftOnly) hordeStep(m); continue; }   // the hosts of Midgard have a town to burn
@@ -6207,6 +6228,12 @@ function stepMonsters(swiftOnly = false, heroes = null) {
       const gd = npcs.find((n) => n.type.guard && !n.down && dist(m, n) === 1);
       if (gd && !heroes.some((h) => dist(m, h) === 1) && (m.awake || Math.random() < 0.5)) { m.awake = true; guardHurt(gd, m); continue; }
     }
+    if (m.type.thief && m.loot && m.fleeUntil > turn) {   // away from the hero, and gone for good once far enough
+      if (dist(m, H) > 9 || !isVisible(m.x, m.y) && dist(m, H) > 6) { log(`The thief vanishes into the dark with your ${m.loot} gold.`, 'bad'); monsters = monsters.filter((x) => x !== m); monsterIndex.delete(key(m.x, m.y)); monstersDirty = true; continue; }
+      let best = null, bestD = dist(m, H);
+      for (const [dx, dy] of DIRS) { const nx = m.x + dx, ny = m.y + dy; if (walkable(getTile(nx, ny)) && getTile(nx, ny) !== TILE.LAVA && !getMonsterAt(nx, ny) && !houndAt(nx, ny) && !heroAt(nx, ny) && dist({ x: nx, y: ny }, H) > bestD) { bestD = dist({ x: nx, y: ny }, H); best = [nx, ny]; } }
+      if (best) { moveMonster(m, best[0], best[1]); continue; }
+    }
     const adjacent = heroes.find((h) => dist(m, h) === 1);
     if (adjacent) { strike(m, adjacent, false); continue; }
     if (!m.awake) continue;
@@ -6223,7 +6250,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
     const dirs = DIRS.slice().sort(() => Math.random() - 0.5);
     if (m.type.erratic && Math.random() < 0.5) bestD = Infinity;   // bats flap about
     if (m.type.raiser) { m.raiseCd = (m.raiseCd ?? 1) - 1; if (m.raiseCd <= 0 && dist(m, H) <= 7 && raiseDead(m)) { m.raiseCd = 4; continue; } }
-    if ((m.type.ranged && dist(m, H) <= 2) || (m.type.raiser && dist(m, H) <= 3)) {
+    if ((m.type.ranged && dist(m, H) <= 2) || (m.type.raiser && dist(m, H) <= 3) || (m.type.healer && dist(m, H) <= 3)) {
       // archers back off to shoot again
       for (const [dx, dy] of dirs) {
         const nx = m.x + dx, ny = m.y + dy;
@@ -6482,6 +6509,7 @@ function leaveDungeon() {
 }
 function tryMove(dx, dy) {
   if (gameOver || !player || shopOpen || perkChoices || entering || storyOpen() || controlsOpen() || settingsOpen()) return;
+  if (player.stunned > 0) { player.stunned--; log('Your limbs are stone. The turn passes.', 'bad'); floatText(player.x, player.y, 'stone', '#cbd5e1'); endTurn(false); return; }
   const nx = player.x + dx, ny = player.y + dy;
   const t = getTile(nx, ny);
   if (t === TILE.WALL && scene === 'world' && groundAt(nx, ny) === GROUND.WATER) {
