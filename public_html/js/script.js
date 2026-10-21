@@ -5622,7 +5622,7 @@ function drawScene(now) {
       ctx.globalAlpha = 1; ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
     }
   }
-  if (mapOpen) drawWorldMap(ctx, now);
+  if (mapOpen) { if (scene === 'dungeon') drawDungeonMap(ctx, now); else drawWorldMap(ctx, now); }
   if (questsOpen) drawQuests(ctx);
   if (journalOpen) drawJournal(ctx);
   if (perkChoices) drawPerks(ctx);
@@ -5664,9 +5664,59 @@ function mapClick(px, py) {
 const MAP_COLORS = ['#3f7d3a', '#2f5f2c', '#dfc78f', '#1d4ed8', '#6b7280', '#a8865a', '#6b7280', '#2e7d32'];
 
 function toggleMap() {
-  if (scene !== 'world') { log('The map shows the surface. You are ' + (scene === 'dungeon' ? 'underground.' : 'indoors.')); return; }
+  if (scene === 'house') { log('The map shows the surface. You are indoors.'); return; }
   mapOpen = !mapOpen;
+  if (mapOpen && scene === 'dungeon') tip('dmap', 'The dungeon map shows every tile you have seen on this floor: stairs, the way-out door, chests, springs, altars, trial stones and traps you have found. M or Esc closes it.');
   draw();
+}
+// The dungeon map: everything the hero has seen on this floor, scaled to fit, with
+// the things worth going back for picked out, and the way down marked.
+const DMAP_COLOURS = { [TILE.WALL]: '#2b3648', [TILE.FLOOR]: '#6b7280', [TILE.EXIT]: '#ffd86b', [TILE.WAYOUT]: '#f5c542', [TILE.CHEST]: '#e0a040', [TILE.SPRING]: '#7bdfff', [TILE.ALTAR]: '#b18cff', [TILE.TRIAL]: '#ff8c5a', [TILE.TOTEM]: '#7ad36b', [TILE.LAVA]: '#e74c3c', [TILE.CRACK]: '#9ca3af', [TILE.DOOR]: '#8b5a2b', [TILE.SHOP]: '#ffd86b', [TILE.CAPTIVE]: '#ff9ecf', [TILE.LEVER]: '#c0c0c0', [TILE.TRAP]: '#ff6b6b' };
+const DMAP_LEGEND = [['Stairs down', '#ffd86b'], ['Way out', '#f5c542'], ['Chest', '#e0a040'], ['Spring', '#7bdfff'], ['Altar', '#b18cff'], ['Trial', '#ff8c5a'], ['Trap', '#ff6b6b'], ['Lava', '#e74c3c'], ['Foe', '#ff5c5c'], ['You', '#5fe17a']];
+function drawDungeonMap(g, now) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const seenAt = [];
+  for (const [k, ch] of chunks) {
+    const [cx, cy] = k.split(',').map(Number);
+    for (let i = 0; i < ch.seen.length; i++) {
+      if (ch.seen[i] !== 1) continue;
+      const x = cx * CHUNK + (i % CHUNK), y = cy * CHUNK + Math.floor(i / CHUNK), t = ch.tiles[i];
+      if (t === TILE.WALL && !isNearFloor(ch, i)) continue;
+      seenAt.push([x, y, t]); if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+  }
+  g.fillStyle = 'rgba(6,12,20,0.94)'; g.fillRect(0, 0, canvas.width, canvas.height);
+  const title = `${dungeonDef ? dungeonDef.name[0].toUpperCase() + dungeonDef.name.slice(1) : 'Dungeon'} · ${floorText()}`;
+  g.fillStyle = '#e6eef8'; g.font = 'bold 18px sans-serif'; g.textAlign = 'center'; g.fillText(title, canvas.width / 2, 34);
+  if (!seenAt.length) { g.fillStyle = '#9ca3af'; g.font = '14px sans-serif'; g.fillText('You have seen nothing of this floor yet.', canvas.width / 2, canvas.height / 2); g.textAlign = 'left'; return; }
+  const top = 52, bottom = canvas.height - 44, side = 24;
+  const px = Math.max(2, Math.min(10, Math.floor(Math.min((canvas.width - side * 2) / (x1 - x0 + 1), (bottom - top) / (y1 - y0 + 1)))));
+  const W = (x1 - x0 + 1) * px, H = (y1 - y0 + 1) * px, X = Math.floor((canvas.width - W) / 2), Y = top + Math.floor((bottom - top - H) / 2);
+  const at = (x, y) => [X + (x - x0) * px, Y + (y - y0) * px];
+  for (const [x, y, t] of seenAt) {
+    const [sx, sy] = at(x, y);
+    const shown = t === TILE.TRAP && !revealedTraps.has(key(x, y)) ? TILE.FLOOR : t;
+    g.fillStyle = DMAP_COLOURS[shown] || '#6b7280'; g.fillRect(sx, sy, px, px);
+    if (px >= 4 && shown !== TILE.WALL && shown !== TILE.FLOOR) { g.strokeStyle = '#0b1220'; g.lineWidth = 1; g.strokeRect(sx + 0.5, sy + 0.5, px - 1, px - 1); }
+  }
+  for (const m of monsters) { if (m.hp <= 0 || !isVisible(m.x, m.y)) continue; const [sx, sy] = at(m.x, m.y); g.fillStyle = m.boss ? '#ff2d55' : '#ff5c5c'; g.fillRect(sx, sy, px, px); }
+  if (escort) { const [sx, sy] = at(escort.x, escort.y); g.fillStyle = '#ff9ecf'; g.fillRect(sx, sy, px, px); }
+  for (const pp of livePets()) { const [sx, sy] = at(pp.x, pp.y); g.fillStyle = '#9ef0b0'; g.fillRect(sx, sy, px, px); }
+  { const [sx, sy] = at(player.x, player.y); const pulse = 0.6 + 0.4 * Math.sin(now / 200); g.fillStyle = `rgba(95,225,122,${pulse})`; g.fillRect(sx - 1, sy - 1, px + 2, px + 2); }
+  const stairs = seenAt.find(([, , t]) => t === TILE.EXIT), door = seenAt.find(([, , t]) => t === TILE.WAYOUT);
+  if (stairs && px >= 3) { const [sx, sy] = at(stairs[0], stairs[1]); g.fillStyle = '#ffd86b'; g.font = 'bold 11px sans-serif'; g.fillText('▼ stairs', sx + px / 2, sy - 3); }
+  if (door && px >= 3) { const [sx, sy] = at(door[0], door[1]); g.fillStyle = '#f5c542'; g.font = 'bold 11px sans-serif'; g.fillText('way out', sx + px / 2, sy - 3); }
+  // the legend, and the way to close it
+  g.font = '11px sans-serif'; g.textAlign = 'left';
+  let lx = Math.max(12, Math.floor((canvas.width - DMAP_LEGEND.length * 74) / 2)), ly = canvas.height - 22;
+  for (const [label, col] of DMAP_LEGEND) { g.fillStyle = col; g.fillRect(lx, ly - 9, 10, 10); g.fillStyle = '#cfe9ff'; g.fillText(label, lx + 14, ly); lx += 74; }
+  g.fillStyle = '#9ca3af'; g.textAlign = 'center'; g.fillText(`${seenAt.filter(([, , t]) => t !== TILE.WALL).length} tiles seen · M or Esc closes the map`, canvas.width / 2, canvas.height - 6); g.textAlign = 'left';
+}
+// walls only show on the map where they border something seen and open, so the map reads as rooms, not a block
+function isNearFloor(ch, i) {
+  const x = i % CHUNK, y = Math.floor(i / CHUNK);
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= CHUNK || ny >= CHUNK) continue; const j = ny * CHUNK + nx; if (ch.seen[j] === 1 && ch.tiles[j] !== TILE.WALL) return true; }
+  return false;
 }
 function renderWorldMap() {
   const W = Math.floor((canvas.width - 40) / MAP_PX), H = Math.floor((canvas.height - 96) / MAP_PX);  // samples
@@ -6096,7 +6146,7 @@ canvas.addEventListener('mousedown', (e) => {
   if (e.button !== 0 || isTouch) return;
   if (journalOpen) { const { px, py } = canvasPoint(e.clientX, e.clientY); journalClick(px, py); return; }
   if (perkChoices || shopOpen) return;
-  if (mapOpen) { const { px, py } = canvasPoint(e.clientX, e.clientY); if (mapClick(px, py)) return; }
+  if (mapOpen && scene === 'world') { const { px, py } = canvasPoint(e.clientX, e.clientY); if (mapClick(px, py)) return; }
   if (mapOpen || questsOpen) { mapOpen = false; questsOpen = false; draw(); return; }
   if (gameOver) return;
   e.preventDefault();
@@ -8282,7 +8332,7 @@ canvas.addEventListener('pointerdown', (e) => {
   sfx.unlock();
   if (perkChoices) { perkClick(e); return; }
   if (journalOpen) { const { px, py } = canvasPoint(e.clientX, e.clientY); journalClick(px, py); return; }
-  if (mapOpen) { const { px, py } = canvasPoint(e.clientX, e.clientY); if (mapClick(px, py)) return; }
+  if (mapOpen && scene === 'world') { const { px, py } = canvasPoint(e.clientX, e.clientY); if (mapClick(px, py)) return; }
   if (mapOpen || questsOpen) { mapOpen = false; questsOpen = false; draw(); return; }
   if (gameOver) { init(); return; }
   if (shopOpen) return;
@@ -8294,7 +8344,7 @@ canvas.addEventListener('pointerdown', (e) => {
     else if (btn.id === 'ability3') useAbility(null, 2);
     else if (btn.id === 'potion') drinkPotion();
     else if (btn.id === 'wait') wait();
-    else if (btn.id === 'map') { if (scene === 'world') toggleMap(); else { questsOpen = true; draw(); } }
+    else if (btn.id === 'map') { if (scene === 'house') { questsOpen = true; draw(); } else toggleMap(); }
     else if (btn.id === 'journal') { journalOpen = true; draw(); }
     else if (btn.id === 'camp') makeCamp();
     return;

@@ -104,6 +104,12 @@ stairs or the way-out door (monsters go for them too); a goblin totem that calls
 goblin every six turns until smashed; a lever that sinks every trap on the floor;
 and a dungeon altar with an offering, a drink from the font, or nothing.
 
+Press M underground for the dungeon map (`drawDungeonMap`): every tile seen on
+this floor, scaled to fit, with the stairs down, the way-out door, chests,
+springs, altars, trial stones, found traps, lava, visible foes, your pets and
+you picked out in colour, and a legend. M or Esc closes it; the mobile map
+button opens it too.
+
 Some rooms from the second floor down hold a ring of trial stones (`TILE.TRIAL`,
 `TRIALS`): walk in and take up the Trial of the Swarm (stand twelve turns while a
 monster arrives every other turn) or the Trial of Blood (five at once, all dead
