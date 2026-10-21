@@ -19,10 +19,13 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
+    protected $casts = ['is_admin' => 'boolean', 'email_verified_at' => 'datetime', 'password' => 'hashed'];
+
     protected $fillable = [
         'name',
         'email',
         'password',
+        'is_admin',
     ];
 
     /**

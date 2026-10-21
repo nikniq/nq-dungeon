@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\GoogleAuthController;
@@ -56,4 +57,20 @@ Route::middleware('auth')->group(function () {
     Route::post('/api/mp/leave', [MultiplayerController::class, 'leave'])->name('mp.leave');
     Route::post('/api/mp/enter', [MultiplayerController::class, 'enter'])->name('mp.enter');
     Route::post('/api/mp/floor', [MultiplayerController::class, 'floor'])->name('mp.floor');
+});
+
+// the admin section: users, heroes, posts and structures, for users with the admin flag
+Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/', [AdminController::class, 'index'])->name('index');
+    Route::get('/users', [AdminController::class, 'users'])->name('users');
+    Route::post('/users/{user}/admin', [AdminController::class, 'toggleAdmin'])->name('users.toggle');
+    Route::delete('/users/{user}', [AdminController::class, 'destroyUser'])->name('users.destroy');
+    Route::get('/heroes', [AdminController::class, 'heroes'])->name('heroes');
+    Route::post('/heroes/{character}', [AdminController::class, 'updateHero'])->name('heroes.update');
+    Route::post('/heroes/{character}/reset', [AdminController::class, 'resetHero'])->name('heroes.reset');
+    Route::get('/posts', [AdminController::class, 'posts'])->name('posts');
+    Route::delete('/posts/{post}', [AdminController::class, 'destroyPost'])->name('posts.destroy');
+    Route::get('/structures', [AdminController::class, 'structures'])->name('structures');
+    Route::delete('/projects/{project}', [AdminController::class, 'destroyProject'])->name('projects.destroy');
+    Route::delete('/buildings/{building}', [AdminController::class, 'destroyBuilding'])->name('buildings.destroy');
 });

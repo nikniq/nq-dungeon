@@ -92,6 +92,17 @@ echo "34 : CONFIG: key settings on the server (no secrets)"
 echo "35 : DISK: what is using space"
 echo "36 : PHP: version and loaded extensions"
 echo ----------------------------------------------
+echo "ADMIN & OPERATIONS — players and the shared world"
+echo "40 : ADMIN: grant the admin flag to a user (email)"
+echo "41 : ADMIN: revoke the admin flag (email)"
+echo "42 : ADMIN: list admins, and open $APP_URL/admin"
+echo "43 : PLAYERS: numbers (users, heroes, active, gold, structures, posts)"
+echo "44 : PLAYERS: find a hero or user (name or email)"
+echo "45 : SAVES: rejected saves in the log (422s: a cap or a bad field)"
+echo "46 : HERO: rescue a stuck hero back to town at full health (hero name)"
+echo "47 : WORLD: latest sponsored structures, monuments and story posts"
+echo "48 : WORLD: remove a sponsored structure by id  [changes the shared world]"
+echo ----------------------------------------------
 echo MAINTENANCE
 echo "70 : ENV: edit .env on the server"
 echo "71 : PERMISSIONS: fix storage/ and bootstrap/cache"
@@ -103,7 +114,8 @@ echo ACCESS
 echo "00 : CONNECT: ssh to $REMOTE"
 echo "01 : SSH KEY: copy your public key to the server"
 echo "05 : MONITOR: remote top"
-echo "91 : BACKUP: download database and storage/ to $BACKUP_DIR"
+echo "91 : BACKUP: download database (MySQL dump or SQLite) and storage/ to $BACKUP_DIR"
+echo "92 : BACKUPS: list what has been downloaded"
 echo "qq : Exit [Quit]"
 echo Enter [Selection] to continue
 echo =============================================================
@@ -275,6 +287,89 @@ case "$SELECTION" in
 
 
   #-------------------------------------------------------------
+  # ADMIN & OPERATIONS
+  #-------------------------------------------------------------
+
+  "40" )
+  banner "ADMIN: grant the admin flag"
+  need_param "email of the user"
+  remote "php artisan admin:grant '$PARAM2'"
+  log_history "Granted admin to $PARAM2 on $PROJECT"
+  ;;
+
+
+  "41" )
+  banner "ADMIN: revoke the admin flag"
+  need_param "email of the user"
+  confirm "Revoke admin from $PARAM2?"
+  remote "php artisan admin:grant '$PARAM2' --revoke"
+  log_history "Revoked admin from $PARAM2 on $PROJECT"
+  ;;
+
+
+  "42" )
+  banner "ADMIN: who is an admin on $PROJECT"
+  remote "php artisan tinker --execute '\App\Models\User::where(\"is_admin\", true)->get([\"id\", \"name\", \"email\"])->each(fn (\$u) => print(\$u->id.\"  \".\$u->name.\"  \".\$u->email.PHP_EOL));'"
+  echo
+  echo "Admin section: $APP_URL/admin"
+  command -v open >/dev/null 2>&1 && open "$APP_URL/admin"
+  ;;
+
+
+  "43" )
+  banner "PLAYERS: numbers on $PROJECT"
+  remote "php artisan tinker --execute '
+    printf(\"users %d (admins %d)\n\", \App\Models\User::count(), \App\Models\User::where(\"is_admin\", true)->count());
+    printf(\"heroes %d, active this week %d, highest level %d, gold in circulation %d\n\", \App\Models\Character::count(), \App\Models\Character::where(\"updated_at\", \">=\", now()->subWeek())->count(), (int) \App\Models\Character::max(\"level\"), (int) \App\Models\Character::sum(\"gold\"));
+    printf(\"monuments %d, sponsored structures %d, story posts %d\n\", \App\Models\TownBuilding::count(), \App\Models\TownProject::count(), \App\Models\StoryPost::count());
+    \App\Models\Character::orderByDesc(\"level\")->limit(5)->get()->each(fn (\$c) => printf(\"  lv %-4d %-20s gold %-8d floor %d\n\", \$c->level, \$c->name, \$c->gold, \$c->floor));'"
+  ;;
+
+
+  "44" )
+  banner "PLAYERS: find a hero or user"
+  need_param "hero name, user name or email (part of it)"
+  remote "php artisan tinker --execute '
+    \$q = \"%$PARAM2%\";
+    \App\Models\User::with(\"character\")->where(\"name\", \"like\", \$q)->orWhere(\"email\", \"like\", \$q)->orWhereHas(\"character\", fn (\$c) => \$c->where(\"name\", \"like\", \$q))->get()
+      ->each(fn (\$u) => printf(\"user %-4d %-18s %-30s admin:%s  hero: %s\n\", \$u->id, \$u->name, \$u->email, \$u->is_admin ? \"yes\" : \"no\", \$u->character ? sprintf(\"%s lv %d gold %d floor %d last %s\", \$u->character->name, \$u->character->level, \$u->character->gold, \$u->character->floor, \$u->character->updated_at) : \"none\"));'"
+  ;;
+
+
+  "45" )
+  banner "SAVES: rejected saves on $PROJECT"
+  # The save endpoint logs the failing fields when it returns 422 (see save-validation-caps in the notes).
+  remote "grep 'character save rejected' storage/logs/laravel.log 2>/dev/null | tail -n 10 | cut -c1-400 || echo 'none logged'"
+  ;;
+
+
+  "46" )
+  banner "HERO: rescue a stuck hero"
+  need_param "hero name"
+  remote "php artisan tinker --execute '\$c = \App\Models\Character::where(\"name\", \"$PARAM2\")->first(); if (!\$c) { echo \"no such hero\n\"; } else { \$c->update([\"floor\" => 0, \"hp\" => \$c->max_hp]); echo \$c->name.\" is back in town at full health\n\"; }'"
+  log_history "Rescued hero $PARAM2 on $PROJECT"
+  ;;
+
+
+  "47" )
+  banner "WORLD: latest structures, monuments and posts on $PROJECT"
+  remote "php artisan tinker --execute '
+    echo \"--- sponsored structures ---\n\"; \App\Models\TownProject::latest()->limit(20)->get()->each(fn (\$p) => printf(\"#%-4d %-8s %-10s by %-18s %s\n\", \$p->id, \$p->town, \$p->project, \$p->builder_name, \$p->created_at));
+    echo \"--- monuments ---\n\"; \App\Models\TownBuilding::latest()->limit(10)->get()->each(fn (\$b) => printf(\"#%-4d %-8s plot %d %-8s lv %d by %s\n\", \$b->id, \$b->town, \$b->slot, \$b->type, \$b->level, \$b->builder_name));
+    echo \"--- story posts ---\n\"; \App\Models\StoryPost::latest()->limit(10)->get()->each(fn (\$s) => printf(\"#%-4d story %d user %d: %s\n\", \$s->id, \$s->story, \$s->user_id, mb_substr(\$s->body, 0, 80)));'"
+  ;;
+
+
+  "48" )
+  banner "WORLD: remove a sponsored structure"
+  need_param "structure id (from option 47)"
+  confirm "Remove structure #$PARAM2 from the shared world? It vanishes for every player."
+  remote "php artisan tinker --execute '\$p = \App\Models\TownProject::find($PARAM2); echo \$p ? (\$p->delete() ? \"removed\n\" : \"failed\n\") : \"no such structure\n\";'"
+  log_history "Removed structure #$PARAM2 on $PROJECT"
+  ;;
+
+
+  #-------------------------------------------------------------
   # MAINTENANCE
   #-------------------------------------------------------------
 
@@ -350,12 +445,22 @@ case "$SELECTION" in
   SLUG=$(echo "$PARAM2" | tr -cs '[:alnum:]' '-' | sed 's/-$//')
   DEST="$BACKUP_DIR/$STAMP-$SLUG"
   mkdir -p "$DEST"
-  # SQLite is a single file; for anything else dump through artisan's DB config.
-  remote "tar czf /tmp/nq-backup.tgz database/*.sqlite storage/app storage/logs .env 2>/dev/null; echo packed"
+  # SQLite is a single file; MySQL is dumped with the credentials in the server's .env.
+  remote "if grep -q '^DB_CONNECTION=mysql' .env; then
+      H=\$(grep '^DB_HOST=' .env | cut -d= -f2-); D=\$(grep '^DB_DATABASE=' .env | cut -d= -f2-); U=\$(grep '^DB_USERNAME=' .env | cut -d= -f2-); P=\$(grep '^DB_PASSWORD=' .env | cut -d= -f2- | tr -d '\"');
+      MYSQL_PWD=\"\$P\" mysqldump -h \"\${H:-127.0.0.1}\" -u \"\$U\" --single-transaction --quick \"\$D\" | gzip > /tmp/nq-db.sql.gz && echo \"dumped \$D\";
+    fi;
+    tar czf /tmp/nq-backup.tgz database/*.sqlite /tmp/nq-db.sql.gz storage/app storage/logs .env 2>/dev/null; rm -f /tmp/nq-db.sql.gz; echo packed"
   $APP_SCP "$REMOTE:/tmp/nq-backup.tgz" "$DEST/backup.tgz"
   remote "rm -f /tmp/nq-backup.tgz"
   echo "✓ saved to $DEST/backup.tgz"
   log_history "Backup: $PARAM2 → $DEST"
+  ;;
+
+
+  "92" )
+  banner "BACKUPS: downloaded to $BACKUP_DIR"
+  ls -lh "$BACKUP_DIR"/*/backup.tgz 2>/dev/null || echo "none yet (option 91 makes one)"
   ;;
 
 

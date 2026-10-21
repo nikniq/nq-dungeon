@@ -32,8 +32,8 @@
         <a href="{{ route('world.items') }}">Items</a>
         <a href="{{ route('world.towns') }}">World</a>
         @auth
-          <a href="{{ route('heroes.show', auth()->user()->character ?? auth()->user()->name) }}" class="who">{{ auth()->user()->character?->name ?? auth()->user()->name }}</a>
-          <a href="{{ route('character.edit') }}">Profile</a>
+          <a href="{{ route('character.edit') }}" class="who" title="Your hero and profile">{{ auth()->user()->character?->name ?? auth()->user()->name }}</a>
+          @if (auth()->user()->is_admin)<a href="{{ route('admin.index') }}">Admin</a>@endif
           <form method="post" action="{{ route('logout') }}" class="inline">@csrf<button type="submit">Log out</button></form>
         @else
           <a href="{{ route('login') }}">Log in</a>

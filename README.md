@@ -390,6 +390,17 @@ The public story page at `/world/story` (`StoryController`, `config/story.php`)
 tells both stories and carries a discussion thread under each that signed-in
 heroes can post to (`story_posts`, 600 characters, throttled).
 
+## Admin section
+
+`/admin` (users with the `is_admin` flag; grant it with `php artisan admin:grant
+you@example.com`, revoke with `--revoke`) shows an overview of users, heroes,
+gold, monuments, projects and posts, and pages to search users (make or revoke
+admins, delete a user and their hero), fix heroes (name, level, gold, or rescue
+a hero stuck on a floor back to town), moderate story posts, and remove
+sponsored structures or monuments from the shared world. The nav shows one item
+for the signed-in hero (their name, which opens their profile) and, for admins,
+an Admin link.
+
 ## Public glossaries
 
 `/world/towns` and `/world/characters` are public pages that load `script.js` in

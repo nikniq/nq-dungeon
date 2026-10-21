@@ -251,3 +251,18 @@ body.wide{overscroll-behavior-y:none}
 @media (max-width:640px){.catalog table.items{display:block;overflow-x:auto}}
 
 .board-sub{margin:30px 0 4px;color:#ffd86b}
+
+/* the admin section */
+.admin-nav{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 14px}
+.admin-nav a{padding:6px 12px;border-radius:6px;background:#06202c;border:1px solid #12384a;color:#cfe9ff;text-decoration:none}
+.admin-nav a.on{background:#0b3142;color:#ffd86b;border-color:#1e4a60}
+.admin .stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin:0 0 18px}
+.admin .stat{background:#06202c;border:1px solid #12384a;border-radius:8px;padding:12px 14px}
+.admin .stat .value{font-size:1.5rem;font-weight:700;color:#ffd86b}
+.admin .stat .label{color:#a8c0d8;font-size:.85rem}
+.admin h3{margin:22px 0 6px;color:#7bdfff}
+.admin td.actions{white-space:nowrap}
+.admin td.actions form{margin-right:6px}
+.admin button.danger{background:#5b1d1d;border-color:#8b2e2e;color:#ffb4b4}
+.admin form.edit label{margin-right:8px;color:#a8c0d8;font-size:.85rem}
+.admin form.edit input{width:80px;padding:3px 6px;border-radius:4px;border:1px solid #12384a;background:#06202c;color:#e6eef8}
