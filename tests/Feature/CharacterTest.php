@@ -19,6 +19,15 @@ class CharacterTest extends TestCase
         $this->assertCount(72, $user->character->fresh()->perks);
     }
 
+    public function test_an_overfull_bag_still_saves(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla', 'class' => 'warrior']);
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 20, 'xp' => 5, 'gold' => 10, 'hp' => 30, 'max_hp' => 30, 'atk' => 5, 'kills' => 0, 'bag' => array_merge(array_fill(0, 18, 'potion'), ['sunstone', 'tideheart'])];
+        $this->actingAs($user)->postJson('/api/character', $state)->assertOk();
+        $this->assertCount(20, $user->character->fresh()->bag);
+    }
+
     public function test_pets_are_saved_and_unknown_kinds_rejected(): void
     {
         $user = User::factory()->create();

@@ -33,3 +33,5 @@ Thumbs.db
 vars.sh
 /log
 /backup
+log/
+backup/

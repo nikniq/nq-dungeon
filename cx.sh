@@ -9,26 +9,30 @@
 # ⚠ Runs on your LOCAL machine only — never copy this to the server.
 #   Its counterpart on the server is deploy.sh (pull + migrate + caches).
 #
-# Requires a vars.sh next to it defining REMOTE, PROJECT, APP_SSH, etc.
-# See vars.sh.example. vars.sh is gitignored because it holds host and
-# account details.
+# No settings file needed: the defaults below name the server by its ssh
+# alias (`nq`, from ~/.ssh/config, so no host or account lives in the repo)
+# and the app by its domain. Override any of them in the environment, e.g.
+#   CX_REMOTE=other-alias ./cx.sh 20
+# or in an optional vars.sh next to this script (gitignored).
 #================================================================
 clear
 
-if [ ! -f ./vars.sh ]; then
-  echo "vars.sh not found next to cx.sh — copy vars.sh.example to vars.sh and fill it in."
-  exit 1
-fi
-source ./vars.sh
+REMOTE="${CX_REMOTE:-nq}"                                  # ssh alias or user@host
+PROJECT="${CX_PROJECT:-dungeon.nikniq.com}"                # site name, in banners and paths
+REMOTE_APP="${CX_REMOTE_APP:-www/$PROJECT}"                # app root on the server, relative to ~
+APP_URL="${CX_APP_URL:-https://$PROJECT}"                  # what the health check hits
+APP_SSH="${CX_SSH:-ssh}"                                   # add flags here once, e.g. "ssh -i key"
+APP_SCP="${CX_SCP:-scp}"
+LOG_OUTPUT="${CX_LOG_OUTPUT:-./log/remote.out}"
+BACKUP_DIR="${CX_BACKUP_DIR:-./backup}"                    # where option 91 downloads archives to
+[ -f ./vars.sh ] && source ./vars.sh                      # optional local overrides
 
-REMOTE_APP="${REMOTE_APP:-www/$PROJECT}"
-APP_URL="${APP_URL:-https://$PROJECT}"
-LOG_OUTPUT="${LOG_OUTPUT:-./log/remote.out}"
-BACKUP_DIR="${BACKUP_DIR:-./backup}"
+# The real hostname behind the alias, for the "am I on the server?" guard.
+REMOTE_HOST="${REMOTE_HOST:-$($APP_SSH -G "$REMOTE" 2>/dev/null | awk '/^hostname /{print $2}')}"
 
 # This script drives the server from outside. Run on the server it would
 # try to ssh to itself.
-if [ "$(hostname -s 2>/dev/null)" = "${REMOTE_HOST%%.*}" ]; then
+if [ -n "$REMOTE_HOST" ] && [ "$(hostname -s 2>/dev/null)" = "${REMOTE_HOST%%.*}" ]; then
   echo "⚠ This looks like $REMOTE_HOST — cx.sh is the LOCAL script. Use deploy.sh here."
   exit 1
 fi
@@ -427,7 +431,7 @@ case "$SELECTION" in
   PUBKEY=$(ls ~/.ssh/id_*.pub 2>/dev/null | head -1)
   [ -n "$PUBKEY" ] || { echo "No ~/.ssh/id_*.pub found. Run ssh-keygen first."; exit 1; }
   echo "Using $PUBKEY"
-  ssh-copy-id -i "$PUBKEY" -p "${REMOTE_PORT:-22}" "$REMOTE"
+  ssh-copy-id -i "$PUBKEY" "$REMOTE"
   log_history "Copied ssh key to remote"
   ;;
 

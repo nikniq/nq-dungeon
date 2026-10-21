@@ -42,7 +42,7 @@ class CharacterController extends Controller
             'class' => ['nullable', Rule::in(Character::CLASSES)],
             'weapon' => ['nullable', Rule::in(array_keys(config('items.weapons')))],
             'armor' => ['nullable', Rule::in(array_keys(config('items.armor')))],
-            'bag' => ['present', 'array', 'max:'.(config('items.bag_size') + 4)],   // +4 for the Packrat perk
+            'bag' => ['present', 'array', 'max:48'],   // Packrat adds slots and quest relics land in the bag unchecked; the game enforces its own size, this only stops abuse
             'quests' => ['nullable', 'array', 'max:12'],
             'quests.*.id' => ['required', 'string', 'max:60'],
             'quests.*.kind' => ['required', Rule::in(['clear', 'slay', 'boss', 'bounty'])],
