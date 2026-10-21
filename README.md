@@ -39,7 +39,10 @@ a time) that put a red ✕ on an island or lonely shore within sailing reach
 of gold, the Stormcaller Pearl relic the first time (three tiles a step at sea,
 serpents shy away) and gear after that (`meta.treasures` counts them). Pirates,
 wrecks and castaways sometimes hand over a chart too. Waiting at sea with a rod
-fishes the deep water, where the catch is better.
+fishes the deep water, where the catch is better. A fight lost at sea does not
+kill: the hero washes up on the nearest shore with a quarter of their health
+(`washAshore`), the ship grounded beside them, the pets ashore, pirates having
+taken a cut of the gold, and a message saying what happened.
 
 You start in Hearth on an endless seeded overworld (`WORLD_SEED` in `script.js`).
 Settlements sit roughly every 96 tiles (some cells are empty), placed on the best

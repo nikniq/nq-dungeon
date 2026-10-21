@@ -122,6 +122,7 @@ const ACHIEVEMENTS = {
   hollowking:  { label: 'Slew the Hollow King', title: 'Breaker of the Barrow' },
   northbound:  { label: 'Answered the raven', title: 'the Far-Farer' },
   giantsbane:  { label: 'Slew Thrym, Jarl of the Frost Giants', title: 'Giantsbane' },
+  castaway:    { label: 'Washed up on a shore after losing at sea', title: 'the Castaway' },
   longnight:   { label: 'Saw the sky tear', title: 'of the Long Night' },
   riftwarden:  { label: 'Closed five rifts to Midgard', title: 'Warden of the Rifts' },
   riftlord:    { label: 'Slew the Rift Lord', title: 'Shield of Seven Realms' },
@@ -8308,10 +8309,33 @@ function seaFight(strength, hit) {
   const rounds = Math.ceil(strength / Math.max(1, player.atk + weaponAtk()));
   let taken = 0;
   for (let r = 0; r < rounds; r++) taken += Math.max(0, hit - Math.floor(armorDef() / 2) + rnd(3) - 1);
+  const lost = taken >= player.hp;   // beaten: the sea takes you, and gives you back on the nearest shore
   taken = Math.min(taken, player.hp - 1);
   if (taken > 0) { player.hp -= taken; floatText(player.x, player.y, `-${taken}`, '#ff6b6b'); }
-  shakeScreen(4); sfx.play('hurt');
-  return { rounds, taken };
+  shakeScreen(lost ? 8 : 4, lost ? 700 : 220); sfx.play('hurt');
+  return { rounds, taken, lost };
+}
+// A lost fight at sea: the hero wakes on the nearest shore with a little strength
+// left, the ship grounded beside them and the pets scrambling up the beach.
+function washAshore(by) {
+  let land = null;
+  for (let d = 1; d <= 80 && !land; d++) for (let k = -d; k <= d && !land; k++) for (const [x, y] of [[player.x + k, player.y - d], [player.x + k, player.y + d], [player.x - d, player.y + k], [player.x + d, player.y + k]]) {
+    if (!land && isLand(x, y) && walkable(getTile(x, y)) && !townContaining(x, y) && !getMonsterAt(x, y)) land = { x, y };
+  }
+  const from = { x: player.x, y: player.y };
+  if (land) {
+    const beside = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: land.x + dx, y: land.y + dy })).find((t) => seaTile(t.x, t.y));
+    player.x = land.x; player.y = land.y; player.wx = land.x; player.wy = land.y; settle(player);
+    if (player.meta.ship) player.meta.ship = beside || { x: from.x, y: from.y };
+  }
+  aboard = false; for (const pp of pets) pp.aboard = false; placePets();
+  player.hp = Math.max(1, Math.round(player.maxHp * 0.25));
+  const near = nearestTownTo(player.x, player.y), far = near ? Math.round(Math.hypot(near.cx - player.x, near.cy - player.y)) : 0;
+  refreshTownContext(); afterSceneChange(); mapCache.ox = null; updateCamera(); unlock('castaway'); track('washed_ashore', { by }); saveProgress('progress');
+  const where = near ? `${far} tiles ${compassWord(player.x - near.cx, player.y - near.cy).toLowerCase()} of ${near.name}` : 'a nameless beach';
+  const shipNote = !player.meta.ship ? '' : land && player.meta.ship.x !== from.x ? ' Your ship lies grounded on the shingle beside you, battered but whole.' : ' Your ship drifts where the fight was; a harbourmaster can fetch her.';
+  log(`You are beaten at sea and the water takes you. You wake face down on the shore, ${where}, with ${player.hp} HP and the taste of salt.${shipNote}${pets.length ? ' Your companions crawl up the beach after you.' : ''}`, 'bad');
+  return { where, shipNote };
 }
 let seaCalm = 0;   // sail steps before the sea may stir again
 function nearestPort() { let best = null; for (const t of nearbyTowns(player.x, player.y, 3)) if (t.harbour && (!best || Math.hypot(t.cx - player.x, t.cy - player.y) < Math.hypot(best.cx - player.x, best.cy - player.y))) best = t; return best; }
@@ -8324,7 +8348,9 @@ function foundChart(where) {
 const SEA_EVENTS = {
   pirates: () => {
     const d = wildDanger(), toll = Math.max(20, Math.floor(player.gold * 0.15)), strength = 14 + d * 8, hit = 3 + d;
-    const win = () => { const { rounds, taken } = seaFight(strength, hit); const g = 40 + d * 25 + rnd(40); player.gold += g; gainXp(12 + d * 6);
+    const win = () => { const { rounds, taken, lost } = seaFight(strength, hit);
+      if (lost) { const cut = Math.floor(player.gold * 0.15); player.gold -= cut; const w = washAshore('pirates'); return `Steel on steel across the gunwales, and then too much steel. They take ${cut} gold from your belt and tip you over the side. Cold, dark, and then shingle under your cheek: you have washed up ${w.where}, with ${player.hp} HP.${w.shipNote}`; }
+      const g = 40 + d * 25 + rnd(40); player.gold += g; gainXp(12 + d * 6);
       const up = Math.random() < 0.3 ? upgradeFor(Math.random() < 0.5 ? 'weapon' : 'armor') : null; if (up && !bagFull()) player.bag.push(up);
       return `Steel on steel across the gunwales. ${rounds} hard ${rounds === 1 ? 'exchange' : 'exchanges'}${taken ? ` and ${taken} damage` : ''} later the pirates are over the side. Their strongbox holds ${g} gold${up ? ` and a ${itemInfo(up).name}` : ''}.${Math.random() < 0.3 ? foundChart('In the captain\'s cabin') : ''}`; };
     return { who: 'A pirate sloop', sprite: 'archer', bg: 'sea',
@@ -8340,7 +8366,9 @@ const SEA_EVENTS = {
     return { who: 'A sea serpent', sprite: 'wyrm', bg: 'sea',
       text: 'The water bulges, and a neck as thick as a mast rises dripping beside the ship. Two yellow eyes consider you, and the hull, and which would be the better meal.',
       choices: [
-        { label: 'Fight it', run: () => { const { rounds, taken } = seaFight(strength, hit); const g = 80 + d * 40 + rnd(60); player.gold += g; gainXp(30 + d * 12); unlock('serpent'); return `You hack at the neck each time it strikes. After ${rounds} ${rounds === 1 ? 'pass' : 'passes'}${taken ? ` and ${taken} damage` : ''} it sinks, thrashing. A pearl the size of an egg floats up in its wake, worth ${g} gold to the first jeweller you meet.`; } },
+        { label: 'Fight it', run: () => { const { rounds, taken, lost } = seaFight(strength, hit);
+          if (lost) { const w = washAshore('serpent'); return `You hack at the neck each time it strikes, and it strikes once more than you can stand. The coils close, the deck goes out from under you, and the sea is very cold. You wake on the shore ${w.where}, with ${player.hp} HP and no idea how.${w.shipNote}`; }
+          const g = 80 + d * 40 + rnd(60); player.gold += g; gainXp(30 + d * 12); unlock('serpent'); return `You hack at the neck each time it strikes. After ${rounds} ${rounds === 1 ? 'pass' : 'passes'}${taken ? ` and ${taken} damage` : ''} it sinks, thrashing. A pearl the size of an egg floats up in its wake, worth ${g} gold to the first jeweller you meet.`; } },
         { label: 'Hard about and flee', run: () => { if (wearing('stormpearl')) return 'The serpent recoils from the pearl at your throat as if from a torch, and slides back under.'; if (Math.random() < 0.55) return 'You throw the tiller over. The serpent snaps at your wake, loses interest, and dives.'; const dmg = Math.min(player.hp - 1, hit * 2); player.hp -= dmg; floatText(player.x, player.y, `-${dmg}`, '#ff6b6b'); shakeScreen(5); return `It catches the stern a glancing blow for ${dmg} before you pull clear.`; } },
       ] };
   },
