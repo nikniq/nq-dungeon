@@ -8297,12 +8297,22 @@ window.addEventListener('resize', queueFit);
 window.addEventListener('orientationchange', queueFit);
 if (window.ResizeObserver) new ResizeObserver(queueFit).observe(stageEl);
 fitCanvas();
-// ---------- touch: tap or hold to walk ----------
+// ---------- touch: tap, hold or swipe ----------
 // A tap walks one step toward the spot you touched; holding keeps walking
-// toward it (re-aimed from wherever the hero now stands). Tapping a monster
-// next to you attacks it. Round buttons on the right edge cover the rest.
+// toward it (re-aimed from wherever the hero now stands), and stops by itself
+// when something wakes up beside you or you start taking damage. A swipe steps
+// in that direction, and keeps stepping while the finger is down, steered by
+// where it is dragged. Tapping a monster next to you attacks it; tapping one
+// further off sizes it up without moving. Round buttons on the right edge cover
+// the rest.
 let isTouch = false;
-const touch = { id: null, sx: 0, sy: 0, timer: null };
+const touch = { id: null, sx: 0, sy: 0, ox: 0, oy: 0, timer: null, delay: null, downAt: 0, steps: 0, swipe: false, hp: 0, near: new Set(), target: null };
+function sizeUp(m) {
+  const per = Math.max(1, Math.floor(player.atk + weaponAtk() + 0.5 - (m.mod === 'armored' ? 2 : 0))), blows = Math.max(1, Math.ceil(m.hp / per));
+  const hit = Math.max(1, m.atk - armorDef() - (player.shield > 0 ? 2 : 0));
+  const name = m.boss ? m.name : `${ELITE_MODS[m.mod] ? ELITE_MODS[m.mod].label + ' ' : ''}${m.type.name.toLowerCase()}`;
+  return `${name[0].toUpperCase() + name.slice(1)}: ${m.hp}/${m.maxHp} HP, hits you for about ${hit}, ${blows} ${blows === 1 ? 'blow' : 'blows'} to kill${m.awake ? '' : ', asleep'}${m.type.ranged ? ', shoots' : ''}.`;
+}
 function touchButtons() {
   if (!isTouch) return [];
   // buttons down the right edge, fitted between the HUD and the message log:
@@ -8339,6 +8349,20 @@ function canvasPoint(clientX, clientY) {
 }
 function touchStep() {
   if (touch.id === null || gameOver || !player || shopOpen || perkChoices || mapOpen || questsOpen) return;
+  // after the first step, holding stops itself when it would be reckless: a deliberate hold on a foe beside you is not reckless
+  const deliberate = touch.target && monsters.includes(touch.target) && touch.target.hp > 0 && dist(touch.target, player) === 1;
+  if (touch.steps > 0 && !deliberate) {
+    if (player.hp < touch.hp) { stopTouchWalk(); log('You stop: something is hurting you.', 'bad'); return; }
+    const fresh = monsters.find((m) => m.awake && m.hp > 0 && dist(m, player) <= 2 && !touch.near.has(m) && isVisible(m.x, m.y));
+    if (fresh && !safeZone()) { stopTouchWalk(); log(`You stop: ${fresh.boss ? fresh.name : 'a ' + fresh.type.name.toLowerCase()} is close.`, 'bad'); return; }
+  }
+  touch.hp = player.hp; touch.near = new Set(monsters.filter((m) => dist(m, player) <= 2)); touch.steps++;
+  if (touch.swipe) {   // steered by the drag: the dominant axis of finger from where it landed
+    const sx = touch.sx - touch.ox, sy = touch.sy - touch.oy;
+    if (Math.hypot(sx, sy) < 12) return;
+    const [dx, dy] = Math.abs(sx) >= Math.abs(sy) ? [Math.sign(sx), 0] : [0, Math.sign(sy)];
+    tryMove(dx, dy); return;
+  }
   const { px, py } = canvasPoint(touch.sx, touch.sy);
   const tx = Math.floor((px + cam.x) / T), ty = Math.floor((py + cam.y) / T);
   const dx = tx - player.x, dy = ty - player.y;
@@ -8359,7 +8383,7 @@ function touchStep() {
   const step = blocked(primary) && secondary && !blocked(secondary) ? secondary : primary;
   tryMove(step[0], step[1]);
 }
-function stopTouchWalk() { touch.id = null; clearInterval(touch.timer); touch.timer = null; }
+function stopTouchWalk() { touch.id = null; clearInterval(touch.timer); touch.timer = null; clearTimeout(touch.delay); touch.delay = null; touch.swipe = false; touch.target = null; }
 canvas.addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'mouse') return;
   isTouch = true;
@@ -8385,12 +8409,26 @@ canvas.addEventListener('pointerdown', (e) => {
     return;
   }
   stopTouchWalk();
-  touch.id = e.pointerId; touch.sx = e.clientX; touch.sy = e.clientY;
+  // a tap on a monster out of reach sizes it up instead of walking at it
+  { const tx = Math.floor((px + cam.x) / T), ty = Math.floor((py + cam.y) / T), tm = getMonsterAt(tx, ty);
+    if (tm && tm.hp > 0 && dist(tm, player) > 1 && isVisible(tx, ty)) { toast = { text: sizeUp(tm), until: performance.now() + 4000 }; tip('sizeup', 'Tap a monster that is out of reach to size it up. Tap one beside you to strike it.'); draw(); return; }
+    const tn = scene !== 'dungeon' && getNpcAt(tx, ty);
+    if (tn && dist(tn, player) > 1) { toast = { text: `${tn.type.name}${tn.type.role ? ', ' + tn.type.role : ''}. Walk up and tap to talk.`, until: performance.now() + 3000 }; }
+    touch.target = tm || null; }
+  touch.id = e.pointerId; touch.sx = touch.ox = e.clientX; touch.sy = touch.oy = e.clientY; touch.downAt = performance.now(); touch.steps = 0; touch.swipe = false;
   try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
-  touchStep();
-  touch.timer = setInterval(touchStep, 190);
+  // a short wait tells a tap from the start of a swipe
+  touch.delay = setTimeout(() => { touch.delay = null; if (touch.id === null) return; touchStep(); touch.timer = setInterval(touchStep, 190); }, 90);
 }, { passive: false });
-canvas.addEventListener('pointermove', (e) => { if (e.pointerId === touch.id) { touch.sx = e.clientX; touch.sy = e.clientY; } });
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerId !== touch.id) return;
+  touch.sx = e.clientX; touch.sy = e.clientY;
+  if (!touch.swipe && Math.hypot(e.clientX - touch.ox, e.clientY - touch.oy) >= 24 && performance.now() - touch.downAt < 320) {
+    touch.swipe = true; touch.target = null; clearTimeout(touch.delay); touch.delay = null;
+    tip('swipe', 'Swipe to step that way. Keep your finger down to keep walking, and drag to steer.');
+    touchStep(); if (!touch.timer) touch.timer = setInterval(touchStep, 190);
+  }
+});
 for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) canvas.addEventListener(ev, (e) => { if (e.pointerId === touch.id) stopTouchWalk(); });
 window.addEventListener('pagehide', () => { if (!gameOver) saveProgress('progress', true); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && !gameOver) saveProgress('progress', true); if (!document.hidden) { mp.lastActive = performance.now(); mpKick(); } });

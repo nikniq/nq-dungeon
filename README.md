@@ -104,6 +104,15 @@ stairs or the way-out door (monsters go for them too); a goblin totem that calls
 goblin every six turns until smashed; a lever that sinks every trap on the floor;
 and a dungeon altar with an offering, a drink from the font, or nothing.
 
+On a phone (`touch`, `touchStep`, `sizeUp`): a tap walks one step toward the
+spot, holding keeps walking and stops by itself when a foe wakes beside you or
+you start taking damage (unless you are deliberately holding on a foe next to
+you); a swipe steps that way and keeps stepping while the finger is down,
+steered by the drag; tapping a monster beside you strikes it, tapping one out
+of reach shows its health, its hit and the blows it will take; tapping a
+townsperson out of reach names them. A short delay after touch-down tells a
+tap from a swipe. The viewport covers notched screens.
+
 Press M underground for the dungeon map (`drawDungeonMap`): every tile seen on
 this floor, scaled to fit, with the stairs down, the way-out door, chests,
 springs, altars, trial stones, found traps, lava, visible foes, your pets and
