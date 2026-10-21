@@ -36,15 +36,10 @@ LOG_OUTPUT="${CX_LOG_OUTPUT:-./log/remote.out}"
 BACKUP_DIR="${CX_BACKUP_DIR:-./backup}"                    # where option 91 downloads archives to
 [ -f ./vars.sh ] && source ./vars.sh                      # optional local overrides
 
-# The real hostname behind the alias, for the "am I on the server?" guard.
-REMOTE_HOST="${REMOTE_HOST:-$($APP_SSH -G "$REMOTE" 2>/dev/null | awk '/^hostname /{print $2}')}"
+# Where are we? In the app root on the server (production .env beside artisan)
+# every option runs its command right here; anywhere else it runs over ssh.
+if [ -f ./artisan ] && [ -f ./.env ] && grep -q '^APP_ENV=production' ./.env 2>/dev/null; then ON_SERVER=1; else ON_SERVER=0; fi
 
-# This script drives the server from outside. Run on the server it would
-# try to ssh to itself.
-if [ -n "$REMOTE_HOST" ] && [ "$(hostname -s 2>/dev/null)" = "${REMOTE_HOST%%.*}" ]; then
-  echo "⚠ This looks like $REMOTE_HOST — cx.sh is the LOCAL script. Use deploy.sh here."
-  exit 1
-fi
 
 #---------------------------------------------------------------
 # Helpers
@@ -54,14 +49,20 @@ log_history() {
   printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M')" "$1" >> ./log/history.log
 }
 
-# Run a command on the server, in the app directory.
+# Run a command on the server, in the app directory: over ssh from a
+# workstation, or right here when cx.sh itself is running on the server.
 remote() {
-  $APP_SSH "$REMOTE" "cd ~/$REMOTE_APP && $*"
+  if [ "$ON_SERVER" = 1 ]; then eval "$*"; else $APP_SSH "$REMOTE" "cd ~/$REMOTE_APP && $*"; fi
 }
 
 # Same, with a terminal attached — for anything interactive or long-running.
 remote_tty() {
-  $APP_SSH -t "$REMOTE" "cd ~/$REMOTE_APP && $*"
+  if [ "$ON_SERVER" = 1 ]; then eval "$*"; else $APP_SSH -t "$REMOTE" "cd ~/$REMOTE_APP && $*"; fi
+}
+
+# Copy a file from the server to a local path (a plain copy when already there).
+fetch() {
+  if [ "$ON_SERVER" = 1 ]; then cp "$1" "$2"; else $APP_SCP "$REMOTE:$1" "$2"; fi
 }
 
 need_param() {
@@ -84,7 +85,7 @@ confirm() {
 }
 
 echo =============================================================
-echo "Hi $USER@$HOSTNAME — acting on $PROJECT ($REMOTE)"
+if [ "$ON_SERVER" = 1 ]; then echo "Hi $USER@$HOSTNAME — on the server, acting on $PROJECT here in $(pwd)"; else echo "Hi $USER@$HOSTNAME — acting on $PROJECT over ssh ($REMOTE)"; fi
 echo What do you want to do?
 echo -------------------------------------------------------------
 echo "ROUTINE — day to day"
@@ -152,20 +153,19 @@ case "$SELECTION" in
   banner "DEPLOY: $PROJECT"
   # The server deploys by pulling from git, so anything not pushed is not
   # deployed. Without this check the deploy "succeeds" on the previous commit.
-  if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+  if [ "$ON_SERVER" = 0 ] && [ -n "$(git status --porcelain 2>/dev/null)" ]; then
     echo "⚠ Uncommitted local changes — these will NOT deploy:"
     git status --short
     echo
   fi
-  UNPUSHED=$(git log --oneline @{u}.. 2>/dev/null)
+  UNPUSHED=$([ "$ON_SERVER" = 0 ] && git log --oneline @{u}.. 2>/dev/null)
   if [ -n "$UNPUSHED" ]; then
     echo "⚠ Commits not pushed — these will NOT deploy:"
     echo "$UNPUSHED"
     echo
     confirm "Deploy anyway?"
   fi
-  echo "Local HEAD : $(git log --oneline -1)"
-  echo
+  [ "$ON_SERVER" = 0 ] && echo "Local HEAD : $(git log --oneline -1)" && echo
   remote_tty "./deploy.sh"
   log_history "Deployed $PROJECT"
   ;;
@@ -173,6 +173,7 @@ case "$SELECTION" in
 
   "21" )
   banner "FIRST DEPLOY: clone onto $REMOTE:~/$REMOTE_APP"
+  [ "$ON_SERVER" = 1 ] && { echo "Already on the server, in a checkout. Use option 20."; exit 0; }
   REPO_URL=$(git remote get-url origin)
   echo "Repo   : $REPO_URL"
   echo "Target : ~/$REMOTE_APP (public_html/ inside it is the document root)"
@@ -191,6 +192,7 @@ case "$SELECTION" in
 
   "22" )
   banner "WHAT'S LIVE on $PROJECT"
+  [ "$ON_SERVER" = 1 ] && { git log --oneline -3 && git status --short; exit 0; }
   echo "--- server ---"
   remote "git log --oneline -3 && git status --short"
   echo
@@ -430,6 +432,7 @@ case "$SELECTION" in
 
   "00" )
   banner "CONNECT: to $REMOTE"
+  [ "$ON_SERVER" = 1 ] && { echo "You are already on the server."; exit 0; }
   $APP_SSH "$REMOTE"
   log_history "Connect to remote"
   ;;
@@ -437,6 +440,7 @@ case "$SELECTION" in
 
   "01" )
   banner "SSH KEY: copy your public key to $REMOTE"
+  [ "$ON_SERVER" = 1 ] && { echo "Run this from your workstation, not the server."; exit 0; }
   PUBKEY=$(ls ~/.ssh/id_*.pub 2>/dev/null | head -1)
   [ -n "$PUBKEY" ] || { echo "No ~/.ssh/id_*.pub found. Run ssh-keygen first."; exit 1; }
   echo "Using $PUBKEY"
@@ -447,7 +451,7 @@ case "$SELECTION" in
 
   "05" )
   banner "MONITOR: Remote Top"
-  $APP_SSH -t "$REMOTE" 'top'
+  if [ "$ON_SERVER" = 1 ]; then top; else $APP_SSH -t "$REMOTE" 'top'; fi
   ;;
 
 
@@ -462,7 +466,7 @@ case "$SELECTION" in
   # connection .env configures, so there is no mysql client or second login.
   remote "php artisan db:dump storage/app/private/db-dump.json.gz && tar czf /tmp/nq-backup.tgz storage/app storage/logs .env 2>/dev/null; rm -f storage/app/private/db-dump.json.gz; echo packed"
   echo "  (restore with: php artisan db:restore <file> on the server, after migrating)"
-  $APP_SCP "$REMOTE:/tmp/nq-backup.tgz" "$DEST/backup.tgz"
+  fetch /tmp/nq-backup.tgz "$DEST/backup.tgz"
   remote "rm -f /tmp/nq-backup.tgz"
   echo "✓ saved to $DEST/backup.tgz"
   log_history "Backup: $PARAM2 → $DEST"
