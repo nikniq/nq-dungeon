@@ -93,5 +93,26 @@ return [
         'founderseal' => ['name' => "Founder's Seal", 'desc' => '+15% gold from the floor and from chests, and +1 defence. The realms remember who rebuilt them.', 'found' => 'the rebuilding of the realms', 'price' => 900, 'floor' => 99],
         'crown' => ['name' => 'Crown of Aurum', 'desc' => '+2 attack, +2 defence and +10 max HP. The King\'s own gift.', 'found' => 'the end of the story', 'price' => 1000, 'floor' => 99],
     ],
+    // Magic items: a dropped weapon or armour may carry one affix and a tier (I to III),
+    // written into its id as base~affix~tier. Effects are in script.js; the server
+    // validates the parts (Character::validItem) and the pages name them.
+    'affixes' => [
+        'weapon' => [
+            'flaming' => ['name' => 'Flaming', 'desc' => 'sets what it hits burning for a few turns'],
+            'venom' => ['name' => 'Venomous', 'desc' => 'poisons what it hits'],
+            'frost' => ['name' => 'Frost', 'desc' => 'may freeze the foe for a turn'],
+            'vampiric' => ['name' => 'Vampiric', 'desc' => 'heals you for part of the damage you deal'],
+            'keen' => ['name' => 'Keen', 'desc' => 'strikes critical blows for double damage'],
+            'heavy' => ['name' => 'Heavy', 'desc' => '+2 attack on top of its tier'],
+        ],
+        'armor' => [
+            'sturdy' => ['name' => 'Sturdy', 'desc' => '+1 defence on top of its tier'],
+            'warded' => ['name' => 'Warded', 'desc' => 'no poison can touch you'],
+            'swift' => ['name' => 'Swift', 'desc' => 'you dodge some blows outright'],
+            'blessed' => ['name' => 'Blessed', 'desc' => 'you heal a point every few turns'],
+            'spiked' => ['name' => 'Spiked', 'desc' => 'whatever strikes you is hurt in return'],
+            'fireproof' => ['name' => 'Fireproof', 'desc' => 'lava burns you half as much'],
+        ],
+    ],
     'bag_size' => 12,
 ];

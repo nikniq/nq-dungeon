@@ -6,10 +6,10 @@
   <p class="muted">Your public profile is at <a href="{{ route('heroes.show', $character) }}">{{ route('heroes.show', $character) }}</a>.</p>
   <table class="sheet">
     <tr><th>Hero</th><td>{{ ucfirst($character->class) }}. @if ($character->floor > 0) Floor {{ $character->floor }}, @else In town, @endif level {{ $character->level }}, {{ $character->hp }}/{{ $character->max_hp }} HP, attack {{ $character->atk }}, {{ $character->gold }} gold</td></tr>
-    <tr><th>Weapon</th><td>{{ $character->weapon ? $items['weapons'][$character->weapon]['name'].' (+'.$items['weapons'][$character->weapon]['atk'].' attack)' : 'Bare hands' }}</td></tr>
-    <tr><th>Armor</th><td>{{ $character->armor ? $items['armor'][$character->armor]['name'].' ('.$items['armor'][$character->armor]['def'].' defence)' : 'None' }}</td></tr>
+    <tr><th>Weapon</th><td>{{ $character->weapon && ($w = \App\Models\Character::describeItem($character->weapon)) ? $w['name'].' (+'.$w['atk'].' attack)' : 'Bare hands' }}</td></tr>
+    <tr><th>Armor</th><td>{{ $character->armor && ($ar = \App\Models\Character::describeItem($character->armor)) ? $ar['name'].' ('.$ar['def'].' defence)' : 'None' }}</td></tr>
     <tr><th>Relic</th><td>{{ $character->relic ? ($items['relics'][$character->relic]['name'] ?? $character->relic) : 'None' }}</td></tr>
-    <tr><th>Bag</th><td>{{ collect($character->bag ?? [])->map(fn ($id) => ($items['weapons'][$id] ?? $items['armor'][$id] ?? $items['consumables'][$id] ?? $items['relics'][$id] ?? ['name' => $id])['name'])->implode(', ') ?: 'Empty' }}</td></tr>
+    <tr><th>Bag</th><td>{{ collect($character->bag ?? [])->map(fn ($id) => (\App\Models\Character::describeItem($id) ?? ['name' => $id])['name'])->implode(', ') ?: 'Empty' }}</td></tr>
     <tr><th>Runs</th><td>{{ $character->runs }}</td></tr>
     <tr><th>Escapes</th><td>{{ $character->wins }}</td></tr>
     <tr><th>Deepest floor</th><td>{{ $character->best_floor }}</td></tr>

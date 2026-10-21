@@ -44,10 +44,10 @@
         <tr><th>Class</th><td>{{ ucfirst($character->class) }}</td></tr>
         <tr><th>Level</th><td>{{ $character->level }} ({{ $character->xp }} XP)</td></tr>
         <tr><th>Health</th><td>{{ $character->hp }}/{{ $character->max_hp }}</td></tr>
-        <tr><th>Attack</th><td>{{ $character->atk }}@if ($character->weapon) +{{ $items['weapons'][$character->weapon]['atk'] }}@endif</td></tr>
+        <tr><th>Attack</th><td>{{ $character->atk }}@if ($character->weapon && ($w = \App\Models\Character::describeItem($character->weapon))) +{{ $w['atk'] }}@endif</td></tr>
         <tr><th>Gold</th><td>{{ $character->gold }}</td></tr>
-        <tr><th>Weapon</th><td>{{ $character->weapon ? $items['weapons'][$character->weapon]['name'].($character->weapon_plus ? ' +'.$character->weapon_plus : '') : 'Bare hands' }}</td></tr>
-        <tr><th>Armor</th><td>{{ $character->armor ? $items['armor'][$character->armor]['name'].($character->armor_plus ? ' +'.$character->armor_plus : '').' ('.($items['armor'][$character->armor]['def'] + $character->armor_plus).' defence)' : 'None' }}</td></tr>
+        <tr><th>Weapon</th><td>{{ $character->weapon && ($w = \App\Models\Character::describeItem($character->weapon)) ? $w['name'].($character->weapon_plus ? ' +'.$character->weapon_plus : '') : 'Bare hands' }}</td></tr>
+        <tr><th>Armor</th><td>{{ $character->armor && ($ar = \App\Models\Character::describeItem($character->armor)) ? $ar['name'].($character->armor_plus ? ' +'.$character->armor_plus : '').' ('.($ar['def'] + $character->armor_plus).' defence)' : 'None' }}</td></tr>
         <tr><th>Perks</th><td>{{ collect($character->perks ?? [])->map(fn ($p) => ucfirst(str_replace('_', ' ', $p)))->countBy()->map(fn ($n, $p) => $n > 1 ? "$p ×$n" : $p)->values()->implode(', ') ?: 'None yet' }}</td></tr>
       </table>
     </section>

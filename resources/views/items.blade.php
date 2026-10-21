@@ -34,6 +34,19 @@
       </tbody>
     </table>
 
+    <h3>Magic affixes</h3>
+    <p class="muted small">Weapons and armour dropped underground may carry an affix and a tier (I to III, each tier a point more). They are never sold.</p>
+    <table class="items">
+      <thead><tr><th>Affix</th><th>On</th><th>Effect</th></tr></thead>
+      <tbody>
+      @foreach (config('items.affixes') as $slot => $list)
+        @foreach ($list as $id => $af)
+          <tr><td><strong>{{ $af['name'] }}</strong></td><td>{{ $slot === 'weapon' ? 'weapons' : 'armour' }}</td><td>{{ ucfirst($af['desc']) }}.</td></tr>
+        @endforeach
+      @endforeach
+      </tbody>
+    </table>
+
     <h3>Armour</h3>
     <table class="items">
       <thead><tr><th>Armour</th><th>Defence</th><th>Price</th><th>Where</th></tr></thead>

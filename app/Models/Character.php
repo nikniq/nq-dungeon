@@ -7,6 +7,71 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Character extends Model
 {
+    /** base id, affix and tier of an item id such as longsword~flaming~2 (null if malformed). */
+    public static function itemParts(mixed $id): ?array
+    {
+        if (! is_string($id)) {
+            return null;
+        }
+        $p = explode('~', $id);
+        if (count($p) === 1) {
+            return [$p[0], null, 0];
+        }
+        if (count($p) !== 3 || ! ctype_digit($p[2]) || (int) $p[2] < 1 || (int) $p[2] > 3) {
+            return null;
+        }
+
+        return [$p[0], $p[1], (int) $p[2]];
+    }
+
+    /** Whether an item id is real: a catalogue entry of one of the given kinds, with a valid affix if it has one. */
+    public static function validItem(mixed $id, array $kinds): bool
+    {
+        $p = self::itemParts($id);
+        if (! $p) {
+            return false;
+        }
+        [$base, $affix] = $p;
+        foreach ($kinds as $kind) {
+            if (isset(config("items.$kind")[$base])) {
+                if ($affix === null) {
+                    return true;
+                }
+                $slot = $kind === 'weapons' ? 'weapon' : ($kind === 'armor' ? 'armor' : null);
+
+                return $slot !== null && config("items.$kind")[$base]['floor'] < 99 && isset(config("items.affixes.$slot")[$affix]);
+            }
+        }
+
+        return false;
+    }
+
+    /** Name and stats of an item id, affix and tier included, for the pages. */
+    public static function describeItem(mixed $id): ?array
+    {
+        $p = self::itemParts($id);
+        if (! $p) {
+            return null;
+        }
+        [$base, $affix, $tier] = $p;
+        foreach (['weapons', 'armor', 'consumables', 'relics'] as $kind) {
+            if (isset(config("items.$kind")[$base])) {
+                $it = config("items.$kind")[$base] + ['kind' => $kind];
+                if ($affix) {
+                    $slot = $kind === 'weapons' ? 'weapon' : 'armor';
+                    $a = config("items.affixes.$slot")[$affix] ?? ['name' => ucfirst($affix)];
+                    $it['name'] = $a['name'].' '.lcfirst($it['name']).($tier > 1 ? ' '.['', '', 'II', 'III'][$tier] : '');
+                    if ($kind === 'weapons') { $it['atk'] += $tier + ($affix === 'heavy' ? 2 : 0); }
+                    if ($kind === 'armor') { $it['def'] += $tier + ($affix === 'sturdy' ? 1 : 0); }
+                }
+
+                return $it;
+            }
+        }
+
+        return null;
+    }
+
     protected $fillable = [
         'name', 'bio', 'class', 'floor', 'level', 'xp', 'gold', 'hp', 'max_hp', 'atk',
         'weapon', 'armor', 'relic', 'weapon_plus', 'armor_plus', 'bag', 'quests', 'quests_done', 'perks', 'achievements', 'meta', 'title', 'wx', 'wy', 'home', 'runs', 'wins', 'best_floor', 'best_gold', 'kills',

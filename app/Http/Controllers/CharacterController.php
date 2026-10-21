@@ -40,8 +40,8 @@ class CharacterController extends Controller
             'atk' => ['required', 'integer', 'min:1', 'max:999'],
             'kills' => ['required', 'integer', 'min:0'],
             'class' => ['nullable', Rule::in(Character::CLASSES)],
-            'weapon' => ['nullable', Rule::in(array_keys(config('items.weapons')))],
-            'armor' => ['nullable', Rule::in(array_keys(config('items.armor')))],
+            'weapon' => ['nullable', fn ($a, $v, $fail) => Character::validItem($v, ['weapons']) || $fail('Unknown weapon.')],
+            'armor' => ['nullable', fn ($a, $v, $fail) => Character::validItem($v, ['armor']) || $fail('Unknown armour.')],
             'bag' => ['present', 'array', 'max:48'],   // Packrat adds slots and quest relics land in the bag unchecked; the game enforces its own size, this only stops abuse
             'quests' => ['nullable', 'array', 'max:12'],
             'quests.*.id' => ['required', 'string', 'max:60'],
@@ -94,7 +94,7 @@ class CharacterController extends Controller
             'meta.encounters' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'meta.room' => ['nullable', 'boolean'],
             'meta.stash' => ['nullable', 'array', 'max:20'],
-            'meta.stash.*' => [Rule::in(array_merge(array_keys(config('items.weapons')), array_keys(config('items.armor')), array_keys(config('items.consumables')), array_keys(config('items.relics'))))],
+            'meta.stash.*' => [fn ($a, $v, $fail) => Character::validItem($v, ['weapons', 'armor', 'consumables', 'relics']) || $fail('Unknown item.')],
             'meta.deepest' => ['nullable', 'integer', 'min:0', 'max:99'],
             'meta.horse' => ['nullable', 'boolean'],
             'meta.story2' => ['nullable', 'array:s'],
@@ -162,12 +162,7 @@ class CharacterController extends Controller
             'wx' => ['nullable', 'integer', 'between:-100000,100000'],
             'wy' => ['nullable', 'integer', 'between:-100000,100000'],
             'home' => ['nullable', 'string', 'max:16', 'regex:/^-?\d+,-?\d+$/'],
-            'bag.*' => [Rule::in(array_merge(
-                array_keys(config('items.weapons')),
-                array_keys(config('items.armor')),
-                array_keys(config('items.consumables')),
-                array_keys(config('items.relics')),
-            ))],
+            'bag.*' => [fn ($a, $v, $fail) => Character::validItem($v, ['weapons', 'armor', 'consumables', 'relics']) || $fail('Unknown item.')],
             'relic' => ['nullable', Rule::in(array_keys(config('items.relics')))],
         ]);
     }

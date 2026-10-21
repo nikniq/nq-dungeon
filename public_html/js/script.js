@@ -124,6 +124,7 @@ const ACHIEVEMENTS = {
   giantsbane:  { label: 'Slew Thrym, Jarl of the Frost Giants', title: 'Giantsbane' },
   castaway:    { label: 'Washed up on a shore after losing at sea', title: 'the Castaway' },
   delver:      { label: 'Took on the Daily Delve', title: 'the Delver' },
+  enchanted:   { label: 'Found a magic weapon or armour', title: 'the Enchanted' },
   delve_champion: { label: 'Topped the Daily Delve board', title: 'Champion of the Delve' },
   longnight:   { label: 'Saw the sky tear', title: 'of the Long Night' },
   riftwarden:  { label: 'Closed five rifts to Midgard', title: 'Warden of the Rifts' },
@@ -264,14 +265,44 @@ const hazard = (x, y) => getTile(x, y) === TILE.LAVA || (getTile(x, y) === TILE.
 const ACCOUNT = window.DUNGEON || { user: false };
 const ITEMS = ACCOUNT.items || { weapons: {}, armor: {}, consumables: {}, bag_size: 12 };
 ITEMS.relics = ITEMS.relics || {};
-const itemInfo = (id) => ITEMS.weapons[id] || ITEMS.armor[id] || ITEMS.consumables[id] || ITEMS.relics[id] || null;
-const itemKind = (id) => ITEMS.weapons[id] ? 'weapon' : ITEMS.armor[id] ? 'armor' : ITEMS.relics[id] ? 'relic' : 'consumable';
+// Magic items: a dropped weapon or armour may carry an affix and a tier, written
+// into its id as base~affix~tier (longsword~flaming~2). itemInfo composes the
+// named, stat-adjusted item; everything else keeps treating the id as a string.
+const AFFIXES = ITEMS.affixes || { weapon: {}, armor: {} };
+const TIER_NAMES = ['', '', 'II', 'III'];
+const parseItem = (id) => { if (typeof id !== 'string') return null; const p = id.split('~'); return p.length === 3 ? { base: p[0], affix: p[1], tier: Math.max(1, Math.min(3, Number(p[2]) || 1)) } : { base: id, affix: null, tier: 0 }; };
+const baseOf = (id) => (parseItem(id) || { base: id }).base;
+const affixOf = (id) => { const p = parseItem(id); return p && p.affix ? { id: p.affix, tier: p.tier, ...(AFFIXES.weapon[p.affix] || AFFIXES.armor[p.affix] || {}) } : null; };
+const itemCache = new Map();
+function itemInfo(id) {
+  const p = parseItem(id); if (!p) return null;
+  const base = ITEMS.weapons[p.base] || ITEMS.armor[p.base] || ITEMS.consumables[p.base] || ITEMS.relics[p.base] || null;
+  if (!base || !p.affix) return base;
+  if (itemCache.has(id)) return itemCache.get(id);
+  const slot = ITEMS.weapons[p.base] ? 'weapon' : 'armor', A = AFFIXES[slot][p.affix] || { name: p.affix[0].toUpperCase() + p.affix.slice(1), desc: '' };
+  const it = { ...base, base: p.base, affix: p.affix, tier: p.tier, name: `${A.name} ${base.name[0].toLowerCase() + base.name.slice(1)}${p.tier > 1 ? ' ' + TIER_NAMES[p.tier] : ''}`, price: Math.round(base.price * (1.6 + 0.6 * (p.tier - 1))), magic: A.desc };
+  if (slot === 'weapon') it.atk = base.atk + p.tier + (p.affix === 'heavy' ? 2 : 0); else it.def = base.def + p.tier + (p.affix === 'sturdy' ? 1 : 0);
+  itemCache.set(id, it);
+  return it;
+}
+const itemKind = (id) => { const b = baseOf(id); return ITEMS.weapons[b] ? 'weapon' : ITEMS.armor[b] ? 'armor' : ITEMS.relics[b] ? 'relic' : 'consumable'; };
+// a dropped weapon or armour sometimes comes enchanted, more often and better the deeper you are
+function rollAffix(id) {
+  const kind = itemKind(id), base = itemInfo(id);
+  if ((kind !== 'weapon' && kind !== 'armor') || !base || base.floor >= 99) return id;
+  const danger = dungeonDef ? dungeonDef.danger || 0 : 0;
+  if (Math.random() > Math.min(0.65, 0.18 + floor * 0.05 + danger * 0.03)) return id;
+  const pool = Object.keys(AFFIXES[kind]); if (!pool.length) return id;
+  const r = Math.random() + floor * 0.03 + danger * 0.02, tier = r > 1.1 ? 3 : r > 0.75 ? 2 : 1;
+  return `${id}~${pool[rnd(pool.length)]}~${tier}`;
+}
+const wornAffix = (slot) => affixOf(player[slot]);
 // The relic you wear changes how you play; see config/items.php for the list.
 const wearing = (id) => !!player && player.relic === id;
 const goldMult = () => (perkCount('lucky') ? 1.25 : 1) * (wearing('luckycoin') ? 1.4 : 1) * (wearing('ledger') ? 1.25 : 1) * (wearing('founderseal') ? 1.15 : 1);
 const potionHeal = (h) => h * (wearing('royalsignet') ? 2 : 1);
-const weaponAtk = () => ((player.weapon && ITEMS.weapons[player.weapon]) ? ITEMS.weapons[player.weapon].atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0) + (player.rage > 0 ? 2 : 0) + (wearing('bearcharm') && dayPhase() === 'night' ? 3 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('riftheart') ? 2 : 0);
-const armorDef = () => ((player.armor && ITEMS.armor[player.armor]) ? ITEMS.armor[player.armor].def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('sunlotus') && dayPhase() !== 'night' ? 2 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('frostheart') ? 4 : 0) + (wearing('riftheart') ? 2 : 0) + (wearing('founderseal') ? 1 : 0) + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
+const weaponAtk = () => ((player.weapon && itemKind(player.weapon) === 'weapon') ? itemInfo(player.weapon).atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0) + (player.rage > 0 ? 2 : 0) + (wearing('bearcharm') && dayPhase() === 'night' ? 3 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('riftheart') ? 2 : 0);
+const armorDef = () => ((player.armor && itemKind(player.armor) === 'armor') ? itemInfo(player.armor).def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('sunlotus') && dayPhase() !== 'night' ? 2 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('frostheart') ? 4 : 0) + (wearing('riftheart') ? 2 : 0) + (wearing('founderseal') ? 1 : 0) + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
   + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.def || 0) : 0) + (realmState().rank >= 2 ? 1 : 0);
 const SAVE_EVERY_TURNS = 20;
 // What the hero has bought into in each realm: noble rank in Aurum, civic
@@ -378,7 +409,7 @@ async function mpSync() {
   const events = mp.outbox.splice(0, 40);
   const body = {
     space: mpSpace(), x: player.x, y: player.y,
-    me: { face: player.face || 1, hp: player.hp, maxHp: player.maxHp, level: player.level, cls: player.cls, look: { w: player.weapon || null, a: player.armor || null, r: player.relic || null }, def: armorDef(), shield: player.shield || 0,
+    me: { face: player.face || 1, hp: player.hp, maxHp: player.maxHp, level: player.level, cls: player.cls, look: { w: baseOf(player.weapon) || null, a: baseOf(player.armor) || null, r: player.relic || null }, def: armorDef(), shield: player.shield || 0,
       floor, scene, where: mpWhere(), title: player.title || null,
       hound: livePets()[0] ? { x: livePets()[0].x, y: livePets()[0].y, face: livePets()[0].face || 1, kind: livePets()[0].kind } : null },
     state: coopHost() ? hostState() : null,
@@ -2535,7 +2566,7 @@ function localDeal(id) {
   const t = shopTown(); if (!t) return 1;
   const deal = townIdentity(t).trade.deal;
   if (deal === 'potions' && ITEMS.consumables[id]) return 0.85;
-  if (deal === 'gear' && (ITEMS.weapons[id] || ITEMS.armor[id])) return 0.9;
+  if (deal === 'gear' && (itemKind(id) === 'weapon' || itemKind(id) === 'armor')) return 0.9;
   return 1;
 }
 // The town's leader stands in the square with things to say about the place.
@@ -5989,6 +6020,8 @@ function playerAttack(m) {
   if (sneak) { dmg *= w === 'dagger' ? 3 : 2; notes.push('Sneak attack!'); tip('sneak', 'Sleeping monsters take double damage from your first blow, triple with a dagger. Creep up on them.'); }
   else if (w === 'short_sword' && Math.random() < 0.2) { dmg *= 2; notes.push('Critical hit!'); }
   if (w === 'dagger' && Math.random() < 0.2) { const extra = Math.max(1, Math.floor(dmg / 2)); dmg += extra; notes.push('You stab twice!'); }
+  const wa = wornAffix('weapon');
+  if (wa && wa.id === 'keen' && !sneak && Math.random() < 0.1 * wa.tier) { dmg *= 2; notes.push('A keen blow: double damage!'); }
   // the hammer drives the foe back, or into the wall behind it
   if (w === 'warhammer' && solo && !m.boss && m.hp - dmg > 0) {
     const bx = m.x + Math.sign(m.x - player.x), by = m.y + Math.sign(m.y - player.y);
@@ -5996,6 +6029,12 @@ function playerAttack(m) {
     else if (getTile(bx, by) === TILE.WALL) { dmg += 3; notes.push('Slammed into the wall!'); shakeScreen(3); }
   }
   m.hp -= dmg; m.awake = true;
+  if (wa && m.hp > 0) {   // the blade's enchantment takes hold
+    if (wa.id === 'flaming') { m.burn = { t: 3, d: 1 + wa.tier }; notes.push(`${nameOf(m)} catches fire!`); floatText(m.x, m.y, '🔥', '#ff9f43'); }
+    else if (wa.id === 'venom') { m.venom = { t: 4, d: wa.tier }; notes.push(`${nameOf(m)} is poisoned.`); floatText(m.x, m.y, '☠', '#7ad36b'); }
+    else if (wa.id === 'frost' && Math.random() < (m.boss ? 0.1 : 0.15 + 0.05 * wa.tier)) { m.stunned = 1; notes.push(`${nameOf(m)} is frozen stiff!`); floatText(m.x, m.y, '❄', '#7bdfff'); }
+  }
+  if (wa && wa.id === 'vampiric' && player.hp < player.maxHp) { const h = Math.min(player.maxHp - player.hp, Math.max(1, Math.floor(dmg * 0.15 * wa.tier))); player.hp += h; floatText(player.x, player.y, `+${h}`, '#ff6b9b'); }
   if (w === 'mace' && solo && m.hp > 0 && Math.random() < (m.boss ? 0.1 : 0.25)) { m.stunned = 1; notes.push(`${m.boss ? m.name : 'It'} is stunned!`); floatText(m.x, m.y, '✦', '#ffd86b'); }
   if (w === 'greatsword') {
     for (const o of monsters.filter((o) => o !== m && o.hp > 0 && dist(o, player) === 1)) {
@@ -6114,8 +6153,11 @@ function monsterAttack(m, ranged = false) {
   if (!ranged && perkCount('nimble') && Math.random() < 0.25) { log(`You dodge ${m.boss ? m.name : 'the ' + m.type.name}.`, 'good'); floatText(player.x, player.y, 'dodge', '#7bdfff'); return; }
   if (!ranged && player.evade > 0) { player.evade--; log(`You slip aside from ${nameOf(m)}.`, 'good'); floatText(player.x, player.y, 'evade', '#7bdfff'); return; }
   if (!ranged && traitOf(player.weapon) === 'longsword' && Math.random() < 0.2) { log(`You parry ${nameOf(m)}'s blow with your longsword.`, 'good'); floatText(player.x, player.y, 'parry', '#e6eef8'); sfx.play('shield'); return; }
+  const aa = wornAffix('armor');
+  if (aa && aa.id === 'swift' && Math.random() < 0.08 + 0.04 * aa.tier) { log(`You slip aside from ${nameOf(m)} in your swift ${itemInfo(player.armor).name.toLowerCase()}.`, 'good'); floatText(player.x, player.y, 'dodge', '#7bdfff'); return; }
   const dmg = Math.max(1, m.atk - armorDef() - (player.shield > 0 ? 2 : 0));
   player.hp -= dmg;
+  if (aa && aa.id === 'spiked' && !ranged) { const sp = 1 + aa.tier; m.hp -= sp; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${sp}`, '#e6eef8'); if (m.hp <= 0) setTimeout(() => { if (monsters.includes(m)) killMonster(m); }, 0); }
   if (m.mod === 'vampiric' && m.hp < m.maxHp) { const h = Math.min(dmg, m.maxHp - m.hp); m.hp += h; floatText(m.x, m.y, `+${h}`, '#ff6b9b'); }
   if (dmg >= player.maxHp * 0.25 || m.boss) shakeScreen(m.boss ? 6 : 4);
   burst(player.x, player.y, '#ff5a5a', 8, 110, { life: 380, size: 3 });
@@ -6124,7 +6166,7 @@ function monsterAttack(m, ranged = false) {
     player.meta.second_wind = true; player.hp = 1;
     log('Second wind! You refuse to fall.', 'good'); unlock('survivor'); sfx.play('shield');
   }
-  if (m.type.poison && !player.poison && !wearing('frostheart') && Math.random() < 0.5) { player.poison = 4; log('You are poisoned! A potion will cure it.', 'bad'); sfx.play('poison'); tip('poison', 'Poison costs 1 HP a turn for four turns. Any potion cures it. Press P to drink one from your bag.'); }
+  if (m.type.poison && !player.poison && !wearing('frostheart') && !(aa && aa.id === 'warded') && Math.random() < 0.5) { player.poison = 4; log('You are poisoned! A potion will cure it.', 'bad'); sfx.play('poison'); tip('poison', 'Poison costs 1 HP a turn for four turns. Any potion cures it. Press P to drink one from your bag.'); }
   if (ranged) { for (let d = 1; d < Math.abs(m.x - player.x) + Math.abs(m.y - player.y); d++) floatText(m.x + Math.sign(player.x - m.x) * d, m.y + Math.sign(player.y - m.y) * d, '➤', '#d9b382'); }
   const now = performance.now();
   m.lunge = { dx: Math.sign(player.x - m.x), dy: Math.sign(player.y - m.y), until: now + 140 };
@@ -6144,6 +6186,8 @@ function stepMonsters(swiftOnly = false, heroes = null) {
   for (const m of monsters) {
     if (swiftOnly && m.mod !== 'swift') continue;
     if (m.hp <= 0) continue;
+    for (const st of ['burn', 'venom']) { const e = m[st]; if (!e || e.t <= 0 || swiftOnly) continue; e.t--; m.hp -= e.d; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${e.d}`, st === 'burn' ? '#ff9f43' : '#7ad36b'); if (e.t <= 0) m[st] = null; }
+    if (m.hp <= 0) { if (coopMember()) coopHit(m, 0, 'hero'); else killMonster(m); continue; }
     if (m.stunned > 0) { m.stunned--; continue; }
     let hi = 0, hd = Infinity;
     heroes.forEach((h, i) => { const dd = cheb(m, h); if (dd < hd) { hd = dd; hi = i; } });
@@ -6491,7 +6535,7 @@ function tryMove(dx, dy) {
     player.x = nx; player.y = ny;
     if (t === TILE.TRAP && (dx || dy)) springTrap(nx, ny);
     if (t === TILE.LAVA) {
-      const burn = 3 + floor;
+      const fp = wornAffix('armor'); const burn = Math.max(1, Math.round((3 + floor) * (fp && fp.id === 'fireproof' ? 0.5 : 1)));
       player.hp -= burn; floatText(nx, ny, `-${burn}`, '#ff9f43'); shakeScreen(3);
       burst(nx, ny, '#ff9f43', 14, 90, { glow: true, gravity: -80, life: 500 });
       log(`The lava sears you for ${burn}.`, 'bad');
@@ -7458,6 +7502,7 @@ function endTurn(moved) {
   }
   if (inTown() && (turn % 8 === 0)) refreshTownContext();
   if (wearing('tideheart') && turn % 6 === 0 && player.hp > 0 && player.hp < player.maxHp) { player.hp++; floatText(player.x, player.y, '+1', '#7bdfff'); }
+  { const ba = wornAffix('armor'); if (ba && ba.id === 'blessed' && turn % (10 - 2 * ba.tier) === 0 && player.hp > 0 && player.hp < player.maxHp) { player.hp++; floatText(player.x, player.y, '+1', '#ffd86b'); } }
   if (player.meta.blessing && player.meta.blessing.turns > 0 && --player.meta.blessing.turns === 0) log(`The ${player.meta.blessing.name || 'shrine\'s blessing'} fades.`);
   if ((player.cls === 'ranger' || wearing('sunstone')) && scene === 'dungeon') {
     for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
@@ -7985,8 +8030,8 @@ const invBag = document.getElementById('inv-bag');
 function itemLabel(id) {
   const it = itemInfo(id);
   if (!it) return id;
-  if (ITEMS.weapons[id]) return `${it.name}${id === player.weapon && player.weaponPlus ? ' +' + player.weaponPlus : ''} (+${it.atk + (id === player.weapon ? player.weaponPlus || 0 : 0)} attack${WEAPON_TRAITS[traitOf(id)] ? ', ' + WEAPON_TRAITS[traitOf(id)].name : ''}${it.floor >= 99 ? ', legendary' : ''})`;
-  if (ITEMS.armor[id]) return `${it.name}${id === player.armor && player.armorPlus ? ' +' + player.armorPlus : ''} (${it.def + (id === player.armor ? player.armorPlus || 0 : 0)} defence)`;
+  if (itemKind(id) === 'weapon') return `${it.name}${id === player.weapon && player.weaponPlus ? ' +' + player.weaponPlus : ''}${it.magic ? ', ' + it.magic : ''} (+${it.atk + (id === player.weapon ? player.weaponPlus || 0 : 0)} attack${WEAPON_TRAITS[traitOf(id)] ? ', ' + WEAPON_TRAITS[traitOf(id)].name : ''}${it.floor >= 99 ? ', legendary' : ''})`;
+  if (itemKind(id) === 'armor') return `${it.name}${id === player.armor && player.armorPlus ? ' +' + player.armorPlus : ''}${it.magic ? ', ' + it.magic : ''} (${it.def + (id === player.armor ? player.armorPlus || 0 : 0)} defence)`;
   if (ITEMS.relics[id]) return `${it.name} (${it.desc})`;
   if (it.use === 'bomb') return `${it.name} (blasts a 3×3 area)`;
   if (it.use === 'return') return `${it.name} (back to your home town)`;
@@ -8132,9 +8177,10 @@ function dropLoot(m) {
   if (!dungeonDef) return;   // beasts of the wilds carry nothing
   const pool = Object.entries({ ...ITEMS.weapons, ...ITEMS.armor, ...ITEMS.consumables }).filter(([, it]) => it.floor <= floor);
   if (!pool.length) return;
-  const [id, it] = pool[rnd(pool.length)];
+  const [base] = pool[rnd(pool.length)], id = rollAffix(base), it = itemInfo(id);
   player.bag.push(id);
-  log(`The ${m.type.name} drops a ${it.name}.`, 'good');
+  log(`The ${m.type.name} drops a ${it.name}${it.magic ? ': ' + it.magic : ''}.`, it.magic ? 'good' : 'good');
+  if (it.magic) { sfx.play('win'); floatText(player.x, player.y, '✦ magic', '#c084fc'); unlock('enchanted'); }
 }
 
 // ---------- shop ----------
@@ -8792,7 +8838,7 @@ function serviceRowsInner(kind) {
 }
 // How a weapon or armour compares with what the hero has on: ▲ better, ▼ worse.
 function compareToWorn(id) {
-  const w = ITEMS.weapons[id], a = ITEMS.armor[id];
+  const w = itemKind(id) === 'weapon' ? itemInfo(id) : null, a = itemKind(id) === 'armor' ? itemInfo(id) : null;
   if (!w && !a) return null;
   const slot = w ? 'weapon' : 'armor', stat = w ? 'atk' : 'def', word = w ? 'attack' : 'defence';
   const worn = player[slot] ? itemInfo(player[slot])[stat] + (slot === 'weapon' ? player.weaponPlus || 0 : player.armorPlus || 0) : 0;

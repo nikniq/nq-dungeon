@@ -19,6 +19,20 @@ class CharacterTest extends TestCase
         $this->assertCount(72, $user->character->fresh()->perks);
     }
 
+    public function test_magic_items_are_saved_named_and_validated(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla', 'class' => 'warrior']);
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 5, 'xp' => 5, 'gold' => 10, 'hp' => 30, 'max_hp' => 30, 'atk' => 5, 'kills' => 0, 'bag' => ['chain~sturdy~1', 'potion']];
+        $this->actingAs($user)->postJson('/api/character', $state + ['weapon' => 'longsword~flaming~2', 'armor' => 'plate~blessed~3'])->assertOk()->assertJson(['weapon' => 'longsword~flaming~2']);
+        $this->actingAs($user)->get('/character')->assertOk()->assertSee('Flaming longsword II (+6 attack)')->assertSee('Blessed plate armor III (7 defence)')->assertSee('Sturdy chain mail');
+        $this->get('/heroes/Ayla')->assertOk()->assertSee('Flaming longsword II');
+        foreach (['longsword~sparkly~1', 'longsword~flaming~4', 'longsword~flaming', 'potion~flaming~1', 'fangblade~keen~1', 'longsword~sturdy~1'] as $bad) {
+            $this->actingAs($user)->postJson('/api/character', $state + ['weapon' => $bad])->assertUnprocessable();
+        }
+        $this->actingAs($user)->postJson('/api/character', array_replace($state, ['bag' => ['plate~flaming~1']]))->assertUnprocessable();
+    }
+
     public function test_a_save_with_every_meta_key_is_accepted(): void
     {
         $user = User::factory()->create();

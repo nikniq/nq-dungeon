@@ -390,6 +390,20 @@ The public story page at `/world/story` (`StoryController`, `config/story.php`)
 tells both stories and carries a discussion thread under each that signed-in
 heroes can post to (`story_posts`, 600 characters, throttled).
 
+## Magic items
+
+Weapons and armour dropped underground (and from chests) may come enchanted:
+one affix and a tier I to III, carried in the item id as `base~affix~tier`
+(`rollAffix`, `parseItem`, `itemInfo`, `config/items.php` `affixes`). Weapons:
+Flaming (burns for a few turns), Venomous (poisons), Frost (may freeze a turn),
+Vampiric (heals part of the damage dealt), Keen (critical blows), Heavy (+2).
+Armour: Sturdy (+1), Warded (no poison), Swift (dodges), Blessed (slow regen),
+Spiked (hurts attackers), Fireproof (half lava damage). Each tier adds a point
+to the main stat. Burning and poisoned monsters tick before they act. The
+server validates the parts (`Character::validItem`), the pages name them
+(`Character::describeItem`), the multiplayer look sends the base item, and the
+catalogue lists the affixes. Legendaries and trade-shop gear never roll one.
+
 ## The Daily Delve
 
 Every inn offers the Daily Delve: a five-floor dungeon generated from the date
