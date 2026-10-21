@@ -147,7 +147,7 @@ class CharacterTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors('weapon');
         $this->actingAs($user)->postJson('/api/character', $state + ['weapon' => null, 'armor' => null, 'bag' => ['potion', 'excalibur']])
             ->assertUnprocessable()->assertJsonValidationErrors('bag.1');
-        $this->actingAs($user)->postJson('/api/character', $state + ['weapon' => null, 'armor' => null, 'bag' => array_fill(0, 17, 'potion')])
+        $this->actingAs($user)->postJson('/api/character', $state + ['weapon' => null, 'armor' => null, 'bag' => array_fill(0, 49, 'potion')])
             ->assertUnprocessable()->assertJsonValidationErrors('bag');
     }
 
