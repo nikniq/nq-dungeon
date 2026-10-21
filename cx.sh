@@ -14,6 +14,15 @@
 # and the app by its domain. Override any of them in the environment, e.g.
 #   CX_REMOTE=other-alias ./cx.sh 20
 # or in an optional vars.sh next to this script (gitignored).
+#
+# How it is wired: cx.sh never talks to the database itself. Every option
+# is a wrapper around `php artisan` run on the server from the app root,
+# and database work goes through `php artisan tinker --execute='…'` or the
+# app's own commands (db:dump, db:restore, admin:grant), using the app's
+# Eloquent models and the DB facade. The connection is therefore whatever
+# the app is configured with (the DB_* values in .env on the server, read
+# through config/database.php): the same credentials the website uses, no
+# separate login and no mysql client.
 #================================================================
 clear
 
@@ -118,7 +127,7 @@ echo ACCESS
 echo "00 : CONNECT: ssh to $REMOTE"
 echo "01 : SSH KEY: copy your public key to the server"
 echo "05 : MONITOR: remote top"
-echo "91 : BACKUP: download database (MySQL dump or SQLite) and storage/ to $BACKUP_DIR"
+echo "91 : BACKUP: download the database (via db:dump) and storage/ to $BACKUP_DIR"
 echo "92 : BACKUPS: list what has been downloaded"
 echo "qq : Exit [Quit]"
 echo Enter [Selection] to continue
@@ -449,12 +458,10 @@ case "$SELECTION" in
   SLUG=$(echo "$PARAM2" | tr -cs '[:alnum:]' '-' | sed 's/-$//')
   DEST="$BACKUP_DIR/$STAMP-$SLUG"
   mkdir -p "$DEST"
-  # SQLite is a single file; MySQL is dumped with the credentials in the server's .env.
-  remote "if grep -q '^DB_CONNECTION=mysql' .env; then
-      H=\$(grep '^DB_HOST=' .env | cut -d= -f2-); D=\$(grep '^DB_DATABASE=' .env | cut -d= -f2-); U=\$(grep '^DB_USERNAME=' .env | cut -d= -f2-); P=\$(grep '^DB_PASSWORD=' .env | cut -d= -f2- | tr -d '\"');
-      MYSQL_PWD=\"\$P\" mysqldump -h \"\${H:-127.0.0.1}\" -u \"\$U\" --single-transaction --quick \"\$D\" | gzip > /tmp/nq-db.sql.gz && echo \"dumped \$D\";
-    fi;
-    tar czf /tmp/nq-backup.tgz database/*.sqlite /tmp/nq-db.sql.gz storage/app storage/logs .env 2>/dev/null; rm -f /tmp/nq-db.sql.gz; echo packed"
+  # The database is dumped by the app itself (db:dump), through whatever
+  # connection .env configures, so there is no mysql client or second login.
+  remote "php artisan db:dump storage/app/private/db-dump.json.gz && tar czf /tmp/nq-backup.tgz storage/app storage/logs .env 2>/dev/null; rm -f storage/app/private/db-dump.json.gz; echo packed"
+  echo "  (restore with: php artisan db:restore <file> on the server, after migrating)"
   $APP_SCP "$REMOTE:/tmp/nq-backup.tgz" "$DEST/backup.tgz"
   remote "rm -f /tmp/nq-backup.tgz"
   echo "✓ saved to $DEST/backup.tgz"

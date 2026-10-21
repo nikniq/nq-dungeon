@@ -390,6 +390,19 @@ The public story page at `/world/story` (`StoryController`, `config/story.php`)
 tells both stories and carries a discussion thread under each that signed-in
 heroes can post to (`story_posts`, 600 characters, throttled).
 
+## Operating it: deploy.sh and cx.sh
+
+`deploy.sh` runs on the server (pull, dependencies, migrate, caches, verify).
+`cx.sh` is its local counterpart: a menu of routine, diagnostic, admin and
+maintenance options, each a wrapper around `php artisan` run over ssh in the
+app root. cx.sh never talks to the database itself: database work goes through
+`php artisan tinker --execute='…'` or the app's own commands (`db:dump`,
+`db:restore`, `admin:grant`), using the app's Eloquent models and the DB
+facade, so the connection is whatever `.env` on the server configures (MySQL
+in production), with the credentials the website already uses and no mysql
+client. It needs no settings file: the server is named by its ssh alias and
+the app by its domain, overridable in the environment.
+
 ## Admin section
 
 `/admin` (users with the `is_admin` flag; grant it with `php artisan admin:grant
