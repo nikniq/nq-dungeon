@@ -52,7 +52,7 @@ return [
     ],
     'other' => [
         ['A horse', '400 gold at the inns of cities and castles (a quarter off in horse-breeding towns)', 'two tiles a step in the open wilds'],
-        ['A ship', '1500 gold from any harbourmaster (a quarter off in shipping ports)', 'sail the open sea two tiles a step, land on any shore, and your pets ride on deck'],
+        ['A ship', '1500 gold from any harbourmaster (a quarter off in shipping ports), once Story 2 has begun and the Veil has parted', 'sail the open sea two tiles a step, land on any shore, and your pets ride on deck'],
         ['A treasure chart', '300 gold from any harbourmaster, or from pirates, wrecks and castaways', 'marks a sea-chest on an island: gold, the Stormcaller Pearl the first time, gear after'],
         ['Pets', 'at inns, each realm its own: cats, hounds, hawks, huskies, mongooses, wolves, boars, bears and elephants, 40 to 700 gold', 'up to three follow, fight, grow with kills and come aboard your ship'],
         ['A room at the inn', '150 gold, once', 'a storage chest at every inn in the world'],

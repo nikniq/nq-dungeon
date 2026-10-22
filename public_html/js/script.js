@@ -1774,7 +1774,7 @@ function guideSuggestions() {
   if (player.bag.length >= bagSize() - 2 && !player.meta.room) out.push(['Your bag is nearly full', `Rent a room at an inn (${ROOM_COST} gold) for a storage chest at every inn.`]);
   if (!delveDone() && player.level >= 3) out.push(['Today\'s Delve', `Lie down at any inn for the Delve of ${delveTheme().name}: the same dungeon for every hero today, one try, scored on the heroes page.`]);
   if (player.meta.ship && !charts().length && player.gold >= CHART_COST) out.push(['Buried treasure', `Harbourmasters sell charts (${CHART_COST} gold) to sea-chests on islands. Sail there and dig.`]);
-  if (!player.meta.ship && player.gold >= SHIP_COST * 0.75) out.push(['Set sail', `Harbourmasters sell ships (${SHIP_COST} gold): sail the open sea to islands and shores no road reaches.`]);
+  if (!player.meta.ship && farShoreOpen() && player.gold >= SHIP_COST * 0.75) out.push(['Set sail', `Harbourmasters sell ships (${SHIP_COST} gold): sail the open sea to islands and shores no road reaches.`]);
   if (!player.meta.horse && player.gold >= HORSE_COST * 0.75) out.push(['Ride', `Inns in cities and castles sell horses (${HORSE_COST} gold): two tiles a step in the wilds.`]);
   if (player.weapon && (player.weaponPlus || 0) < 3 && player.gold >= UPGRADE_COST(player.weaponPlus || 0)) out.push(['Sharpen your blade', `A smithy can make your ${itemInfo(player.weapon).name} +${(player.weaponPlus || 0) + 1}.`]);
   if (player.meta.places.length < 5) out.push(['Explore', 'Standing stones, shrines, ruins, hermits and wells lie in the wilds. Walk near them to discover them.']);
@@ -8788,6 +8788,7 @@ function shipRows(here) {
   const S = player.meta.ship, moor = mooringOf(here);
   if (!S) {
     if (!moor) return [shopRow('The harbourmaster would sell you a ship, but there is no open water to moor one here')];
+    if (!farShoreOpen()) return [shopRow('No ship is for sale while the Veil stands. The harbourmasters will not sell a hull to sail under its own canvas until the eastern storm parts, and that is a matter for the next story', 'Not yet', () => {}, true)];
     const cost = townIdentity(here).trade.label === 'shipping' ? Math.round(SHIP_COST * 0.75) : SHIP_COST;
     return [shopRow('A ship of your own: sail the open sea at will, two tiles a step, and land on any shore or island no road reaches', `Buy ${cost}g`, () => {
       if (player.gold < cost) return;

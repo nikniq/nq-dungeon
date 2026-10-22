@@ -22,8 +22,9 @@ Deep gate sits on the Cantons–Kingdom bridge; story sites are anchored to land
 Towns, dungeons, places and camps only generate on land, and roads never cross
 the sea. Any town near the sea is a port with a pier, a moored ship and a
 harbourmaster who sells passage to every other port within four regions, even
-ones not yet visited (`harbourOf`, `sailTo`). Harbourmasters also sell a ship
-of the hero's own (`SHIP_COST`, a quarter off in shipping towns): walk into it
+ones not yet visited (`harbourOf`, `sailTo`). Once Story 2 has begun and the
+Veil has parted (`farShoreOpen`), harbourmasters also sell a ship of the hero's
+own (`SHIP_COST`, a quarter off in shipping towns): walk into it
 at its mooring beside the pier to go aboard, sail the open sea two tiles a
 step with the arrow keys or a click, and steer onto any shore or island to
 land. The ship waits where it was left (`meta.ship`, shown on the map) and any
