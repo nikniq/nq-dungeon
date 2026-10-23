@@ -4041,7 +4041,7 @@ function trialSpawn(x, y, n) {
   let made = 0;
   for (let i = 0; i < n * 4 && made < n; i++) {
     const spot = freeTileNear(x + rnd(7) - 3, y + rnd(7) - 3, 1); if (!spot || cheb(spot, player) < 2 || getMonsterAt(spot.x, spot.y)) continue;
-    const t = pool[rnd(pool.length)]; addMonster(t, spot.x, spot.y, { awake: true, trial: true }); burst(spot.x, spot.y, '#ff8c5a', 10, 80, { life: 400 }); made++;
+    const t = pool[rnd(pool.length)]; addMonster(t, spot.x, spot.y, { awake: true, trial }); burst(spot.x, spot.y, '#ff8c5a', 10, 80, { life: 400 }); made++;
   }
   return made;
 }
@@ -6359,7 +6359,7 @@ const WEAPON_TRAITS = {
 };
 // One-of-a-kind gear from the lairs borrows the fighting style of a common weapon.
 const LEGEND_TRAIT = { fangblade: 'dagger', tidecaller: 'longsword', stormhammer: 'warhammer', staffofages: 'greatsword' };
-const traitOf = (id) => LEGEND_TRAIT[id] || id;
+const traitOf = (id) => { const b = baseOf(id); return LEGEND_TRAIT[b] || b; };
 const nameOf = (m) => (m.boss ? m.name : 'the ' + mName(m));
 function moveMonster(m, x, y) { monsterIndex.delete(key(m.x, m.y)); m.x = x; m.y = y; monsterIndex.set(key(m.x, m.y), m); monstersDirty = true; }
 function playerAttack(m) {
@@ -6374,8 +6374,9 @@ function playerAttack(m) {
   // the hammer drives the foe back, or into the wall behind it
   if (w === 'warhammer' && solo && !m.boss && m.hp - dmg > 0) {
     const bx = m.x + Math.sign(m.x - player.x), by = m.y + Math.sign(m.y - player.y);
-    if (walkable(getTile(bx, by)) && !getMonsterAt(bx, by) && !houndAt(bx, by) && !mpPlayerAt(bx, by)) { moveMonster(m, bx, by); notes.push('Knocked back!'); }
-    else if (getTile(bx, by) === TILE.WALL) { dmg += 3; notes.push('Slammed into the wall!'); shakeScreen(3); }
+    const back = m.sea ? seaTile(bx, by) : walkable(getTile(bx, by));
+    if (back && !getMonsterAt(bx, by) && !houndAt(bx, by) && !mpPlayerAt(bx, by)) { moveMonster(m, bx, by); notes.push('Knocked back!'); }
+    else if (getTile(bx, by) === TILE.WALL && !(scene === 'world' && groundAt(bx, by) === GROUND.WATER)) { dmg += 3; notes.push('Slammed into the wall!'); shakeScreen(3); }
   }
   if (w === 'dawnbreaker') { const sd = Math.ceil(m.maxHp * 0.1); dmg += sd; notes.push('The blade sunders!'); }
   m.hp -= dmg; m.awake = true;
@@ -6408,7 +6409,7 @@ function playerAttack(m) {
 }
 function killMonster(m) {
   if (m.id) { mp.dead.add(m.id); mp.graveyard.set(m.id, m); }
-  if (m.trial && trial) trial.kills++;
+  if (m.trial && trial && m.trial === trial) trial.kills++;
   if (m.mod === 'explosive' || m.type.bomber) {
     const blast = 3 + floor;
     burst(m.x, m.y, '#ff9f43', 36, 180, { glow: true, life: 600, size: 3 }); shakeScreen(5); sfx.play('fire');
@@ -6514,7 +6515,7 @@ function monsterAttack(m, ranged = false) {
   if (aa && aa.id === 'swift' && Math.random() < 0.08 + 0.04 * aa.tier) { log(`You slip aside from ${nameOf(m)} in your swift ${itemInfo(player.armor).name.toLowerCase()}.`, 'good'); floatText(player.x, player.y, 'dodge', '#7bdfff'); return; }
   const dmg = Math.max(1, m.atk - armorDef() - (player.shield > 0 ? 2 : 0));
   player.hp -= dmg;
-  if (aa && aa.id === 'spiked' && !ranged) { const sp = 1 + aa.tier; m.hp -= sp; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${sp}`, '#e6eef8'); if (m.hp <= 0) setTimeout(() => { if (monsters.includes(m)) killMonster(m); }, 0); }
+  if (aa && aa.id === 'spiked' && !ranged) { const sp = 1 + aa.tier; m.hp -= sp; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${sp}`, '#e6eef8'); if (m.hp <= 0) setTimeout(() => { if (!monsters.includes(m)) return; killMonster(m); if (player.hp <= 0 && !gameOver) { if (perkCount('second_wind') && !player.meta.second_wind) { player.meta.second_wind = true; player.hp = 1; log('Second wind! You refuse to fall.', 'good'); unlock('survivor'); } else die(); updateStats(); } }, 0); }
   if (m.mod === 'vampiric' && m.hp < m.maxHp) { const h = Math.min(dmg, m.maxHp - m.hp); m.hp += h; floatText(m.x, m.y, `+${h}`, '#ff6b9b'); }
   if (dmg >= player.maxHp * 0.25 || m.boss) shakeScreen(m.boss ? 6 : 4);
   burst(player.x, player.y, '#ff5a5a', 8, 110, { life: 380, size: 3 });
@@ -6547,9 +6548,9 @@ function stepMonsters(swiftOnly = false, heroes = null) {
     if (m.hp <= 0) continue;
     for (const st of ['burn', 'venom']) { const e = m[st]; if (!e || e.t <= 0 || swiftOnly) continue; e.t--; m.hp -= e.d; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${e.d}`, st === 'burn' ? '#ff9f43' : '#7ad36b'); if (e.t <= 0) m[st] = null; }
     if (m.hp <= 0) { if (coopMember()) coopHit(m, 0, 'hero'); else killMonster(m); continue; }
-    if (m.stunned > 0) { m.stunned--; continue; }
-    if (m.type.regen && m.hp < m.maxHp && !(m.burn && m.burn.t > 0)) { const h = Math.min(m.type.regen, m.maxHp - m.hp); m.hp += h; if (isVisible(m.x, m.y)) floatText(m.x, m.y, `+${h}`, '#9ef0b0'); }
-    if (m.type.healer) { let mended = 0; for (const o of monsters) { if (o !== m && o.hp > 0 && o.hp < o.maxHp && cheb(o, m) <= 2) { const h = Math.min(2, o.maxHp - o.hp); o.hp += h; mended++; if (isVisible(o.x, o.y)) floatText(o.x, o.y, `+${h}`, '#9ef0b0'); } } if (mended && isVisible(m.x, m.y) && Math.random() < 0.3) log('The shaman chants, and its pack\'s wounds close.', 'bad'); }
+    if (m.stunned > 0) { if (!swiftOnly) m.stunned--; continue; }
+    if (!swiftOnly && m.type.regen && m.hp < m.maxHp && !(m.burn && m.burn.t > 0)) { const h = Math.min(m.type.regen, m.maxHp - m.hp); m.hp += h; if (isVisible(m.x, m.y)) floatText(m.x, m.y, `+${h}`, '#9ef0b0'); }
+    if (!swiftOnly && m.type.healer) { let mended = 0; for (const o of monsters) { if (o !== m && o.hp > 0 && o.hp < o.maxHp && cheb(o, m) <= 2) { const h = Math.min(2, o.maxHp - o.hp); o.hp += h; mended++; if (isVisible(o.x, o.y)) floatText(o.x, o.y, `+${h}`, '#9ef0b0'); } } if (mended && isVisible(m.x, m.y) && Math.random() < 0.3) log('The shaman chants, and its pack\'s wounds close.', 'bad'); }
     let hi = 0, hd = Infinity;
     heroes.forEach((h, i) => { const dd = cheb(m, h); if (dd < hd) { hd = dd; hi = i; } });
     if (m.horde && (hd > 6 || !m.awake)) { if (!swiftOnly) hordeStep(m); continue; }   // the hosts of Midgard have a town to burn
@@ -6570,7 +6571,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
       if (gd && !heroes.some((h) => dist(m, h) === 1) && (m.awake || Math.random() < 0.5)) { m.awake = true; guardHurt(gd, m); continue; }
     }
     if (m.type.thief && m.loot && m.fleeUntil > turn) {   // away from the hero, and gone for good once far enough
-      if (dist(m, H) > 9 || !isVisible(m.x, m.y) && dist(m, H) > 6) { log(`The thief vanishes into the dark with your ${m.loot} gold.`, 'bad'); monsters = monsters.filter((x) => x !== m); monsterIndex.delete(key(m.x, m.y)); monstersDirty = true; continue; }
+      if (!(m.trial && m.trial === trial && trial.kind === 'blood') && (dist(m, H) > 9 || !isVisible(m.x, m.y) && dist(m, H) > 6)) { log(`The thief vanishes into the dark with your ${m.loot} gold.`, 'bad'); monsters = monsters.filter((x) => x !== m); monsterIndex.delete(key(m.x, m.y)); monstersDirty = true; continue; }
       let best = null, bestD = dist(m, H);
       for (const [dx, dy] of DIRS) { const nx = m.x + dx, ny = m.y + dy; if (walkable(getTile(nx, ny)) && getTile(nx, ny) !== TILE.LAVA && !getMonsterAt(nx, ny) && !houndAt(nx, ny) && !heroAt(nx, ny) && dist({ x: nx, y: ny }, H) > bestD) { bestD = dist({ x: nx, y: ny }, H); best = [nx, ny]; } }
       if (best) { moveMonster(m, best[0], best[1]); continue; }
@@ -6848,9 +6849,14 @@ function leaveDungeon() {
   log(`You slip out through the door and climb back up to daylight${def ? ` from the ${def.name}` : ''}. You keep everything you found.`, 'good');
   saveProgress('progress');
 }
+// Petrified: whatever you meant to do, the turn passes instead.
+function stoneTurn() {
+  if (!(player.stunned > 0)) return false;
+  player.stunned--; log('Your limbs are stone. The turn passes.', 'bad'); floatText(player.x, player.y, 'stone', '#cbd5e1'); endTurn(false); return true;
+}
 function tryMove(dx, dy) {
   if (gameOver || !player || shopOpen || perkChoices || entering || storyOpen() || controlsOpen() || settingsOpen()) return;
-  if (player.stunned > 0) { player.stunned--; log('Your limbs are stone. The turn passes.', 'bad'); floatText(player.x, player.y, 'stone', '#cbd5e1'); endTurn(false); return; }
+  if (stoneTurn()) return;
   const nx = player.x + dx, ny = player.y + dy;
   const t = getTile(nx, ny);
   if (t === TILE.WALL && scene === 'world' && groundAt(nx, ny) === GROUND.WATER) {
@@ -8027,9 +8033,9 @@ function lineTarget(range) {
   for (const [dx, dy] of DIRS) {
     for (let d = 1; d <= range; d++) {
       const x = player.x + dx * d, y = player.y + dy * d;
-      if (!walkable(getTile(x, y))) break;
       const m = getMonsterAt(x, y);
       if (m) { if (!best || d < best.d) best = { m, d, dx, dy }; break; }
+      if (!walkable(getTile(x, y)) && !seaTile(x, y)) break;
     }
   }
   return best;
@@ -8042,9 +8048,9 @@ function aimedLine(aim, range) {
   const dx = Math.sign(ddx), dy = Math.sign(ddy);
   for (let d = 1; d <= range; d++) {
     const x = player.x + dx * d, y = player.y + dy * d;
-    if (!walkable(getTile(x, y))) return null;
     const m = getMonsterAt(x, y);
     if (m) return { m, d, dx, dy };
+    if (!walkable(getTile(x, y)) && !seaTile(x, y)) return null;
   }
   return null;
 }
@@ -8094,7 +8100,7 @@ const ABILITIES = {
       player.evade = 3;
       if (near) {
         const dx = Math.sign(player.x - near.x), dy = Math.sign(player.y - near.y);
-        for (const [sx, sy] of [[dx, dy], [dx, 0], [0, dy]]) { if (!sx && !sy) continue; const nx = player.x + sx, ny = player.y + sy; if (walkable(getTile(nx, ny)) && !getMonsterAt(nx, ny) && !houndAt(nx, ny) && !hazard(nx, ny)) { player.x = nx; player.y = ny; if (sx) player.face = sx; break; } }
+        for (const [sx, sy] of [[dx, dy], [dx, 0], [0, dy]]) { if (!sx && !sy) continue; const nx = player.x + sx, ny = player.y + sy; if (walkable(getTile(nx, ny)) && !getMonsterAt(nx, ny) && !houndAt(nx, ny) && !hazard(nx, ny)) { landFromDeck(); player.x = nx; player.y = ny; if (sx) player.face = sx; break; } }
       }
       burst(player.x, player.y, '#7bdfff', 16, 100, { glow: true, gravity: 0, life: 400 }); sfx.play('shield');
       log('You slip aside. The next three blows aimed at you will miss.', 'good'); return true; } },
@@ -8133,6 +8139,7 @@ const ABILITIES = {
       if (!dest) { const dx = player.face || 1; for (let d = 1; d <= 5; d++) { const nx = player.x + dx * d; if (!walkable(getTile(nx, player.y))) break; if (getMonsterAt(nx, player.y) || houndAt(nx, player.y) || hazard(nx, player.y)) continue; dest = { x: nx, y: player.y }; } }   // a blink passes over foes and stops only at walls
       if (!dest) { log('No room to blink that way.'); return false; }
       burst(player.x, player.y, '#c084fc', 20, 110, { glow: true, gravity: -60, life: 500 });
+      landFromDeck();
       player.x = dest.x; player.y = dest.y; settle(player);
       burst(player.x, player.y, '#c084fc', 20, 110, { glow: true, gravity: -60, life: 500 }); sfx.play('stairs');
       log('You blink across the room in a shimmer of violet.', 'good'); return true; } },
@@ -8146,6 +8153,7 @@ function useAbility(aim = null, slot = 0) {
   if (!abilityUnlocked(slot)) { log(`${A.name} comes at level ${A.level}. You are level ${player.level}.`); draw(); return; }
   const cost = abilityCost(slot);
   if ((player.mana ?? 0) < cost) { log(`Not enough mana for ${A.name}: it costs ${cost}, you have ${player.mana ?? 0}. Mana returns a point a turn, or drink a mana potion.`); draw(); return; }
+  if (stoneTurn()) return;
   if (!A.run(aim)) { draw(); return; }
   player.mana -= cost;
   endTurn(false);
@@ -8366,7 +8374,7 @@ function touchStep() {
   const { px, py } = canvasPoint(touch.sx, touch.sy);
   const tx = Math.floor((px + cam.x) / T), ty = Math.floor((py + cam.y) / T);
   const dx = tx - player.x, dy = ty - player.y;
-  if (!dx && !dy) { stopTouchWalk(); return; }
+  if (!dx && !dy) { if (touch.steps > 1) stopTouchWalk(); return; }
   // walk the shortest path when the spot can be reached, so obstacles are skirted
   if ((walkable(getTile(tx, ty)) || (aboard && seaTile(tx, ty))) && Math.abs(dx) + Math.abs(dy) <= 40) {
     const d = bfs(tx, ty, 48, false, false, aboard), here = d.get(key(player.x, player.y));
@@ -8429,7 +8437,7 @@ canvas.addEventListener('pointermove', (e) => {
     touchStep(); if (!touch.timer) touch.timer = setInterval(touchStep, 190);
   }
 });
-for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) canvas.addEventListener(ev, (e) => { if (e.pointerId === touch.id) stopTouchWalk(); });
+for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) canvas.addEventListener(ev, (e) => { if (e.pointerId !== touch.id) return; if (ev === 'pointerup' && touch.delay && !touch.swipe) { clearTimeout(touch.delay); touch.delay = null; touchStep(); } stopTouchWalk(); });
 window.addEventListener('pagehide', () => { if (!gameOver) saveProgress('progress', true); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && !gameOver) saveProgress('progress', true); if (!document.hidden) { mp.lastActive = performance.now(); mpKick(); } });
 
@@ -8523,6 +8531,7 @@ function throwBomb(idx) {
   if (idx === undefined) idx = player.bag.indexOf('bomb');
   if (idx < 0) { log('You have no bombs.'); draw(); return; }
   if (scene === 'house' || safeZone()) { log('Not here. Bombs are for the dungeon and the wilds.'); draw(); return; }
+  if (stoneTurn()) return;
   let target = null, bd = Infinity;
   for (const m of monsters) { const d = cheb(m, player); if (d <= 5 && isVisible(m.x, m.y) && d < bd) { bd = d; target = m; } }
   if (!target) {
@@ -8960,6 +8969,12 @@ function boardShip() {
   tip('ship', 'At sea the arrow keys sail your ship. Steer onto any shore to land; the ship waits where you left it, and any harbourmaster can fetch it.');
   sfx.play('stairs'); endTurn(true);
 }
+// A hero who leaves the deck by magic or a sidestep has landed; the ship stays where she lies.
+function landFromDeck() {
+  if (!aboard) return;
+  aboard = false; for (const pp of pets) pp.aboard = false; placePets();
+  log('You leave the deck for the shore. The ship waits where she lies.');
+}
 function sailStep(dx, dy) {
   let nx = player.x + dx, ny = player.y + dy;
   if (!northOpen() && ny < ICE_Y && player.y >= ICE_Y) { log('The sea ahead is pack ice to the horizon, groaning and shifting. Nothing with a hull goes further north than this.', 'bad'); draw(); return; }
@@ -8967,10 +8982,11 @@ function sailStep(dx, dy) {
   player.x = nx; player.y = ny;
   // a following sea: the second tile comes free on open water
   const x2 = nx + dx, y2 = ny + dy;
-  if ((dx || dy) && seaTile(x2, y2) && !getMonsterAt(x2, y2) && !(walk.active && nx === walk.tx && ny === walk.ty)) {
+  const gated = (x, y) => (!northOpen() && y < ICE_Y) || (!farShoreOpen() && x > VEIL_X);
+  if ((dx || dy) && seaTile(x2, y2) && !gated(x2, y2) && !getMonsterAt(x2, y2) && !(walk.active && nx === walk.tx && ny === walk.ty)) {
     player.x = x2; player.y = y2;
     const x3 = x2 + dx, y3 = y2 + dy;   // the Stormcaller Pearl: a third tile
-    if (wearing('stormpearl') && seaTile(x3, y3) && !getMonsterAt(x3, y3) && !(walk.active && x2 === walk.tx && y2 === walk.ty)) { player.x = x3; player.y = y3; }
+    if (wearing('stormpearl') && seaTile(x3, y3) && !gated(x3, y3) && !getMonsterAt(x3, y3) && !(walk.active && x2 === walk.tx && y2 === walk.ty)) { player.x = x3; player.y = y3; }
   }
   player.wx = player.x; player.wy = player.y; player.meta.ship = { x: player.x, y: player.y };
   endTurn(true);
