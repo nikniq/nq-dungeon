@@ -27,26 +27,26 @@ const SIM_RADIUS = 28;    // monsters further than this from the hero stand stil
 const MONSTER_TYPES = [
   { name: 'Rat',      sprite: 'rat',      hp: 3,  atk: 1, xp: 2,  minFloor: 1 },
   { name: 'Goblin',   sprite: 'goblin',   hp: 5,  atk: 2, xp: 4,  minFloor: 1 },
-  { name: 'Skeleton', sprite: 'skeleton', hp: 8,  atk: 3, xp: 7,  minFloor: 2 },
-  { name: 'Orc',      sprite: 'orc',      hp: 12, atk: 4, xp: 12, minFloor: 3 },
+  { name: 'Skeleton', sprite: 'skeleton', hp: 8,  atk: 3, xp: 7,  minFloor: 2, tell: 'guard' },
+  { name: 'Orc',      sprite: 'orc',      hp: 12, atk: 4, xp: 12, minFloor: 3, tell: 'chop' },
   { name: 'Wraith',   sprite: 'wraith',   hp: 10, atk: 5, xp: 16, minFloor: 4 },
   { name: 'Bat',      sprite: 'bat',      hp: 2,  atk: 1, xp: 2,  minFloor: 1, erratic: true },
   { name: 'Spider',   sprite: 'spider',   hp: 5,  atk: 2, xp: 5,  minFloor: 2, poison: true },
-  { name: 'Archer',   sprite: 'archer',   hp: 4,  atk: 2, xp: 6,  minFloor: 2, ranged: 4 },
+  { name: 'Archer',   sprite: 'archer',   hp: 4,  atk: 2, xp: 6,  minFloor: 2, ranged: 4, tell: 'aim' },
   { name: 'Slime',    sprite: 'slime',    hp: 10, atk: 2, xp: 6,  minFloor: 2, splits: true },
   { name: 'Necromancer', sprite: 'necromancer', hp: 9, atk: 2, xp: 18, minFloor: 4, raiser: true },
   { name: 'Mimic',    sprite: 'mimic',    hp: 14, atk: 4, xp: 20, minFloor: 99, noSpawn: true },
   { name: 'Knight',   sprite: 'darkknight', hp: 16, atk: 5, xp: 24, minFloor: 99, noSpawn: true },
   { name: 'Wyrm',     sprite: 'wyrm',     hp: 30, atk: 9, xp: 60, minFloor: 99, noSpawn: true },
   { name: 'Direwolf', sprite: 'direwolf', hp: 18, atk: 7, xp: 30, minFloor: 99, noSpawn: true },
-  { name: 'Troll',    sprite: 'troll',    hp: 28, atk: 8, xp: 50, minFloor: 99, noSpawn: true },
+  { name: 'Troll',    sprite: 'troll',    hp: 28, atk: 8, xp: 50, minFloor: 99, noSpawn: true, tell: 'chop' },
   // the ones with tricks: a thief who robs and runs, a shaman who mends its pack and keeps its distance,
   // a troll that knits itself back together, a basilisk whose bite turns you to stone, a goblin with a bomb
   { name: 'Thief',    sprite: 'thief',    hp: 6,  atk: 2, xp: 8,  minFloor: 2, thief: true },
   { name: 'Shaman',   sprite: 'shaman',   hp: 7,  atk: 1, xp: 14, minFloor: 3, ranged: 3, healer: true },
   { name: 'Bomber',   sprite: 'bomber',   hp: 5,  atk: 2, xp: 10, minFloor: 3, bomber: true },
-  { name: 'Basilisk', sprite: 'basilisk', hp: 14, atk: 4, xp: 22, minFloor: 5, gaze: true },
-  { name: 'Cave troll', sprite: 'cavetroll', hp: 22, atk: 6, xp: 34, minFloor: 6, regen: 2 },
+  { name: 'Basilisk', sprite: 'basilisk', hp: 14, atk: 4, xp: 22, minFloor: 5, tell: 'glare' },
+  { name: 'Cave troll', sprite: 'cavetroll', hp: 22, atk: 6, xp: 34, minFloor: 6, regen: 2, tell: 'chop' },
   // the beasts of the open sea: seen from the deck, hunted or avoided, never underground
   { name: 'Sea serpent', sprite: 'serpent', hp: 26, atk: 6, xp: 40, minFloor: 99, noSpawn: true, sea: true },
   { name: 'Pirate sloop', sprite: 'sloop', hp: 20, atk: 5, xp: 30, minFloor: 99, noSpawn: true, sea: true, purse: true },
@@ -5513,6 +5513,13 @@ function drawScene(now) {
         ctx.strokeStyle = 'rgba(255,120,120,0.9)'; ctx.lineWidth = 2; ctx.strokeRect(x * T - cam.x + 2, y * T - cam.y + 2, T - 4, T - 4);
       }
     }
+    if (m.tell && m.tell.kind === 'aim') {
+      const a = 0.22 + 0.14 * Math.sin(now / 110);
+      for (let k = 1; k <= 6; k++) { const x = m.x + m.tell.dx * k, y = m.y + m.tell.dy * k; if (!walkable(getTile(x, y))) break; ctx.fillStyle = `rgba(245,197,66,${a})`; ctx.fillRect(x * T - cam.x + 1, y * T - cam.y + 1, T - 2, T - 2); }
+    }
+    if (m.guard) { ctx.fillStyle = '#cbd5e1'; ctx.font = 'bold 14px sans-serif'; ctx.fillText('⛨', lx * T - cam.x + T - 14, ly * T - cam.y - 2); }
+    if (m.tell && m.tell.kind === 'glare') { ctx.fillStyle = `rgba(255,80,80,${0.6 + 0.4 * Math.sin(now / 90)})`; ctx.font = 'bold 13px sans-serif'; ctx.fillText('◉', lx * T - cam.x + T / 2 - 6, ly * T - cam.y - 2); }
+    if (m.reeling > 0) { ctx.fillStyle = '#ffd86b'; ctx.font = 'bold 12px sans-serif'; ctx.fillText('~', lx * T - cam.x + T / 2 - 4, ly * T - cam.y - 2); }
     if (m.bounty) { ctx.fillStyle = '#ef4444'; ctx.font = 'bold 14px sans-serif'; ctx.fillText('☠', lx * T - cam.x + T / 2 - 6, ly * T - cam.y - 4); }
     if (m.mod) { ctx.fillStyle = ELITE_MODS[m.mod].color; ctx.font = 'bold 12px sans-serif'; ctx.fillText('★', lx * T - cam.x + 1, ly * T - cam.y + 10); }
   }
@@ -6048,7 +6055,7 @@ function describeTile(x, y) {
       const per = Math.max(1, player.atk + weaponAtk() + 0.5 - (m.mod === 'armored' ? 2 : 0)) * (!m.awake && !m.boss ? (traitOf(player.weapon) === 'dagger' ? 3 : 2) : 1);
       const hits = Math.max(1, Math.ceil(m.hp / per)), takes = Math.max(1, m.atk - armorDef());
       const threat = takes * 3 >= player.hp ? ' Dangerous for you now.' : '';
-      return `${m.boss ? bossTitle(m) + ' (boss)' : m.elite ? `${m.name} (elite: ${ELITE_MODS[m.mod].desc})` : m.type.name} — ${m.hp}/${m.maxHp} HP. Hits you for ${takes}${m.type.ranged ? ' from range' : ''}${m.type.poison ? ' and may poison' : ''}; about ${hits} ${hits === 1 ? 'hit' : 'hits'} to kill${m.awake ? '' : '. Asleep: sneak attack for ' + (player.weapon === 'dagger' ? 'triple' : 'double') + ' damage'}.${threat}`;
+      return `${m.boss ? bossTitle(m) + ' (boss)' : m.elite ? `${m.name} (elite: ${ELITE_MODS[m.mod].desc})` : m.type.name} — ${m.hp}/${m.maxHp} HP. Hits you for ${takes}${m.type.ranged ? ' from range' : ''}${m.type.poison ? ' and may poison' : ''}; about ${hits} ${hits === 1 ? 'hit' : 'hits'} to kill${m.tell ? '. ' + TELL_TEXT[m.tell.kind][0].toUpperCase() + TELL_TEXT[m.tell.kind].slice(1) : m.reeling > 0 ? '. Off balance: your next blow is a sneak attack' : ''}${m.awake ? '' : '. Asleep: sneak attack for ' + (player.weapon === 'dagger' ? 'triple' : 'double') + ' damage'}.${threat}`;
     }
     if (getPotionAt(x, y)) return 'Potion — restores 5 HP';
     const g = getGoldAt(x, y);
@@ -6363,7 +6370,8 @@ const traitOf = (id) => { const b = baseOf(id); return LEGEND_TRAIT[b] || b; };
 const nameOf = (m) => (m.boss ? m.name : 'the ' + mName(m));
 function moveMonster(m, x, y) { monsterIndex.delete(key(m.x, m.y)); m.x = x; m.y = y; monsterIndex.set(key(m.x, m.y), m); monstersDirty = true; }
 function playerAttack(m) {
-  const w = traitOf(player.weapon), sneak = !m.awake && !m.boss, solo = !coopMember();
+  const w = traitOf(player.weapon), sneak = (!m.awake || m.reeling > 0) && !m.boss, solo = !coopMember();
+  m.struck = turn; m.reeling = 0;
   let dmg = Math.max(1, player.atk + weaponAtk() + rnd(2) - (m.mod === 'armored' ? 2 : 0));
   const notes = [];
   if (sneak) { dmg *= w === 'dagger' ? 3 : 2; notes.push('Sneak attack!'); tip('sneak', 'Sleeping monsters take double damage from your first blow, triple with a dagger. Creep up on them.'); }
@@ -6379,6 +6387,7 @@ function playerAttack(m) {
     else if (getTile(bx, by) === TILE.WALL && !(scene === 'world' && groundAt(bx, by) === GROUND.WATER)) { dmg += 3; notes.push('Slammed into the wall!'); shakeScreen(3); }
   }
   if (w === 'dawnbreaker') { const sd = Math.ceil(m.maxHp * 0.1); dmg += sd; notes.push('The blade sunders!'); }
+  if (m.guard && w !== 'warhammer') { dmg = 1; notes.push('Its shield takes the blow.'); }
   m.hp -= dmg; m.awake = true;
   if (wa && m.hp > 0) {   // the blade's enchantment takes hold
     if (wa.id === 'flaming') { m.burn = { t: 3, d: 1 + wa.tier }; notes.push(`${nameOf(m)} catches fire!`); floatText(m.x, m.y, '🔥', '#ff9f43'); }
@@ -6525,7 +6534,6 @@ function monsterAttack(m, ranged = false) {
     log('Second wind! You refuse to fall.', 'good'); unlock('survivor'); sfx.play('shield');
   }
   if (m.type.thief && !m.loot && player.gold > 0) { const take = Math.min(player.gold, Math.max(5, Math.floor(player.gold * 0.1))); player.gold -= take; m.loot = take; m.purse = (m.purse || 0) + take; m.fleeUntil = turn + 12; log(`The thief snatches ${take} gold from your belt and runs for the dark!`, 'bad'); floatText(player.x, player.y, `-${take}g`, '#f5c542'); tip('thief', 'Thieves grab a tenth of your purse and run. Kill one before it gets away and the gold drops back.'); }
-  if (m.type.gaze && !player.stunned && Math.random() < 0.3) { player.stunned = 1; log('The basilisk\'s eyes catch yours. Your limbs turn to stone!', 'bad'); floatText(player.x, player.y, 'petrified', '#cbd5e1'); sfx.play('shield'); }
   if (m.type.poison && !player.poison && !wearing('frostheart') && !(aa && aa.id === 'warded') && Math.random() < 0.5) { player.poison = 4; log('You are poisoned! A potion will cure it.', 'bad'); sfx.play('poison'); tip('poison', 'Poison costs 1 HP a turn for four turns. Any potion cures it. Press P to drink one from your bag.'); }
   if (ranged) shoot(m.x, m.y, player.x, player.y, m.type.name === 'Shaman' ? 'hex' : 'arrow');
   const now = performance.now();
@@ -6548,7 +6556,8 @@ function stepMonsters(swiftOnly = false, heroes = null) {
     if (m.hp <= 0) continue;
     for (const st of ['burn', 'venom']) { const e = m[st]; if (!e || e.t <= 0 || swiftOnly) continue; e.t--; m.hp -= e.d; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${e.d}`, st === 'burn' ? '#ff9f43' : '#7ad36b'); if (e.t <= 0) m[st] = null; }
     if (m.hp <= 0) { if (coopMember()) coopHit(m, 0, 'hero'); else killMonster(m); continue; }
-    if (m.stunned > 0) { if (!swiftOnly) m.stunned--; continue; }
+    if (m.stunned > 0) { if (!swiftOnly) m.stunned--; if (m.tell && !m.boss) { m.tell = null; m.windup = null; m.guard = false; if (isVisible(m.x, m.y)) log(`The stun breaks ${nameOf(m)}'s ${m.type.tell === 'aim' ? 'aim' : m.type.tell === 'guard' ? 'guard' : 'wind-up'}.`, 'good'); } continue; }
+    if (m.reeling > 0) { m.reeling--; continue; }
     if (!swiftOnly && m.type.regen && m.hp < m.maxHp && !(m.burn && m.burn.t > 0)) { const h = Math.min(m.type.regen, m.maxHp - m.hp); m.hp += h; if (isVisible(m.x, m.y)) floatText(m.x, m.y, `+${h}`, '#9ef0b0'); }
     if (!swiftOnly && m.type.healer) { let mended = 0; for (const o of monsters) { if (o !== m && o.hp > 0 && o.hp < o.maxHp && cheb(o, m) <= 2) { const h = Math.min(2, o.maxHp - o.hp); o.hp += h; mended++; if (isVisible(o.x, o.y)) floatText(o.x, o.y, `+${h}`, '#9ef0b0'); } } if (mended && isVisible(m.x, m.y) && Math.random() < 0.3) log('The shaman chants, and its pack\'s wounds close.', 'bad'); }
     let hi = 0, hd = Infinity;
@@ -6570,6 +6579,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
       const gd = npcs.find((n) => n.type.guard && !n.down && dist(m, n) === 1);
       if (gd && !heroes.some((h) => dist(m, h) === 1) && (m.awake || Math.random() < 0.5)) { m.awake = true; guardHurt(gd, m); continue; }
     }
+    if (!swiftOnly && !m.boss && m.type.tell && m.awake && tellStep(m, H, heroes)) continue;
     if (m.type.thief && m.loot && m.fleeUntil > turn) {   // away from the hero, and gone for good once far enough
       if (!(m.trial && m.trial === trial && trial.kind === 'blood') && (dist(m, H) > 9 || !isVisible(m.x, m.y) && dist(m, H) > 6)) { log(`The thief vanishes into the dark with your ${m.loot} gold.`, 'bad'); monsters = monsters.filter((x) => x !== m); monsterIndex.delete(key(m.x, m.y)); monstersDirty = true; continue; }
       let best = null, bestD = dist(m, H);
@@ -6619,6 +6629,77 @@ function stepMonsters(swiftOnly = false, heroes = null) {
 // lands on the tiles around them a beat later, marked in red: step out of it.
 // At half health they enrage and call for help.
 const bossTitle = (m) => m.name[0].toUpperCase() + m.name.slice(1);
+// Ordinary monsters show their next move a beat early, and each tell has its answer.
+// Chop (orcs, trolls): a red tile under you; step off it and the brute is left off
+// balance, a sneak attack waiting. Aim (archers): an amber line; leave it, or put
+// something else in it. Guard (skeletons): a raised shield that turns blows to a
+// scratch, except a warhammer's; hit something else. Glare (basilisks): burning
+// eyes; strike it or step closer while they burn and you turn to stone.
+const TELL_TEXT = { chop: 'winding up a heavy chop: step off the red tile', aim: 'drawing a bow along the amber line: step out of it', guard: 'shield raised: blows do 1 until it lowers (a warhammer smashes through)', glare: 'eyes burning: do not strike it or step closer this turn' };
+function tellStep(m, H, heroes) {
+  const kind = m.type.tell, seen = isVisible(m.x, m.y);
+  if (m.tell) {
+    const t = m.tell; m.tell = null; m.tellCd = 4;
+    if (kind === 'chop') {
+      m.windup = null;
+      const h = heroes.find((h) => h.x === t.x && h.y === t.y);
+      burst(t.x, t.y, '#ef4444', 6, 90, { life: 400, size: 3 }); shakeScreen(4);
+      if (h) { if (h.me) { const a = m.atk; m.atk = a * 2; monsterAttack(m); m.atk = a; log(`${nameOf(m)}'s chop lands square: double damage.`, 'bad'); } else mpSend({ to: h.id, type: 'attack', payload: { id: m.id, atk: m.atk * 2, ranged: false, type: m.type.name } }); }
+      else { m.reeling = 1; if (seen) { log(`${nameOf(m)}'s chop bites stone. It is off balance: your next blow is a sneak attack.`, 'good'); floatText(m.x, m.y, 'off balance', '#ffd86b'); } }
+      return true;
+    }
+    if (kind === 'aim') {
+      let hitAt = null;
+      for (let k = 1; k <= 6 && !hitAt; k++) {
+        const x = m.x + t.dx * k, y = m.y + t.dy * k;
+        if (!walkable(getTile(x, y))) { hitAt = { x: x - t.dx, y: y - t.dy, what: 'wall' }; break; }
+        const h = heroes.find((h) => h.x === x && h.y === y), pp = livePets().find((p) => p.x === x && p.y === y), o = getMonsterAt(x, y);
+        if (h) hitAt = { x, y, what: 'hero', h }; else if (pp) hitAt = { x, y, what: 'pet', pp }; else if (o && o.hp > 0) hitAt = { x, y, what: 'monster', o };
+      }
+      if (!hitAt) hitAt = { x: m.x + t.dx * 6, y: m.y + t.dy * 6, what: 'air' };
+      shoot(m.x, m.y, hitAt.x, hitAt.y, 'arrow');
+      if (hitAt.what === 'hero') { if (hitAt.h.me) monsterAttack(m, true); else mpSend({ to: hitAt.h.id, type: 'attack', payload: { id: m.id, atk: m.atk, ranged: true, type: m.type.name } }); }
+      else if (hitAt.what === 'pet') petHurt(hitAt.pp, m.atk);
+      else if (hitAt.what === 'monster') { const o = hitAt.o; o.hp -= m.atk; o.awake = true; o.flashUntil = performance.now() + 120; floatText(o.x, o.y, `-${m.atk}`, '#ffd86b'); if (seen) log(`${nameOf(m)}'s arrow takes ${nameOf(o)} in the back!`, 'good'); if (o.hp <= 0) killMonster(o); }
+      else if (seen) log(`${nameOf(m)}'s arrow clatters off the stone. You were out of its line.`, 'good');
+      return true;
+    }
+    if (kind === 'guard') { m.guard = false; return false; }   // the shield comes down and it fights on
+    if (kind === 'glare') {
+      const closer = cheb(m, H) < t.d, struck = (m.struck || -1) >= t.turn;
+      if (H.me && (closer || struck)) { player.stunned = 1; log(`The basilisk's eyes catch yours as you ${struck ? 'strike' : 'close'}. Your limbs turn to stone!`, 'bad'); floatText(player.x, player.y, 'petrified', '#cbd5e1'); sfx.play('shield'); }
+      else if (seen) log('You hold still and look away. The basilisk\'s glare finds nothing.', 'good');
+      return true;
+    }
+    return false;
+  }
+  m.tellCd = (m.tellCd ?? 1 + rnd(3)) - 1;
+  if (m.tellCd > 0) return false;
+  if (kind === 'chop' && dist(m, H) === 1) {
+    m.tell = { kind, x: H.x, y: H.y }; m.windup = [key(H.x, H.y)];
+    if (seen) { log(`${nameOf(m)} winds up a heavy chop. Step off the red tile!`, 'bad'); tip('tell_chop', 'A red tile under you is a chop landing next turn. Step off it and the brute is left off balance: your next blow on it is a sneak attack.'); }
+    return true;
+  }
+  if (kind === 'aim' && (m.x === H.x || m.y === H.y) && cheb(m, H) >= 2 && cheb(m, H) <= 4) {
+    const dx = Math.sign(H.x - m.x), dy = Math.sign(H.y - m.y);
+    let clear = true; for (let k = 1; k < cheb(m, H); k++) if (!walkable(getTile(m.x + dx * k, m.y + dy * k))) clear = false;
+    if (!clear) return false;
+    m.tell = { kind, dx, dy };
+    if (seen) { log(`${nameOf(m)} draws its bow. Step out of the amber line!`, 'bad'); tip('tell_aim', 'An amber line is an archer taking aim. Step out of it, close in, or put another monster in it and the arrow takes them instead.'); }
+    return true;
+  }
+  if (kind === 'guard' && dist(m, H) === 1) {
+    m.tell = { kind }; m.guard = true;
+    if (seen) { log(`${nameOf(m)} raises its shield.`, 'bad'); tip('tell_guard', 'A raised shield turns your blows to a scratch for a turn. Hit something else, use an ability, or smash through with a warhammer.'); }
+    return true;
+  }
+  if (kind === 'glare' && cheb(m, H) <= 3 && seen) {
+    m.tell = { kind, d: cheb(m, H), turn };
+    log(`${nameOf(m)}'s eyes flare. Do not strike it or step closer!`, 'bad'); tip('tell_glare', 'Burning eyes are a basilisk\'s glare. Strike it or step closer while they burn and you turn to stone. Wait, step back, or fight something else.');
+    return true;
+  }
+  return false;
+}
 function bossTurn(m, H, heroes) {
   if (m.superBoss) { const stage = m.hp <= m.maxHp / 3 ? 2 : m.hp <= m.maxHp * 2 / 3 ? 1 : 0; if (stage > (m.enrageStage || 0)) { m.enrageStage = stage; m.enraged = false; enrageBoss(m); return true; } }
   else if (!m.enraged && m.hp <= m.maxHp / 2) { enrageBoss(m); return true; }
@@ -6849,6 +6930,16 @@ function leaveDungeon() {
   log(`You slip out through the door and climb back up to daylight${def ? ` from the ${def.name}` : ''}. You keep everything you found.`, 'good');
   saveProgress('progress');
 }
+// Leaving melee has a cost: each awake foe you step away from gets a parting blow at
+// half strength, unless it is busy with a tell, stunned or off balance. A dagger
+// makes a clean break.
+function partingBlows(nx, ny) {
+  if (traitOf(player.weapon) === 'dagger') return;
+  const foes = monsters.filter((m) => m.hp > 0 && m.awake && !m.boss && !m.sea && !m.tell && !(m.stunned > 0) && !(m.reeling > 0) && !m.type.ranged && dist(m, player) === 1 && dist(m, { x: nx, y: ny }) > 1).slice(0, 2);
+  if (!foes.length) return;
+  tip('parting', 'Stepping away from a foe beside you gives it a parting blow at half strength. A dagger lets you slip away clean; a stunned or off-balance foe cannot follow through.');
+  for (const m of foes) { const a = m.atk; m.atk = Math.max(1, Math.ceil(a / 2)); log(`${nameOf(m)[0].toUpperCase() + nameOf(m).slice(1)} catches you as you turn away.`, 'bad'); monsterAttack(m); m.atk = a; }
+}
 // Petrified: whatever you meant to do, the turn passes instead.
 function stoneTurn() {
   if (!(player.stunned > 0)) return false;
@@ -6909,6 +7000,7 @@ function tryMove(dx, dy) {
   if (m) playerAttack(m);
   else {
     if (aboard) { aboard = false; player.meta.ship = { x: player.x, y: player.y }; log(`You run the ship in close and splash ashore${pets.some((pp) => pp.aboard) ? ', your companions after you' : ''}. She waits here for you.`); for (const pp of pets) pp.aboard = false; placePets(); }
+    if ((dx || dy) && scene !== 'house' && !safeZone()) partingBlows(nx, ny);
     player.x = nx; player.y = ny;
     if (t === TILE.TRAP && (dx || dy)) springTrap(nx, ny);
     if (t === TILE.LAVA) {
@@ -8081,7 +8173,7 @@ const ABILITIES = {
       if (!t) { log(aim ? 'No clear shot there. Arrows fly straight up, down, left or right, up to 6 tiles.' : 'No target in a straight line. Arrows fly up, down, left or right.'); return false; }
       const dmg = Math.max(1, player.atk + weaponAtk() + 1 + rnd(2) - (t.m.mod === 'armored' ? 2 : 0));
       if (t.dx) player.face = t.dx;
-      t.m.hp -= dmg; t.m.awake = true; t.m.flashUntil = performance.now() + 120;
+      t.m.hp -= dmg; t.m.awake = true; t.m.struck = turn; t.m.flashUntil = performance.now() + 120;
       floatText(t.m.x, t.m.y, `-${dmg}`, '#ffd86b');
       shoot(player.x, player.y, t.m.x, t.m.y, 'arrow');
       sfx.play('arrow'); log(`Your arrow hits ${t.m.boss ? t.m.name : 'the ' + t.m.type.name} for ${dmg}.`);
@@ -8319,7 +8411,7 @@ function sizeUp(m) {
   const per = Math.max(1, Math.floor(player.atk + weaponAtk() + 0.5 - (m.mod === 'armored' ? 2 : 0))), blows = Math.max(1, Math.ceil(m.hp / per));
   const hit = Math.max(1, m.atk - armorDef() - (player.shield > 0 ? 2 : 0));
   const name = m.boss ? m.name : `${ELITE_MODS[m.mod] ? ELITE_MODS[m.mod].label + ' ' : ''}${m.type.name.toLowerCase()}`;
-  return `${name[0].toUpperCase() + name.slice(1)}: ${m.hp}/${m.maxHp} HP, hits you for about ${hit}, ${blows} ${blows === 1 ? 'blow' : 'blows'} to kill${m.awake ? '' : ', asleep'}${m.type.ranged ? ', shoots' : ''}.`;
+  return `${name[0].toUpperCase() + name.slice(1)}: ${m.hp}/${m.maxHp} HP, hits you for about ${hit}, ${blows} ${blows === 1 ? 'blow' : 'blows'} to kill${m.awake ? '' : ', asleep'}${m.type.ranged ? ', shoots' : ''}${m.tell ? '. ' + TELL_TEXT[m.tell.kind] : m.reeling > 0 ? '. Off balance: sneak attack it' : ''}.`;
 }
 function touchButtons() {
   if (!isTouch) return [];
@@ -8524,7 +8616,7 @@ function drinkMana(idx) {
   player.bag.splice(idx, 1); restoreMana(it.mana);
   log(`You drink the ${it.name.toLowerCase()} and recover ${player.mana - before} mana.`, 'good');
   sfx.play('potion'); burst(player.x, player.y, '#7b9bff', 14, 50, { glow: true, gravity: -90, life: 800 });
-  updateStats(); renderShop(); draw();
+  updateStats(); renderShop(); endTurn(false);
 }
 function throwBomb(idx) {
   if (gameOver || !player || perkChoices) return;
@@ -8584,12 +8676,13 @@ function drinkPotion(idx) {
     if (it.petheal) { let n = 0; for (const pp of pets) { if (pp.down || pp.hp < pp.maxHp) n++; pp.down = false; pp.hp = pp.maxHp; } notes.push(n ? `${n} pet${n === 1 ? '' : 's'} patched up` : 'your pets were fine already'); }
     const verb = it.verb === 'light' ? 'light' : it.verb === 'use' ? 'use' : /wine|mead|ale|rum|tea|vial|draught/i.test(it.name) ? 'drink' : 'eat';
     log(`You ${verb} the ${it.name.toLowerCase()}${healed ? ` and recover ${healed} HP` : ''}${notes.length ? `: ${notes.join(', ')}` : ''}.`, 'good');
-    sfx.play('potion'); updateStats(); renderShop(); draw(); return;
+    sfx.play('potion'); updateStats(); renderShop(); endTurn(false); return;
   }
   player.hp += healed;
   if (player.poison > 0) { player.poison = 0; log('The potion purges the poison.', 'good'); }
   log(healed > 0 ? `You drink a potion and heal ${healed} HP.` : 'You drink a potion but were already at full health.', 'good');
-  updateStats(); renderShop(); draw();
+  tip('potion_turn', 'Drinking takes the turn: anything beside you gets its blow in while you swallow.');
+  updateStats(); renderShop(); endTurn(false);
 }
 function dropLoot(m) {
   if (Math.random() > (dungeonDef ? dungeonDef.loot : 0.12) || bagFull()) return;

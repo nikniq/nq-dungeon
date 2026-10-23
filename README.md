@@ -92,6 +92,23 @@ Every weapon has a trait:
 | Warhammer | Crushing: knocks foes back a tile, or slams them into a wall for +3 |
 | Royal greatsword | Cleaving: also hits every other foe beside you for half damage |
 
+Ordinary monsters show their next move a beat early (`tellStep`, `TELL_TEXT`,
+`tell` flags in `MONSTER_TYPES`), and each tell has its answer. Orcs, trolls and
+cave trolls wind up a **chop**: a red tile under you lands double damage next
+turn, but step off it and the brute is left off balance, so your next blow on it
+is a sneak attack. Archers draw an **aim**: an amber line out to six tiles;
+leave it, close in, or let another monster stand in it and the arrow takes them
+instead. Skeletons raise a **guard**: a raised shield turns your blows to a
+scratch for a turn, except a warhammer's. Basilisks **glare**: strike one or
+step closer while its eyes burn and you turn to stone; wait or step back and
+nothing happens. A stun breaks any tell. Hover text and the phone's size-up
+name the current tell.
+
+Leaving melee has a cost (`partingBlows`): each awake foe you step away from
+gets a parting blow at half strength, unless it is busy with a tell, stunned or
+off balance; a dagger makes a clean break. Potions and mana potions take the
+turn.
+
 Hitting a sleeping monster is a sneak attack for double damage. Bosses wind up heavy
 blows that land on the red tiles around them a turn later; at half health they
 enrage, hit harder and call two minions. About a third of dungeon floors have a
