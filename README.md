@@ -342,6 +342,12 @@ in `characters.meta.realm`, and the server validates it.
 
 ## The stories and the Far Shore
 
+The objective line and its gold star never go blank between stories: after the
+crown, it points to Prince Edric for Act II; when Act II ends, Story 2 begins at
+once (and any town brings it on if missed); during Story 2 it points to the
+harbour for the Veil, each Far Shore ruler's quest step in turn, then the
+Barrow, which unseals as soon as all three keys are held.
+
 The narrative is told in stories (`STORIES` in `script.js`, `config/story.php`
 for the public page). Story 1, The Shattered Crown, is Act I (the five shards)
 and Act II (What Sleeps Below). Story 2, The Far Shore, opens once Story 1 is

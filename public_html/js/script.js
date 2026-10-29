@@ -1668,6 +1668,10 @@ function storyObjective() {
     if (player.y >= ICE_Y) { const hp = homePort(); return { text: `Take passage north to Hrafnvik from a harbour${hp ? ` (${hp.name} is nearest Hearth)` : ''}`, short: 'The north', x: hp ? hp.cx : player.x, y: hp ? hp.cy : player.y - 100 }; }
     return { text: 'Go through the Frozen Gate and face Thrym, Jarl of the Frost Giants', short: S.title, x: site.x, y: site.y };
   }
+  // between the stories: never leave the hero without a star to follow
+  if (st.phase === 'done' && act2().s === 0) { const ed = castle; return { text: 'Speak with Prince Edric at Castle Aurum: Act II, What Sleeps Below', short: 'Castle Aurum', x: ed.cx, y: ed.cy }; }
+  if (story1Done() && story2().s === 0) { const hp = homePort(); return { text: 'Story 1 is told. Walk into any town and the news of Story 2 will find you', short: hp ? hp.name : 'A town', x: hp ? hp.cx : castle.cx, y: hp ? hp.cy : castle.cy }; }
+  if (story2().s === 1 && FAR_REALMS.every((r) => rqState(r).s === 5)) { setTimeout(() => { if (story2().s === 1 && !storyOpen()) unsealBarrow(); }, 0); }
   if (story2().s === 2) { const S = STORY_SITES.hollow, site = siteAt(S.i, S.j); return { text: 'Go down the Thousand-Step Barrow and face the Hollow King', short: S.title, x: site.x, y: site.y }; }
   if (story2().s === 1) {
     const next = FAR_REALMS.find((r) => rqState(r).s < 5);
@@ -2098,6 +2102,7 @@ function edricTalk(n) {
       if (!giveRelic('deepheart') && !player.meta.found.includes('deepheart')) log('Your bag is too full for the gift. Come back with room.', 'bad');
       unlock('deepwarden'); player.title = 'Deepwarden';
       log('Act II complete: 500 gold, and the Heart of the Deep.', 'good');
+      setTimeout(() => offerStory2(), 1200);   // Story 2 follows straight on
       mapCache.ox = null; updateStats(); saveProgress('progress');
     });
     return true;
