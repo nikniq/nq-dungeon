@@ -48,6 +48,8 @@ return [
         'drops' => 'Monsters drop gear and consumables as they fall, more deeply underground and from elites and bosses; treasure chests, vaults behind cracked walls, ruins and battlefields hold more.',
         'relics' => 'Relics are one of a kind. Each is found in a particular place, given by a ruler for a questline, or buried where a treasure chart points. Wear one at a time from the inventory; the rest wait in your bag or inn chest.',
         'legendary' => 'Legendary gear drops only from the six super bosses in their hidden lairs, which bards, hermits and prophets can point you to.',
+        'trials' => 'Rings of trial stones in dungeon rooms from the second floor down pay gold and a guaranteed magic weapon or armour for surviving the Trial of the Swarm or the Trial of Blood.',
+        'sea' => 'At sea, pirate sloops pay out their strongbox and sometimes a treasure chart; sea serpents and krakens are worth gold and titles; wrecks and castaways turn up gear and charts.',
         'dawnbreaker' => 'Dawnbreaker, the sword of the First King, is the one weapon above the legendaries. Any master smith (the trade shop of a smithing town) tells the tale to a hero of level 12 or more, marks the first warden on the map, and reforges the sword when all three pieces are won.',
     ],
     'other' => [

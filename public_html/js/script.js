@@ -9573,9 +9573,10 @@ function renderGlossary(kind) {
         const tags = [`${TIER_WORDS[townTier(t)]}`, I.kind, t.walled ? 'walled' : null, t.capital || t.size === 'grand' ? 'capital' : null].filter(Boolean).map((x) => `<span class="tag">${esc(x)}</span>`).join('');
         const body = `<p>${tags}</p><p>${esc(townLore(t))}</p><p>Known for ${esc(I.famous)}. ${esc(I.landmark.name[0].toUpperCase() + I.landmark.name.slice(1))} stands in the square.${I.trade.deal ? ' ' + esc(DEAL_TEXT[I.trade.deal]) + '.' : ''}${t.tradeShop && TRADE_SHOP[t.tradeShop] ? ' ' + esc(TRADE_SHOP[t.tradeShop].name) + ' by the square sells ' + esc(Object.entries(ITEMS.consumables).concat(Object.entries(ITEMS.weapons), Object.entries(ITEMS.armor)).filter(([, it]) => it.trade === t.tradeShop).map(([, it]) => it.name.toLowerCase()).join(', ')) + '.' : ''}</p>` +
           `<p><b>Leader:</b> ${esc(I.leader)}. <b>Notable:</b> <a class="plain" href="${ACCOUNT.charactersUrl}#${slug(N.name + ' of ' + t.name)}">${esc(N.name)}</a>, ${esc(N.role)}.</p>` +
+          (() => { const folk = townNpcs(t).filter((n) => n.type.folk); const hm = t.harbour ? harbourmasterNpc(t) : null; return `<p><b>Townsfolk:</b> ${esc(folk.map((n) => n.type.name).join(', ') || 'none to speak of')}.${hm ? ` <b>Harbour:</b> ${esc(hm.name)}.` : ''}</p>`; })() +
           `<p><b>Watch:</b> ${esc(guards.map((g) => g.type.name).join(', ') || 'none')}.${site ? ` <b>Nearby:</b> ${esc(site.name)}, ${esc(site.floors)} floors.` : ''} <span class="muted small">Position ${t.cx}, ${t.cy}.</span></p>`;
         total++;
-        return card([I.landmark.sprite], t.name, `${REALMS[realm].short}`, body, `${t.name} ${REALMS[realm].name} ${I.kind} ${I.famous} ${I.landmark.name} ${I.leader} ${N.name} ${TIER_WORDS[townTier(t)]}`);
+        return card([I.landmark.sprite], t.name, `${REALMS[realm].short}`, body, `${t.name} ${REALMS[realm].name} ${I.kind} ${I.famous} ${I.landmark.name} ${I.leader} ${N.name} ${TIER_WORDS[townTier(t)]} ${townNpcs(t).filter((n) => n.type.folk).map((n) => n.type.name).join(' ')}`);
       });
       section(`${REALMS[realm].name} · ${REALMS[realm].gov}`, cards);
     }
@@ -9610,12 +9611,25 @@ function renderGlossary(kind) {
     ];
     const cards = fixed.map(([name, role, spr, where, blurb]) => { total++; return card([spr], name, role, `<p><b>Found:</b> ${esc(where)}.</p><p>${esc(blurb)}</p>`, `${name} ${role} ${where} ${blurb}`); });
     section('The story and the realms', cards);
+    const later = [
+      ...FAR_REALMS.map((r) => { const Q = REALM_QUESTS[r]; return [Q.ruler, `ruler of ${REALMS[r].name}`, Q.sprite, `${townAt(...REALMS[r].capital).name}, the Far Shore (Story 2)`, `Holds one of the three keys to the Thousand-Step Barrow and gives it for ${Q.title}.`]; }),
+      ['The Hollow King', 'master of the Thousand-Step Barrow', 'necromancer', 'the Thousand-Step Barrow, its sixth floor (Story 2)', 'A man once, before he gave up breathing as beneath him. Three generals locked him under the mountain a thousand years ago.'],
+      ['Thrym, Jarl of the Frost Giants', 'warden of the Frozen Gate', 'troll', 'the Frozen Gate, on the ice of Thule (Story 3)', 'Holds the way to Midgard and the frozen heart that keeps it shut.'],
+      ['The Rift Lord', 'herald of the hosts of Midgard', 'wraith', 'the last rift, at a burning town (Story 4)', 'Comes when enough rifts are closed, with a horde at his back and the town he chose already on fire.'],
+      ['The town leaders', 'patrons of the rebuilding', 'elder', 'every town square (Story 5)', 'Take sponsorship for walls, buildings, roads and monuments, and name the founders who build the most.'],
+      ['The master smith', 'keeper of the tale of Dawnbreaker', 'merchant', 'the trade shop of every smithing town', 'Tells a hero of level 12 the tale of the Sundered Blade, and reforges the sword from its three pieces.'],
+      ...FORGE_ORDER.map((id) => { const L = LAIRS[id]; return [L.boss.name[0].toUpperCase() + L.boss.name.slice(1), `warden of ${L.piece}`, MONSTER_TYPES.find((m) => m.name === L.boss.type).sprite, L.title[0].toUpperCase() + L.title.slice(1), L.lore]; }),
+      ...LAIR_IDS.map((id) => { const L = LAIRS[id], it = ITEMS.weapons[L.reward] || ITEMS.armor[L.reward]; return [L.boss.name[0].toUpperCase() + L.boss.name.slice(1), `super boss${it ? ', guards ' + it.name : ''}`, MONSTER_TYPES.find((m) => m.name === L.boss.type).sprite, L.title[0].toUpperCase() + L.title.slice(1), L.lore]; }),
+    ];
+    section('The later stories, the lairs and the blade', later.map(([name, role, spr, where, blurb]) => { total++; return card([spr], name, role, `<p><b>Found:</b> ${esc(where)}.</p><p>${esc(blurb)}</p>`, `${name} ${role} ${where} ${blurb}`); }));
     for (const [realm, list] of byRealm(towns, (t) => t.realm)) {
       const cards = [];
       for (const t of list.sort((a, b) => a.name.localeCompare(b.name))) {
         const I = townIdentity(t), N = t.notable, L = leaderNpc(t);
         total += 2;
         cards.push(card([N.sprite], `${N.name} of ${t.name}`, N.role, `<p><b>Found:</b> the square of <a class="plain" href="${townUrl(t)}">${esc(t.name)}</a>, ${esc(REALMS[realm].short)}.</p><ul class="lines">${N.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>`, `${N.name} ${N.role} ${t.name} ${N.lines.join(' ')}`));
+        for (const n of townNpcs(t).filter((x) => x.type.folk)) { total++; const F = n.type; cards.push(card([F.sprite], `${F.name} of ${t.name}`, F.role, `<p><b>Found:</b> the square of <a class="plain" href="${townUrl(t)}">${esc(t.name)}</a>.</p><ul class="lines">${F.lines.slice(0, 4).map((l) => `<li>${esc(l)}</li>`).join('')}</ul>`, `${F.name} ${F.role} ${t.name} ${F.lines.join(' ')}`)); }
+        if (t.harbour) { const H = harbourmasterNpc(t); total++; cards.push(card([H.sprite], `${H.name} of ${t.name}`, 'harbourmaster', `<p><b>Found:</b> the end of the pier at <a class="plain" href="${townUrl(t)}">${esc(t.name)}</a>.</p><p>Sells passage to every port within four regions, treasure charts, and from Story 2 a ship of your own.</p>`, `${H.name} harbourmaster ${t.name}`)); }
         cards.push(card([L.sprite], L.name, `leader of ${t.name}`, `<p><b>Found:</b> the square of <a class="plain" href="${townUrl(t)}">${esc(t.name)}</a>.</p><p>${esc(L.lines[0])}</p><p>${esc(L.lines[1])}</p>`, `${L.name} leader ${t.name} ${I.trade.label}`));
       }
       section(`${REALMS[realm].name} · the towns' people`, cards);
