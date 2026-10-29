@@ -3227,6 +3227,8 @@ function siteAt(i, j) {
     let x = i * TOWN_SPACING + 48, y = j * TOWN_SPACING + 70;
     const town = townAt(i, j);
     if (town && x >= town.x0 - 3 && x < town.x0 + tw(town) + 3 && y >= town.y0 - 3 && y < town.y0 + th(town) + 3) y = town.y0 + th(town) + 10;
+    // the town may sprawl further than its plan (walls, rebuilt quarters): keep the gate clear of every town tile
+    for (let k2 = 0; k2 < 60 && [[0, 0], [0, -3], [0, 3], [-3, 0], [3, 0]].some(([ox, oy]) => townContaining(x + ox, y + oy)); k2++) y++;
     const site = { key: k, i, j, x, y, type: 'deep', name: 'The Gate of the Deep', floors: 99, danger: 5, sprite: 'abyss', deep: true };
     sites.set(k, site);
     return site;
@@ -6832,7 +6834,7 @@ function nextFloor() {
   if (floor >= 5) unlock('delver');
   if (floorMod) { const fm = FLOOR_MODS[floorMod], good = floorMod === 'treasure'; setTimeout(() => log(`${fm.label}: ${fm.desc}.`, good ? 'good' : 'bad'), 30); }
   if (floor === dungeonDef.floors) tip('boss', 'A boss waits by the stairs on the last floor. Clear the room, use your ability, keep a potion ready.');
-  log(floor === 1 ? `You descend into the ${dungeonDef.name} (${ratingText(dungeonDef)}). Follow the compass to the stairs. The golden door beside you leads back up if you want out.` : `You descend to floor ${floor}. A golden door here leads back to the surface.`, 'good');
+  log(floor === 1 ? `You descend into ${/^the /i.test(dungeonDef.name) ? "" : "the "}${dungeonDef.name} (${ratingText(dungeonDef)}). Follow the compass to the stairs. The golden door beside you leads back up if you want out.` : `You descend to floor ${floor}. A golden door here leads back to the surface.`, 'good');
   saveProgress('progress');
 }
 
