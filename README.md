@@ -191,6 +191,21 @@ spares whoever stands at their feet. A colossus pays three times a boss's purse
 and the title Giant-feller. Every monster kind now has a boss name; the last
 floor under Hearth used to raise a nameless basilisk that broke the drawing.
 
+Story 1 has more to it between the fights. Entering the dungeon of the current
+shard for the first time opens a scene at its door (`SHARD_ARRIVAL`,
+`shardArrival`, counted in `meta.story.told`). Each shard, when lifted, shows a
+vision of the night the crown broke (`SHARD_VISION`): five pieces of one night,
+the last of which looks back at the hero. The six guardians speak once when they
+first see the hero and once when the fight turns (`BOSS_LINES`, `bossVoice`).
+After each of the first four shards the King asks what the hero thinks
+(`KING_ASKS`, `kingAsks`): one answer speaks for Prince Edric, one against him,
+one keeps out of it and is paid a little for honesty. At the top of the Star
+Tower the hero may ask Edric what happened or bind his hands in silence
+(`edricYields`). The tallies (`meta.story.mercy`, `meta.story.justice`,
+`meta.story.heard`) pick one of three epilogue pages when the crown is mended
+(`crownEpilogue`): Edric's signet and the title Peacemaker, the King's thanks
+and the title King's Counsel, or a quiet word and a smaller purse.
+
 The world map (M) is drawn like a chart (`renderWorldMap`, `MAP_INK`). Terrain
 is painted a sample to a pixel into an image and scaled up: the sea shades from
 shallows to deep water with a few strokes of swell, the coast is inked, mountains

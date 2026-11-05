@@ -152,6 +152,8 @@ const ACHIEVEMENTS = {
   wanderer10:  { label: 'Discovered ten places', title: 'the Pathfinder' },
   collector:   { label: 'Found five treasures', title: 'the Treasure-seeker' },
   crownbearer: { label: 'Restored the Crown of Aurum', title: 'Crownbearer' },
+  peacemaker:  { label: 'Spoke for Prince Edric when nobody else would', title: 'the Peacemaker' },
+  kingscounsel: { label: 'Told King Aldric the hard thing, every time he asked', title: "the King's Counsel" },
   rescuer:     { label: 'Led a captive out of a dungeon', title: 'the Rescuer' },
   liberator:   { label: 'Rescued ten captives', title: 'the Liberator' },
   lairslayer:  { label: 'Slew a super boss in its lair', title: 'the Legend-slayer' },
@@ -1918,6 +1920,88 @@ const SHARD_FOUND = {
   embers: 'Gorrak\'s hoard is mostly slag and scorched coin, but at its heart the Shard of Embers glows like a coal that will never go out. Next to it, a ring still too hot to touch.',
   stars: 'At the top of the tower, where the ceiling is open to the sky, the Shard of Stars hangs in the air, turning slowly. Below it lies a ring that seems to hold a falling star.',
 };
+
+// What the hero finds at the door of each place a shard lies, told once, on the way in.
+const SHARD_ARRIVAL = {
+  dawn: { who: 'The Sunken Chapel', sprite: 'shrine', bg: 'crypt', text: "The chapel has sunk a hand's breadth a year for three hundred years, and the sisters of dawn went on praying in it. Their lamp is out now. On the top step somebody has dropped a glove of grey kid leather, too fine for a gravedigger, and the dust round it has not settled. You are not the first one down here this week." },
+  tides: { who: 'The Drowned Grotto', sprite: 'stones', bg: 'grotto', text: 'The clan fishers hauled their boats up the shingle a week ago and will not say why. The grotto breathes with the tide: in, and the tunnels fill to the knee; out, and they give back what they took. Something has strung silk across the lower mouth, thick as rope. Hanging in it, turning slowly, is a lantern of royal make.' },
+  bones: { who: 'The Barrow of Kings', sprite: 'skeleton', bg: 'crypt', text: "Twenty kings of the old line lie under this hill with their crowns on. The door was sealed with lead the day Aldric's father was carried in, and the lead has been cut, neatly, from the outside. The dead in here were content with their crowns until somebody brought them a better one." },
+  embers: { who: 'The Ember Deeps', sprite: 'orc', bg: 'lava', text: 'This was a mine, until the miners dug into something that was already burning. The orcs came for the warmth and stayed for the iron. Lately they have had silver to spend in every market on the west road, and Gorrak Emberjaw has stopped raiding altogether. A chief who stops raiding has been paid to sit on something.' },
+  stars: { who: 'The Star Tower', sprite: 'darkknight', bg: 'tower', text: 'The Star Tower has no door. It has a place where a door is, when the tower is willing. Grey horses are tethered in the lee of it, saddled and unwatched: their riders went in and expected to come out in a hurry. From the top, on a clear night, they say you can see Castle Aurum. He will have been looking at it.' },
+};
+// Each shard was in the crown the night it broke, and shows whoever lifts it what it saw.
+// Five shards, five pieces of one night: the hero is the only one who sees all of it.
+const SHARD_VISION = {
+  dawn: 'The moment your fingers close on it the chapel is gone. You are standing in a great hall at night, and you are not standing: you are looking out of the crown. A man in a grey cloak is bent over the cushion with his hands not quite touching it. He has been like that for a long time. Then the chapel is back, and your hand is warm.',
+  tides: 'The hall again, the same night. The man in grey has lifted the crown, and he is not running with it. He is holding it over his own head, the way a boy tries on his father\'s coat. In the gold you can see his face, and he is crying. He does not put it on.',
+  bones: 'The hall. He lowers the crown at last, and it burns him: you feel it, cold as a key left out in the frost. He cries out and it strikes the step. One note, like a bell dropped down a well. A crack runs through the gold, and under the floor, a very long way down, something stops breathing evenly.',
+  embers: 'The hall, and the crown in pieces on the stone. He is on his knees gathering lights that will not stay in his hands. There are footsteps in the gallery. He looks at the five of them, and at the door, and you watch him decide that a thief is a better thing to be than a fool. He takes them and runs.',
+  stars: 'The hall is empty now, and so is the cushion. But the eye that opened under the hill that night is open still, and it has been looking up through four shards at whoever was looking down. It knows your face. Then the tower comes back, and the stars, and a man in black armour reaching for his helm.',
+};
+// After each shard the King asks what the hero thinks. Three answers: one speaks for Edric, one
+// against him, one keeps out of it. He remembers which, and so does his brother.
+const KING_ASKS = {
+  dawn: { ask: '"You have been down there, and I have only read reports." The King looks at you properly for the first time. "Somebody with a brother on a throne. Say what you think."',
+    mercy: ['Find out why before you judge him', '"Why." He tastes the word. "Nobody in this hall has asked me why in ten years. They ask what I intend to do." He nods slowly. "Find the next shard. I will think about why."'],
+    justice: ['Whoever scatters the crown is your enemy', '"Yes," the King says. "That is what my council says, in more words." He does not look comforted by it. "Find the next shard."'],
+    plain: ['I find shards. Thrones are your business', 'The King laughs, once, surprised into it. "Honest. I had forgotten the sound." He pushes twenty gold across the table. "For the novelty."'] },
+  tides: { ask: '"The shards show you something." It is not a question. "I can see it in your face when you hand them over. They show me nothing; I have tried. What did this one show you?"',
+    mercy: ['He held the crown and did not put it on', '"Did not." The King sits down rather suddenly. "I have imagined that night a thousand ways. Never that one."'],
+    justice: ['A thief in your hall, with your crown in his hands', '"So the guards said." His jaw sets. "And yet you say it as though there were more. No. Do not tell me. Not yet."'],
+    plain: ['Nothing I would swear to', '"A careful answer." He counts out twenty gold. "Careful people live. Stay careful."'] },
+  bones: { ask: '"It should have been me." He says it again, flatly. "He is right, you know. By every measure but our father\'s. What would you have me do with a man who is right?"',
+    mercy: ['Tell him so. To his face', '"To his face." The King almost smiles. "That would be a new kind of war for us."'],
+    justice: ['Being right does not excuse it', '"No," he agrees. "It only explains it. I am learning there is a difference, and that it is smaller than I hoped."'],
+    plain: ['Pay me, and ask again when I have the fourth', 'He does both. "You bargain like the League," the King says, and twenty gold changes hands.'] },
+  embers: { ask: '"Bring him back alive, I said. I should ask whether you mean to." The King does not look away. "You have fought through four of his hiding places. You are owed an opinion."',
+    mercy: ['Alive. He has punished himself longer than you have', '"You saw that in the shards." This time it is not a question at all. "Then bring him home."'],
+    justice: ['Alive, in chains, to answer for it', '"In chains, then. He will prefer that. Edric always did want to be taken seriously."'],
+    plain: ['Alive is harder. It will cost more', 'The King pays thirty gold without a word and then, unexpectedly, grips your arm. "Thank you for not pretending."'] },
+};
+function kingAsks(id) {
+  const Q = KING_ASKS[id], st = story();
+  if (!Q) return [];
+  const pick = (kind, gold) => () => { if (kind !== 'plain') st[kind] = (st[kind] || 0) + 1; if (gold) player.gold += gold; return Q[kind][1]; };
+  return [{ who: 'King Aldric', sprite: 'king', text: Q.ask, choices: [{ label: Q.mercy[0], run: pick('mercy') }, { label: Q.justice[0], run: pick('justice') }, { label: Q.plain[0], run: pick('plain', id === 'embers' ? 30 : 20) }] }];
+}
+// At the top of the tower the hero may ask the question nobody has, or not.
+function edricYields() {
+  const st = story();
+  return { who: 'Prince Edric', sprite: 'darkknight', bg: 'tower', text: 'The knight in black pulls off his helm. He has the King\'s face, ten years harder. "Go on, then," Prince Edric says. "Take it to him. Tell him his brother lost again."',
+    choices: [
+      { label: 'Ask him what happened that night', run: () => { st.mercy = (st.mercy || 0) + 1; st.heard = true; return '"You know what happened. You have been looking out of the thing for a month; I can tell by how you look at me." He sits down on the top step. "I only wanted to hold it. Once. It burned me and I dropped it, and then I heard the guards and thought: let them hunt a traitor. Nobody hunts for a fool." He holds out his wrists. "I have had ten years to practise being hated. I find I am tired of it."'; } },
+      { label: 'Bind his hands and say nothing', run: () => { st.justice = (st.justice || 0) + 1; return 'He holds out his wrists before you ask. "Good," he says. "I was afraid he would send someone kind." He does not resist when you lead him down the stairs.'; } },
+    ] };
+}
+// How the brothers remember the hero, once the crown is whole.
+function crownEpilogue() {
+  const st = story(), mercy = st.mercy || 0, justice = st.justice || 0;
+  if (mercy >= 3 && mercy > justice) return { page: { who: 'Prince Edric', sprite: 'darkknight', text: `"One thing more, brother," Edric says. "This one asked why. Every time there was a chance to call me a traitor and be paid for it, they asked why instead.${st.heard ? ' At the top of my own tower, with a sword in their hand, they asked me.' : ''}" He works the stag signet off his finger and holds it out to you. "I have no court and no purse. I have this, and my word that I will not forget it."` }, gold: 200, note: "Edric's signet is yours: 200 gold to any banker, and a prince's word besides.", ach: 'peacemaker' };
+  if (justice >= 3 && justice > mercy) return { page: { who: 'King Aldric', sprite: 'king', text: '"And you," the King says, turning. "Every time I asked what you thought, you told me the hard thing, and not once the thing I wanted. A king is surrounded by people who will not." He takes the heavy chain of a royal councillor from the steward\'s hands and sets it down in front of you. "I will not ask you to sit on my council. I will ask you to keep telling me."' }, gold: 250, note: "The King's thanks for plain speaking: 250 gold.", ach: 'kingscounsel' };
+  return { page: { who: 'King Aldric', sprite: 'king', text: '"You never once told me what to do with him," the King says to you, quietly, so that Edric will not hear. "I noticed. I think it was the kindest thing anyone did for either of us."' }, gold: 100, note: 'The King presses another 100 gold on you, and will not be argued with.', ach: null };
+}
+function shardArrival() {
+  const st = story(), id = scene === 'dungeon' && dungeonDef && dungeonDef.site && dungeonDef.site.story;
+  if (!id || floor !== 1 || st.phase !== 'seek' || STORY_ORDER[st.ch] !== id || (st.told || 0) > st.ch || !SHARD_ARRIVAL[id]) return;
+  st.told = st.ch + 1;
+  showScene([SHARD_ARRIVAL[id]], () => saveProgress('progress'));
+}
+// The guardians of the shards have something to say: once when they first see the hero, once when the fight turns.
+const BOSS_LINES = {
+  'Sister Vey, the Hollow Nun': { see: '"The lamp went out," says Sister Vey, in a voice like a page turning. "We prayed on in the dark. Have you brought the light back, or come for the last of it?"', rage: '"Three hundred years!" The pews are stirring. "Sisters. Matins."' },
+  'Morwen the Drowned': { see: 'Something speaks from the roof of the cave, in a fisher\'s accent. "He paid me a pearl to keep it. I was a woman once and could be paid. I am not sure what I am paid in now."', rage: '"The tide is coming in," Morwen says, and it is.' },
+  'the Barrow King': { see: '"Another one in a hurry," says the thing on the throne. "The last one cut his name into my chair. Kneel, or cut yours into the floor."', rage: '"Up," the Barrow King tells his court. "Up. A subject wants an audience."' },
+  'Gorrak Emberjaw': { see: '"Stag-man said someone would come." Gorrak hefts an axe the colour of a stove lid. "Stag-man pays silver to keep the shiny. You pay? No. Then you burn."', rage: '"Was good silver!" Gorrak roars. "Was EASY silver!"' },
+  'Ser Halvard, Captain of the Grey Cloaks': { see: '"I said we would meet at the tower." Halvard draws. "He is one floor up, and I gave my word nobody would reach him. I would rather have given it about something else."', rage: '"Cloaks!" Halvard calls, and does not sound proud of it.' },
+  'Prince Edric, the Crownbreaker': { see: '"So you are what he sent." Edric does not raise his voice. "Not a general. Not even a knight. He always did have better luck than he deserved."', rage: '"I was the better swordsman," Edric says through his teeth. "Ask anyone. Ask HIM."' },
+};
+function bossVoice(m, when) {
+  const L = m && BOSS_LINES[m.name];
+  if (!L || !L[when] || m['said' + when]) return;
+  m['said' + when] = true;
+  log(L[when], 'chat');
+  bubble = { x: m.x, y: m.y, text: when === 'see' ? '…' : '!', until: performance.now() + 2500 };
+}
 
 // The Adventurer's Guide: a handful of sensible next steps for where the hero is now.
 function guideSuggestions() {
@@ -8432,7 +8516,7 @@ function bossTurn(m, H, heroes) {
   return false;
 }
 function enrageBoss(m) {
-  m.enraged = true; m.atk += 2;
+  m.enraged = true; m.atk += 2; bossVoice(m, 'rage');
   shakeScreen(8); sfx.play('boss');
   burst(m.x, m.y, '#ef4444', 40, 160, { glow: true, life: 700 });
   const def = dungeonDef || { pool: null };
@@ -8525,6 +8609,7 @@ function nextFloor() {
   else track('floor_reached', { floor, dungeon: dungeonDef.kind === 'site' ? dungeonDef.site.type : 'town' });
   if (floor === 1) { player.meta.second_wind = false; tip('dungeon', 'The compass points to the stairs. Walk into monsters to attack, press 1 for your ability, P for a potion.'); }
   if (floor >= 5) unlock('delver');
+  setTimeout(shardArrival, 400);
   { const gr = GROUND_RULES[theme]; if (gr && (floor === 1 || dungeonDef.groundSaid !== theme)) { dungeonDef.groundSaid = theme; setTimeout(() => log(`${gr.label}: ${gr.desc}.`), 20); tip('ground_' + theme, `${thm().name}. ${gr.label}: ${gr.desc}.`); } }
   if (floorMod) { const fm = FLOOR_MODS[floorMod], good = floorMod === 'treasure'; setTimeout(() => log(`${fm.label}: ${fm.desc}.`, good ? 'good' : 'bad'), 30); }
   if (floor === dungeonDef.floors) tip('boss', 'A boss waits by the stairs on the last floor. Clear the room, use your ability, keep a potion ready.');
@@ -8961,7 +9046,7 @@ function storyShardFound(id) {
   st.phase = 'return';
   const S = STORY_SITES[id];
   const bg = { dawn: 'crypt', tides: 'grotto', bones: 'crypt', embers: 'lava', stars: 'tower' }[id];
-  showScene([{ who: S.shard, sprite: 'obelisk', text: SHARD_FOUND[id], bg }, { ...SHARD_CLUE[id], bg }], () => { giveRelic(S.relic, S.title); log(`You hold the ${S.shard}. Take it to King Aldric at Castle Aurum.`, 'good'); });
+  showScene([{ who: S.shard, sprite: 'obelisk', text: SHARD_FOUND[id], bg }, { who: 'What the shard remembers', sprite: 'obelisk', text: SHARD_VISION[id], bg: 'hall' }, id === 'stars' ? edricYields() : { ...SHARD_CLUE[id], bg }], () => { giveRelic(S.relic, S.title); log(`You hold the ${S.shard}. Take it to King Aldric at Castle Aurum.`, 'good'); });
   track('shard_found', { shard: id });
 }
 // Talking to the King moves the story along. Returns true when he had story to tell.
@@ -8973,9 +9058,12 @@ function storyKing() {
   }
   if (st.phase === 'return') {
     const id = STORY_ORDER[st.ch];
-    showScene(KING_SCENES[id], () => {
+    const ep = id === 'stars' ? crownEpilogue() : null;
+    const pages = id === 'stars' ? [...KING_SCENES.stars.slice(0, 2), ep.page, ...KING_SCENES.stars.slice(2)] : [...KING_SCENES[id], ...kingAsks(id)];
+    showScene(pages, () => {
       player.gold += 100 + 50 * st.ch; log(`The King rewards you with ${100 + 50 * st.ch} gold.`, 'good');
-      if (id === 'stars') { st.phase = 'done'; st.ch = 5; giveRelic('crown'); unlock('crownbearer'); player.title = 'Crownbearer'; track('story_complete'); }
+      if (ep) { player.gold += ep.gold; log(ep.note, 'good'); if (ep.ach) unlock(ep.ach); }
+      if (id === 'stars') { st.phase = 'done'; st.ch = 5; giveRelic('crown'); unlock('crownbearer'); player.title = 'Crownbearer'; track('story_complete', { mercy: st.mercy || 0, justice: st.justice || 0 }); }
       else { st.ch++; st.phase = 'seek'; const S = STORY_SITES[STORY_ORDER[st.ch]]; log(`Objective: find the ${S.shard} in ${S.title.replace(/^The /, 'the ')}.`, 'good'); }
       mapCache.ox = null; updateStats(); saveProgress('progress');
     });
@@ -9846,6 +9934,7 @@ const stepHound = stepPets;
 
 function endTurn(moved) {
   turn++;
+  if (scene === 'dungeon') { const bz = monsters.find((m) => m.boss && m.awake && !m.saidsee && BOSS_LINES[m.name] && isVisible(m.x, m.y)); if (bz) bossVoice(bz, 'see'); }
   mp.lastActive = performance.now();
   if (moved && turn % 2 === 0) sfx.play('step');
   if (moved && scene === 'world') { const gnd = groundAt(player.x, player.y); if (gnd === GROUND.ROAD || gnd === GROUND.SAND) burst(player.x, player.y, gnd === GROUND.SAND ? '#e7d3a1' : '#b9976a', 3, 25, { foot: true, gravity: -10, life: 380, size: 2 }); }

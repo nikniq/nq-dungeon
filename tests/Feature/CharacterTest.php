@@ -363,6 +363,18 @@ class CharacterTest extends TestCase
         $this->actingAs($user)->postJson('/api/character', $state + ['bag' => [], 'quests' => [['kind' => 'heist'] + $bounty]])->assertUnprocessable();
     }
 
+    public function test_story_answers_are_saved_and_checked(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla']);
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 3, 'xp' => 0, 'gold' => 10, 'hp' => 30, 'max_hp' => 30, 'atk' => 4, 'kills' => 0, 'bag' => []];
+        $story = ['ch' => 3, 'phase' => 'seek', 'riders' => 2, 'mercy' => 2, 'justice' => 1, 'told' => 3, 'heard' => true];
+
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['story' => $story]])->assertOk()->assertJson(['meta' => ['story' => $story]]);
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['story' => ['mercy' => 99] + $story]])->assertUnprocessable();
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['story' => ['told' => 9] + $story]])->assertUnprocessable();
+    }
+
     public function test_armies_and_razed_camps_are_saved_and_checked(): void
     {
         $user = User::factory()->create();
