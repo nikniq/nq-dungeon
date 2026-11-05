@@ -1027,9 +1027,10 @@ function drawJournal(g) {
     }
     if (story1Done()) {
       const S2 = story2();
-      steps.push(['Story 2: The Far Shore', S2.s === 0 ? 'Story 1 is told. Stand in any town and the next story will find you.' : S2.s === 3 ? 'The Hollow King is dust. Three crowns beyond the Veil call you friend, and the sea road is open for good.' : S2.s === 2 ? 'The three keys are yours and the Barrow is open. Go down the thousand steps.' : 'The Veil was a prison wall. Earn the three keys from the three crowns beyond it.', S2.s === 3]);
-      if (S2.s >= 1) for (const r of FAR_REALMS) { const Q = REALM_QUESTS[r], rq = rqState(r); steps.push([`${Q.title} (the ${itemInfo(Q.relic).name})`, rq.s === 5 ? `${Q.ruler} gave you the key.` : rq.s === 4 ? `Report to ${Q.ruler}.` : rq.s === 0 ? `${Q.ruler} waits in ${CAPITAL_NAMES[r]}.` : Q.steps[rq.s - 1].label + '.', rq.s === 5]); }
-      if (S2.s >= 2) steps.push(['The Thousand-Step Barrow', S2.s === 3 ? 'The Hollow King is slain.' : 'At the heart of the Far Shore. Six floors, and the Hollow King at the bottom.', S2.s === 3]);
+      steps.push(['Story 2: The Far Shore', S2.s === 0 ? 'Story 1 is told. Stand in any town and the next story will find you.' : S2.s === 3 ? 'The Hollow King is dust. Three crowns beyond the Veil call you friend, and the sea road is open for good.' : S2.s === 2 ? 'The three pieces are yours and the Barrow is open. Go down the thousand steps.' : !S2.met ? 'The Veil was a prison wall. Take passage across it: the Grey Envoy will find you on the far side.' : 'The keys are pieces of the Hollow King. Earn all three from the three crowns beyond the Veil.', S2.s === 3]);
+      if (S2.s >= 1 && S2.met) steps.push(['The Grey Envoy', S2.s === 3 ? 'Mirel, six years old in the Grey Winter, the first one he kept. She has the quiet now.' : keyMems().length >= 3 ? 'She waits at the top of the thousand steps. She has been down there long enough.' : keyMems().length === 2 ? 'She serves no court. "The court I belonged to is under the mountain."' : keyMems().length === 1 ? 'She does not eat, and nobody has seen her arrive anywhere.' : 'A woman in grey silk whom each court believes the others sent.', S2.s === 3]);
+      if (S2.s >= 1) for (const r of FAR_REALMS) { const Q = REALM_QUESTS[r], rq = rqState(r); steps.push([`${Q.title} (the ${itemInfo(Q.relic).name})`, rq.s === 5 ? (keyMems().includes(Q.relic) ? { jadeseal: 'It holds his name, taken by his chancellor so that no order of his would bind the living.', sunlotus: 'It holds his breath, the one he kept for himself, taken by his physician while he slept.', bearcharm: 'It holds his sleep, laid on him by the huntsman who carried him down and froze at his door.' }[Q.relic] : `${Q.ruler} gave you the key.`) : rq.s === 4 ? `Report to ${Q.ruler}.` : rq.s === 0 ? `${Q.ruler} waits in ${CAPITAL_NAMES[r]}.` : Q.steps[rq.s - 1].label + '.', rq.s === 5]); }
+      if (S2.s >= 2) steps.push(['The Thousand-Step Barrow', S2.s === 3 ? 'The Hollow King is slain.' : (S2.gift ? `At the heart of the Far Shore. ${HOLLOW_GIFTS[S2.gift].log}` : 'At the heart of the Far Shore. Six floors, his own account on every landing, and the Hollow King at the bottom.'), S2.s === 3]);
       if (story4Done()) { const S5 = story5(); steps.push(['Story 5: The Rebuilding', S5.s === 0 ? 'Story 4 is told. Stand in any town and the reckoning will find you.' : S5.s === 2 ? `You are a Founder: ${S5.n} structures stand with your name on them.` : `Talk to town leaders to sponsor walls, buildings, memorials and roads: ${S5.n || 0}/${FOUNDER_AT} sponsored. The heroes page ranks the builders.`, S5.s === 2]); }
       if (story3Done()) { const S4 = story4(); steps.push(['Story 4: The Long Night', S4.s === 0 ? 'Story 3 is told. Stand in any town and watch the sky.' : S4.s === 2 ? 'The Rift Lord is dust and every rift is shut.' : `Rifts to Midgard open outside the towns. Kill a horde to close its rift: ${S4.closed || 0}/${RIFTS_TO_CLOSE} closed${(S4.closed || 0) >= RIFTS_TO_CLOSE ? '. The Rift Lord is coming' : ''}.`, S4.s === 2]); }
       if (S2.s === 3) { const S3 = story3(); steps.push(['Story 3: The Frozen Gate', S3.s === 0 ? 'Story 2 is told. Stand in any town and a raven will find you.' : S3.s === 2 ? 'Thrym is dead and the gate is shut. The north is quiet.' : 'A door of ice on an island in the far north opens on Midgard. Take passage to Hrafnvik and go down through it to Thrym, Jarl of the Frost Giants.', S3.s === 2]); }
@@ -1718,7 +1719,7 @@ function storyObjective() {
   // between the stories: never leave the hero without a star to follow
   if (st.phase === 'done' && act2().s === 0) { const ed = castle; return { text: 'Speak with Prince Edric at Castle Aurum: Act II, What Sleeps Below', short: 'Castle Aurum', x: ed.cx, y: ed.cy }; }
   if (story1Done() && story2().s === 0) { const hp = homePort(); return { text: 'Story 1 is told. Walk into any town and the news of Story 2 will find you', short: hp ? hp.name : 'A town', x: hp ? hp.cx : castle.cx, y: hp ? hp.cy : castle.cy }; }
-  if (story2().s === 1 && FAR_REALMS.every((r) => rqState(r).s === 5)) { setTimeout(() => { if (story2().s === 1 && !storyOpen()) unsealBarrow(); }, 0); }
+  if (story2().s === 1 && FAR_REALMS.every((r) => rqState(r).s === 5)) { setTimeout(() => { if (story2().s === 1 && !storyOpen()) { const owed = FAR_REALMS.find((r) => !keyMems().includes(REALM_QUESTS[r].relic)); if (owed) keyMemory(owed, unsealBarrow); else unsealBarrow(); } }, 0); }
   if (story2().s === 2) { const S = STORY_SITES.hollow, site = siteAt(S.i, S.j); return { text: 'Go down the Thousand-Step Barrow and face the Hollow King', short: S.title, x: site.x, y: site.y }; }
   if (story2().s === 1) {
     const next = FAR_REALMS.find((r) => rqState(r).s < 5);
@@ -2079,26 +2080,134 @@ function drawRifts(g, now) {
 }
 const STORY2_INTRO = [
   { who: 'An envoy from across the Veil', sprite: 'merchant:tianxia', bg: 'sea', title: 'Story 2: The Far Shore',
-    text: 'A ship with sails the colour of sunset puts into harbour, and a woman in grey silk asks for you by name. "For a thousand years the Veil of storms has closed the eastern sea," she says. "It was not weather. Our three founders raised it, to wall something in. When your Crown was mended and the Deep went quiet, the Veil fell. So did the wards beneath it."' },
+    text: 'A ship with sails the colour of sunset puts into harbour, and a woman in grey silk asks for you by name. She does not take the harbourmaster\'s wine, and the harbour dogs, who bark at everything, are quiet around her. "For a thousand years the Veil of storms has closed the eastern sea," she says. "It was not weather. Our three founders raised it, to wall something in. When your Crown was mended and the Deep went quiet, the Veil fell. So did the wards beneath it."' },
   { who: 'The Hollow King', sprite: 'necromancer', bg: 'crypt', title: 'The Hollow King',
-    text: '"Before there were three crowns there was one, and it was hollow. The Hollow King took the breath out of every living thing that would not kneel, and ruled a continent of the obedient dead. Three generals broke him: one with a seal, one with a lotus, one with a bear\'s claw. They could not kill him. They buried him under the Mountain of a Thousand Steps, each with a lock, and raised the Veil so that no fool from over the sea would ever come looking for the keys."' },
+    text: '"Before there were three crowns there was one, and it was hollow. It began as a mercy. A grey winter took half his people, and the King would not let them go: he took the last breath out of the dying and kept them walking. Then he took it from those who objected. The dead do not argue, and he ruled a continent of the obedient dead."' },
+  { who: 'Three generals', sprite: 'stones', bg: 'crypt', title: 'Three generals',
+    text: '"Three of his own broke him: his chancellor with a seal, his physician with a lotus, his huntsman with a bear\'s claw. They could not kill him. They buried him under the Mountain of a Thousand Steps, each with a lock, and raised the Veil so that no fool from over the sea would ever come looking for the keys."' },
   { who: 'The Far Shore', sprite: 'ship', bg: 'sea', title: 'The Far Shore',
-    text: '"The generals\' heirs rule now: the Celestial Empire of Tianxia, the Rajadom of Suryadesh and the Tsardom of Severin. The keys are their crown treasures. The Barrow has begun to breathe, the dead have begun to walk the roads, and the three crowns, who have not agreed on anything in a thousand years, agree that they want a fool from over the sea. Any harbourmaster sells passage now. Earn the three keys. Then go down the thousand steps." The journal (J) keeps the tale.' },
+    text: '"Their heirs rule now: the Celestial Empire of Tianxia, the Rajadom of Suryadesh and the Tsardom of Severin. The keys are their crown treasures. The Barrow has begun to breathe, the dead walk the roads, and the three crowns, who have not agreed on anything in a thousand years, agree that they want a fool from over the sea." She almost smiles. "Each court believes I serve one of the other two. It is useful. Any harbourmaster sells passage now. Earn the three keys. I will find you on the far side." The journal (J) keeps the tale.' },
+];
+// Landfall: the envoy is waiting on the far side, and says what the keys really are.
+const STORY2_LANDFALL = [
+  { who: 'The Grey Envoy', sprite: 'merchant:tianxia', bg: 'sea', title: 'Landfall',
+    text: 'She is on the quay before your boots are, in the same grey silk, though no ship passed yours on the crossing. "You came. Good. Three capitals, three crowns, and each will set you errands before it parts with its treasure: the Empress in her yamen, the Maharani in her durbar, the Tsar in his terem. Take them in any order. They will not like each other\'s order whichever you choose."' },
+  { who: 'The Grey Envoy', sprite: 'merchant:tianxia', bg: 'sea', title: 'Landfall',
+    text: '"One thing the courts will not tell you, because they have spent a thousand years forgetting it. The keys are not locks. The generals could not kill him, so they took him apart: each key holds a piece of the King. Hold one for a night and it will show you which. Do not be frightened of what you see. Be a little frightened of what sees you." It has begun to rain. She does not seem to have noticed.' },
+];
+// What each key holds, shown the night it is won, and what the envoy says after
+// the first, the second and the third.
+const KEY_MEMORIES = {
+  jadeseal: [
+    { who: 'What the seal remembers', sprite: 'king:tianxia', bg: 'hall', title: 'The Seal: his name',
+      text: 'That night you turn the seal over. One word is cut into the underside, in a script older than the Empire, and as you read it the lamp burns grey. A hall of petitioners. A king signing, signing, signing, and every paper a death that will get up again in the morning. His chancellor kneels with ink on her sleeves. "A king\'s word binds only while he has a name to sign it with," she says, and presses the jade to his mouth as he speaks. The word goes into the stone. He has not given an order to the living since.' },
+    { who: 'A voice under the mountain', sprite: 'necromancer', bg: 'crypt', title: 'The Seal: his name',
+      text: 'Far away, under a mountain, something that has not been called anything for a thousand years turns its head. "That is mine," it says, quite gently, and you hear it as if it stood behind your chair. "I have forgotten how it goes. Bring it down to me."' },
+  ],
+  sunlotus: [
+    { who: 'What the lotus remembers', sprite: 'elder:suryadesh', bg: 'hall', title: 'The Lotus: his breath',
+      text: 'That night the gold lotus is warm, and its petals move as if something inside were breathing. A sickroom, long ago. The King asleep in a chair by an empty bed. He took a breath from everyone in his kingdom and kept only one for himself. His physician, who had nursed the plague wards until there was nobody left in them to nurse, holds the flower to his lips and takes it. He woke unable to die and unable to live. She told him that seemed fair.' },
+    { who: 'A voice under the mountain', sprite: 'necromancer', bg: 'crypt', title: 'The Lotus: his breath',
+      text: '"She took that while I slept," says the voice from under the mountain, as close as your own pulse. "I only had the one. I would like to know what it feels like again, before the end. Bring it down to me."' },
+  ],
+  bearcharm: [
+    { who: 'What the claw remembers', sprite: 'king:severin', bg: 'crypt', title: 'The Claw: his sleep',
+      text: 'That night the claw is so cold it sticks to your palm. A stair, going down for ever. A huntsman carries the King on his back like a kill, a thousand steps, and at the bottom lays the claw on his chest the way hunters do to a bear they have denned for the winter. "Sleep until someone wakes you, brother." Then he shut the door and sat down with his back to it. They found the claw on the river ice the next spring. They did not find the huntsman.' },
+    { who: 'A voice under the mountain', sprite: 'necromancer', bg: 'crypt', title: 'The Claw: his sleep',
+      text: '"He was my friend," says the voice from under the mountain. "He sat outside my door until he froze. I could hear him. I have been awake ever since, and I am so tired. Bring it down to me."' },
+  ],
+};
+const ENVOY_AFTER = [
+  'In the morning the Grey Envoy is at the foot of your bed, as if she had been there all night. "So it showed you. One piece. He felt you take it; he will speak to you now, and so will his soldiers on the road. He is always polite. That is the worst thing about him." She has not touched the tea the inn left out for her. You realise you have never seen her eat.',
+  'The Grey Envoy is waiting in the square at dawn. "Two." You ask her, at last, which court she really serves. "None of them. The court I belonged to is under the mountain. I have been a very long time leaving it." She will not say more. Behind her a dog crosses the square, sees her, and goes round the long way.',
+  'The Grey Envoy is beside you before the third vision has faded, and for the first time she looks afraid. "Three. Listen, because I have not been honest. The keys do not hold the door shut. They open it. The locks were rotting; in a year he would have come up by himself, with an army. This way he is one man in one room, and somebody carries his pieces down to him and ends it. I chose now. I chose you. I am sorry I did not say."',
 ];
 const BARROW_UNSEALED = [
   { who: 'The mountain breathes', sprite: 'stones', bg: 'crypt', title: 'The Barrow unsealed',
-    text: 'The third key is barely in your hand when the ground shivers from one coast to the other. At the heart of the Far Shore the Mountain of a Thousand Steps splits along an old seam, and a cold wind comes out of it that smells of nothing at all. The Hollow King knows his keys have been gathered. He is waiting for whoever brings them.' },
+    text: 'The ground shivers from one coast to the other. At the heart of the Far Shore the Mountain of a Thousand Steps splits along an old seam, and a cold wind comes out of it that smells of nothing at all. The Hollow King knows his pieces have been gathered. He is waiting for whoever brings them.' },
   { who: 'The thousand steps', sprite: 'crypt', bg: 'crypt', title: 'The thousand steps',
-    text: 'The Thousand-Step Barrow lies at the centre of the continent, between the three realms. Six floors of the obedient dead and the Hollow King at the bottom, stronger than anything you have fought. Bring potions. The three crowns will send their soldiers to hold the door, but what is below it is yours.' },
+    text: 'The Thousand-Step Barrow lies at the centre of the continent, between the three realms. Six floors of the obedient dead, his own account of himself cut into the wall of every landing, and the Hollow King at the bottom, stronger than anything you have fought. Bring potions. The three crowns will send soldiers to hold the door, but what is below it is yours. "I will wait at the top," the Envoy says. "I have been down there long enough."' },
 ];
-const STORY2_FINALE = [
+// The King's own account, cut into the wall at the head of each stair.
+const BARROW_STEPS = [
+  'Cut into the wall at the head of the stair, in letters a hand deep: IN THE GREY WINTER HALF MY PEOPLE DIED. I WAS THEIR KING. I REFUSED.',
+  'The second landing. The letters are smaller here: I KEPT THE FIRST ONE BECAUSE SHE WAS SIX YEARS OLD, AND THE HOUSE WAS QUIET.',
+  'The third landing: I KEPT THE REST BECAUSE THEIR MOTHERS ASKED ME TO.',
+  'The fourth landing: THOSE WHO DID NOT ASK, I KEPT ANYWAY. THE DEAD DO NOT ARGUE. I HAD FORGOTTEN WHAT ARGUING WAS FOR.',
+  'The fifth landing: MY CHANCELLOR TOOK MY NAME. MY PHYSICIAN TOOK MY BREATH. MY BROTHER CARRIED ME DOWN. THEY WERE RIGHT. Under it, scratched small with a knife in another hand: "He means it, on the good days."',
+];
+// At the bottom he asks for one piece back before the fight. Each changes him.
+const HOLLOW_GIFTS = {
+  name:   { label: 'Give him back his name, the Seal: he can command no dead', log: 'The Hollow King has his name: he will raise no dead against you.',
+    text: 'You turn the seal over and read him the word. He says it twice, to hear how it goes. "Corin. Yes. I was called Corin." Along the walls the obedient dead stop standing to attention: they have remembered that a man called Corin is nobody they have to obey. He will raise no one against you. He draws a sword that has not been drawn in a thousand years, and salutes with it.' },
+  breath: { label: 'Give him back his breath, the Lotus: he can be killed like a man', log: 'The Hollow King breathes: he is a man again, and has less life in him.',
+    text: 'You hold out the lotus and it opens. He breathes in, and coughs, and laughs, and coughs. "Oh. That hurts. I had forgotten that it hurts." There is colour in his face, and a pulse in his throat, and for the first time in a thousand years he can be killed like anyone else. He seems to think that a fair trade. He stands.' },
+  sleep:  { label: 'Give him back his sleep, the Claw: he fights weary', log: 'The Hollow King is a thousand years tired: his blows are weaker.',
+    text: 'You lay the claw in his palm. A thousand years of lying awake land on him all at once: his shoulders drop, his eyes close, and for a moment you think that is the end of it. Then he hauls them open. "Not yet. I would like to see it coming." He stands, slowly, like a man getting up for a night watch. His blows will be weak with weariness.' },
+  none:   { label: 'Give him nothing: he fights whole', log: 'You gave the Hollow King nothing. He fights whole, and the crowns will double the purse.',
+    text: '"No," you say. He is quiet for a while. Then, for the first time, he smiles. "Good. My brother would have said the same, and he was the best of us." He stands up out of the chair whole and hollow and terrible, the way the three generals met him, and the dead along the walls stand with him.' },
+};
+const hollowGiftPages = () => [
+  { who: 'The Hollow King', sprite: 'necromancer', bg: 'crypt', title: 'The Hollow King',
+    text: 'The thousand steps end in a hall the size of a cathedral with one chair in it. What sits in the chair is very thin, and very polite. "You brought them," the Hollow King says, and though he is far down the hall you hear him as if he stood at your shoulder. "My name, my breath, my sleep. I can feel them in your pack like teeth in a jaw."' },
+  { who: 'The Hollow King', sprite: 'necromancer', bg: 'crypt', title: 'One hand free',
+    text: '"I will fight you for all three. I have not forgotten how, and I do not think I am allowed to stop. But you have one hand free, and I am asking. Give me one of them back before we begin. Only one. I should like to meet the end with something of my own."',
+    choices: Object.entries(HOLLOW_GIFTS).map(([id, G]) => ({ label: G.label, run: () => { story2().gift = id; applyHollowGift(); log(G.log, id === 'none' ? 'bad' : 'good'); saveProgress('progress'); return G.text; } })) },
+];
+// The gift changes the King himself, each time the hall is entered.
+function applyHollowGift() {
+  const m = monsters.find((o) => o.boss), gift = story2().gift;
+  if (!m || !gift || m.gifted || !(dungeonDef && dungeonDef.story === 'hollow')) return;
+  m.gifted = gift;
+  if (gift === 'name') { m.noRaise = true; m.name = 'Corin, the Hollow King'; }
+  if (gift === 'breath') { m.hp = m.maxHp = Math.round(m.maxHp * 0.7); }
+  if (gift === 'sleep') { m.atk = Math.max(1, Math.round(m.atk * 0.7)); }
+  monstersDirty = true;
+}
+// Arriving on a floor of the Barrow: the writing on the wall, and at the bottom the King.
+function barrowFloor() {
+  if (!(dungeonDef && dungeonDef.story === 'hollow') || story2().s >= 3) return;
+  if (floor < dungeonDef.floors) { const line = BARROW_STEPS[floor - 1]; if (line) setTimeout(() => { log(line, 'good'); toast = { text: line.replace(/^[^:]*: /, ''), until: performance.now() + 9000 }; }, 400); return; }
+  if (story2().gift) { applyHollowGift(); setTimeout(() => log(HOLLOW_GIFTS[story2().gift].log, 'good'), 400); return; }
+  // skipping his greeting does not skip his question
+  setTimeout(() => { if (!storyOpen() && !gameOver) showScene(hollowGiftPages(), () => { if (!story2().gift && !gameOver) showScene(hollowGiftPages().slice(1)); }); }, 500);
+}
+const hollowFall = () => ({
+  name: 'Corin goes down saying his own name, like a man checking his pockets and finding everything there.',
+  breath: 'He dies the ordinary way, out of breath, and seems astonished and grateful that it is allowed.',
+  sleep: 'He does not so much fall as lie down, at last, like a man who has been kept from his bed for a thousand years.',
+}[story2().gift] || 'He comes apart like a house of ash in a draught.');
+const story2Finale = () => [
   { who: 'The Hollow King falls', sprite: 'necromancer', bg: 'crypt', title: 'The Hollow King falls',
-    text: 'He comes apart like a house of ash in a draught, and the breath he stole a thousand years ago goes out of the Barrow in one long sigh that bends the grass for a mile. The obedient dead lie down. The Mountain of a Thousand Steps is, at last, only a mountain.' },
+    text: `${hollowFall()} "Is she with you?" he asks, near the end. "The small one. Tell her the house can be quiet now." Then the breath he stole a thousand years ago goes out of the Barrow in one long sigh that bends the grass for a mile. The obedient dead lie down. The Mountain of a Thousand Steps is, at last, only a mountain.` },
+  { who: 'The Grey Envoy', sprite: 'merchant:tianxia', bg: 'road', title: 'The top step',
+    text: 'She is sitting on the top step in the sun with her shoes off. "I was six, the winter it started. I was the first one he kept. Everything after was because the house was quiet without me." She watches the grass bend, coming up the mountain towards her. "I have been walking about on his breath for a thousand years. When the wards cracked I slipped out to find someone who would go down, because the crowns never would. My name is Mirel. Nobody has needed it in a long time. Thank you for the quiet."' },
+  { who: 'Mirel', sprite: 'stones', bg: 'road', title: 'The top step',
+    text: 'She puts her head on her knees, like a child kept up too late. The long sigh from the mountain reaches the top step and goes through her, and then there is a robe of grey silk on the stone, and a pair of small shoes, and the sun on both. You carry them down the mountain yourself.' },
   { who: 'Three crowns, one table', sprite: 'king:tianxia', bg: 'sea', title: 'Three crowns, one table',
-    text: 'Empress, Maharani and Tsar sit at one table for the first time in living memory, and the table is set for you. The Veil is declared open for good, the sea road chartered, and the Hollow King\'s crown, which none of them will touch, is handed to you with tongs.' },
+    text: `Empress, Maharani and Tsar sit at one table for the first time in living memory. The table is set for you, and for one more: a fourth place nobody sits in, laid by the Empress with her own hands when she heard who the envoy had been. The Veil is declared open for good, the sea road chartered, and the Hollow King's crown, which none of them will touch, is handed to you with tongs.${story2().gift === 'none' ? ' The purse is doubled, for the one who gave him nothing.' : ''}` },
   { who: 'Friend of Seven Realms', sprite: 'hero', bg: 'sea', title: 'Friend of Seven Realms',
-    text: 'Seven realms on two shores know your name now. There will be other stories. For tonight there is a feast, three kinds of wine, and a bear that has had rather too much of all of them.' },
+    text: 'Seven realms on two shores know your name now. There will be other stories. For tonight there is a feast, three kinds of wine, and a bear that has had rather too much of all of them. Somebody has put a marigold in the empty chair.' },
 ];
+const keyMems = () => { const S = story2(); return Array.isArray(S.mem) ? S.mem : (S.mem = []); };
+// The night a key is won it shows what it holds; then the envoy has her say.
+function keyMemory(realm, then) {
+  const relic = REALM_QUESTS[realm].relic, mem = keyMems();
+  if (!KEY_MEMORIES[relic] || mem.includes(relic) || story2().s < 1) { if (then) then(); return; }
+  mem.push(relic);
+  const said = ENVOY_AFTER[Math.min(mem.length, ENVOY_AFTER.length) - 1];
+  sfx.play('quest');
+  showScene([...KEY_MEMORIES[relic], { who: 'The Grey Envoy', sprite: 'merchant:tianxia', bg: 'town', title: 'The Grey Envoy', text: said }], () => { saveProgress('progress'); if (then) then(); });
+}
+// In a Far Shore town, whatever of the tale is owed is told: the landfall, or a
+// key won before its memory was seen.
+function story2Beat() {
+  const S = story2();
+  if (S.s < 1 || S.s > 2 || storyOpen() || player.x <= VEIL_X) return;   // a harbour town sits too near the coast for continentOf
+  if (S.s === 1 && !S.met) { S.met = true; showScene(STORY2_LANDFALL, () => { log('The keys are pieces of the Hollow King. Seek the three crowns in their capitals, in any order.', 'good'); saveProgress('progress'); }); return; }
+  const owed = FAR_REALMS.find((r) => rqState(r).s === 5 && !keyMems().includes(REALM_QUESTS[r].relic));
+  if (owed) keyMemory(owed);
+}
 function unsealBarrow() {
   story2().s = 2; sfx.play('boss'); shakeScreen(8, 900); track('barrow_unsealed');
   showScene(BARROW_UNSEALED, () => { log('The Thousand-Step Barrow is open. Follow the gold star.', 'good'); mapCache.ox = null; saveProgress('progress'); });
@@ -2106,13 +2215,14 @@ function unsealBarrow() {
 function hollowKingSlain() {
   if (story2().s >= 3) return;
   story2().s = 3; player.gold += 2000; unlock('hollowking'); unlock('seven_realms'); track('story2_done');
-  showScene(STORY2_FINALE, () => { giveRelic('hollowcrown'); log('Story 2 complete: 2000 gold, the Hollow King\'s crown, and the sea road open for good.', 'good'); updateStats(); saveProgress('progress'); });
+  const bonus = story2().gift === 'none' ? 1000 : 0; player.gold += bonus;
+  showScene(story2Finale(), () => { giveRelic('hollowcrown'); log(`Story 2 complete: ${2000 + bonus} gold, the Hollow King's crown, and the sea road open for good.`, 'good'); updateStats(); saveProgress('progress'); });
 }
 function offerStory2() {
   if (story2().s !== 0 || !story1Done() || storyOpen()) return;
   story2().s = 1;
   sfx.play('quest'); unlock('farshore'); track('story2_opened');
-  showScene(STORY2_INTRO, () => { log('Story 2, The Far Shore: take passage across the Veil from any harbour, earn the three keys from the three crowns, and go down the thousand steps.', 'good'); mapCache.ox = null; saveProgress('progress'); });
+  showScene(STORY2_INTRO, () => { log('Story 2, The Far Shore: take passage across the Veil from any harbour. The Grey Envoy will find you on the far side.', 'good'); mapCache.ox = null; saveProgress('progress'); });
 }
 // the port on each side of the Veil that the passage runs between
 function farPort() { let best = null; for (let i = 8; i <= 21; i++) for (let j = -6; j <= 6; j++) { const t = townAt(i, j); if (t && t.harbour && (!best || Math.hypot(t.i - 9, t.j) < Math.hypot(best.i - 9, best.j))) best = t; } return best; }   // the Far Shore's western landfall
@@ -6770,7 +6880,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
     let best = null, bestD = d.get(key(m.x, m.y)) ?? Infinity;
     const dirs = DIRS.slice().sort(() => Math.random() - 0.5);
     if (m.type.erratic && Math.random() < 0.5) bestD = Infinity;   // bats flap about
-    if (m.type.raiser) { m.raiseCd = (m.raiseCd ?? 1) - 1; if (m.raiseCd <= 0 && dist(m, H) <= 7 && raiseDead(m)) { m.raiseCd = 4; continue; } }
+    if (m.type.raiser) { m.raiseCd = (m.raiseCd ?? 1) - 1; if (m.raiseCd <= 0 && !m.noRaise && dist(m, H) <= 7 && raiseDead(m)) { m.raiseCd = 4; continue; } }
     if ((m.type.ranged && dist(m, H) <= 2) || (m.type.raiser && dist(m, H) <= 3) || (m.type.healer && dist(m, H) <= 3)) {
       // archers back off to shoot again
       for (const [dx, dy] of dirs) {
@@ -6996,6 +7106,7 @@ function nextFloor() {
   if (floor >= 5) unlock('delver');
   if (floorMod) { const fm = FLOOR_MODS[floorMod], good = floorMod === 'treasure'; setTimeout(() => log(`${fm.label}: ${fm.desc}.`, good ? 'good' : 'bad'), 30); }
   if (floor === dungeonDef.floors) tip('boss', 'A boss waits by the stairs on the last floor. Clear the room, use your ability, keep a potion ready.');
+  barrowFloor();
   log(floor === 1 ? `You descend into ${/^the /i.test(dungeonDef.name) ? "" : "the "}${dungeonDef.name} (${ratingText(dungeonDef)}). Follow the compass to the stairs. The golden door beside you leads back up if you want out.` : `You descend to floor ${floor}. A golden door here leads back to the surface.`, 'good');
   saveProgress('progress');
 }
@@ -7536,23 +7647,23 @@ const REALM_QUESTS = {
             { kind: 'chest', need: 5, label: 'Open 5 treasure chests' }],
     outro: '"An excellent return." Vessa slides a slim book across the desk. "My personal ledger. Merchants who see it pay you as they would pay me, and gold has a way of finding its way to it."' },
   tianxia: { title: 'The Mandate of Heaven', ruler: 'Empress Liang Wu', sprite: 'king:tianxia', relic: 'jadeseal', gold: 300,
-    intro: '"The Veil kept more than ships out," the Empress says, not looking up from her brush. "Since it opened, the beasts in my provinces have champions, and the tribute roads are robbed. Heaven grants its mandate to those who keep order. Keep some for me."',
+    intro: '"The Veil kept more than ships out," the Empress says, not looking up from her brush. "Since it opened, the beasts in my provinces have champions, and the tribute roads are robbed. The dead march on them in step, and my soldiers will not face what they used to bury. Heaven grants its mandate to those who keep order. Keep some for me, and we will speak of the seal."',
     steps: [{ kind: 'clearIn', target: 'tianxia', need: 1, label: 'Clear a dungeon in the Celestial Empire' },
             { kind: 'elite', need: 3, label: 'Slay 3 elite monsters (starred), the champions of the beasts' },
             { kind: 'chest', need: 4, label: 'Recover the lost tribute: open 4 treasure chests' }],
-    outro: 'The Empress sets down her brush at last. "Order is restored, and I did not have to write a single edict." A clerk brings a small box. "The seal of the Jade Throne. Show it at any waystone or harbour in the world, and they will charge you half. They will not dare charge you more."' },
+    outro: 'The Empress sets down her brush at last. "Order is restored, and I did not have to write a single edict." A clerk brings a small box. "The seal of the Jade Throne. Show it at any waystone or harbour in the world, and they will charge you half. They will not dare charge you more." She pauses. "It is also the first lock of the Barrow. The founder cut one word into the underside and forbade her heirs to read it. I have never turned it over. I do not suppose you will be so sensible."' },
   suryadesh: { title: 'The Nine Gates', ruler: 'Maharani Devika Suryavansha', sprite: 'elder:suryadesh', relic: 'sunlotus', gold: 280,
-    intro: '"The sun rises on nine gates," the Maharani says, "and lately it sets on spiders. The pilgrim roads are strung with webs, and a thing in the old temple below the hill calls itself a god. Clear my roads, honour my shrines, and put the false god to the sword."',
+    intro: '"The sun rises on nine gates," the Maharani says, "and lately it sets on spiders. The pilgrim roads are strung with webs, and a thing in the old temple below the hill calls itself a god. Clear my roads, honour my shrines, and put the false god to the sword. The Hollow King began with a shrine and a false god too. Do this, and the lotus goes with you to his door."',
     steps: [{ kind: 'place', target: 'shrine', need: 1, label: 'Make an offering at a wayside shrine' },
             { kind: 'slay', target: 'Spider', need: 8, label: 'Clear the pilgrim roads of spiders (slay 8)' },
             { kind: 'boss', need: 1, label: 'Put a false god to the sword: slay any dungeon boss' }],
-    outro: 'Drums, conches and a shower of marigolds. The Maharani fastens a lotus of beaten gold at your throat. "The Sun\'s own flower. While it shines on you, nothing shines through you."' },
+    outro: 'Drums, conches and a shower of marigolds. The Maharani fastens a lotus of beaten gold at your throat. "The Sun\'s own flower. While it shines on you, nothing shines through you. Our founder took it from the Hollow King\'s bedside the night he was bound, and it has not wilted in a thousand years. We do not ask what it is holding. It is the second lock of the Barrow, and it is yours."' },
   severin: { title: 'The Long Winter', ruler: 'Tsar Fyodor the Patient', sprite: 'king:severin', relic: 'bearcharm', gold: 260,
-    intro: '"Winter comes in six weeks," the Tsar says, "and the orcs of the taiga have burned two granaries. I need the raiders broken, the granary filled, and the barrow under the frozen river emptied of whatever is singing in it. I am a patient man. Winter is not."',
+    intro: '"Winter comes in six weeks," the Tsar says, "and the orcs of the taiga have burned two granaries. I need the raiders broken, the granary filled, and the barrow under the frozen river emptied of whatever is singing in it. I am a patient man. Winter is not, and neither is the one under the mountain. Do this and you shall have the claw."',
     steps: [{ kind: 'slay', target: 'Orc', need: 8, label: 'Break the raiders of the taiga (slay 8 orcs)' },
             { kind: 'gold', need: 400, label: 'Fill the winter granary: gather 400 gold' },
             { kind: 'clearIn', target: 'severin', need: 1, label: 'Clear a dungeon in the Tsardom' }],
-    outro: 'The Tsar pours you something clear that burns all the way down. "The granary is full and the river is quiet. Take this." A bear claw on a cord, carved with a running wolf. "The night is long here. This makes it yours."' },
+    outro: 'The Tsar pours you something clear that burns all the way down. "The granary is full and the river is quiet. Take this." A bear claw on a cord, carved with a running wolf. "The night is long here. This makes it yours. The first Tsar wore it down the thousand steps and came up without it; they found it on the river ice in spring. It is the third lock of the Barrow, and it is always cold. Do not sleep with it under your pillow."' },
 };
 const RULER_REALM = Object.fromEntries(Object.entries(REALM_QUESTS).map(([id, q]) => [q.ruler, id]));
 const rqState = (id) => { const all = player.meta.rq || (player.meta.rq = {}); return all[id] || (all[id] = { s: 0, n: 0 }); };
@@ -7592,7 +7703,7 @@ function realmQuestTalk(n) {
       log(`${Q.title} complete: ${Q.gold} gold.`, 'good');
       if (!giveRelic(Q.relic) && !player.meta.found.includes(Q.relic)) log('Your bag is too full for the gift. Come back with room.', 'bad');
       if (REALM_ORDER.every((r) => rqState(r).s === 5)) unlock('four_realms');
-      if (FAR_REALMS.includes(id)) { log(`One of the three keys of the Thousand-Step Barrow is yours: the ${itemInfo(Q.relic).name}.`, 'good'); if (story2().s === 1 && FAR_REALMS.every((r) => rqState(r).s === 5)) unsealBarrow(); }
+      if (FAR_REALMS.includes(id)) { log(`One of the three keys of the Thousand-Step Barrow is yours: the ${itemInfo(Q.relic).name}.`, 'good'); keyMemory(id, () => { if (story2().s === 1 && FAR_REALMS.every((r) => rqState(r).s === 5)) unsealBarrow(); }); }
       updateStats(); saveProgress('progress');
     });
     return true;
@@ -7740,7 +7851,7 @@ const ENCOUNTERS = {
       { label: 'Run for it', run: () => { if (Math.random() < 0.5) return 'You break for the trees and lose them in the undergrowth.'; const dmg = 4 + wildDanger(); player.hp = Math.max(1, player.hp - dmg); return `A crossbow bolt grazes you for ${dmg} before you lose them in the undergrowth.`; } },
     ] }),
   hollowmen: () => ({ who: 'The obedient dead', sprite: 'skeleton', bg: 'crypt',
-    text: 'They come up the road in step, a dozen of them, in the rusted lamellar of an army a thousand years disbanded, and not one of them breathes. The Hollow King\'s soldiers, walking again. They have seen you.',
+    text: 'They come up the road in step, a dozen of them, in the rusted lamellar of an army a thousand years disbanded, and not one of them breathes. The Hollow King\'s soldiers, walking again. They have seen you.' + (keyMems().length >= 2 ? ' The one in front opens its jaw and all twelve speak with one polite voice: "He asks whether she is with you. The small one in grey. He asks that you bring her home."' : keyMems().length === 1 ? ' The one in front opens its jaw and all twelve speak with one polite voice: "He thanks you for carrying it. He asks that you bring it down unbroken."' : ''),
     choices: [{ label: 'Stand and fight', run: () => { const d = wildDanger(); for (let i = 0; i < 3 + rnd(2); i++) spawnFoes(byName('Skeleton')[0], 1, 'Hollow soldier', { purse: 20 + d * 5 }); shakeScreen(5); sfx.play('boss'); return null; } },
       { label: 'Run for the nearest town', run: () => { if (Math.random() < 0.5) return 'They do not run. They do not need to. But you do, and the gate shuts behind you.'; const dmg = Math.min(player.hp - 1, 4 + wildDanger()); player.hp -= dmg; floatText(player.x, player.y, `-${dmg}`, '#ff6b6b'); return `A rusted spear takes you in the back for ${dmg} as you go, but the dead are slow.`; } }] }),
   ambush: () => ({ who: 'Ambush!', sprite: 'orc',
@@ -8161,6 +8272,7 @@ function endTurn(moved) {
   else arenaTurn();
   if (!gameOver && player.pendingPerks > 0) offerPerks();
   if (scene === 'world' && moved && story2().s === 0 && townContaining(player.x, player.y) && story1Done()) offerStory2();
+  if (scene === 'world' && moved && story2().s >= 1 && story2().s < 3 && townContaining(player.x, player.y)) story2Beat();
   if (scene === 'world' && moved && story3().s === 0 && townContaining(player.x, player.y) && story2Done()) offerStory3();
   if (scene === 'world' && moved && story4().s === 0 && townContaining(player.x, player.y) && story3Done()) offerStory4();
   if (scene === 'world' && moved && story5().s === 0 && townContaining(player.x, player.y) && story4Done()) offerStory5();
@@ -9697,7 +9809,7 @@ function startRun(saved) {
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
         rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, forged: !!saved.meta?.forged, trials: Number(saved.meta?.trials) || 0, skills: saved.meta?.skills && !Array.isArray(saved.meta.skills) ? Object.fromEntries(Object.entries(saved.meta.skills).filter(([k, v]) => SKILL_NODES[k] && Number.isInteger(v) && v > 0).map(([k, v]) => [k, Math.min(v, SKILL_NODES[k].max)])) : {}, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
-        story2: saved.meta?.story2 && Number.isInteger(saved.meta.story2.s) ? { s: Math.max(0, Math.min(3, saved.meta.story2.s)) } : null,
+        story2: saved.meta?.story2 && Number.isInteger(saved.meta.story2.s) ? { s: Math.max(0, Math.min(3, saved.meta.story2.s)), met: !!saved.meta.story2.met, mem: Array.isArray(saved.meta.story2.mem) ? saved.meta.story2.mem.filter((k) => ['jadeseal', 'sunlotus', 'bearcharm'].includes(k)).slice(0, 3) : [], gift: ['name', 'breath', 'sleep', 'none'].includes(saved.meta.story2.gift) ? saved.meta.story2.gift : null } : null,
         story3: saved.meta?.story3 && Number.isInteger(saved.meta.story3.s) ? { s: Math.max(0, Math.min(2, saved.meta.story3.s)) } : null,
         delve: typeof saved.meta?.delve === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(saved.meta.delve) ? saved.meta.delve : null,
         story5: saved.meta?.story5 && Number.isInteger(saved.meta.story5.s) ? { s: Math.max(0, Math.min(2, saved.meta.story5.s)), n: Math.max(0, Number(saved.meta.story5.n) || 0) } : null,
@@ -9859,7 +9971,8 @@ function renderGlossary(kind) {
     section('The story and the realms', cards);
     const later = [
       ...FAR_REALMS.map((r) => { const Q = REALM_QUESTS[r]; return [Q.ruler, `ruler of ${REALMS[r].name}`, Q.sprite, `${townAt(...REALMS[r].capital).name}, the Far Shore (Story 2)`, `Holds one of the three keys to the Thousand-Step Barrow and gives it for ${Q.title}.`]; }),
-      ['The Hollow King', 'master of the Thousand-Step Barrow', 'necromancer', 'the Thousand-Step Barrow, its sixth floor (Story 2)', 'A man once, before he gave up breathing as beneath him. Three generals locked him under the mountain a thousand years ago.'],
+      ['The Grey Envoy', 'envoy from across the Veil', 'merchant:tianxia', 'the first quay of the Far Shore, and wherever a key is won (Story 2)', 'A woman in grey silk who asks for the hero by name. Each of the three courts believes she serves one of the other two. She never eats, and dogs go round her the long way.'],
+      ['The Hollow King', 'master of the Thousand-Step Barrow', 'necromancer', 'the Thousand-Step Barrow, its sixth floor (Story 2)', 'A king who would not let his people die in the Grey Winter, and then would not let them argue. His chancellor took his name, his physician his breath, his huntsman his sleep; the three keys hold the pieces. At the bottom he asks for one of them back.'],
       ['Thrym, Jarl of the Frost Giants', 'warden of the Frozen Gate', 'troll', 'the Frozen Gate, on the ice of Thule (Story 3)', 'Holds the way to Midgard and the frozen heart that keeps it shut.'],
       ['The Rift Lord', 'herald of the hosts of Midgard', 'wraith', 'the last rift, at a burning town (Story 4)', 'Comes when enough rifts are closed, with a horde at his back and the town he chose already on fire.'],
       ['The town leaders', 'patrons of the rebuilding', 'elder', 'every town square (Story 5)', 'Take sponsorship for walls, buildings, roads and monuments, and name the founders who build the most.'],

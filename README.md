@@ -417,7 +417,19 @@ all three (`unsealBarrow`) opens the Thousand-Step Barrow, a six-floor story sit
 at the continent's heart (`STORY_SITES.hollow`) with the Hollow King as a
 super-boss. On the Far Shore's roads his soldiers march (`ENCOUNTERS.hollowmen`).
 Slaying him ends Story 2 (`hollowKingSlain`: 2000 gold, the Crown of the Hollow
-King, Friend of Seven Realms). The journal, objectives, quest log and map labels
+King, Friend of Seven Realms). The tale has a spine of its own (`meta.story2`:
+`met`, `mem`, `gift`). The Grey Envoy who brings the story meets the hero on the
+first quay of the Far Shore (`STORY2_LANDFALL`, `story2Beat`) and says what the
+courts will not: each key holds a piece of the King. The night a key is won it
+shows which (`KEY_MEMORIES`, `keyMemory`): the Seal his name, the Lotus his
+breath, the Claw his sleep, with his voice asking for it back and the Envoy
+saying a little more each time (`ENVOY_AFTER`). His soldiers on the road speak
+for him once a key is held. In the Barrow each landing carries a line of his own
+account (`BARROW_STEPS`, `barrowFloor`), and at the bottom he asks for one piece
+back before the fight (`HOLLOW_GIFTS`, `applyHollowGift`): his name (he raises
+no dead), his breath (three tenths less health), his sleep (three tenths weaker
+blows) or nothing (he fights whole and the purse is 1000 gold larger). The
+finale (`story2Finale`) changes with the gift and says who the Envoy was. The journal, objectives, quest log and map labels
 follow the story; the far realms stay off them until the Veil parts.
 
 Story 3, The Frozen Gate, opens once Story 2 is done (`story2Done`): a raven
