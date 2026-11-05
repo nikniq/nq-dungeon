@@ -198,6 +198,19 @@ class is taken (`AUTO_PERKS`, `autoPerkIndex`); the perk picker itself has an
 the class's two main branches, two to the first for each one to the second
 (`autoSkillPick`). Every choice is written in the log.
 
+The peace of a town can be broken. Ctrl with a direction (or X, then a
+direction) strikes whoever stands there in a town square (`assault`,
+`strikeNpc`); a plain step still only talks. Townsfolk are sturdy (50 health
+plus 8 a hero level, more for leaders) and answer every blow (`OUCH`): surprise
+first, then shouting for the watch, pleading when nearly down, and a last word
+as they drop, out cold, with a few coins. The first blow raises the alarm
+(`wanted`, `raiseAlarm`): that town's watch grows tougher and hunts the hero
+(`guardHunt`), the rest of the square runs and shouts, and every door is bolted.
+Losing to the watch is an arrest, not a death (`arrest`): the stocks, a fine and
+a third of your health. Leaving the town ends it (`tickWanted`, `calmTown`) and
+everyone is back on their feet. Anyone drawn as a child cannot be struck, and
+nothing of this works indoors.
+
 Towns are dressed as well as planned. A market row of stalls stands along the
 north edge of each square (`STALL_SPOTS`, `townStalls`, `drawStall`): one in a
 village, up to four in a town and six in a city, each with a striped awning, a

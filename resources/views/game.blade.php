@@ -35,6 +35,7 @@
               <ul>
                 <li><kbd>↑ ↓ ← →</kbd> <kbd>WASD</kbd> <kbd>HJKL</kbd> move; walk into a monster to attack</li>
                 <li><kbd>Space</kbd> or <kbd>.</kbd> wait a turn</li>
+                <li><kbd>Ctrl</kbd> + <kbd>↑ ↓ ← →</kbd> (or <kbd>X</kbd>, then a direction) strike a townsperson. The town's watch will come for you until you leave</li>
                 <li><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> class abilities (the second comes at level 5, the third at 10) · <kbd>P</kbd> potion · <kbd>B</kbd> bomb · <kbd>T</kbd> scroll of return</li>
                 <li><kbd>M</kbd> world map · <kbd>Q</kbd> quests · <kbd>J</kbd> journal · <kbd>N</kbd> sound · <kbd>C</kbd> make camp in the wilds</li>
                 <li><kbd>Esc</kbd> closes menus and skips story scenes · <kbd>?</kbd> this screen · <kbd>O</kbd> settings (perks and skill points can be chosen for you there)</li>

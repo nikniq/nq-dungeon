@@ -161,6 +161,7 @@ const ACHIEVEMENTS = {
   campbreaker: { label: 'Razed a war camp with your own hands', title: 'the Camp-breaker' },
   giantslayer: { label: 'Felled a colossus', title: 'the Giant-feller' },
   ratcatcher:  { label: 'Cleared the undercroft of a castle', title: 'the Ratcatcher' },
+  troublemaker: { label: 'Broke the peace of a town and brought the watch down on yourself', title: 'the Troublemaker' },
   highground:  { label: 'Looked out from the battlements of a keep', title: 'the Far-sighted' },
   proven:      { label: 'Passed a dungeon trial', title: 'the Proven' },
   unbroken:    { label: 'Passed ten dungeon trials', title: 'the Unbroken' },
@@ -3975,7 +3976,8 @@ function stepGuards() {
   if (scene !== 'world') return;
   for (const n of npcs) {
     if (!n.type.guard || cheb(n, player) > SIM_RADIUS + 10) continue;   // only the watch near the hero acts
-    if (n.down) { if (turn >= n.downUntil) { n.down = false; n.hp = n.maxHp; n.x = n.post.x; n.y = n.post.y; } continue; }
+    if (n.down) { if (turn >= n.downUntil) { n.down = false; n.ko = false; n.hp = n.maxHp; n.x = n.post.x; n.y = n.post.y; } continue; }
+    if (hostileGuard(n)) { guardHunt(n); continue; }
     if (n.hp < n.maxHp && turn % 10 === 0) n.hp++;
     const foe = monsters.find((m) => !m.bounty && dist(m, n) === 1);
     if (foe) { guardStrike(n, foe); continue; }
@@ -4312,9 +4314,140 @@ function talk(n) {
   else if (n.type.action && SHOPS[n.type.action]) openShop(n.type.action);
   else if (!bountyTalk(n)) offerQuest(n);
 }
+// ---------- breaking the peace ----------
+// Ctrl with a direction (or X, then a direction) strikes whoever stands there in a town
+// square. Townsfolk are sturdy and say what they think of it; the watch of that town
+// turns on the hero until the hero leaves, and then the town picks itself up again.
+let wanted = null;          // { town, since } while a town's watch is after the hero
+let assaultArmed = false;   // X was pressed: the next direction is a blow
+const inTownOf = (n, town) => !!n.home && n.home.x === town.cx && n.home.y === town.cy;
+const wantedTown = () => (wanted ? townAt(...wanted.town.split(',').map(Number)) : null);
+const hostileGuard = (n) => { const t = n.type.guard && wantedTown(); return !!t && inTownOf(n, t); };
+const isChild = (n) => /^child/.test(n.type.sprite);
+const folkHealth = (n) => (n.type.leader || n.type.notable ? 80 : 50) + 8 * player.level;
+const OUCH = {
+  first: ['Ow! What was that for?', 'Have you lost your mind?', 'I only said good morning!', 'Help! HELP! The hero has gone mad!', 'What in the name of... I have never even met you!'],
+  more: ['Guards! GUARDS!', 'Stop it! Stop!', 'What did I ever do to you?', 'Somebody fetch the watch!', 'I have a family!', 'You are supposed to be the hero!', 'This is going in a ballad, and not a nice one!'],
+  low: ['Please. Please, no more.', 'Take my purse, just stop!', 'I yield! I yield!', 'Mercy! Mercy!', 'Not the face. Not the face again.'],
+  down: ['...tell them... I was winning...', 'I am just going to lie here.', 'Ohh. My everything.', '...worth it... no. No, it was not.'],
+  leader: ['You raise your hand to me? In my own square?', 'There will be a reckoning for this, hero.', 'I have buried better than you. Watch! WATCH!'],
+  guard: ['Drop it! Drop the weapon!', 'You will answer for that!', 'To me! To me! The square!', 'In the name of the watch, stand down!', 'I liked you. I want that noted.'],
+  crowd: ['Murder! Murder in the square!', 'Run! Run!', 'Somebody stop them!', 'Get the children indoors!', 'The watch! Where is the watch?'],
+  cower: ['Stay away from me!', 'Do not come any closer!', 'I have nothing to say to you!', 'Watch! Over here!'],
+};
+const ouch = (kind) => OUCH[kind][rnd(OUCH[kind].length)];
+function raiseAlarm(town) {
+  if (wanted && wanted.town === town.key) return;
+  wanted = { town: town.key, since: turn };
+  for (const n of townNpcs(town)) if (n.type.guard && !n.roused) { n.roused = true; n.maxHp = GUARD_RANKS[n.type.rank].hp + 5 * player.level; n.hp = n.maxHp; n.pause = 0; }
+  const guards = townNpcs(town).filter((n) => n.type.guard && !n.down).length;
+  log(`You have broken the peace of ${town.name}. ${guards ? `The watch is coming for you, ${guards} strong. Every door in the square is bolted.` : 'There is no watch here to stop you, and every door is bolted.'} Leave town and it will blow over.`, 'bad');
+  toast = { text: `Wanted in ${town.name}! Leave town to end it.`, until: performance.now() + 4000 };
+  sfx.play('boss'); unlock('troublemaker'); track('peace_broken', { town: town.key });
+}
+// The hero strikes a townsperson or one of the watch.
+function strikeNpc(n, dx, dy) {
+  const town = nearbyTowns(n.x, n.y, 1).find((t) => inTownOf(n, t)) || townContaining(n.x, n.y);
+  if (!town) { talk(n); return; }
+  if (isChild(n)) { const little = /^(Pip|Little )/.test(n.type.name) || /child/.test(n.type.role || ''); log(`You raise your hand to ${n.type.name}, who is half your size, and cannot do it. Some things a hero does not do.`); bubble = { x: n.x, y: n.y, text: little ? 'Are you playing? I want to play!' : 'Why are you looking at me like that?', until: performance.now() + 3500 }; draw(); return; }
+  const first = !n.struck;
+  if (n.maxHp === undefined) { n.maxHp = folkHealth(n); n.hp = n.maxHp; }
+  raiseAlarm(town);
+  n.struck = true;
+  const dmg = Math.max(1, player.atk + weaponAtk() + rnd(3) - (n.type.guard ? GUARD_RANKS[n.type.rank].armor : 0));
+  n.hp -= dmg; n.flashUntil = performance.now() + 120;
+  if (dx) player.face = dx;
+  player.lunge = { dx, dy, until: performance.now() + 140 };
+  floatText(n.x, n.y, `-${dmg}`, '#ffd86b'); sfx.play('hit'); burst(n.x, n.y, '#ffe9b0', 6, 90, { life: 320, size: 2 });
+  if (n.hp <= 0) {
+    n.hp = 0; n.down = true; n.ko = true; n.downUntil = n.type.guard ? turn + 150 : Infinity;
+    const line = n.type.guard ? 'Urgh. Report... this...' : ouch('down');
+    log(`${n.type.name}: ${line}`); log(`${n.type.name} goes down in a heap${n.type.guard ? '' : ', out cold'}.`, 'bad');
+    bubble = { x: n.x, y: n.y, text: line, until: performance.now() + 3500 };
+    if (!n.type.guard) { const purse = 3 + rnd(10); golds.push({ x: n.x, y: n.y, amount: purse }); }
+    shakeScreen(3);
+  } else {
+    const low = n.hp < n.maxHp * 0.35;
+    const line = n.type.guard ? ouch('guard') : low ? ouch('low') : n.type.leader && Math.random() < 0.6 ? ouch('leader') : first ? ouch('first') : n.type.role && Math.random() < 0.3 ? `I am only ${aOrAn(n.type.role)} ${n.type.role}!` : ouch('more');
+    log(`${n.type.name}: ${line}`); bubble = { x: n.x, y: n.y, text: line, until: performance.now() + 3500 };
+  }
+  endTurn(false);
+}
+// Ctrl + direction. Out of town, or with nobody there, it is an ordinary step.
+function assault(dx, dy) {
+  assaultArmed = false;
+  if (gameOver || !player || shopOpen || perkChoices || entering || storyOpen() || controlsOpen() || settingsOpen()) return;
+  const nx = player.x + dx, ny = player.y + dy, n = scene !== 'dungeon' && getNpcAt(nx, ny);
+  if (!n) { tryMove(dx, dy); return; }
+  if (scene === 'house') { log(`Not under a roof. Whatever you are thinking of doing to ${n.type.name}, think of it outside.`); draw(); return; }
+  tip('assault', 'You struck a townsperson. The watch of this town will hunt you until you leave it; lose to them and you wake in the stocks with a fine to pay. Everyone recovers once you are gone.');
+  strikeNpc(n, dx, dy);
+}
+function armAssault() {
+  if (gameOver || !player || shopOpen || perkChoices || storyOpen()) return;
+  if (scene !== 'world') { log('There is nobody here to pick a fight with. Monsters you can simply walk into.'); draw(); return; }
+  assaultArmed = true; log('Strike whom? Press a direction. Any other key thinks better of it.', 'bad'); draw();
+}
+// One of the watch closes on the hero and strikes.
+function guardHunt(n) {
+  if (dist(n, player) === 1) {
+    const R = GUARD_RANKS[n.type.rank], m = { x: n.x, y: n.y, hp: n.hp, maxHp: n.maxHp, atk: R.atk + Math.floor(player.level * 0.7), type: { name: n.type.name }, name: n.type.name, boss: true };
+    monsterAttack(m); n.lunge = m.lunge; if (m.face) n.face = m.face; n.hp = Math.max(1, m.hp);
+    if (Math.random() < 0.25) { const line = ouch('guard'); bubble = { x: n.x, y: n.y, text: line, until: performance.now() + 2500 }; }
+    return;
+  }
+  const d = bfs(player.x, player.y, 40, false);
+  let best = null, bestD = d.get(key(n.x, n.y)) ?? Infinity;
+  for (const [ax, ay] of DIRS) {
+    const nx = n.x + ax, ny = n.y + ay, nd = d.get(key(nx, ny)), t = getTile(nx, ny);
+    if (nd === undefined || nd >= bestD || (t !== TILE.FLOOR && t !== TILE.EXIT) || getNpcAt(nx, ny) || getMonsterAt(nx, ny) || (nx === player.x && ny === player.y)) continue;
+    bestD = nd; best = [nx, ny];
+  }
+  if (best) { if (best[0] !== n.x) n.face = Math.sign(best[0] - n.x); n.x = best[0]; n.y = best[1]; }
+}
+// The hero has gone, or been dealt with: the town picks itself up.
+function calmTown(note) {
+  const town = wantedTown(); wanted = null; assaultArmed = false;
+  if (!town) return;
+  for (const n of townNpcs(town)) {
+    if (n.type.guard) { n.roused = false; n.maxHp = GUARD_RANKS[n.type.rank].hp; n.hp = n.maxHp; if (n.down || n.ko) { n.x = n.post.x; n.y = n.post.y; } }
+    else if (n.maxHp !== undefined) n.hp = n.maxHp;
+    n.down = false; n.ko = false; n.struck = false; settle(n);
+  }
+  if (note) log(note);
+}
+// Beaten by the watch: no death, but the stocks and a fine.
+function arrest() {
+  const town = wantedTown(); if (!town) return false;
+  const fine = Math.min(player.gold, 25 + 15 * player.level);
+  player.gold -= fine; player.hp = Math.max(1, Math.round(player.maxHp * 0.3)); player.poison = 0;
+  calmTown();
+  player.x = town.spawn.x; player.y = town.spawn.y; player.wx = player.x; player.wy = player.y; settle(player);
+  for (const n of npcs) if (n.x === player.x && n.y === player.y) n.y += 1;
+  sfx.play('die'); shakeScreen(6, 500); stopWalk?.();
+  log(`The watch of ${town.name} beats you to the cobbles. You wake in the stocks at dusk with a cabbage in your hair${fine ? ` and ${fine} gold lighter for the fine` : ' and not a coin to pay the fine with'}. The town has decided to say no more about it.`, 'bad');
+  toast = { text: `Arrested in ${town.name}.${fine ? ` Fined ${fine} gold.` : ''}`, until: performance.now() + 4000 };
+  track('arrested', { town: town.key, fine }); updateCamera(); updateVisibility(); updateStats(); saveProgress('progress'); draw();
+  return true;
+}
+// Each turn while wanted: has the hero got clear of the town?
+function tickWanted() {
+  if (!wanted) return;
+  const t = wantedTown();
+  if (!t || scene !== 'world' || player.x < t.x0 - 6 || player.x >= t.x0 + tw(t) + 6 || player.y < t.y0 - 6 || player.y >= t.y0 + th(t) + 6)
+    calmTown(t ? `Behind you the shouting in ${t.name} dies away. By the time you come back they will have picked themselves up, and nobody will want to talk about it.` : null);
+}
 function stepNpcs() {
+  const riot = scene === 'world' ? wantedTown() : null;
   for (const n of npcs) {
     if (n.type.guard) continue;   // the watch has its own routine
+    if (riot && !n.fixed && !n.down && inTownOf(n, riot) && cheb(n, player) <= 7) {   // run from the hero, and shout about it
+      const away = DIRS.map(([dx, dy]) => ({ x: n.x + dx, y: n.y + dy, dx })).filter((p) => getTile(p.x, p.y) === TILE.FLOOR && !getNpcAt(p.x, p.y) && !(p.x === player.x && p.y === player.y) && Math.abs(p.x - n.home.x) <= 13 && Math.abs(p.y - n.home.y) <= 9)
+        .sort((p, q) => cheb(q, player) - cheb(p, player))[0];
+      if (away && cheb(away, player) > cheb(n, player)) { if (away.dx) n.face = away.dx; n.x = away.x; n.y = away.y; }
+      if (Math.random() < 0.06 && (!bubble || performance.now() > bubble.until)) bubble = { x: n.x, y: n.y, text: ouch('crowd'), until: performance.now() + 2500 };
+      continue;
+    }
     if (n.fixed || n.pause-- > 0) continue;
     n.pause = 1 + rnd(4);
     const [dx, dy] = DIRS[rnd(4)];
@@ -6396,11 +6529,17 @@ function drawScene(now) {
   const shadow = (x, y) => { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x * T - cam.x + T / 2, y * T - cam.y + T - 4, T * 0.3, 4, 0, 0, Math.PI * 2); ctx.fill(); };
   const bob = (o, idle = true) => (idle ? Math.sin(now / 260 + (o.x * 7 + o.y * 13)) * 0.03 : 0);
   if (scene === 'world' && !aboard) drawPigeons(now);
+  if (scene === 'world') for (const n of npcs) if (n.down && n.ko && inView(n)) {   // out cold on the cobbles
+    const px = n.x * T - cam.x + T / 2, py = n.y * T - cam.y + T / 2 + 6, keep = off;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(px, py + 6, T * 0.4, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.translate(px, py); ctx.rotate(Math.PI / 2); off = { x: T / 2, y: T / 2 }; drawSprite(ctx, n.type.sprite, 0, 0, 0.8, 3); off = keep; ctx.restore();
+    { const ph = (now / 700 + n.x) % 1; ctx.fillStyle = `rgba(255,216,107,${1 - ph})`; ctx.font = 'bold 11px sans-serif'; ctx.fillText('✦', px + 6 + Math.sin(ph * 6) * 4, py - 10 - ph * 10); }
+  }
   if (scene !== 'dungeon') for (const n of npcs) if (!n.down && inView(n)) {
     const [ldx, ldy] = lunge(n, now);
     const [lx, ly] = [(n.rx ?? n.x) + ldx / T, (n.ry ?? n.y) + ldy / T]; shadow(lx, n.ry ?? n.y);
     drawSprite(ctx, n.type.sprite, lx, ly - bob(n) - hop(n), 1, 3, n.face === -1, n.flashUntil > now);
-    if (n.type.guard && n.hp < n.maxHp) { ctx.fillStyle = '#300'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, T - 6, 3); ctx.fillStyle = '#e9c48a'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, (T - 6) * (n.hp / n.maxHp), 3); }
+    if (n.maxHp && n.hp < n.maxHp) { ctx.fillStyle = '#300'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, T - 6, 3); ctx.fillStyle = '#e9c48a'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, (T - 6) * (n.hp / n.maxHp), 3); }
   }
   for (const o of mpHere()) {
     if (!inView(o)) continue;
@@ -8037,6 +8176,7 @@ function tryMove(dx, dy) {
   if (t === TILE.WALL && scene === 'world') { const tn = townContaining(nx, ny), st = tn && stallAt(tn, nx, ny); if (st) { if (dx) player.face = dx; const cries = STALL_CRIES[st.goods], line = cries[rnd(cries.length)]; log(`The stallholder: ${line}`); bubble = { x: st.x + (nx === st.x ? 0 : 1), y: st.y, text: line, until: performance.now() + 3500 }; draw(); return; } }
   if (t === TILE.WALL || t === TILE.FOUNTAIN) return;
   const n = scene !== 'dungeon' && getNpcAt(nx, ny);
+  if (n && scene === 'world' && wanted && inTownOf(n, wantedTown())) { if (n.type.guard) { strikeNpc(n, dx, dy); return; } if (dx) player.face = dx; const line = isChild(n) ? 'You are scary now. I do not like it.' : ouch('cower'); log(`${n.type.name}: ${line}`); bubble = { x: n.x, y: n.y, text: line, until: performance.now() + 3000 }; draw(); return; }
   if (n) { talk(n); draw(); return; }
   if (t === TILE.FURNITURE) { useFurniture(decor[ny][nx]); draw(); return; }
   if (t === TILE.WAYSTONE) { openShop('travel'); draw(); return; }
@@ -8064,6 +8204,7 @@ function tryMove(dx, dy) {
   if ((t === TILE.UP || t === TILE.DOWN) && scene === 'house') { if (dx) player.face = dx; useStairs(t); return; }
   if (t === TILE.DOOR) {
     const house = scene === 'house' ? null : houses.find((h) => h.doorX === nx && h.doorY === ny);
+    if (house && wanted) { log(`Bolts shoot home behind the door of ${house.name}. Nobody in ${wantedTown().name} is letting you in until this is over.`, 'bad'); draw(); return; }
     if (house && house.id === 'arena') { offerArena(house); draw(); return; }
     if (scene === 'house') leaveBuilding(); else enterBuilding(house);
     return;
@@ -9050,7 +9191,7 @@ function endTurn(moved) {
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
   if (scene !== 'dungeon') stepNpcs();
   stepGuards();
-  stepHound(); stepEscort(); tickTotems(); tickTrial(); tickRestless(); tickRifts();
+  stepHound(); stepEscort(); tickTotems(); tickTrial(); tickRestless(); tickRifts(); tickWanted();
   if (scene === 'dungeon' && dungeonDef && dungeonDef.camp && !dungeonDef.razed && !monsters.some((m) => m.hp > 0)) campCleared();
   if (scene === 'dungeon' && dungeonDef && dungeonDef.cellar && !dungeonDef.done && !monsters.some((m) => m.hp > 0)) cellarCleared();
   // in a shared dungeon the host moves monsters on a steady beat instead of per turn
@@ -9115,6 +9256,7 @@ function endTurn(moved) {
 }
 
 function die() {
+  if (wanted && scene === 'world' && !gameOver && arrest()) return;
   if (dungeonDef && dungeonDef.arena && scene === 'dungeon') { leaveArena(true); return; }
   if (scene === 'world' && aboard && !gameOver) { player.hp = 1; washAshore('a sea beast'); updateStats(); draw(); return; }
   if (dungeonDef && dungeonDef.delve && scene === 'dungeon') {   // the dream breaks; the hero only wakes
@@ -9418,6 +9560,7 @@ window.addEventListener('keydown', (e) => {
   // typing in a form field never moves the hero
   if (e.target && e.target.closest && e.target.closest('input, textarea, select')) { if (e.key === 'Escape') e.target.blur(); return; }
   // the game owns its keys: arrows, Space and the movement letters never scroll the page, whatever is open
+  if (e.ctrlKey && !e.metaKey && !e.altKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
   if (!e.ctrlKey && !e.metaKey && !e.altKey && (KEYS[e.key] || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key))) e.preventDefault();
   if (storyOpen()) {
     const choices = scenePage && scenePage.choices;
@@ -9451,6 +9594,9 @@ window.addEventListener('keydown', (e) => {
   if ((e.key === 'y' || e.key === 'Y') && mp.invites.length) { acceptInvite(); return; }
   if (e.key === 'Escape') { closeShop(); if (mapOpen || questsOpen) { mapOpen = false; questsOpen = false; draw(); } return; }
   if (shopOpen) return;
+  { const strike = KEYS[e.key]; if (strike && ((e.ctrlKey && !e.metaKey) || assaultArmed)) { e.preventDefault(); mapOpen = false; questsOpen = false; assault(strike[0], strike[1]); return; } }
+  if (assaultArmed) { assaultArmed = false; log('You think better of it.'); draw(); if (!['x', 'X'].includes(e.key)) { /* the key still does what it does */ } else return; }
+  if ((e.key === 'x' || e.key === 'X') && !e.ctrlKey && !e.metaKey) { armAssault(); return; }
   if (e.key === 'm' || e.key === 'M') { questsOpen = false; toggleMap(); return; }
   if (mapOpen && ['+', '=', '-', '_'].includes(e.key)) { e.preventDefault(); setMapZoom(mapZoom + (e.key === '-' || e.key === '_' ? 1 : -1)); return; }
   if (e.key === 'q' || e.key === 'Q') { mapOpen = false; questsOpen = !questsOpen; draw(); return; }
