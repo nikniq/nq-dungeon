@@ -198,6 +198,11 @@ class is taken (`AUTO_PERKS`, `autoPerkIndex`); the perk picker itself has an
 the class's two main branches, two to the first for each one to the second
 (`autoSkillPick`). Every choice is written in the log.
 
+The public site has a news section (`/news`, `/news/{slug}`): development
+articles kept newest first in `config/news.php`, each a slug, a date, a summary
+and sections of paragraphs and points. The three newest show on the home page.
+To publish one, add an entry at the top of that file.
+
 The peace of a town can be broken. Ctrl with a direction (or X, then a
 direction) strikes whoever stands there in a town square (`assault`,
 `strikeNpc`); a plain step still only talks. Townsfolk are sturdy (50 health

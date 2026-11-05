@@ -29,6 +29,18 @@
   <div><h3>Saved heroes</h3><p>Your run is saved as you play. Come back on any device, pick up where you were, and build a record.</p></div>
 </section>
 
+<section class="news-home">
+  <div class="board-head">
+    <h2>Latest news</h2>
+    <a href="{{ route('news.index') }}" class="muted">All news →</a>
+  </div>
+  <div class="features">
+    @foreach (array_slice(config('news.articles'), 0, 3) as $article)
+      <div><h3><a href="{{ route('news.show', $article['slug']) }}" class="plain">{{ $article['title'] }}</a></h3><p>{{ $article['summary'] }}</p><p class="muted small">{{ \Illuminate\Support\Carbon::parse($article['date'])->format('j F Y') }} · <a href="{{ route('news.show', $article['slug']) }}">Read →</a></p></div>
+    @endforeach
+  </div>
+</section>
+
 <section class="board">
   <div class="board-head">
     <h2>Hall of heroes</h2>

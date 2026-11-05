@@ -29,6 +29,7 @@
         <a href="https://nikniq.com/" class="plain" title="Back to nikniq.com">&larr; nikniq.com</a>
         <a href="{{ route('game') }}">Play</a>
         <a href="{{ route('heroes.index') }}">Heroes</a>
+        <a href="{{ route('news.index') }}">News</a>
         <a href="{{ route('world.story') }}">Story</a>
         <a href="{{ route('world.items') }}">Items</a>
         <a href="{{ route('world.towns') }}">World</a>
@@ -47,7 +48,7 @@
     @endif
     @yield('content')
     <footer class="foot muted small">
-      <a href="{{ route('home') }}">About</a> · <a href="{{ route('heroes.index') }}">Heroes</a> · <a href="{{ route('world.story') }}">Story</a> · <a href="{{ route('world.towns') }}">Towns</a> · <a href="{{ route('world.characters') }}">Characters</a> · <a href="{{ route('world.items') }}">Items</a> · <a href="{{ route('game') }}">Play</a> · <a href="https://nikniq.com/">Back to nikniq.com</a>
+      <a href="{{ route('home') }}">About</a> · <a href="{{ route('news.index') }}">News</a> · <a href="{{ route('heroes.index') }}">Heroes</a> · <a href="{{ route('world.story') }}">Story</a> · <a href="{{ route('world.towns') }}">Towns</a> · <a href="{{ route('world.characters') }}">Characters</a> · <a href="{{ route('world.items') }}">Items</a> · <a href="{{ route('game') }}">Play</a> · <a href="https://nikniq.com/">Back to nikniq.com</a>
     </footer>
   </div>
   @yield('scripts')

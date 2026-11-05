@@ -30,6 +30,14 @@ Route::get('/world/characters', fn () => view('glossary', ['kind' => 'characters
 Route::get('/world/story', [StoryController::class, 'index'])->name('world.story');
 Route::get('/world/items', fn () => view('items'))->name('world.items');
 Route::post('/world/story', [StoryController::class, 'post'])->middleware(['auth', 'throttle:10,1'])->name('world.story.post');
+// development news: three or so articles kept in config/news.php, newest first
+Route::get('/news', fn () => view('news.index', ['articles' => config('news.articles')]))->name('news.index');
+Route::get('/news/{slug}', function (string $slug) {
+    $articles = collect(config('news.articles'));
+    $article = $articles->firstWhere('slug', $slug) ?? abort(404);
+
+    return view('news.show', ['article' => $article, 'others' => $articles->where('slug', '!=', $slug)->values()->all()]);
+})->name('news.show');
 Route::get('/heroes', [HeroController::class, 'index'])->name('heroes.index');
 Route::get('/heroes/{character}', [HeroController::class, 'show'])->name('heroes.show');
 
