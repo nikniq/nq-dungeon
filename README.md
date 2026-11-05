@@ -165,6 +165,19 @@ either shows the twist waiting below it, a quiet floor or a Dark, Swarming,
 Treasure or Cursed one. The two always differ. Not on the last floor, in the
 Deep, or in a shared party run.
 
+Every kind of dungeon has a rule underfoot (`GROUND_RULES`, `groundStep`,
+`monsterGround`), and it holds for monsters as much as for the hero. Mossy caves
+muffle steps: sleepers wake at three tiles rather than six. In flooded halls a
+blow lands a quarter harder on anyone standing in a pool (`waterAt`). Bone
+crypts have restless dead (`leaveBones`, `tickRestless`): three kills in ten
+leave a twitching pile that rises as a skeleton in four turns unless the hero
+walks onto it. In halls of ice, whoever steps on black ice slips (`iceAt`): a
+monster loses its turn and is open to a sneak attack, and the next blow on a
+hero who slipped lands half again as hard; bosses and flyers keep their feet.
+Arcane halls have live runes (`runeAt`) that give 4 mana once. Ember deeps keep
+their lava. The patches are read off the same noise that draws them, the rule
+is logged on the way down, and hover text names each patch.
+
 Bosses are big. Every boss is drawn two tiles tall and super bosses three,
 feet on their own tile, fading when the hero stands behind them. Colossi
 (`COLOSSI`, `colossusFor`) are giants that hold the last floor of an ordinary

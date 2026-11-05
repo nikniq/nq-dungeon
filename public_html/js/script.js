@@ -251,7 +251,7 @@ const THEMES = {
   flooded: { name: 'Flooded halls',   floor: ['#173f60', '#163a58', '#1a4468'], face: '#2b3e58', cap: '#4a6a8c', capHi: '#5c80a6', bricks: ['#34506c', '#304a66', '#385673', '#2e4660'], top: ['#1b2a3c', '#192737'], rim: '#33475f', moss: 0.05, bones: 0.02, puddles: true },
   bone:    { name: 'Bone crypts',     floor: ['#34343e', '#30303a', '#383844'], face: '#3b3b48', cap: '#5d5d6e', capHi: '#73738a', bricks: ['#45455a', '#404052', '#4a4a5e', '#3c3c4e'], top: ['#22222b', '#1f1f28'], rim: '#40404f', moss: 0.03, bones: 0.1 },
   lava:    { name: 'Ember deeps',     floor: ['#3a2622', '#35231f', '#402a25'], face: '#3d2a26', cap: '#6b3a2a', capHi: '#8a4a34', bricks: ['#4a302a', '#452c26', '#50342d', '#402924'], top: ['#241815', '#211613'], rim: '#4a2f28', moss: 0, bones: 0.04, lava: true },
-  frost:   { name: 'Halls of ice',     floor: ['#8fa9c0', '#86a0b8', '#98b2c9'], face: '#5c7b96', cap: '#c6d8e8', capHi: '#e3eef8', bricks: ['#7b99b3', '#7291ab', '#84a2bc', '#6c8aa4'], top: ['#48647e', '#425d76'], rim: '#6c89a3', moss: 0, bones: 0.04, puddles: false },
+  frost:   { name: 'Halls of ice',     floor: ['#8fa9c0', '#86a0b8', '#98b2c9'], face: '#5c7b96', cap: '#c6d8e8', capHi: '#e3eef8', bricks: ['#7b99b3', '#7291ab', '#84a2bc', '#6c8aa4'], top: ['#48647e', '#425d76'], rim: '#6c89a3', moss: 0, bones: 0.04, puddles: false, ice: true },
   camp:    { name: 'War camp',        floor: ['#5a4a2e', '#54452b', '#604f32'], face: '#4a3420', cap: '#7a5a34', capHi: '#94703f', bricks: ['#5e4126', '#583d23', '#644529', '#523820'], top: ['#2e2214', '#2a1f12'], rim: '#4a3420', moss: 0.04, bones: 0.05 },
   arcane:  { name: 'Arcane halls',    floor: ['#2c2452', '#28214c', '#30285a'], face: '#352c5c', cap: '#5a4a8c', capHi: '#7563b0', bricks: ['#41356c', '#3c3166', '#463a73', '#382e60'], top: ['#1e1936', '#1b1631'], rim: '#3d3366', moss: 0, bones: 0.02, runes: true },
 };
@@ -4358,6 +4358,60 @@ function useAltar(x, y) {
       { label: 'Leave it be', run: () => 'You step away. The bubbling slows, as if disappointed.' },
     ] }], () => { setTile(x, y, TILE.FLOOR); bgDirty = true; updateStats(); draw(); });
 }
+// ---------- the ground of each dungeon ----------
+// Every kind of dungeon has a rule of its own underfoot, and it holds for monsters
+// as much as for the hero. The patches are read off the same noise that draws them.
+const waterAt = (x, y) => scene === 'dungeon' && !!thm().puddles && getTile(x, y) === TILE.FLOOR && noise(x, y, 91) < 0.18;
+const runeAt = (x, y) => scene === 'dungeon' && !!thm().runes && getTile(x, y) === TILE.FLOOR && noise(x, y, 93) < 0.05;
+const iceAt = (x, y) => scene === 'dungeon' && !!thm().ice && getTile(x, y) === TILE.FLOOR && noise(x, y, 95) < 0.16;
+const usedRunes = new Set();
+let restless = [];   // bones that will get up again: { x, y, turns }
+const GROUND_RULES = {
+  moss:    { label: 'Soft moss', desc: 'it muffles every step, so sleepers only wake when you are almost on them. A good place for a sneak attack' },
+  flooded: { label: 'Standing water', desc: 'a blow lands a quarter harder on anyone standing in a pool, you or them. Fight from dry stone' },
+  bone:    { label: 'Restless dead', desc: 'some of what you kill here leaves bones that rise again in four turns. Step on the pile to scatter it first' },
+  lava:    { label: 'Lava', desc: 'it burns whoever is driven into it. A hammer blow or a charge can put a foe there' },
+  frost:   { label: 'Black ice', desc: 'whoever steps on a sheet of it slips. A foe that slips is open to a sneak attack; if you slip, the next blow on you lands half again as hard' },
+  arcane:  { label: 'Live runes', desc: 'a glowing rune gives 4 mana to the first hero who stands on it' },
+};
+// The hero has stepped somewhere new in a dungeon.
+function groundStep() {
+  if (scene !== 'dungeon') return;
+  const k = key(player.x, player.y);
+  player.slip = false;
+  if (iceAt(player.x, player.y)) { player.slip = true; floatText(player.x, player.y, 'slip', '#bfe3ff'); if (monsters.some((m) => m.awake && m.hp > 0 && cheb(m, player) <= 2)) log('You slip on black ice: the next blow on you will land hard.', 'bad'); }
+  if (runeAt(player.x, player.y) && !usedRunes.has(k) && (player.mana ?? 0) < maxMana()) {
+    usedRunes.add(k); restoreMana(4); bgDirty = true; sfx.play('quest');
+    burst(player.x, player.y, '#a78bfa', 16, 80, { glow: true, gravity: -50, life: 600 }); floatText(player.x, player.y, '+4 mana', '#c4b5fd');
+    log('The rune flares under your boots and goes dark: +4 mana.', 'good');
+  }
+  const pile = restless.find((b) => b.x === player.x && b.y === player.y);
+  if (pile) { restless = restless.filter((b) => b !== pile); burst(player.x, player.y, '#e5e7eb', 10, 90, { life: 350, size: 2 }); log('You kick the stirring bones apart. They will stay down.', 'good'); }
+}
+// A monster has stepped somewhere new: ice takes its feet from under it.
+function monsterGround(m) {
+  if (scene !== 'dungeon' || m.hp <= 0 || m.type.flies || m.boss || m.sea || !iceAt(m.x, m.y)) return;
+  m.reeling = 1; m.tell = null; m.windup = null; m.guard = false;
+  if (isVisible(m.x, m.y)) { floatText(m.x, m.y, 'slips', '#bfe3ff'); tip('ice', 'Black ice: a foe that steps on it slips and loses its turn, and your next blow on it is a sneak attack. Step on it yourself and the next blow on you lands half again as hard.'); }
+}
+// What dies in a bone crypt may not stay dead.
+function leaveBones(m) {
+  if (scene !== 'dungeon' || theme !== 'bone' || m.boss || m.raised || m.small || m.sea || m.type.flies || Math.random() >= 0.3) return;
+  if (getTile(m.x, m.y) !== TILE.FLOOR || restless.some((b) => b.x === m.x && b.y === m.y)) return;
+  restless.push({ x: m.x, y: m.y, turns: 4 });
+  if (isVisible(m.x, m.y)) { log('Its bones twitch where they fell. They will rise in four turns unless you scatter them.', 'bad'); tip('restless', 'In a bone crypt some kills leave a twitching pile of bones with a number over it. Walk onto the pile to scatter it, or a skeleton gets up when the count runs out.'); }
+}
+function tickRestless() {
+  if (scene !== 'dungeon' || !restless.length) return;
+  for (const b of restless.slice()) {
+    if (--b.turns > 0) continue;
+    if (getMonsterAt(b.x, b.y) || (b.x === player.x && b.y === player.y)) { b.turns = 1; continue; }   // something is standing on them
+    restless = restless.filter((o) => o !== b);
+    addMonster(MONSTER_TYPES.find((t) => t.name === 'Skeleton'), b.x, b.y, { raised: true });
+    burst(b.x, b.y, '#b18cff', 16, 90, { glow: true, gravity: -60, life: 600 });
+    if (isVisible(b.x, b.y)) log('The bones knit together and stand up: a skeleton.', 'bad');
+  }
+}
 function pickTheme() {
   if (dungeonDef && dungeonDef.theme) return dungeonDef.theme;
   if (dungeonDef && dungeonDef.endless) return DEEP_THEMES[(floor - 1) % DEEP_THEMES.length];
@@ -4378,7 +4432,7 @@ function createDungeon() {
   const R = seededRandom(hash32(floorSeed, 4242));
   const spawn = getChunk(0, 0);
   player.x = spawn.rooms[0].cx; player.y = spawn.rooms[0].cy;
-  wayoutWarned = -99; crackHits.clear(); usedSprings.clear();
+  wayoutWarned = -99; crackHits.clear(); usedSprings.clear(); usedRunes.clear(); restless = []; player.slip = false;
   { const room = spawn.rooms[0]; setTile(room.x, room.y, TILE.WAYOUT); monsters = monsters.filter((m) => !(m.x === room.x && m.y === room.y)); }
   if (dungeonDef && dungeonDef.arena) { exit = null; return; }
   if (dungeonDef && dungeonDef.camp) {
@@ -4578,8 +4632,23 @@ function drawStone(g, c, r) {
   g.fillRect(X + s1, Y, 1, T / 2); g.fillRect(X + ((s1 + T / 2) % T), Y + T / 2, 1, T / 2);
   if (m < 0.1) { g.fillStyle = 'rgba(0,0,0,0.35)'; for (let k = 0; k < 7; k++) g.fillRect(X + 8 + k * 2, Y + 6 + k + (k % 2), 2, 1); }
   else if (m < 0.1 + th.moss) { g.fillStyle = 'rgba(96,150,80,0.32)'; g.fillRect(X + 3, Y + T - 9, 9, 4); g.fillRect(X + 6, Y + T - 12, 5, 3); }
-  if (th.puddles && noise(c, r, 91) < 0.18) { g.fillStyle = 'rgba(96,165,250,0.28)'; g.beginPath(); g.ellipse(X + T / 2, Y + T / 2 + 3, 11, 5, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = 'rgba(219,234,254,0.25)'; g.fillRect(X + 10, Y + T / 2 + 1, 6, 1); }
-  if (th.runes && noise(c, r, 93) < 0.05) { g.strokeStyle = 'rgba(167,139,250,0.45)'; g.lineWidth = 1; g.strokeRect(X + 9, Y + 9, 14, 14); g.beginPath(); g.moveTo(X + 16, Y + 9); g.lineTo(X + 16, Y + 23); g.moveTo(X + 9, Y + 16); g.lineTo(X + 23, Y + 16); g.stroke(); }
+  const plain = scene === 'dungeon' && getTile(c, r) === TILE.FLOOR;
+  if (th.puddles && plain && noise(c, r, 91) < 0.18) {
+    g.fillStyle = 'rgba(56,130,220,0.42)'; g.beginPath(); g.ellipse(X + T / 2, Y + T / 2 + 1, 14, 11, 0, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(190,225,255,0.45)'; g.lineWidth = 1; g.beginPath(); g.ellipse(X + T / 2, Y + T / 2 + 1, 14, 11, 0, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = 'rgba(219,234,254,0.4)'; g.fillRect(X + 9, Y + 12, 7, 2); g.fillRect(X + 17, Y + 19, 5, 1);
+  }
+  if (th.ice && plain && noise(c, r, 95) < 0.16) {
+    g.fillStyle = 'rgba(190,228,255,0.6)'; g.fillRect(X + 2, Y + 2, T - 4, T - 4);
+    g.strokeStyle = 'rgba(70,140,210,0.7)'; g.lineWidth = 1; g.strokeRect(X + 2.5, Y + 2.5, T - 5, T - 5);
+    g.strokeStyle = 'rgba(255,255,255,0.75)'; g.lineWidth = 1; g.beginPath(); g.moveTo(X + 6, Y + 22); g.lineTo(X + 14, Y + 9); g.moveTo(X + 17, Y + 25); g.lineTo(X + 26, Y + 12); g.stroke();
+  }
+  if (th.runes && plain && noise(c, r, 93) < 0.05) {
+    const spent = usedRunes.has(key(c, r));
+    g.fillStyle = spent ? 'rgba(60,50,90,0.35)' : 'rgba(167,139,250,0.22)'; g.fillRect(X + 5, Y + 5, T - 10, T - 10);
+    g.strokeStyle = spent ? 'rgba(120,110,150,0.4)' : 'rgba(196,181,253,0.95)'; g.lineWidth = spent ? 1 : 2; g.strokeRect(X + 7, Y + 7, 18, 18);
+    g.beginPath(); g.moveTo(X + 16, Y + 7); g.lineTo(X + 16, Y + 25); g.moveTo(X + 7, Y + 16); g.lineTo(X + 25, Y + 16); g.stroke();
+  }
 }
 function drawLava(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 95);
@@ -5744,6 +5813,13 @@ function drawScene(now) {
       ctx.fillStyle = '#5fe17a'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, (T - 6) * (p.hp / p.maxHp), 3);
     }
   }
+  for (const b of restless) {
+    if (!inView(b) || !isVisible(b.x, b.y)) continue;
+    const bx = b.x * T - cam.x, by = b.y * T - cam.y, tw = Math.sin(now / 90) * 1.5;
+    ctx.fillStyle = `rgba(177,140,255,${0.2 + 0.12 * Math.sin(now / 160)})`; ctx.beginPath(); ctx.arc(bx + T / 2, by + T / 2, 13, 0, Math.PI * 2); ctx.fill();
+    drawSprite(ctx, 'bones', b.x + tw / T, b.y, 1, 3);
+    ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#e9d5ff'; ctx.fillText(String(b.turns), bx + T / 2, by + 2); ctx.textAlign = 'start';
+  }
   // bosses are drawn last, so their height stands over the crowd
   for (const m of (monsters.some((o) => o.boss) ? [...monsters].sort((a, b) => (a.boss ? 1 : 0) - (b.boss ? 1 : 0)) : monsters)) {
     if (!inView(m) || !isVisible(m.x, m.y)) continue;
@@ -6353,6 +6429,10 @@ function describeTile(x, y) {
   if (t === TILE.LEVER) return 'A lever in the wall — pull it to sink every spike trap on this floor';
   if (t === TILE.ALTAR) return 'A dungeon altar — walk into it to make an offering, or drink from its font';
   if (t === TILE.TRIAL) return trial && trial.x === x && trial.y === y ? `${TRIALS[trial.kind].label} is under way: ${trial.turns} turns left` : 'A ring of trial stones — walk into it to take up a trial for a sure reward';
+  if (restless.some((b) => b.x === x && b.y === y)) return `Stirring bones — a skeleton rises in ${restless.find((b) => b.x === x && b.y === y).turns} turns. Walk onto them to scatter them`;
+  if (waterAt(x, y)) return 'Standing water — a blow lands a quarter harder on whoever stands in it';
+  if (iceAt(x, y)) return 'Black ice — whoever steps on it slips: a foe is open to a sneak attack, and the next blow on you lands half again as hard';
+  if (runeAt(x, y)) return usedRunes.has(key(x, y)) ? 'A spent rune' : 'A live rune — stand on it for 4 mana, once';
   if (t === TILE.SPRING) return usedSprings.has(key(x, y)) ? 'A dry spring' : 'Healing spring — walk into it for full health, once';
   if (t === TILE.WAYOUT) return 'Way out — walk into it twice to leave the dungeon early, keeping your loot';
   if (t === TILE.SITE && inTown()) { const sl = siteAtTile(x, y); if (sl && sl.lair) return `${sl.name} — a super boss's lair, ${ratingText(siteDungeon(sl))}. ${LAIRS[sl.lair].boss.name[0].toUpperCase() + LAIRS[sl.lair].boss.name.slice(1)} waits below${lairState().slain.includes(sl.lair) ? ' (slain before)' : ''}`; }
@@ -6641,7 +6721,7 @@ const WEAPON_TRAITS = {
 const LEGEND_TRAIT = { fangblade: 'dagger', tidecaller: 'longsword', stormhammer: 'warhammer', staffofages: 'greatsword' };
 const traitOf = (id) => { const b = baseOf(id); return LEGEND_TRAIT[b] || b; };
 const nameOf = (m) => (m.boss ? m.name : 'the ' + mName(m));
-function moveMonster(m, x, y) { monsterIndex.delete(key(m.x, m.y)); m.x = x; m.y = y; monsterIndex.set(key(m.x, m.y), m); monstersDirty = true; monsterHazard(m); }
+function moveMonster(m, x, y) { monsterIndex.delete(key(m.x, m.y)); m.x = x; m.y = y; monsterIndex.set(key(m.x, m.y), m); monstersDirty = true; monsterHazard(m); monsterGround(m); }
 // The dungeon bites both ways: a walking monster that steps on spikes takes them
 // (and the trap is spent), and one driven into lava burns. Flyers pass over.
 function monsterHazard(m) {
@@ -6664,6 +6744,7 @@ function playerAttack(m) {
   if (sneak) { dmg *= w === 'dagger' ? 3 : 2; notes.push('Sneak attack!'); tip('sneak', 'Sleeping monsters take double damage from your first blow, triple with a dagger. Creep up on them.'); }
   else if (w === 'short_sword' && Math.random() < 0.2) { dmg *= 2; notes.push('Critical hit!'); }
   if (w === 'dagger' && Math.random() < 0.2) { const extra = Math.max(1, Math.floor(dmg / 2)); dmg += extra; notes.push('You stab twice!'); }
+  if (waterAt(m.x, m.y) && !m.type.flies) { dmg = Math.ceil(dmg * 1.25); notes.push('It flounders in the water!'); }
   const wa = wornAffix('weapon');
   if (wa && wa.id === 'keen' && !sneak && Math.random() < 0.1 * wa.tier) { dmg *= 2; notes.push('A keen blow: double damage!'); }
   // the hammer drives the foe back, or into the wall behind it
@@ -6736,7 +6817,7 @@ function killMonster(m) {
   {
     monsters = monsters.filter((x) => x !== m); monstersDirty = true;
     if (scene === 'world') worldMonsters = monsters;
-    kills++; player.lifetimeKills = (player.lifetimeKills || 0) + 1;
+    kills++; player.lifetimeKills = (player.lifetimeKills || 0) + 1; leaveBones(m);
     player.meta.bestiary = player.meta.bestiary || {};
     const firstOfKind = !player.meta.bestiary[m.type.name];
     player.meta.bestiary[m.type.name] = (player.meta.bestiary[m.type.name] || 0) + 1;
@@ -6835,6 +6916,8 @@ function monsterAttack(m, ranged = false) {
   const aa = wornAffix('armor');
   if (aa && aa.id === 'swift' && Math.random() < 0.08 + 0.04 * aa.tier) { log(`You slip aside from ${nameOf(m)} in your swift ${itemInfo(player.armor).name.toLowerCase()}.`, 'good'); floatText(player.x, player.y, 'dodge', '#7bdfff'); return; }
   let dmg = Math.max(1, m.atk - armorDef() - (player.shield > 0 ? 2 : 0) - (skill('laststand') && player.hp < player.maxHp / 4 ? 3 : 0));
+  if (waterAt(player.x, player.y)) { dmg = Math.ceil(dmg * 1.25); floatText(player.x, player.y, 'in water', '#93c5fd'); tip('water', 'Standing water: a blow lands a quarter harder on anyone standing in a pool. Step onto dry stone, and fight foes while they stand in the wet.'); }
+  if (player.slip) { dmg = Math.ceil(dmg * 1.5); player.slip = false; floatText(player.x, player.y, 'off balance', '#bfe3ff'); }
   if (player.ward > 0) { const soak = Math.min(player.ward, dmg); player.ward -= soak; dmg -= soak; floatText(player.x, player.y, `ward ${soak}`, '#c084fc'); if (player.ward <= 0) log('Your arcane ward shatters.', 'bad'); if (dmg <= 0) return; }
   player.hp -= dmg;
   if (aa && aa.id === 'spiked' && !ranged) { const sp = 1 + aa.tier; m.hp -= sp; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${sp}`, '#e6eef8'); if (m.hp <= 0) setTimeout(() => { if (!monsters.includes(m)) return; killMonster(m); if (player.hp <= 0 && !gameOver) { if (perkCount('second_wind') && !player.meta.second_wind) { player.meta.second_wind = true; player.hp = 1; log('Second wind! You refuse to fall.', 'good'); unlock('survivor'); } else die(); updateStats(); } }, 0); }
@@ -6885,7 +6968,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
         if (!m.awake && Math.random() < 0.6) m.awake = true;
         if (m.awake && Math.random() < 0.7) { petBitten(pv, m); continue; }
       } }
-    const wake = (scene === 'world' ? (dayPhase() === 'night' ? 10 : 6) : 6) - (wearing('wardstone') ? 3 : 0);
+    const wake = (scene === 'world' ? (dayPhase() === 'night' ? 10 : 6) : theme === 'moss' ? 3 : 6) - (wearing('wardstone') ? (scene === 'dungeon' && theme === 'moss' ? 1 : 3) : 0);
     if (!m.awake && dist(m, H) <= wake && (H.me ? isVisible(m.x, m.y) : true) && Math.random() < 0.7) m.awake = true;
     if (m.boss && m.awake && !swiftOnly && bossTurn(m, H, heroes)) continue;
     if (escort && scene === 'dungeon' && dist(m, escort) === 1 && !heroes.some((h) => dist(m, h) === 1) && (m.awake || Math.random() < 0.5)) { m.awake = true; escortHurt(m); if (!escort) continue; continue; }
@@ -7142,6 +7225,7 @@ function nextFloor() {
   else track('floor_reached', { floor, dungeon: dungeonDef.kind === 'site' ? dungeonDef.site.type : 'town' });
   if (floor === 1) { player.meta.second_wind = false; tip('dungeon', 'The compass points to the stairs. Walk into monsters to attack, press 1 for your ability, P for a potion.'); }
   if (floor >= 5) unlock('delver');
+  { const gr = GROUND_RULES[theme]; if (gr && (floor === 1 || dungeonDef.groundSaid !== theme)) { dungeonDef.groundSaid = theme; setTimeout(() => log(`${gr.label}: ${gr.desc}.`), 20); tip('ground_' + theme, `${thm().name}. ${gr.label}: ${gr.desc}.`); } }
   if (floorMod) { const fm = FLOOR_MODS[floorMod], good = floorMod === 'treasure'; setTimeout(() => log(`${fm.label}: ${fm.desc}.`, good ? 'good' : 'bad'), 30); }
   if (floor === dungeonDef.floors) tip('boss', 'A boss waits by the stairs on the last floor. Clear the room, use your ability, keep a potion ready.');
   barrowFloor();
@@ -8275,6 +8359,7 @@ function endTurn(moved) {
   mp.lastActive = performance.now();
   if (moved && turn % 2 === 0) sfx.play('step');
   if (moved && scene === 'world') { const gnd = groundAt(player.x, player.y); if (gnd === GROUND.ROAD || gnd === GROUND.SAND) burst(player.x, player.y, gnd === GROUND.SAND ? '#e7d3a1' : '#b9976a', 3, 25, { foot: true, gravity: -10, life: 380, size: 2 }); }
+  if (moved) groundStep();
   if ((player.mana ?? 0) < maxMana()) player.mana = Math.min(maxMana(), (player.mana ?? 0) + 1 + skill('channel'));
   if (skill('recovery') && player.hp < player.maxHp && player.hp > 0 && turn % (12 - 3 * skill('recovery')) === 0) player.hp += 1;
   if (player.shield > 0 && --player.shield === 0) log('Your shield wall fades.');
@@ -8286,7 +8371,7 @@ function endTurn(moved) {
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
   if (scene !== 'dungeon') stepNpcs();
   stepGuards();
-  stepHound(); stepEscort(); tickTotems(); tickTrial(); tickRifts();
+  stepHound(); stepEscort(); tickTotems(); tickTrial(); tickRestless(); tickRifts();
   if (scene === 'dungeon' && dungeonDef && dungeonDef.camp && !dungeonDef.razed && !monsters.some((m) => m.hp > 0)) campCleared();
   // in a shared dungeon the host moves monsters on a steady beat instead of per turn
   if (scene !== 'house' && !coopActive()) {
