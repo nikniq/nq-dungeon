@@ -159,6 +159,7 @@ const ACHIEVEMENTS = {
   dawnbreaker: { label: 'Reforged Dawnbreaker, the sword of the First King', title: 'the Dawnbringer' },
   skilled:     { label: 'Learned a skill', title: 'the Apprentice' },
   campbreaker: { label: 'Razed a war camp with your own hands', title: 'the Camp-breaker' },
+  giantslayer: { label: 'Felled a colossus', title: 'the Giant-feller' },
   proven:      { label: 'Passed a dungeon trial', title: 'the Proven' },
   unbroken:    { label: 'Passed ten dungeon trials', title: 'the Unbroken' },
   seawolf:     { label: 'Sank a pirate sloop', title: 'the Sea-wolf' },
@@ -821,11 +822,33 @@ function makeElite(m, roll) {
   m.mod = id; m.elite = true; m.name = `${ELITE_MODS[id].label} ${m.type.name}`;
   m.hp = m.maxHp = Math.round(m.maxHp * 1.6);
 }
-const BOSS_NAMES = { Rat: 'the Rat King', Goblin: 'the Goblin Chieftain', Skeleton: 'the Bone Lord', Orc: 'the Orc Warchief', Wraith: 'the Lich', Bat: 'the Bat Matriarch', Spider: 'the Brood Mother', Archer: 'the Goblin Marksman', Slime: 'the Slime Queen', Necromancer: 'the Necromancer Lord' };
+const BOSS_NAMES = { Rat: 'the Rat King', Goblin: 'the Goblin Chieftain', Skeleton: 'the Bone Lord', Orc: 'the Orc Warchief', Wraith: 'the Lich', Bat: 'the Bat Matriarch', Spider: 'the Brood Mother', Archer: 'the Goblin Marksman', Slime: 'the Slime Queen', Necromancer: 'the Necromancer Lord', Basilisk: 'the Basilisk Sire', 'Cave troll': 'the Troll Under the Mountain', Shaman: 'the Hexfather', Thief: 'the Prince of Thieves', Bomber: 'the Powder King', Mimic: 'the Hungry Hoard', Knight: 'the Black Knight', Direwolf: 'the Pack Mother', Troll: 'the Troll King', Wyrm: 'the Elder Wyrm' };
+// Colossi: giants that sometimes hold the last floor of an ordinary dungeon, and
+// every tenth floor of the Deep. One for each kind of stone.
+const colossus = (name, sprite) => ({ name, sprite, hp: 20, atk: 5, xp: 45, minFloor: 99, noSpawn: true, colossus: true });
+const COLOSSI = {
+  stone:   { type: colossus('Stone colossus', 'colossus'), names: ['Orrum, the Walking Keep', 'Gravelmaw, the Stone Colossus', 'Old Lintel, the Hall That Stood Up'] },
+  camp:    { type: colossus('Stone colossus', 'colossus'), names: ['Orrum, the Walking Keep'] },
+  moss:    { type: colossus('Stone colossus', 'colossus'), names: ['Mossback, the Buried Giant', 'Rootfather, the Green Colossus'] },
+  flooded: { type: colossus('Tide colossus', 'colossus:frost'), names: ['Silt, the Drowned Colossus', 'Undertow, the Giant in the Cistern'] },
+  bone:    { type: colossus('Bone titan', 'bonetitan'), names: ['Ossuary, the Bone Titan', 'Thousand-Ribs, the Titan of the Crypt'] },
+  lava:    { type: colossus('Magma titan', 'colossus:magma'), names: ['Cinder, the Magma Titan', 'Slagheart, the Burning Colossus'] },
+  frost:   { type: colossus('Glacier giant', 'colossus:frost'), names: ['Rime, the Glacier Giant', 'Hoarfather, the Giant Under the Ice'] },
+  arcane:  { type: colossus('Rune colossus', 'colossus:rune'), names: ['Sigil, the Rune Colossus', 'Theorem, the Colossus That Was Proved'] },
+};
+// An ordinary last floor has a colossus four times in ten, once the dungeon is
+// dangerous or the hero seasoned enough to stand a chance.
+function colossusFor(def, R) {
+  if (def.boss || def.arena || def.camp || (mp.instance && mp.instance.shared)) return null;
+  if (def.endless ? floor % 10 !== 0 : !((def.danger || 0) >= 1 || player.level >= 8) || R() >= 0.4) return null;
+  const C = COLOSSI[theme] || COLOSSI.stone;
+  return { type: C.type, name: C.names[Math.floor(R() * C.names.length)] };
+}
 function placeBoss(room, ox, oy, R = Math.random) {
   const def = dungeonDef || { pool: null, danger: 0 };
   const pool = def.pool || MONSTER_TYPES.filter((t) => !t.noSpawn && t.minFloor <= floor);
-  const type = def.boss ? MONSTER_TYPES.find((t) => t.name === def.boss.type) : pool.reduce((a, b) => (b.xp > a.xp ? b : a));
+  const giant = colossusFor(def, R);
+  const type = giant ? giant.type : def.boss ? MONSTER_TYPES.find((t) => t.name === def.boss.type) : pool.reduce((a, b) => (b.xp > a.xp ? b : a));
   const danger = def.danger || 0;
   const cells = [];
   for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) {
@@ -836,8 +859,9 @@ function placeBoss(room, ox, oy, R = Math.random) {
   if (getTile(cell.x, cell.y) === TILE.WALL) setTile(cell.x, cell.y, TILE.FLOOR);
   const sup = !!(def.boss && def.boss.hpMult);
   // a super boss is built for heroes of its lair's level: a big pool, and hits that bite through good armour
-  const hp = sup ? type.hp * def.boss.hpMult + danger * 40 : type.hp * (def.boss ? 5 : 4) + danger * 4 + floor * 2;
-  monsters.push({ ...cell, id: 'boss', type, name: def.boss ? def.boss.name : BOSS_NAMES[type.name], yields: !!(def.boss && def.boss.yields), superBoss: !!(def.boss && def.boss.hpMult), hp, maxHp: hp, atk: sup ? type.atk + danger : type.atk + 1 + Math.ceil(danger / 2), awake: false, boss: true });
+  const hp = sup ? type.hp * def.boss.hpMult + danger * 40 : giant ? type.hp * 5 + danger * 6 + floor * 2 : type.hp * (def.boss ? 5 : 4) + danger * 4 + floor * 2;
+  if (giant) setTimeout(() => { log(`The floor shakes to a slow tread. ${giant.name[0].toUpperCase() + giant.name.slice(1)} holds the stairs: a colossus.`, 'bad'); tip('colossus', 'A colossus is a giant boss. Its fist lands on the tiles beside it, and its stomp sends a shockwave two paces out. Read the red tiles: step back from the fist, and stand close or well back for the stomp.'); }, 120);
+  monsters.push({ ...cell, id: 'boss', type, name: giant ? giant.name : def.boss ? def.boss.name : BOSS_NAMES[type.name] || `the ${type.name} Lord`, giant: sup || !!giant, yields: !!(def.boss && def.boss.yields), superBoss: !!(def.boss && def.boss.hpMult), hp, maxHp: hp, atk: sup ? type.atk + danger : type.atk + 1 + Math.ceil(danger / 2), awake: false, boss: true });
   monstersDirty = true;
 }
 const bossAlive = () => scene === 'dungeon' && monsters.some((m) => m.boss);
@@ -1193,6 +1217,8 @@ const SPRITES = {
 };
 // 16x16 versions of the creatures and key items; these win over the 8x8 ones.
 const BIG_SPRITES = {
+  colossus: ['......EEEE......', '.....EeeeeE.....', '.....EyeeyE.....', '.....EeeeeE.....', '..EEEEEEEEEEEE..', '.EeeEEeeeeEEeeE.', '.EeeEeeeeeeEeeE.', '.EeeEeeGGeeEeeE.', '.EeE.EeGeeE.EeE.', '.EeE.EeeeeE.EeE.', '.EEE.EEEEEE.EEE.', '.EEE.EeeeeE.EEE.', '.....Eee.eeE....', '....EEeE.EeEE...', '....EEEE.EEEE...', '................'],
+  bonetitan: ['.e............e.', '.ee..wwwwww..ee.', '..eewwwwwwwwee..', '...wwkkwwkkww...', '...wwkrwwrkww...', '...wwwwkkwwww...', '....wkwkwkww....', '.....wwwwww.....', '..ww..wwww..ww..', '.www.wewwew.www.', '.ww..wwewww..ww.', '.ww..wewwew..ww.', '.ee...wwww...ee.', '.....ww..ww.....', '.....ww..ww.....', '....eee..eee....'],
   rat: ['................', '................', '................', '.......hh.....h.', '......hhhh...hh.', '.....hkhhhh.hh..', '....hhhhhhhhh...', '...hhhhhhhhhh...', '..hhhhhhhhhhhh..', '..hhhhhhhhhhhhh.', '..hhhhhhhhhhh.h.', '...hhhhhhhhhh.h.', '....hh.hh.hh....', '....hh.hh.hh....', '................', '................'],
   goblin: ['....g......g....', '...gg......gg...', '...gggggggggg...', '..gggggggggggg..', '..ggkgggggkggg..', '..gggggggggggg..', '...ggggwwgggg...', '....gggggggg....', '...HGGGGGGGGH...', '..hHGGGGGGGGHh..', '..h.GGGGGGGG.h..', '....GGGGGGGG....', '....GGG..GGG....', '....GGG..GGG....', '...hhh....hhh...', '................'],
   skeleton: ['.....wwwwww.....', '....wwwwwwww....', '....wkkwwkkw....', '....wwwwwwww....', '.....wkwkww.....', '......wwww......', '.......ww.......', '....wwwwwwww....', '...w.wwwwww.w...', '...w.w.ww.w.w...', '...e.wwwwww.e...', '.....w.ww.w.....', '......w..w......', '......w..w......', '.....ee..ee.....', '................'],
@@ -1344,6 +1370,8 @@ const spriteCache = {};
 // 16px sprites also get a light top rim and a darker bottom rim for volume.
 const NO_OUTLINE = new Set(['stairs', 'trap', 'rug', 'counter', 'shelf', 'bed', 'table', 'rack', 'fire', 'flower']);
 const EXTRA_OUTLINE = new Set(['chest', 'lamp', 'torch', 'barrel', 'plant', 'bones']);
+// the colossus in other stone: magma, ice and rune-cut
+for (const [id, map] of Object.entries({ magma: { E: 'H', e: 'd', G: 'o' }, frost: { E: 'b', e: 'c', G: 'w', y: 'w' }, rune: { E: 'B', e: 'p', G: 'c', y: 'c' } })) BIG_SPRITES[`colossus:${id}`] = BIG_SPRITES.colossus.map((row) => [...row].map((ch) => map[ch] || ch).join(''));
 const outlined = (name) => !NO_OUTLINE.has(name) && (!!BIG_SPRITES[name] || EXTRA_OUTLINE.has(name));
 // The Far Shore's people: the same folk, dressed their own way. Clothes take the
 // realm's colour and each realm wears its hat: a straw hat, a turban, a fur hat.
@@ -5640,7 +5668,7 @@ function drawScene(now) {
         if (Math.random() < 0.08) burst(c, r, '#ffb347', 1, 15, { gravity: -50, life: 600, glow: true, size: 2 });
       }
     }
-    for (const m of monsters) if (m.boss && isVisible(m.x, m.y)) lights.push({ x: m.x * T - cam.x + T / 2, y: m.y * T - cam.y + T / 2, r: T * 2.5, a: 0.6, glow: `rgba(255,60,60,${0.14 + 0.06 * Math.sin(now / 200)})` });
+    for (const m of monsters) if (m.boss && isVisible(m.x, m.y)) lights.push({ x: m.x * T - cam.x + T / 2, y: m.y * T - cam.y + T / 2, r: T * (m.giant ? 4 : 3), a: 0.6, glow: `rgba(255,60,60,${0.14 + 0.06 * Math.sin(now / 200)})` });
   }
   for (const g of golds) if (inView(g) && isVisible(g.x, g.y)) drawSprite(ctx, 'gold', g.x, g.y);
   for (const p of potions) {
@@ -5716,7 +5744,8 @@ function drawScene(now) {
       ctx.fillStyle = '#5fe17a'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, (T - 6) * (p.hp / p.maxHp), 3);
     }
   }
-  for (const m of monsters) {
+  // bosses are drawn last, so their height stands over the crowd
+  for (const m of (monsters.some((o) => o.boss) ? [...monsters].sort((a, b) => (a.boss ? 1 : 0) - (b.boss ? 1 : 0)) : monsters)) {
     if (!inView(m) || !isVisible(m.x, m.y)) continue;
     const [ldx, ldy] = lunge(m, now);
     if (m.mod) {
@@ -5727,17 +5756,22 @@ function drawScene(now) {
       lights.push({ x: (m.rx ?? m.x) * T - cam.x + T / 2, y: (m.ry ?? m.y) * T - cam.y + T / 2, r: T * 1.6, a: 0.5, glow: 'rgba(255,255,255,0.06)' });
     }
     const lx = (m.rx ?? m.x) + ldx / T, ly = (m.ry ?? m.y) + ldy / T - bob(m, m.awake) - hop(m);
-    shadow(lx, ly);
-    drawSprite(ctx, m.type.sprite, lx, ly, 1, m.boss ? -5 : m.small ? 8 : 3, m.face === -1, m.flashUntil > now);
     if (m.boss) {
-      ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+      // two tiles tall, or three for a giant, standing on its own tile; it fades when the hero is behind it
+      const tall = m.giant ? 3 : 2, rise = (tall - 1) / 2, top = (ly - (tall - 1)) * T - cam.y, wide = tall * T;
+      const behind = player.y < m.y && player.y >= m.y - (tall - 1) && Math.abs(player.x - m.x) <= (m.giant ? 1 : 0);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(lx * T - cam.x + T / 2, ly * T - cam.y + T - 4, T * 0.3 * tall, 4 + tall, 0, 0, Math.PI * 2); ctx.fill();
+      drawSprite(ctx, m.type.sprite, lx, ly - rise, behind ? 0.5 : 1, -(tall - 1) * T / 2, m.face === -1, m.flashUntil > now);
+      ctx.globalAlpha = 1;
+      ctx.font = `bold ${m.giant ? 12 : 11}px sans-serif`; ctx.textAlign = 'center';
       const label = m.name[0].toUpperCase() + m.name.slice(1), lw = ctx.measureText(label).width + 8;
-      ctx.fillStyle = 'rgba(6,12,20,0.7)'; ctx.fillRect(lx * T - cam.x + T / 2 - lw / 2, ly * T - cam.y - 34, lw, 14);
-      ctx.fillStyle = '#ff9b9b'; ctx.fillText(label, lx * T - cam.x + T / 2, ly * T - cam.y - 23);
+      ctx.fillStyle = 'rgba(6,12,20,0.7)'; ctx.fillRect(lx * T - cam.x + T / 2 - lw / 2, top - 30, lw, 14);
+      ctx.fillStyle = '#ff9b9b'; ctx.fillText(label, lx * T - cam.x + T / 2, top - 19);
       ctx.textAlign = 'start';
-      ctx.fillStyle = '#300'; ctx.fillRect(lx * T - cam.x - 8, ly * T - cam.y - 16, T + 16, 4);
-      ctx.fillStyle = '#f33'; ctx.fillRect(lx * T - cam.x - 8, ly * T - cam.y - 16, (T + 16) * (m.hp / m.maxHp), 4);
-    } else if (m.hp < m.maxHp) {
+      ctx.fillStyle = '#300'; ctx.fillRect(lx * T - cam.x + T / 2 - wide / 2, top - 12, wide, 5);
+      ctx.fillStyle = '#f33'; ctx.fillRect(lx * T - cam.x + T / 2 - wide / 2, top - 12, wide * Math.max(0, m.hp / m.maxHp), 5);
+    } else { shadow(lx, ly); drawSprite(ctx, m.type.sprite, lx, ly, 1, m.small ? 8 : 3, m.face === -1, m.flashUntil > now); }
+    if (!m.boss && m.hp < m.maxHp) {
       ctx.fillStyle = '#300'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, T - 6, 3);
       ctx.fillStyle = '#f33'; ctx.fillRect(lx * T - cam.x + 3, ly * T - cam.y, (T - 6) * (m.hp / m.maxHp), 3);
     }
@@ -6294,7 +6328,7 @@ function describeTile(x, y) {
       const per = Math.max(1, player.atk + weaponAtk() + 0.5 - (m.mod === 'armored' ? 2 : 0)) * (!m.awake && !m.boss ? (traitOf(player.weapon) === 'dagger' ? 3 : 2) : 1);
       const hits = Math.max(1, Math.ceil(m.hp / per)), takes = Math.max(1, m.atk - armorDef());
       const threat = takes * 3 >= player.hp ? ' Dangerous for you now.' : '';
-      return `${m.boss ? bossTitle(m) + ' (boss)' : m.elite ? `${m.name} (elite: ${ELITE_MODS[m.mod].desc})` : m.type.name} — ${m.hp}/${m.maxHp} HP. Hits you for ${takes}${m.type.ranged ? ' from range' : ''}${m.type.poison ? ' and may poison' : ''}; about ${hits} ${hits === 1 ? 'hit' : 'hits'} to kill${m.tell ? '. ' + TELL_TEXT[m.tell.kind][0].toUpperCase() + TELL_TEXT[m.tell.kind].slice(1) : m.reeling > 0 ? '. Off balance: your next blow is a sneak attack' : ''}${m.awake ? '' : '. Asleep: sneak attack for ' + (player.weapon === 'dagger' ? 'triple' : 'double') + ' damage'}.${threat}`;
+      return `${m.boss ? bossTitle(m) + (m.type.colossus ? ' (colossus: its fist lands beside it, its stomp two paces out)' : m.giant ? ' (giant boss: its blow lands beside it, its stomp two paces out)' : ' (boss)') : m.elite ? `${m.name} (elite: ${ELITE_MODS[m.mod].desc})` : m.type.name} — ${m.hp}/${m.maxHp} HP. Hits you for ${takes}${m.type.ranged ? ' from range' : ''}${m.type.poison ? ' and may poison' : ''}; about ${hits} ${hits === 1 ? 'hit' : 'hits'} to kill${m.tell ? '. ' + TELL_TEXT[m.tell.kind][0].toUpperCase() + TELL_TEXT[m.tell.kind].slice(1) : m.reeling > 0 ? '. Off balance: your next blow is a sneak attack' : ''}${m.awake ? '' : '. Asleep: sneak attack for ' + (player.weapon === 'dagger' ? 'triple' : 'double') + ' damage'}.${threat}`;
     }
     if (getPotionAt(x, y)) return 'Potion — restores 5 HP';
     const g = getGoldAt(x, y);
@@ -6719,7 +6753,8 @@ function killMonster(m) {
     const xp = Math.round((m.xpMult || 1) * m.type.xp * (wearing('cantonsbadge') ? 1.2 : 1) * (m.small || m.raised ? 0.4 : 1) * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1) * (m.elite ? 2 : 1) * (scene === 'dungeon' ? (floorMod === 'swarming' ? 1.25 : floorMod === 'cursed' ? 1.5 : 1) : 1));
     if (m.boss) {
       log(dungeonDef && dungeonDef.arena ? `You defeat ${m.name}! The crowd is on its feet.` : m.yields ? `${bossTitle(m)} drops his sword and yields. The seal on the stairs breaks.` : /Halvard/.test(m.name) ? 'Ser Halvard goes down on one knee, then flat. "Go on up," he says through his teeth. "He is expecting you." The stairs are open.' : `You slay ${m.name}! The seal on the stairs breaks.`, 'good');
-      const purse = 40 + 30 * (dungeonDef ? dungeonDef.danger : 0) + floor * 10;
+      const purse = (40 + 30 * (dungeonDef ? dungeonDef.danger : 0) + floor * 10) * (m.type.colossus ? 3 : 1);
+      if (m.type.colossus) { unlock('giantslayer'); shakeScreen(10, 900); log(`${bossTitle(m)} comes down like a wall. The whole floor feels it.`, 'good'); }
       player.gold += purse; floatText(m.x, m.y, `+${purse}g`, '#f5c542');
       sfx.play('win');
     } else log(`You slay the ${mName(m)} (+${xp} XP).`, 'good');
@@ -6999,11 +7034,14 @@ function bossTurn(m, H, heroes) {
     return true;
   }
   m.slamCd = (m.slamCd ?? 2) - 1;
-  if (m.slamCd <= 0 && cheb(m, H) <= 1) {
+  if (m.slamCd <= 0 && cheb(m, H) <= (m.giant ? 2 : 1)) {
     const tiles = [];
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && walkable(getTile(m.x + dx, m.y + dy))) tiles.push(key(m.x + dx, m.y + dy));
+    // a giant alternates its fist with a stomp, whose shockwave lands two paces out and spares whoever stands at its feet
+    const stomp = !!m.giant && (cheb(m, H) === 2 || (m.stompNext = !m.stompNext));
+    if (stomp) { for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === 2 && walkable(getTile(m.x + dx, m.y + dy))) tiles.push(key(m.x + dx, m.y + dy)); }
+    else for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && walkable(getTile(m.x + dx, m.y + dy))) tiles.push(key(m.x + dx, m.y + dy));
     m.windup = tiles;
-    log(`${bossTitle(m)} raises its weapon high. Step out of the red!`, 'bad');
+    log(stomp ? `${bossTitle(m)} lifts a foot the size of a cart. The shockwave will land two paces out: stand at its feet, or well back!` : `${bossTitle(m)} raises its ${m.giant ? 'fist' : 'weapon'} high. Step out of the red!`, 'bad');
     tip('windup', 'Red tiles mark where a heavy blow will land next turn. Step out of them, or take double damage.');
     sfx.play('boss');
     return true;

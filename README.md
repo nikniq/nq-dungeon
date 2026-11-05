@@ -165,6 +165,18 @@ either shows the twist waiting below it, a quiet floor or a Dark, Swarming,
 Treasure or Cursed one. The two always differ. Not on the last floor, in the
 Deep, or in a shared party run.
 
+Bosses are big. Every boss is drawn two tiles tall and super bosses three,
+feet on their own tile, fading when the hero stands behind them. Colossi
+(`COLOSSI`, `colossusFor`) are giants that hold the last floor of an ordinary
+dungeon four times in ten, once the dungeon has any danger or the hero is level
+8, and every tenth floor of the Deep: one for each kind of stone (stone, tide,
+bone, magma, glacier, rune), with five times a monster's health rather than
+four. Giants, colossi and super bosses alike, alternate the fist (the tiles
+beside them) with a stomp whose shockwave lands on the ring two paces out and
+spares whoever stands at their feet. A colossus pays three times a boss's purse
+and the title Giant-feller. Every monster kind now has a boss name; the last
+floor under Hearth used to raise a nameless basilisk that broke the drawing.
+
 Some rooms from the second floor down hold a ring of trial stones (`TILE.TRIAL`,
 `TRIALS`): walk in and take up the Trial of the Swarm (stand twelve turns while a
 monster arrives every other turn) or the Trial of Blood (five at once, all dead
