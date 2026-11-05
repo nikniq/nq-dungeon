@@ -16,7 +16,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayText = document.getElementById('overlay-text');
 const restartBtn = document.getElementById('restart');
 
-const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15, CRACK: 16, SPRING: 17, MONUMENT: 18, PLOT: 19, WARCAMP: 20, SHIP: 21, CAPTIVE: 22, TOTEM: 23, LEVER: 24, ALTAR: 25, TRIAL: 26 };
+const TILE = { WALL: 0, FLOOR: 1, EXIT: 2, SHOP: 3, INN: 4, FOUNTAIN: 5, DOOR: 6, FURNITURE: 7, BED: 8, SITE: 9, CHEST: 10, TRAP: 11, WAYSTONE: 12, LAVA: 13, PLACE: 14, WAYOUT: 15, CRACK: 16, SPRING: 17, MONUMENT: 18, PLOT: 19, WARCAMP: 20, SHIP: 21, CAPTIVE: 22, TOTEM: 23, LEVER: 24, ALTAR: 25, TRIAL: 26, UP: 27, DOWN: 28 };
 const TOWN = 0;           // floor number of the town square
 const FINAL_FLOOR = 5;
 const VIEW_RADIUS = 8;    // how far the hero sees in the dungeon
@@ -160,6 +160,8 @@ const ACHIEVEMENTS = {
   skilled:     { label: 'Learned a skill', title: 'the Apprentice' },
   campbreaker: { label: 'Razed a war camp with your own hands', title: 'the Camp-breaker' },
   giantslayer: { label: 'Felled a colossus', title: 'the Giant-feller' },
+  ratcatcher:  { label: 'Cleared the undercroft of a castle', title: 'the Ratcatcher' },
+  highground:  { label: 'Looked out from the battlements of a keep', title: 'the Far-sighted' },
   proven:      { label: 'Passed a dungeon trial', title: 'the Proven' },
   unbroken:    { label: 'Passed ten dungeon trials', title: 'the Unbroken' },
   seawolf:     { label: 'Sank a pirate sloop', title: 'the Sea-wolf' },
@@ -439,12 +441,12 @@ async function mpApi(path, body) {
 }
 function mpSpace() {
   if (gameOver || !player) return `limbo:${mp.me || 0}`;
-  if (scene === 'house' && interior) return `house:${interior.house.town}:${interior.house.id}`;
+  if (scene === 'house' && interior) return `house:${interior.house.town}:${interior.house.id}${interior.level ? ':' + interior.level : ''}`;
   if (scene === 'dungeon') return mp.instance ? mp.instance.space : `solo:${mp.me || 0}`;
   return 'world';
 }
 function mpWhere() {
-  if (scene === 'house' && interior) return interior.house.name;
+  if (scene === 'house' && interior) return interiorName();
   if (scene === 'dungeon') return `${dungeonDef ? dungeonDef.name : 'a dungeon'}, floor ${floor}`;
   return townContaining(player.x, player.y)?.name ?? 'the wilds';
 }
@@ -839,7 +841,7 @@ const COLOSSI = {
 // An ordinary last floor has a colossus four times in ten, once the dungeon is
 // dangerous or the hero seasoned enough to stand a chance.
 function colossusFor(def, R) {
-  if (def.boss || def.arena || def.camp || (mp.instance && mp.instance.shared)) return null;
+  if (def.boss || def.arena || def.camp || def.cellar || (mp.instance && mp.instance.shared)) return null;
   if (def.endless ? floor % 10 !== 0 : !((def.danger || 0) >= 1 || player.level >= 8) || R() >= 0.4) return null;
   const C = COLOSSI[theme] || COLOSSI.stone;
   return { type: C.type, name: C.names[Math.floor(R() * C.names.length)] };
@@ -1214,6 +1216,14 @@ const SPRITES = {
   fire:     ['EEEEEEEE', 'E......E', 'E..oo..E', 'E.oyyo.E', 'E.oyyo.E', 'EorrrroE', 'EEEEEEEE', 'EEEEEEEE'],
   plant:    ['...G....', '..GgG...', '.GgGGG..', '..GGG...', '...G....', '..hhh...', '..hHh...', '..hhh...'],
   rug:      ['rrrrrrrr', 'ryyyyyyr', 'ryrrrryr', 'ryryyryr', 'ryryyryr', 'ryrrrryr', 'ryyyyyyr', 'rrrrrrrr'],
+  scope:    ['......ee', '.....eeE', '..yeeeE.', '.yeeE...', '.yE.H...', '...HHH..', '..H.H.H.', '.H..H..H'],
+  banner:   ['.H......', '.Hrrrrr.', '.Hryyrr.', '.Hrryyr.', '.Hrrrr..', '.Hrr....', '.H......', '.H......'],
+  bars:     ['EEEEEEEE', 'k.k.k.k.', 'k.k.k.k.', 'k.k.k.k.', 'EEEEEEEE', 'k.k.k.k.', 'k.k.k.k.', 'EEEEEEEE'],
+  web:      ['e..e...e', '.e.e..e.', '..eee...', 'eeeeee..', '..eee...', '.e.e.e..', 'e..e....', '...e....'],
+  brazier:  ['...yy...', '..yooy..', '.yorroy.', 'EEEEEEEE', '.EEEEEE.', '..E..E..', '..E..E..', '.EE..EE.'],
+  dummy:    ['...tt...', '..tttt..', '...tt...', 'HHHHHHHH', '..tttt..', '..tttt..', '...HH...', '..HHHH..'],
+  globe:    ['..yyyy..', '.ybbbby.', 'ybbgbbby', 'ybgggbby', 'ybbgbbby', '.ybbbby.', '..yHHy..', '.HHHHHH.'],
+  crate:    ['hhhhhhhh', 'hHhhhhHh', 'hhHhhHhh', 'hhhHHhhh', 'hhhHHhhh', 'hhHhhHhh', 'hHhhhhHh', 'hhhhhhhh'],
 };
 // 16x16 versions of the creatures and key items; these win over the 8x8 ones.
 const BIG_SPRITES = {
@@ -1508,7 +1518,30 @@ const INDOOR_NPCS = {
   lord: { sprite: 'guard', name: 'The Castellan', lines: [
     'This castle guards the road. Bandits in the hills, worse things below.',
     'The King holds court at the grand castle. Bring him a tale worth hearing.',
-    'Our smithy and armoury serve any hero who serves the realm.'] },
+    'Our smithy and armoury serve any hero who serves the realm.',
+    'Climb the towers while you are here. The sergeant drills anyone who pays, the astrologer reads stars, and the view from my battlements is worth the stairs.'] },
+  steward: { sprite: 'elder', name: 'The steward', castle: 'chat', lines: [
+    'The solar is my lord\'s own chamber. The bed by the hearth is kept for guests of the castle, which means whoever my lord says.',
+    'Four towers, three floors each, and a keep on top of a cellar. I have counted the stairs. Two hundred and twelve.',
+    'The strongbox? My lord carries the key. He is generous to those who are useful.'] },
+  sentry: { sprite: 'guard', name: 'The sentry', castle: 'sentry', lines: ['Quiet watch. I like a quiet watch.'] },
+  sergeant: { sprite: 'guard', name: 'The sergeant-at-arms', castle: 'sergeant', lines: ['Feet apart. No, further. Who taught you to stand?'] },
+  watchman: { sprite: 'guard', name: 'The watchman', castle: 'sentry', lines: ['Nothing moves out there that I do not see first.'] },
+  apprentice: { sprite: 'child', name: 'The apprentice', castle: 'chat', lines: [
+    'The master is at the top. He is always at the top. I carry the tea up and the cups down.',
+    'Do not touch the jars. That one is asleep and that one only looks asleep.',
+    'The books on the next floor are in order of how much trouble they have caused.'] },
+  astrologer: { sprite: 'elder', name: 'The astrologer', castle: 'astrologer', lines: ['The sky is a book. Most people only look at the pictures.'] },
+  gaoler: { sprite: 'guard', name: 'The gaoler', castle: 'chat', lines: [
+    'One guest upstairs at present. A road thief. He talks, if you stand by the bars and have coin.',
+    'The high cell at the top is for prisoners of rank. It has a bed. Rank is a wonderful thing.',
+    'Nobody has ever escaped from this tower. One tried the window. It is a long way down and he was right about that at least.'] },
+  prisoner: { sprite: 'villager', name: 'The prisoner', castle: 'prisoner', lines: ['Psst. You. The one with the purse.'] },
+  librarian: { sprite: 'elder', name: 'The royal librarian', castle: 'chat', lines: [
+    'Three hundred years of the crown\'s letters are on these shelves. Most of them are about money.',
+    'Aurel the Founder could not read. He built the library anyway, so that nobody could say it to his face.',
+    'The stair in the corner goes up to the battlements. On a clear day you can see three realms and regret two of them.',
+    'The old treasury was walled up in the outer bailey after the War of Four Banners. Nobody wrote down where. I have looked.'] },
   edric: { sprite: 'darkknight', name: 'Prince Edric', lines: ['"My brother keeps me close now, where he can see me."'] },
   halvard: { sprite: 'darkknight', name: 'Ser Halvard', lines: [
     '"We have met. On the Ember road, and on the third floor of a tower, where you knocked me flat. No hard feelings. You fight well, for someone who does not fight for money."',
@@ -1555,9 +1588,10 @@ BUILDINGS.armoury = { name: 'The Armoury', sign: 'ARMOUR', roof: '#1f2937', npcs
 BUILDINGS.apothecary = { name: 'The Apothecary', sign: 'POTIONS', roof: '#065f46', npcs: { E: 'apothecary' }, layout: [
   '################', '#SSSSSSSS..f...#', '#..............#', '#....E.........#', '#..CCCCCC......#',
   '#..............#', '#..p.......T...#', '#..............#', '#..............#', '#######D########'] };
-BUILDINGS.keep = { name: 'The Keep', sign: 'KEEP', roof: '#4b5563', npcs: { G: 'lord' }, layout: [
+const KEEP_HALL = [
   '################', '#RR..........RR#', '#......rr......#', '#......Gr......#', '#......rr......#',
-  '#..T........T..#', '#......rr......#', '#..c...rr...c..#', '#......rr......#', '#######D########'] };
+  '#..T........T..#', '#......rr......#', '#..c...rr...c..#', '#......rr......#', '#######D########'];
+BUILDINGS.keep = { name: 'The Keep', sign: 'KEEP', roof: '#4b5563', npcs: { G: 'lord' }, layout: KEEP_HALL };
 BUILDINGS.throne = { name: 'The Royal Hall', sign: 'HALL', roof: '#7c2d12', npcs: { G: 'king' }, layout: [
   '################', '#f....rrrr....f#', '#.....rGrr.....#', '#.....rrrr.....#', '#......rr......#',
   '#..T...rr...T..#', '#......rr......#', '#..T...rr...T..#', '#......rr......#', '#######D########'] };
@@ -1566,6 +1600,58 @@ BUILDINGS.royal = { name: 'The Royal Armoury', sign: 'ROYAL', roof: '#7c2d12', n
   '#..............#', '#.RR........RR.#', '#..............#', '#..c........c..#', '#######D########'] };
 BUILDINGS.throne.npcs = { G: 'king' };
 BUILDINGS.arena = { ...BUILDINGS.keep, name: 'The Grand Arena', sign: 'ARENA', roof: '#9a3412', npcs: {} };
+// ---------- castles: a keep with several floors, and towers to climb ----------
+// A building with `floors` is entered on floor 0 and climbed by its stairs: '<' goes
+// up and '>' goes down, and each stair arrives beside its partner on the next floor.
+// `open` floors stand under the sky. A keep with `cellar` has an undercroft below.
+Object.assign(BUILDINGS.keep, { stone: true, cellar: true, floors: [
+  { name: 'the Great Hall', npcs: { G: 'lord' }, layout: [
+    '################', '#RR..........RR#', '#>.....rr.....<#', '#......Gr......#', '#......rr......#',
+    '#..T........T..#', '#......rr......#', '#..c...rr...c..#', '#......rr......#', '#######D########'] },
+  { name: 'the Solar', npcs: { A: 'steward' }, layout: [
+    '################', '#SS.f....BB..K.#', '#<............>#', '#..............#', '#..rrrr....A...#',
+    '#..rTTr........#', '#..rrrr........#', '#p...........p.#', '#..............#', '################'] },
+  { name: 'the Battlements', open: true, npcs: { W: 'sentry' }, layout: [
+    '################', '#F............F#', '#>.............#', '#......L.......#', '#..............#',
+    '#...z......z...#', '#..............#', '#.W............#', '#F............F#', '################'] },
+] });
+Object.assign(BUILDINGS.throne, { stone: true, floors: [
+  { name: 'the Throne Room', npcs: { G: 'king' }, layout: [
+    '################', '#f....rrrr....f#', '#.....rGrr.....#', '#.....rrrr.....#', '#......rr......#',
+    '#..T...rr...T..#', '#......rr......#', '#..T...rr...T..#', '#......rr.....<#', '#######D########'] },
+  { name: 'the Royal Library', npcs: { Q: 'librarian' }, layout: [
+    '################', '#SSSSS.ff.SSSSS#', '#..............#', '#..TT..rr..TT..#', '#......rQ......#',
+    '#..TT..rr..TT..#', '#..............#', '#p............p#', '#<............>#', '################'] },
+  { name: 'the Royal Battlements', open: true, npcs: { W: 'sentry' }, layout: [
+    '################', '#F............F#', '#..............#', '#......L.......#', '#..z........z..#',
+    '#..............#', '#..........W...#', '#..............#', '#>............F#', '################'] },
+] });
+// The four corner towers of a castle wall. Round rooms, a spiral stair, three floors each.
+BUILDINGS.tower_watch = { name: 'The Watchtower', sign: '', roof: '#64748b', stone: true, npcs: {}, floors: [
+  { name: 'the guardroom', npcs: { Z: 'sergeant' }, layout: ['#########', '###RRR###', '##.....##', '#..T....#', '#.Z....<#', '#.......#', '##b...b##', '###...###', '####D####'] },
+  { name: 'the barracks', npcs: {}, layout: ['#########', '###B.B###', '##.....##', '#B.....B#', '#<..d..>#', '#B.....B#', '##c...c##', '###...###', '#########'] },
+  { name: 'the lookout', open: true, npcs: { W: 'watchman' }, layout: ['#########', '###.z.###', '##.....##', '#.......#', '#>..W...#', '#.......#', '##.....##', '###.F.###', '#########'] },
+] };
+BUILDINGS.tower_stars = { name: "The Astrologer's Tower", sign: '', roof: '#1d4ed8', stone: true, npcs: {}, floors: [
+  { name: 'the still-room', npcs: { N: 'apprentice' }, layout: ['#########', '###SSS###', '##.....##', '#p.....p#', '#.NT...<#', '#b......#', '##x...b##', '###...###', '####D####'] },
+  { name: 'the library', npcs: {}, layout: ['#########', '###SSS###', '##S...S##', '#S.....S#', '#<..T..>#', '#S.....S#', '##S...S##', '###.r.###', '#########'] },
+  { name: 'the observatory', npcs: { O: 'astrologer' }, layout: ['#########', '###.g.###', '##.....##', '#S.....S#', '#>..O...#', '#..rrr..#', '##.rrr.##', '###...###', '#########'] },
+] };
+BUILDINGS.tower_gaol = { name: 'The Gaol Tower', sign: '', roof: '#334155', stone: true, npcs: {}, floors: [
+  { name: "the gaoler's room", npcs: { J: 'gaoler' }, layout: ['#########', '###R.R###', '##.....##', '#..T....#', '#.J....<#', '#.......#', '##b...c##', '###...###', '####D####'] },
+  { name: 'the cells', npcs: { P: 'prisoner' }, layout: ['#########', '###.X.###', '##.PX..##', '#XXXX...#', '#<.....>#', '#XXXX...#', '##.wX..##', '###.X.###', '#########'] },
+  { name: 'the high cell', npcs: {}, layout: ['#########', '###B..###', '##.....##', '#.....T.#', '#>......#', '#.w.....#', '##....c##', '###...###', '#########'] },
+] };
+BUILDINGS.tower_old = { name: 'The Old Tower', sign: '', roof: '#57534e', stone: true, npcs: {}, floors: [
+  { name: 'the store', npcs: {}, layout: ['#########', '###bbx###', '##x....##', '#b......#', '#x.....<#', '#.......#', '##b...x##', '###...###', '####D####'] },
+  { name: 'the forgotten floor', npcs: {}, layout: ['#########', '###w.w###', '##.x...##', '#w.....w#', '#<..T..>#', '#......w#', '##w...b##', '###.w.###', '#########'] },
+  { name: 'the garret', npcs: {}, layout: ['#########', '###wkw###', '##.....##', '#w.....x#', '#>......#', '#.....w.#', '##x...w##', '###...###', '#########'] },
+] };
+for (const id of ['keep', 'throne', 'tower_watch', 'tower_stars', 'tower_gaol', 'tower_old']) { BUILDINGS[id].layout = BUILDINGS[id].floors[0].layout; BUILDINGS[id].npcs = BUILDINGS[id].floors[0].npcs; }
+const TOWER_AT = { nw: 'tower_watch', ne: 'tower_stars', sw: 'tower_gaol', se: 'tower_old' };
+const floorDef = (house, level) => { const def = BUILDINGS[house.id]; return def.floors ? def.floors[level] || def.floors[0] : def; };
+const capFirst = (t) => t[0].toUpperCase() + t.slice(1);
+const interiorName = () => { const fl = BUILDINGS[interior.house.id].floors; return fl ? `${interior.house.name} · ${capFirst(floorDef(interior.house, interior.level || 0).name)}` : interior.house.name; };
 BUILDINGS.cottage = { ...BUILDINGS.home, name: "Bram's Cottage", npcs: { H: 'bram' }, roof: '#9a3412' };
 BUILDINGS.council = { name: 'The Council Hall', sign: 'COUNCIL', roof: '#166534', npcs: { G: 'speaker' }, layout: [
   '################', '#p....rrrr....p#', '#.....rGrr.....#', '#.....rrrr.....#', '#..TTT....TTT..#',
@@ -1596,6 +1682,11 @@ const FURNITURE = {
   b: { sprite: 'barrel', name: 'Barrel', solid: true }, R: { sprite: 'rack', name: 'Weapon rack', solid: true },
   c: { sprite: 'chest', name: 'Chest', solid: true }, f: { sprite: 'fire', name: 'Fireplace', solid: true },
   p: { sprite: 'plant', name: 'Potted plant', solid: true }, r: { sprite: 'rug', name: 'Rug', solid: false },
+  L: { sprite: 'scope', name: 'Spyglass on the parapet', solid: true, use: 'lookout' }, F: { sprite: 'banner', name: 'Banner', solid: true },
+  X: { sprite: 'bars', name: 'Cell bars', solid: true, use: 'bars' }, w: { sprite: 'web', name: 'Cobwebs', solid: false },
+  z: { sprite: 'brazier', name: 'Brazier', solid: true }, d: { sprite: 'dummy', name: 'Training dummy', solid: true },
+  g: { sprite: 'globe', name: 'Star-globe', solid: true, use: 'stars' }, x: { sprite: 'crate', name: 'Crate', solid: true },
+  K: { sprite: 'chest', name: "The Castellan's strongbox", solid: true, use: 'strongbox' }, k: { sprite: 'chest', name: 'A forgotten chest', solid: true, use: 'oldchest' },
 };
 
 // ---------- messages ----------
@@ -2657,10 +2748,22 @@ function townAt(i, j) {
   for (const [lx, ly, w, h, id] of plan) {
     town.houses.push({ x: x0 + lx, y: y0 + ly, w, h, id, doorX: x0 + lx + Math.floor(w / 2), doorY: y0 + ly + h - 1, town: k, ...BUILDINGS[id], ...(roof && !['throne', 'royal'].includes(id) ? { roof: roof[(lx + ly) % roof.length] } : {}) });
   }
+  if (size === 'castle' || grand) addTowers(town);
   towns.set(k, town);
   town.harbour = harbourOf(town);
   addTradeShop(town);
   return town;
+}
+// The corner towers of a castle wall can be entered: each is a house two tiles square
+// whose door is its inner corner. Castle Aurum's stand on the inner ring.
+function addTowers(town) {
+  const W = tw(town), H = th(town), g = town.size === 'grand';
+  const a = g ? 8 : 1, b = g ? 7 : 1, c = g ? W - 9 : W - 2, d = g ? H - 8 : H - 2;
+  const spots = { nw: [a, b, 1, 1, 0, 1], ne: [c - 1, b, 0, 1, 0, 1], sw: [a, d - 1, 1, 0, 1, 0], se: [c - 1, d - 1, 0, 0, -1, 0] };
+  for (const [corner, [lx, ly, ox, oy, dx, dy]] of Object.entries(spots)) {
+    const id = TOWER_AT[corner], x = town.x0 + lx, y = town.y0 + ly;
+    town.houses.push({ x, y, w: 2, h: 2, id, doorX: x + ox, doorY: y + oy, out: { x: x + ox + dx, y: y + oy + dy }, town: town.key, tower: corner, ...BUILDINGS[id] });
+  }
 }
 // A town near the open sea is a port: find the closest sea, run a pier out into it.
 function harbourOf(town) {
@@ -3890,48 +3993,267 @@ function returnHome() {
   refreshTownContext();
 }
 
-function createInterior(house) {
+function createInterior(house, level = 0, arrive = null) {
   scene = 'house';
-  const def = BUILDINGS[house.id];
-  bounded = { w: 16, h: 10, tiles: Array.from({ length: 10 }, () => new Array(16).fill(TILE.WALL)) };
-  decor = Array.from({ length: 10 }, () => new Array(16).fill(null));
+  const def = floorDef(house, level), W = def.layout[0].length, H = def.layout.length;
+  bounded = { w: W, h: H, tiles: Array.from({ length: H }, () => new Array(W).fill(TILE.WALL)) };
+  decor = Array.from({ length: H }, () => new Array(W).fill(null));
   ground = null; shops = []; monsters = []; potions = []; golds = []; npcs = []; exit = null;
+  let stair = null;
   def.layout.forEach((row, y) => [...row].forEach((ch, x) => {
     if (ch === '#') return;
     bounded.tiles[y][x] = TILE.FLOOR;
-    if (ch === 'D') { bounded.tiles[y][x] = TILE.DOOR; player.x = x; player.y = y - 1; return; }
+    if (ch === 'D') { bounded.tiles[y][x] = TILE.DOOR; if (!arrive) { player.x = x; player.y = y - 1; } return; }
+    if (ch === '<' || ch === '>') { bounded.tiles[y][x] = ch === '<' ? TILE.UP : TILE.DOWN; if (arrive === bounded.tiles[y][x]) stair = { x, y }; return; }
     if (FURNITURE[ch]) {
+      if (FURNITURE[ch].use === 'oldchest' && isLooted(key(house.x, house.y))) return;   // taken already
       decor[y][x] = FURNITURE[ch];
       bounded.tiles[y][x] = ch === 'B' ? TILE.BED : FURNITURE[ch].solid ? TILE.FURNITURE : TILE.FLOOR;
     } else if (def.npcs[ch]) {
       npcs.push({ x, y, type: INDOOR_NPCS[def.npcs[ch]], fixed: true, pause: 0 });
     }
   }));
+  if (stair) {   // step off the stair towards the middle of the room
+    const spot = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: stair.x + dx, y: stair.y + dy })).filter((p) => getTile(p.x, p.y) === TILE.FLOOR && !getNpcAt(p.x, p.y))
+      .sort((p, q) => Math.abs(p.x - W / 2) + Math.abs(p.y - H / 2) - Math.abs(q.x - W / 2) - Math.abs(q.y - H / 2))[0] || stair;
+    player.x = spot.x; player.y = spot.y;
+  }
+  settle(player);
+  if (level) return;
   if (house.id === 'throne' && story().phase === 'done' && !npcs.some((n) => n.x === 9 && n.y === 2)) { npcs.push({ x: 9, y: 2, type: INDOOR_NPCS.edric, fixed: true, pause: 0 }); npcs.push({ x: 12, y: 3, type: INDOOR_NPCS.halvard, fixed: true, pause: 0 }); }
 }
 
 function enterBuilding(house) {
-  interior = { house };
+  interior = { house, level: 0 };
   createInterior(house);
   afterSceneChange();
   sfx.play('door');
-  log(`You enter ${house.name}.`);
+  const fl = BUILDINGS[house.id].floors;
+  log(fl ? `You enter ${house.name}: ${floorDef(house, 0).name}. Stairs lead ${BUILDINGS[house.id].cellar ? 'up and down' : 'up'}.` : `You enter ${house.name}.`);
+  if (fl) tip('castle', 'A castle is more than a town with walls. The keep has several floors, and each of the four corner towers can be climbed. Walk into a stair to take it.');
 }
 function leaveBuilding() {
   const h = interior.house;
   interior = null;
   createWorld();
-  player.x = h.doorX; player.y = h.doorY + 1; player.wx = player.x; player.wy = player.y; settle(player);
+  player.x = h.out ? h.out.x : h.doorX; player.y = h.out ? h.out.y : h.doorY + 1; player.wx = player.x; player.wy = player.y; settle(player);
   refreshTownContext();   // the house list must follow the hero's outdoor position, not the room's
   for (const n of npcs) if (n.x === player.x && n.y === player.y) { n.y += 1; }
   afterSceneChange();
-  log('You step back out onto the square.');
+  log(h.tower || BUILDINGS[h.id].stone ? 'You step back out into the bailey.' : 'You step back out onto the square.');
+}
+// ---------- inside a castle ----------
+const isLooted = (k) => player.meta.looted.includes(k);
+const houseTown = (house) => townAt(...house.town.split(',').map(Number));
+const castleDanger = (town) => Math.max(Math.abs(town.i), Math.abs(town.j));
+const cellarClear = (house) => isLooted(key(house.x, house.y));
+const cellarAsked = new Set(), cellarThanked = new Set();
+// Up or down a stair. Below the Great Hall of a keep lies the undercroft, which is a fight.
+function useStairs(t) {
+  const house = interior.house, fl = BUILDINGS[house.id].floors, to = (interior.level || 0) + (t === TILE.UP ? 1 : -1);
+  if (to < 0) { if (BUILDINGS[house.id].cellar) enterCellar(house); return; }
+  if (!fl || !fl[to]) return;
+  interior.level = to; bubble = null;
+  createInterior(house, to, t === TILE.UP ? TILE.DOWN : TILE.UP);
+  afterSceneChange(); sfx.play('stairs');
+  const top = to === fl.length - 1;
+  log(`You ${t === TILE.UP ? 'climb' : 'go down'} to ${fl[to].name}${fl[to].open ? ', under the open sky' : ''}${top && !fl[to].open ? ', the top of the tower' : ''}.`);
+  endTurn(false);
+}
+function sayNpc(n, line, ms = 5000) { log(`${n.type.name}: ${line}`); bubble = { x: n.x, y: n.y, text: line, until: performance.now() + ms }; }
+// What the watch can see from the wall: the nearest orc camp and the nearest dungeon.
+function watchReport(town) {
+  const camp = campsNear(town.cx, town.cy, 1)[0], site = nearbySites(town.cx, town.cy, 1).sort((p, q) => Math.hypot(p.x - town.cx, p.y - town.cy) - Math.hypot(q.x - town.cx, q.y - town.cy))[0];
+  const far = (o) => `${Math.round(Math.hypot(o.x - town.cx, o.y - town.cy))} paces ${compassWord(o.x - town.cx, o.y - town.cy).toLowerCase()}`;
+  const parts = [];
+  if (camp) parts.push(`Orc fires ${far(camp)}: ${camp.name}, ${camp.strength} strong by my count`);
+  if (site) parts.push(`${capFirst(site.name)} lies ${far(site)}, and nothing good comes out of it`);
+  return parts.length ? `"${parts.join('. ')}."` : '"Nothing on the roads but dust, and no fires in the hills. Enjoy it. It will not last."';
+}
+function castleLookout() {
+  const town = houseTown(interior.house), unknown = nearbyPlaces(town.cx, town.cy, 2).filter((pl) => !discovered(pl));
+  for (const pl of unknown) player.meta.places.push(pl.key);
+  mapCache.ox = null; unlock('highground'); sfx.play('quest');
+  const near = nearbyTowns(town.cx, town.cy, 1).filter((t) => t.key !== town.key).sort((p, q) => Math.hypot(p.cx - town.cx, p.cy - town.cy) - Math.hypot(q.cx - town.cx, q.cy - town.cy))[0];
+  log(`You put your eye to the glass. The whole country lies under you${near ? `, with the roofs of ${near.name} to the ${compassWord(near.cx - town.cx, near.cy - town.cy).toLowerCase()}` : ''}. ${unknown.length ? `${unknown.length} place${unknown.length === 1 ? '' : 's'} marked on your map (M).` : 'Nothing you had not already found.'}`, 'good');
+  if (unknown.length) saveProgress('progress');
+}
+// A spot in the country round a castle where a thief might have buried his takings.
+function stashSpot(town) {
+  for (let k = 0; k < 300; k++) {
+    const a = cellRand(town.i, town.j, 900 + k) * Math.PI * 2, d = 36 + cellRand(town.i, town.j, 1300 + k) * 50;
+    const x = Math.round(town.cx + Math.cos(a) * d), y = Math.round(town.cy + Math.sin(a) * d);
+    if (!isLand(x, y) || charts().includes(key(x, y))) continue;
+    const g = terrainAt(x, y); if (g !== GROUND.GRASS && g !== GROUND.SAND && g !== GROUND.FOREST) continue;
+    if (nearbyTowns(x, y, 1).some((t) => x >= t.x0 - 4 && x < t.x0 + tw(t) + 4 && y >= t.y0 - 4 && y < t.y0 + th(t) + 4)) continue;
+    return { x, y };
+  }
+  return null;
+}
+function prisonerTalk() {
+  const house = interior.house, town = houseTown(house), k = key(house.x, house.y), cost = 120 + 30 * castleDanger(town);
+  if (isLooted(k)) { showScene([{ who: 'The prisoner', sprite: 'villager', text: '"I told you where it is. Dig, do not stand here. And if there is a ring in the bag with a blue stone, that one was my mother\'s. Honestly it was."' }]); return; }
+  showScene([{ who: 'The prisoner', sprite: 'villager', text: `A thin man leans on the bars. "They hang me at the next assize, and what I buried will not buy me a rope. But it would buy my sister a cow. ${cost} gold to the gaoler in her name, and I will tell you where the bag is. It is worth three times that."`, choices: [
+    { label: `Pay ${cost} gold for where he buried it`, disabled: player.gold < cost || charts().length >= 3, run: () => {
+      const spot = stashSpot(town);
+      if (!spot) return '"Under the... no. No, that was the other castle." He has forgotten, or says he has. You keep your gold.';
+      player.gold -= cost; charts().push(key(spot.x, spot.y)); player.meta.looted.push(k); mapCache.ox = null; sfx.play('quest'); updateStats(); saveProgress('progress');
+      return `"${Math.round(Math.hypot(spot.x - town.cx, spot.y - town.cy))} paces ${compassWord(spot.x - town.cx, spot.y - town.cy).toLowerCase()} of the gate, where nobody has any reason to dig." It is marked with a red ✕ on your map (M). Walk onto the spot to dig it up.`; } },
+    { label: charts().length >= 3 ? 'You carry three charts already' : 'Tell him you will think about it', run: () => '"Think quickly. The assize is on the first of the month, and I am not."' },
+  ] }], () => { updateStats(); draw(); });
+}
+// Words with the people of a castle. Returns true when the talk is dealt with here.
+function castleTalk(n) {
+  const c = n.type.castle; if (!c || !interior) return false;
+  const house = interior.house, town = houseTown(house), danger = castleDanger(town);
+  const bless = player.meta.blessing && player.meta.blessing.turns > 0 ? ' It replaces the blessing you carry.' : '';
+  if (c === 'chat') { n.tell = (n.tell || 0) + 1; sayNpc(n, n.type.lines[(n.tell - 1) % n.type.lines.length], 6000); return true; }
+  if (c === 'sentry') { sayNpc(n, watchReport(town).replace(/^"|"$/g, ''), 7000); return true; }
+  if (c === 'prisoner') { prisonerTalk(); return true; }
+  if (c === 'sergeant') {
+    const cost = 40 + 15 * danger;
+    showScene([{ who: 'The sergeant-at-arms', sprite: 'guard', text: `"You hold that like a shovel. An hour in the yard with my lads and you will hold it like a ${player.cls === 'mage' ? 'staff that means it' : 'weapon'}. ${cost} gold, for the garrison's ale."`, choices: [
+      { label: `Drill with the garrison (${cost} gold): +2 attack for 300 turns`, disabled: player.gold < cost, run: () => { player.gold -= cost; player.meta.blessing = { name: 'garrison drill', atk: 2, def: 0, turns: 300 }; sfx.play('quest'); return `An hour of being shouted at. Your arms ache and your feet are finally in the right place: +2 attack for 300 turns.${bless}`; } },
+      { label: 'Ask what the watch has seen', run: () => watchReport(town) },
+      { label: 'Another day', run: () => '"Suit yourself. The things below do not skip their drill."' },
+    ] }], () => { updateStats(); draw(); });
+    return true;
+  }
+  if (c === 'astrologer') { starReading(); return true; }
+  return false;
+}
+function starReading() {
+  const town = houseTown(interior.house), cost = 60 + 20 * castleDanger(town);
+  const bless = player.meta.blessing && player.meta.blessing.turns > 0 ? ' It replaces the blessing you carry.' : '';
+  showScene([{ who: 'The astrologer', sprite: 'elder', text: `"Born under the Lantern, with the Wolf rising. That explains a great deal. For ${cost} gold I will cast your chart properly, and tell you which hour to keep your guard up."`, choices: [
+    { label: `Have your stars read (${cost} gold): +2 defence for 400 turns`, disabled: player.gold < cost, run: () => { player.gold -= cost; player.meta.blessing = { name: 'a good star', atk: 0, def: 2, turns: 400 }; sfx.play('quest'); return `He draws for a long time and frowns at the result. "Beware the third blow. It is always the third." You find you are watching for it: +2 defence for 400 turns.${bless}`; } },
+    { label: 'Ask what the stars say of the land', run: () => { const h = lairHint(town.cx, town.cy); if (h) { revealLair(h.id, 'The astrologer points:'); return `"There is a dark house in the sky tonight, and it stands over ${h.text}. I would not go. You will, of course."`; } return '"The sky is quiet. It is the ground you should worry about."'; } },
+    { label: 'Leave him to his charts', run: () => '"Mind the stairs. The stars did warn me about the stairs."' },
+  ] }], () => { updateStats(); draw(); });
+}
+// The Castellan asks for the undercroft to be cleared, once, and gives thanks, once.
+function castellanTalk(n) {
+  if (n.type !== INDOOR_NPCS.lord || !interior || !BUILDINGS[interior.house.id].cellar) return false;
+  const house = interior.house, k = key(house.x, house.y);
+  if (!cellarClear(house) && !cellarAsked.has(k)) {
+    cellarAsked.add(k);
+    sayNpc(n, 'Something has bred in my undercroft. Rats the size of hounds, and worse behind them. The stair is in the corner behind me. Clear it, and the strongbox in my solar is yours, and a bed whenever you pass.', 9000);
+    return true;
+  }
+  if (cellarClear(house) && !cellarThanked.has(k) && !isLooted(key(house.doorX, house.doorY))) {
+    cellarThanked.add(k);
+    sayNpc(n, 'My cellarer has stopped screaming, so I take it the thing is done. The strongbox is in the solar, up the stair. It is open. The bed beside it is yours when you want it.', 8000);
+    return true;
+  }
+  return false;
+}
+function castleFurniture(d) {
+  const house = interior.house, town = houseTown(house), danger = castleDanger(town);
+  if (d.use === 'lookout') { castleLookout(); return true; }
+  if (d.use === 'stars') { starReading(); return true; }
+  if (d.use === 'bars') { if (npcs.some((n) => n.type.castle === 'prisoner')) prisonerTalk(); else log('Cold iron, a hand thick. The cell beyond is empty.'); return true; }
+  if (d.use === 'strongbox') {
+    const k = key(house.doorX, house.doorY);
+    if (!cellarClear(house)) { log('The strongbox is locked, and the Castellan carries the key. He has a job for whoever wants it opened: ask him in the Great Hall.'); return true; }
+    if (isLooted(k)) { log('The strongbox is empty. You emptied it.'); return true; }
+    const gold = Math.round((150 + danger * 60 + rnd(60)) * goldMult());
+    player.meta.looted.push(k); player.gold += gold; floatText(player.x, player.y, `+${gold}g`, '#f5c542'); sfx.play('win');
+    burst(player.x, player.y, '#ffd86b', 24, 110, { glow: true, gravity: 120, life: 800, rise: 140 });
+    log(`The lid is unlocked, as promised. ${gold} gold in sealed bags, with the Castellan's thanks.`, 'good');
+    updateStats(); saveProgress('progress'); return true;
+  }
+  if (d.use === 'oldchest') {
+    const k = key(house.x, house.y);
+    const gold = Math.round((80 + danger * 40 + rnd(60)) * goldMult());
+    player.meta.looted.push(k); player.gold += gold; floatText(player.x, player.y, `+${gold}g`, '#f5c542'); sfx.play('chest');
+    burst(player.x, player.y, '#ffd86b', 18, 90, { glow: true, gravity: 120, life: 700, rise: 120 });
+    for (let y = 0; y < bounded.h; y++) for (let x = 0; x < bounded.w; x++) if (decor[y][x] === d) { decor[y][x] = null; bounded.tiles[y][x] = TILE.FLOOR; }
+    bgDirty = true;
+    log(`Under the dust sheet, a chest nobody has opened in a generation: ${gold} gold in coin with a dead king's head on it. Somebody's pay, never collected.`, 'good');
+    updateStats(); saveProgress('progress'); return true;
+  }
+  const stone = {
+    shelf: house.id === 'tower_stars' ? 'Star charts, herbals, and a book chained to the shelf that hums when you come near.' : house.id === 'throne' ? "The crown's letters, three hundred years of them. Most are about money." : 'Ledgers, rolled maps and a jar of sealing wax.',
+    table: house.id === 'tower_gaol' ? 'A tally scratched into the wood, in fives. It stops partway through a five.' : 'A heavy oak table, scarred by generations of elbows and at least one axe.',
+    rack: 'Spears, bills and a row of dented helms. The garrison keeps them oiled.',
+    chest: house.id === 'tower_gaol' ? "A nobleman's travelling chest, empty but for one glove." : 'Locked, and it is not yours.',
+    barrel: 'Salt pork, by the smell. A castle expects to be besieged.', crate: 'Nailed shut and stencilled with a quartermaster\'s mark.',
+    fire: 'A hearth you could roast an ox in. Somebody has.', plant: 'A bay tree in a tub, clipped into a ball.',
+    banner: `The colours of ${town.name}, snapping in the wind.`, brazier: 'A signal brazier, laid ready with pitch and dry wood.',
+    dummy: 'A straw man on a post. You hit it. It does not mind.',
+  };
+  if (BUILDINGS[house.id].stone && stone[d.sprite]) { log(stone[d.sprite]); return true; }
+  return false;
+}
+// ---------- the undercroft of a keep ----------
+// Vaulted cellars under the Great Hall: a passage with storerooms off it and the old
+// cistern at the far end. Vermin have got in, and the Castellan pays to have them out.
+function cellarDungeon(house, town) {
+  const def = { kind: 'cellar', cellar: { town: town.key, id: house.id, house }, name: `undercroft of ${town.name}`, floors: 1, pool: byName('Rat', 'Spider', 'Bat', 'Slime'), gold: 1.2, potions: 1, view: 7, loot: 0.15, treasure: 0, danger: castleDanger(town), xp: 1.2, theme: 'stone' };
+  def.done = cellarClear(house);
+  return def;
+}
+function cellarChunk(cx, cy) {
+  const tiles = new Uint8Array(CHUNK * CHUNK).fill(TILE.WALL), rooms = [];
+  if (cx === 0 && cy === 0) {
+    const set = (x, y, t) => { if (x >= 0 && y >= 0 && x < CHUNK && y < CHUNK) tiles[y * CHUNK + x] = t; };
+    const box = (x0, y0, x1, y1) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) set(x, y, TILE.FLOOR); rooms.push({ x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1, cx: (x0 + x1) >> 1, cy: (y0 + y1) >> 1 }); };
+    const rand = seededRandom(hash32(floorSeed, 78)), fresh = !dungeonDef.done;
+    box(13, 24, 18, 27);                                      // the foot of the stair
+    for (let y = 8; y <= 23; y++) { set(15, y, TILE.FLOOR); set(16, y, TILE.FLOOR); }   // the passage
+    for (const [x0, x1, door] of [[5, 12, 13], [19, 26, 17]]) for (const y0 of [10, 17]) {
+      box(x0, y0, x1, y0 + 4);
+      set(door, y0 + 2, TILE.FLOOR); set(door + 1, y0 + 2, TILE.FLOOR);
+      for (const px of [x0 + 2, x1 - 2]) set(px, y0 + 1, TILE.WALL);               // pillars
+      if (fresh && rand() < 0.6) set(door < 15 ? x0 : x1, y0 + 4, TILE.CHEST);
+    }
+    box(9, 3, 22, 7);                                         // the cistern
+    for (const px of [11, 20]) for (const py of [4, 6]) set(px, py, TILE.WALL);
+  }
+  return { cx, cy, tiles, seen: new Uint8Array(CHUNK * CHUNK), rooms, vaults: [], populated: true };
+}
+function populateCellar(R) {
+  if (dungeonDef.done) return;
+  const spots = [], pool = dungeonDef.pool, n = Math.min(12, 6 + dungeonDef.danger);
+  for (let y = 3; y <= 22; y++) for (let x = 3; x <= 28; x++) if (getTile(x, y) === TILE.FLOOR && !(y <= 7 && Math.abs(x - 15.5) < 3)) spots.push({ x, y });
+  for (let i = 0; i < n && spots.length; i++) { const c = spots.splice(Math.floor(R() * spots.length), 1)[0]; addMonster(pool[Math.floor(R() * pool.length)], c.x, c.y, { awake: R() < 0.25 }); }
+  const rat = MONSTER_TYPES.find((t) => t.name === 'Rat'), hp = Math.round((rat.hp + 10) * (2.2 + dungeonDef.danger * 0.4));
+  addMonster(rat, 15, 5, { id: 'boss', boss: true, name: 'Old Gnawbone, king of the cellar rats', hp, atk: rat.atk + 2 + dungeonDef.danger, awake: false });
+}
+function enterCellar(house) {
+  const town = houseTown(house), def = cellarDungeon(house, town);
+  if (!def.done && !confirmEntry(def, 'u:' + town.key)) { draw(); return; }
+  player.wx = house.doorX; player.wy = house.doorY + 1; homeTown = town.key;
+  dungeonDef = def; floor = 1; mp.instance = null;
+  createDungeon(); afterSceneChange(); sfx.play('stairs');
+  if (def.done) log('The undercroft is quiet now. Barrels, dust, and the smell of what you killed here. The stair behind you leads back up.');
+  else { log('You go down into the undercroft. Low vaults, wet stone, and a great many small eyes. Kill everything that moves; the stair behind you leads back up.', 'bad'); tip('undercroft', 'Clear every creature from the undercroft and the Castellan opens his strongbox to you. The vermin have a king, in the old cistern at the far end.'); }
+  track('cellar_enter', { town: town.key });
+}
+function cellarCleared() {
+  const def = dungeonDef; if (!def || !def.cellar || def.done) return;
+  def.done = true;
+  const house = def.cellar.house, xp = 20 + def.danger * 10;
+  if (!cellarClear(house)) player.meta.looted.push(key(house.x, house.y));
+  gainXp(xp); unlock('ratcatcher'); sfx.play('win'); shakeScreen(4, 400);
+  toast = { text: 'The undercroft is clear!', until: performance.now() + 3500 };
+  log(`The last of the vermin is dead: ${xp} XP. Climb back up by the stair and tell the Castellan. His strongbox is yours.`, 'good');
+  track('cellar_cleared', { town: def.cellar.town }); saveProgress('progress');
+}
+function leaveCellar(def) {
+  const town = townAt(...def.cellar.town.split(',').map(Number)), house = town.houses.find((h) => h.id === def.cellar.id) || def.cellar.house;
+  sfx.play('stairs'); floor = TOWN; dungeonDef = null; createWorld();
+  player.x = house.doorX; player.y = house.doorY + 1; player.wx = player.x; player.wy = player.y; settle(player); refreshTownContext();
+  interior = { house, level: 0 }; createInterior(house, 0, TILE.DOWN); afterSceneChange();
+  log('You climb the stair back up into the Great Hall.');
+  saveProgress('progress');
 }
 
 function talk(n) {
   if (n.type.name === 'King Aldric') { unlock('royal'); if (storyKing()) return; }
   if (edricTalk(n)) return;
   if (realmQuestTalk(n)) return;
+  if (castleTalk(n) || castellanTalk(n)) return;
   if (n.type.action && SERVICE_SHOPS.has(n.type.action)) { log(`${n.type.name}: ${n.type.lines[rnd(n.type.lines.length)]}`); openShop(n.type.action); return; }
   const rumour = !n.type.notable && !n.type.leader && !n.type.guard && !n.type.action && Math.random() < 0.45 ? storyRumour() : null;
   const line = rumour || (n.type.notable ? n.type.lines[n.type.tell++ % n.type.lines.length] : n.type.lines[rnd(n.type.lines.length)]);
@@ -3964,6 +4286,7 @@ function useFurniture(d) {
   if (d.sprite === 'counter' && tradeHere()) return openShop('trade');
   if (d.sprite === 'counter' && counters[id]) return openShop(counters[id]);
   if (d.sprite === 'counter' && id === 'inn') return openShop('inn');
+  if (castleFurniture(d)) return;
   const flavour = {
     shelf: id === 'herbs' ? 'Jars of dried roots and something that is still moving.' : 'Neatly labelled stock. Fenwick does not like browsing hands.',
     table: 'A sturdy table. Someone has carved a map of the first floor into it. It is wrong.',
@@ -4051,6 +4374,7 @@ function campCleared() {
 function generateChunk(cx, cy) {
   if (dungeonDef && dungeonDef.arena) return arenaChunk(cx, cy);
   if (dungeonDef && dungeonDef.camp) return campChunk(cx, cy);
+  if (dungeonDef && dungeonDef.cellar) return cellarChunk(cx, cy);
   const rand = seededRandom(hash32(floorSeed, cx, cy));
   const r = (n) => Math.floor(rand() * n);
   const tiles = new Uint8Array(CHUNK * CHUNK).fill(TILE.WALL);
@@ -4427,7 +4751,7 @@ function createDungeon() {
   mp.dead = new Set(); mp.graveyard = new Map();
   theme = pickTheme();
   { const roll = hash32(floorSeed, 99) % 100, gentle = floor === 1 && !(dungeonDef && dungeonDef.danger);
-    floorMod = !gentle && !(dungeonDef && (dungeonDef.arena || dungeonDef.camp)) && roll < 36 ? ['dark', 'swarming', 'treasure', 'cursed'][roll % 4] : null;
+    floorMod = !gentle && !(dungeonDef && (dungeonDef.arena || dungeonDef.camp || dungeonDef.cellar)) && roll < 36 ? ['dark', 'swarming', 'treasure', 'cursed'][roll % 4] : null;
     if (dungeonDef && dungeonDef.nextMod !== undefined) { floorMod = dungeonDef.nextMod; delete dungeonDef.nextMod; } }
   const R = seededRandom(hash32(floorSeed, 4242));
   const spawn = getChunk(0, 0);
@@ -4435,6 +4759,7 @@ function createDungeon() {
   wayoutWarned = -99; crackHits.clear(); usedSprings.clear(); usedRunes.clear(); restless = []; player.slip = false;
   { const room = spawn.rooms[0]; setTile(room.x, room.y, TILE.WAYOUT); monsters = monsters.filter((m) => !(m.x === room.x && m.y === room.y)); }
   if (dungeonDef && dungeonDef.arena) { exit = null; return; }
+  if (dungeonDef && dungeonDef.cellar) { exit = null; exit2 = null; populateCellar(R); return; }
   if (dungeonDef && dungeonDef.camp) {
     exit = null;
     const wc = dungeonDef.camp, inside = spawn.rooms[1], spots = [];
@@ -4900,6 +5225,78 @@ function drawDock(g, c, r) {
   g.fillStyle = '#5b3a1a'; g.fillRect(X + 2, Y + 4, 3, T - 8); g.fillRect(X + T - 5, Y + 4, 3, T - 8);
   g.fillStyle = '#3b2a1a'; g.fillRect(X + 1, Y + 2, 3, 6); g.fillRect(X + T - 4, Y + T - 8, 3, 6);   // mooring posts
 }
+// A stair inside a building: steps climbing to the light, or a well going down into the dark.
+function drawStairTile(g, X, Y, up) {
+  g.fillStyle = '#2a2f3a'; g.fillRect(X, Y, T, T);
+  for (let i = 0; i < 5; i++) {
+    const v = up ? 150 - i * 22 : 40 + i * 20;
+    g.fillStyle = `rgb(${v},${v + 4},${v + 14})`; g.fillRect(X + 2 + (up ? i * 2 : 0), Y + 2 + i * 6, T - 4 - (up ? i * 2 : (4 - i) * 2), 5);
+    g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(X + 2 + (up ? i * 2 : 0), Y + 6 + i * 6, T - 4 - (up ? i * 2 : (4 - i) * 2), 1);
+  }
+  g.fillStyle = up ? '#ffd86b' : '#9fd4ff'; g.beginPath();
+  if (up) { g.moveTo(X + T / 2, Y + 3); g.lineTo(X + T / 2 + 6, Y + 12); g.lineTo(X + T / 2 - 6, Y + 12); }
+  else { g.moveTo(X + T / 2, Y + T - 3); g.lineTo(X + T / 2 + 6, Y + T - 12); g.lineTo(X + T / 2 - 6, Y + T - 12); }
+  g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 1; g.stroke();
+}
+// A corner tower of a castle wall, seen from outside: a round drum of stone standing
+// higher than the wall, its top different for each tower, and a door on its inner side.
+function drawTower(g, h) {
+  const X = h.x * T - off.x, Y = h.y * T - off.y, W = 2 * T, rise = 20, top = Y - rise, seed = (h.x * 31 + h.y * 17) >>> 0;
+  const town = houseTown(h), royal = town && town.size === 'grand', accent = town && REALMS[town.realm] ? REALMS[town.realm].color : '#5fe17a';
+  g.fillStyle = 'rgba(0,0,0,0.28)'; g.beginPath(); g.ellipse(X + W / 2 + 10, Y + W - 4, W / 2 + 2, 12, 0, 0, Math.PI * 2); g.fill();
+  // the drum
+  g.fillStyle = royal ? '#8792aa' : '#7a8496'; g.beginPath(); g.moveTo(X + 3, top + 8); g.lineTo(X + 3, Y + W - 12); g.ellipse(X + W / 2, Y + W - 12, W / 2 - 3, 10, 0, Math.PI, 0, true); g.lineTo(X + W - 3, top + 8); g.closePath(); g.fill();
+  g.save(); g.clip();
+  for (let row = 0, y = top + 8; y < Y + W; row++, y += 8) for (let x = X - (row % 2 ? 8 : 0); x < X + W; x += 16) {
+    const n = noise(seed + x, y, 47); g.fillStyle = royal ? (n < 0.5 ? '#97a2b8' : '#8d98ae') : n < 0.33 ? '#8b95a6' : n < 0.66 ? '#818b9c' : '#939dae';
+    g.fillRect(x + 1, y + 1, 14, 6);
+  }
+  const rd = g.createLinearGradient(X, 0, X + W, 0); rd.addColorStop(0, 'rgba(255,255,255,0.16)'); rd.addColorStop(0.35, 'rgba(255,255,255,0)'); rd.addColorStop(0.7, 'rgba(0,0,0,0.08)'); rd.addColorStop(1, 'rgba(0,0,0,0.42)');
+  g.fillStyle = rd; g.fillRect(X, top, W, W + rise);
+  if (h.id === 'tower_old') { g.fillStyle = 'rgba(70,110,60,0.55)'; for (let k = 0; k < 9; k++) g.fillRect(X + 6 + Math.floor(noise(seed, k, 81) * (W - 16)), top + 14 + Math.floor(noise(seed, k, 83) * (W - 6)), 5 + (k % 3) * 3, 3); g.strokeStyle = 'rgba(20,20,30,0.6)'; g.lineWidth = 1; g.beginPath(); g.moveTo(X + 40, top + 12); g.lineTo(X + 36, top + 26); g.lineTo(X + 42, top + 38); g.lineTo(X + 38, top + 50); g.stroke(); }
+  g.restore();
+  // arrow slits
+  g.fillStyle = '#161a24'; for (const sx of [X + 16, X + W - 22]) { g.fillRect(sx, top + 26, 4, 14); g.fillRect(sx - 2, top + 31, 8, 3); }
+  if (h.id === 'tower_gaol') { g.fillStyle = '#161a24'; g.fillRect(X + W / 2 - 6, top + 44, 12, 10); g.fillStyle = '#9aa3b2'; for (let k = 0; k < 3; k++) g.fillRect(X + W / 2 - 4 + k * 4, top + 44, 1, 10); }
+  if (h.id === 'tower_stars') { g.fillStyle = '#161a24'; g.beginPath(); g.arc(X + W / 2, top + 48, 6, 0, Math.PI * 2); g.fill(); g.fillStyle = '#ffd86b'; g.fillRect(X + W / 2 - 3, top + 45, 6, 6); }
+  // the top: a cone of slate, or open battlements for the watch
+  const cone = (col, hgt) => {
+    g.fillStyle = shade(col, -0.35); g.beginPath(); g.ellipse(X + W / 2, top + 9, W / 2 + 2, 8, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = col; g.beginPath(); g.moveTo(X - 2, top + 8); g.lineTo(X + W / 2, top - hgt); g.lineTo(X + W + 2, top + 8); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.16)'; g.beginPath(); g.moveTo(X - 2, top + 8); g.lineTo(X + W / 2, top - hgt); g.lineTo(X + W / 2 - 8, top + 8); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.moveTo(X + W + 2, top + 8); g.lineTo(X + W / 2, top - hgt); g.lineTo(X + W / 2 + 14, top + 8); g.closePath(); g.fill();
+  };
+  if (h.id === 'tower_watch') {
+    g.fillStyle = royal ? '#a9b4c9' : '#9aa4b5'; g.beginPath(); g.ellipse(X + W / 2, top + 8, W / 2, 9, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#5f6878'; g.beginPath(); g.ellipse(X + W / 2, top + 8, W / 2 - 7, 5, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = royal ? '#d6bd62' : '#aab4c5'; for (let k = 0; k < 6; k++) g.fillRect(X + 1 + k * 11, top + 4 - (k === 0 || k === 5 ? -2 : k === 1 || k === 4 ? 1 : 3) + 6, 7, 8);
+    g.fillStyle = '#3b2a1a'; g.fillRect(X + W / 2 - 4, top + 2, 8, 5); g.fillStyle = '#ff9f43'; g.fillRect(X + W / 2 - 3, top - 4, 6, 6); g.fillStyle = '#ffe08a'; g.fillRect(X + W / 2 - 1, top - 6, 3, 5);   // the signal brazier
+  } else if (h.id === 'tower_stars') { cone('#2c4fa3', 30); g.fillStyle = '#ffd86b'; g.fillRect(X + W / 2 - 1, top - 38, 2, 9); g.fillRect(X + W / 2 - 4, top - 35, 8, 2); g.fillRect(X + W / 2 - 14, top - 8, 3, 3); g.fillRect(X + W / 2 + 8, top - 2, 2, 2); g.fillRect(X + W / 2 - 4, top - 18, 2, 2); }
+  else if (h.id === 'tower_gaol') cone('#3d4656', 22);
+  else {   // the old tower has lost half its roof
+    cone('#6b5a4e', 20);
+    g.fillStyle = '#20242e'; g.beginPath(); g.moveTo(X + W / 2 + 4, top - 12); g.lineTo(X + W / 2 + 20, top + 6); g.lineTo(X + W / 2 + 6, top + 6); g.closePath(); g.fill();
+    g.fillStyle = '#5b3a1a'; g.fillRect(X + W / 2 + 7, top - 4, 2, 10); g.fillRect(X + W / 2 + 13, top + 1, 2, 5);
+  }
+  // a pennant in the realm's colour
+  if (h.id !== 'tower_old') { const fx = h.id === 'tower_watch' ? X + W - 8 : X + W / 2, fy = h.id === 'tower_watch' ? top - 14 : top - (h.id === 'tower_stars' ? 46 : 34); g.fillStyle = '#3b2a1a'; g.fillRect(fx, fy, 2, 14); g.fillStyle = accent; g.beginPath(); g.moveTo(fx + 2, fy); g.lineTo(fx + 15, fy + 4); g.lineTo(fx + 2, fy + 8); g.closePath(); g.fill(); }
+  // the door, on the tile that faces the bailey
+  const dX = h.doorX * T - off.x, dY = h.doorY * T - off.y;
+  if (h.out.y !== h.doorY) {   // facing south: an arched door at the foot of the drum
+    g.fillStyle = '#20242e'; g.beginPath(); g.roundRect(dX + 5, dY + 2, 22, 30, [11, 11, 0, 0]); g.fill();
+    g.fillStyle = '#5b3a1a'; g.beginPath(); g.roundRect(dX + 8, dY + 5, 16, 27, [8, 8, 0, 0]); g.fill();
+    g.fillStyle = '#3b2a1a'; g.fillRect(dX + 15, dY + 5, 2, 27); g.fillStyle = '#9aa3b2'; g.fillRect(dX + 8, dY + 13, 16, 2); g.fillRect(dX + 8, dY + 24, 16, 2);
+    g.fillStyle = '#ffd86b'; g.fillRect(dX + 19, dY + 18, 2, 3);
+  } else {   // facing along the wall: a doorway in the flank, with a step and a lantern
+    const right = h.out.x > h.doorX, ex = right ? dX + T - 9 : dX;
+    g.fillStyle = '#20242e'; g.beginPath(); g.roundRect(ex - 1, dY + 2, 11, 28, [5, 5, 0, 0]); g.fill();
+    g.fillStyle = '#5b3a1a'; g.beginPath(); g.roundRect(ex + 1, dY + 5, 7, 25, [3, 3, 0, 0]); g.fill();
+    g.fillStyle = '#9aa3b2'; g.fillRect(ex + 1, dY + 12, 7, 2); g.fillRect(ex + 1, dY + 22, 7, 2);
+    g.fillStyle = '#6b7280'; g.fillRect(right ? dX + T - 1 : dX - 9, dY + 26, 10, 5); g.fillStyle = 'rgba(255,255,255,0.2)'; g.fillRect(right ? dX + T - 1 : dX - 9, dY + 26, 10, 1);
+    g.fillStyle = '#3b2a1a'; g.fillRect(ex + (right ? 8 : -1), dY - 2, 2, 4); g.fillStyle = '#ffb347'; g.fillRect(ex + (right ? 6 : -3), dY + 1, 6, 5);
+  }
+}
 function drawRampart(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 29);
   const town = scene === 'world' ? townContaining(c, r) : null, royal = !!town && town.size === 'grand';
@@ -5251,26 +5648,75 @@ function renderBackground() {
   off = bgOrigin;
   const { x0, y0, x1, y1 } = bgBounds();
   if (scene === 'house') {
-    g.fillStyle = '#060c14'; g.fillRect(0, 0, bg.width, bg.height);
+    const fd = floorDef(interior.house, interior.level || 0), bdef = BUILDINGS[interior.house.id], stone = !!bdef.stone, open = !!fd.open, night = dayClock() >= 0.66;
+    const solidAt = (x, y) => x < 0 || y < 0 || x >= bounded.w || y >= bounded.h || bounded.tiles[y][x] === TILE.WALL;
+    if (open) {   // a floor under the sky: the country far below, hazy with distance
+      const sk = g.createLinearGradient(0, 0, 0, bg.height);
+      if (night) { sk.addColorStop(0, '#0b1230'); sk.addColorStop(1, '#16213f'); } else { sk.addColorStop(0, '#8ec5ea'); sk.addColorStop(0.55, '#b9dcc0'); sk.addColorStop(1, '#7fae78'); }
+      g.fillStyle = sk; g.fillRect(0, 0, bg.width, bg.height);
+      for (let i = 0; i < 26; i++) {   // fields, woods and a road or two, seen from a height
+        const fx = noise(i, 3, 211) * bg.width, fy = noise(i, 7, 213) * bg.height, fw = 50 + noise(i, 11, 217) * 110, fh = 16 + noise(i, 13, 219) * 30;
+        g.fillStyle = night ? 'rgba(20,34,60,0.5)' : i % 3 === 0 ? 'rgba(74,124,70,0.35)' : i % 3 === 1 ? 'rgba(214,196,120,0.3)' : 'rgba(110,160,96,0.3)';
+        g.fillRect(Math.round(fx), Math.round(fy), Math.round(fw), Math.round(fh));
+      }
+      if (night) { g.fillStyle = 'rgba(255,255,255,0.8)'; for (let i = 0; i < 60; i++) g.fillRect(Math.round(noise(i, 1, 223) * bg.width), Math.round(noise(i, 2, 227) * bg.height * 0.5), 1, 1); }
+    } else { g.fillStyle = '#060c14'; g.fillRect(0, 0, bg.width, bg.height); }
     for (let r = Math.max(0, y0); r <= Math.min(bounded.h - 1, y1); r++) for (let c = Math.max(0, x0); c <= Math.min(bounded.w - 1, x1); c++) {
       const t = bounded.tiles[r][c], X = c * T - off.x, Y = r * T - off.y;
-      if (t === TILE.WALL) {
+      if (t === TILE.WALL && stone) {
+        // only the wall that faces a room is drawn: the rest is the thickness of the tower
+        let edge = false; for (let dy = -1; dy <= 1 && !edge; dy++) for (let dx = -1; dx <= 1; dx++) if (!solidAt(c + dx, r + dy)) { edge = true; break; }
+        if (!edge) continue;
+        if (open) {   // a parapet: a low wall with merlons, the drop beyond
+          g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(X + 3, Y + 5, T, T);
+          g.fillStyle = noise(c, r, 31) < 0.5 ? '#8a93a3' : '#7f8898'; g.fillRect(X, Y, T, T);
+          g.fillStyle = '#a3acbb'; for (const [mx, my] of [[1, 1], [17, 1], [1, 17], [17, 17]]) g.fillRect(X + mx, Y + my, 14, 14);
+          g.fillStyle = 'rgba(255,255,255,0.18)'; for (const [mx, my] of [[1, 1], [17, 1], [1, 17], [17, 17]]) g.fillRect(X + mx, Y + my, 14, 2);
+          g.fillStyle = 'rgba(0,0,0,0.25)'; for (const [mx, my] of [[1, 1], [17, 1], [1, 17], [17, 17]]) g.fillRect(X + mx, Y + my + 12, 14, 2);
+          continue;
+        }
+        g.fillStyle = '#5a6272'; g.fillRect(X, Y, T, T);
+        for (let row = 0; row < 4; row++) for (let k = -1; k < 3; k++) {
+          const bx = X + k * 16 + (row % 2 ? 8 : 0), n = noise(c * 3 + k, r * 4 + row, 37);
+          g.fillStyle = n < 0.33 ? '#6f7888' : n < 0.66 ? '#687080' : '#798292';
+          const x0b = Math.max(X, bx + 1), x1b = Math.min(X + T, bx + 15); if (x1b > x0b) g.fillRect(x0b, Y + row * 8 + 1, x1b - x0b, 6);
+        }
+        g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(X, Y, T, 1);
+        if (!solidAt(c, r + 1)) {   // the wall above a room: an arrow slit now and then, and a shadow at its foot
+          if (noise(c, r, 2) < 0.4) { g.fillStyle = '#1b2230'; g.fillRect(X + 11, Y + 5, 10, 20); g.fillStyle = night ? '#1c2a52' : '#9fd4ff'; g.fillRect(X + 14, Y + 7, 4, 16); g.fillRect(X + 12, Y + 13, 8, 3); }
+          else if (noise(c, r, 6) < 0.25) { g.fillStyle = '#3b2a1a'; g.fillRect(X + 14, Y + 12, 4, 12); g.fillStyle = '#ffb347'; g.fillRect(X + 13, Y + 7, 6, 6); g.fillStyle = '#ffe08a'; g.fillRect(X + 15, Y + 8, 2, 3); }   // a torch in a bracket
+          g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(X, Y + T - 4, T, 4);
+        }
+      } else if (t === TILE.WALL) {
         g.fillStyle = r === 0 ? '#5b3a1a' : '#6b4423'; g.fillRect(X, Y, T, T);
         g.fillStyle = 'rgba(0,0,0,0.25)'; for (let y = 6; y < T; y += 10) g.fillRect(X, Y + y, T, 2);
-        if (r === 0 && c > 0 && c < 15 && noise(c, r, 2) < 0.3) { g.fillStyle = '#7bdfff'; g.fillRect(X + 9, Y + 8, 14, 14); g.fillStyle = '#1b2733'; g.fillRect(X + 15, Y + 8, 2, 14); g.fillRect(X + 9, Y + 14, 14, 2); }
+        if (r === 0 && c > 0 && c < bounded.w - 1 && noise(c, r, 2) < 0.3) { g.fillStyle = '#7bdfff'; g.fillRect(X + 9, Y + 8, 14, 14); g.fillStyle = '#1b2733'; g.fillRect(X + 15, Y + 8, 2, 14); g.fillRect(X + 9, Y + 14, 14, 2); }
       } else {
-        g.fillStyle = noise(c, r, 4) < 0.5 ? '#a97c50' : '#b08656'; g.fillRect(X, Y, T, T);
-        g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(X, Y + T - 2, T, 2); g.fillRect(X + (c % 2) * (T / 2), Y, 2, T);
-        g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(X, Y, T, 2);
-        floorShade(g, c, r, (x, y) => x < 0 || y < 0 || x >= bounded.w || y >= bounded.h || bounded.tiles[y][x] === TILE.WALL);
-        if (t === TILE.DOOR) { g.fillStyle = '#5b3a1a'; g.fillRect(X + 4, Y + 2, T - 8, T - 2); g.fillStyle = '#ffd86b'; g.fillRect(X + T - 10, Y + T / 2, 3, 3); }
+        if (stone) {   // flagstones
+          g.fillStyle = open ? (noise(c, r, 4) < 0.5 ? '#98a0ad' : '#8f97a5') : noise(c, r, 4) < 0.5 ? '#7d7668' : '#857e70'; g.fillRect(X, Y, T, T);
+          g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(X, Y + T - 1, T, 1); g.fillRect(X + T - 1, Y, 1, T); g.fillRect(X, Y + 15, T, 1); g.fillRect(X + ((c + r) % 2 ? 10 : 20), Y, 1, 15); g.fillRect(X + ((c + r) % 2 ? 22 : 8), Y + 16, 1, 15);
+          g.fillStyle = 'rgba(255,255,255,0.06)'; g.fillRect(X, Y, T, 1); g.fillRect(X, Y + 16, T, 1);
+          if (noise(c, r, 8) < 0.12) { g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(X + 6 + Math.floor(noise(c, r, 10) * 14), Y + 5, 1, 7); }
+        } else {
+          g.fillStyle = noise(c, r, 4) < 0.5 ? '#a97c50' : '#b08656'; g.fillRect(X, Y, T, T);
+          g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(X, Y + T - 2, T, 2); g.fillRect(X + (c % 2) * (T / 2), Y, 2, T);
+          g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(X, Y, T, 2);
+        }
+        if (!open) floorShade(g, c, r, solidAt);
+        if (t === TILE.DOOR) { g.fillStyle = stone ? '#3b2a1a' : '#5b3a1a'; g.fillRect(X + 4, Y + 2, T - 8, T - 2); if (stone) { g.fillStyle = '#6d6d6d'; g.fillRect(X + 4, Y + 8, T - 8, 2); g.fillRect(X + 4, Y + 20, T - 8, 2); } g.fillStyle = '#ffd86b'; g.fillRect(X + T - 10, Y + T / 2, 3, 3); }
+        if (t === TILE.UP || t === TILE.DOWN) drawStairTile(g, X, Y, t === TILE.UP);
         if (decor[r][c]) drawSprite(g, decor[r][c].sprite, c, r, 1, 2);
       }
     }
+    const fl = bdef.floors;
     g.fillStyle = '#e6eef8'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
-    g.fillText(interior.house.name, bounded.w * T / 2 - off.x, -cam.y - 10);
-    g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif';
-    g.fillText('Walk into things to use them. The door at the bottom leads out.', bounded.w * T / 2 - off.x, bounded.h * T - off.y + 20, Math.max(120, canvas.width - (isTouch ? 110 : 40)));
+    g.fillStyle = 'rgba(6,12,20,0.6)'; { const tw0 = g.measureText(interiorName()).width + 16; g.fillRect(bounded.w * T / 2 - off.x - tw0 / 2, -cam.y - 25, tw0, 21); }
+    g.fillStyle = '#e6eef8'; g.fillText(interiorName(), bounded.w * T / 2 - off.x, -cam.y - 10);
+    g.fillStyle = open ? '#16213f' : '#a8c0d8'; g.font = '12px sans-serif';
+    const lv = interior.level || 0;
+    const help = fl ? `${lv === 0 ? 'Ground floor' : `Floor ${lv + 1} of ${fl.length}`}. Stairs: ▲ up, ▼ down.${lv === 0 ? ' The door at the bottom leads out.' : ''}` : 'Walk into things to use them. The door at the bottom leads out.';
+    if (open) { g.fillStyle = 'rgba(255,255,255,0.6)'; const hw = Math.min(g.measureText(help).width + 16, Math.max(120, canvas.width - (isTouch ? 110 : 40))); g.fillRect(bounded.w * T / 2 - off.x - hw / 2, bounded.h * T - off.y + 6, hw, 20); g.fillStyle = '#16213f'; }
+    g.fillText(help, bounded.w * T / 2 - off.x, bounded.h * T - off.y + 20, Math.max(120, canvas.width - (isTouch ? 110 : 40)));
     g.textAlign = 'start';
     return;
   }
@@ -5332,7 +5778,7 @@ function renderBackground() {
       g.fillStyle = rt.color; g.fillText(sub, st.x * T - off.x + T / 2, st.y * T - off.y - 6);
       g.textAlign = 'start'; g.textBaseline = 'alphabetic';
     }
-    for (const h of houses) if (h.x <= x1 && h.x + h.w >= x0 && h.y <= y1 && h.y + h.h >= y0) drawHouse(g, h);
+    for (const h of houses) if (h.x <= x1 && h.x + h.w >= x0 && h.y - (h.tower ? 2 : 0) <= y1 && h.y + h.h >= y0) { if (h.tower) drawTower(g, h); else drawHouse(g, h); }
     for (const town of nearbyTowns(player.x, player.y, 1)) {
       if (town.cx < x0 - 12 || town.cx > x1 + 12 || town.cy < y0 - 8 || town.cy > y1 + 8) continue;
       for (const [lc, lr] of [[town.cx - 11, town.cy - 6], [town.cx + 11, town.cy - 6], [town.cx - 11, town.cy + 6], [town.cx + 11, town.cy + 6]]) drawSprite(g, 'lamp', lc, lr);
@@ -5421,7 +5867,7 @@ function drawBubble(g, b) {
 
 let hudExtra = 0;   // how much taller the HUD box is than usual (full screen)
 function drawHud(g, now) {
-  const where = scene === 'house' ? interior.house.name : scene === 'dungeon' && dungeonDef && dungeonDef.delve ? `${dungeonDef.name[0].toUpperCase() + dungeonDef.name.slice(1)} ${floor}/5 · Daily` : inTown() ? `${townContaining(player.x, player.y)?.name ?? 'The wilds'}, ${REALMS[realmOfTile(player.x, player.y)].short} · day ${dayNumber()}, ${dayPhase()}` : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floorText()}${dungeonDef ? ` · Lv ${recLevel(dungeonDef)}+` : ''}${floorMod ? ` · ${FLOOR_MODS[floorMod].label}` : ''}${trial ? ` · ${TRIALS[trial.kind].label}: ${trial.turns} turns${trial.need ? `, ${trial.kills}/${trial.need} slain` : ''}` : ''}`;
+  const where = scene === 'house' ? interiorName() : scene === 'dungeon' && dungeonDef && dungeonDef.delve ? `${dungeonDef.name[0].toUpperCase() + dungeonDef.name.slice(1)} ${floor}/5 · Daily` : inTown() ? `${townContaining(player.x, player.y)?.name ?? 'The wilds'}, ${REALMS[realmOfTile(player.x, player.y)].short} · day ${dayNumber()}, ${dayPhase()}` : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floorText()}${dungeonDef ? ` · Lv ${recLevel(dungeonDef)}+` : ''}${floorMod ? ` · ${FLOOR_MODS[floorMod].label}` : ''}${trial ? ` · ${TRIALS[trial.kind].label}: ${trial.turns} turns${trial.need ? `, ${trial.kills}/${trial.need} slain` : ''}` : ''}`;
   const compact = canvas.width < 560;
   const text = compact
     ? `HP ${player.hp}/${player.maxHp}  ATK ${player.atk + weaponAtk()}  DEF ${armorDef()}  Lv ${player.level}  ${player.gold}g`
@@ -5750,7 +6196,7 @@ function drawScene(now) {
   for (const sh of shops) if (inView(sh) && isVisible(sh.x, sh.y)) drawSprite(ctx, 'merchant', sh.x, sh.y);
   if (scene === 'house') {
     for (let r = 0; r < bounded.h; r++) for (let c = 0; c < bounded.w; c++) {
-      if (decor[r][c] && decor[r][c].sprite === 'fire') {
+      if (decor[r][c] && (decor[r][c].sprite === 'fire' || decor[r][c].sprite === 'brazier')) {
         const fl = 1 + 0.07 * Math.sin(now / 80 + c) + 0.04 * Math.sin(now / 31);
         lights.push({ x: c * T - cam.x + T / 2, y: r * T - cam.y + T / 2, r: T * 6 * fl, glow: 'rgba(255,140,50,0.3)', gr: T * 2.6 * fl });
         if (Math.random() < 0.15) burst(c, r - 0.1, '#ffb347', 1, 18, { gravity: -70, life: 800, glow: true, spread: 10, size: 2 });
@@ -5937,7 +6383,7 @@ function drawScene(now) {
         night.push({ x: h.doorX * T - cam.x + T / 2, y: h.doorY * T - cam.y + T, r: T * 2.4, a: 0.8, glow: 'rgba(255,180,90,0.2)', gr: T * 1.4 });
         // lamplight in the windows
         const roofH = Math.floor(h.h * T * 0.48), winY = h.y * T + roofH + Math.max(8, Math.floor((h.h * T - roofH - 22) / 2) - 2) + 7;
-        for (const wx of houseWindows(h)) night.push({ x: wx - cam.x, y: winY - cam.y, r: T * 0.9, a: 0.9, glow: 'rgba(255,190,90,0.35)', gr: T * 0.5 });
+        if (!h.tower) for (const wx of houseWindows(h)) night.push({ x: wx - cam.x, y: winY - cam.y, r: T * 0.9, a: 0.9, glow: 'rgba(255,190,90,0.35)', gr: T * 0.5 });
       }
       for (const t of nearbyTowns(player.x, player.y, 1)) if (townBurning(t)) night.push({ x: t.cx * T - cam.x + T / 2, y: t.cy * T - cam.y, r: T * 14, a: 0.9, glow: `rgba(255,120,30,${0.22 + 0.06 * Math.sin(now / 200)})`, gr: T * 8 });
       applyLighting(ctx, `rgba(6,12,40,${0.72 * k})`, night);
@@ -5967,7 +6413,8 @@ function drawScene(now) {
     }
   } else if (scene === 'house') {
     lights.push({ x: px, y: py, r: T * 7, a: 0.9 });
-    applyLighting(ctx, 'rgba(25,12,2,0.32)', lights);
+    if (!floorDef(interior.house, interior.level || 0).open) applyLighting(ctx, 'rgba(25,12,2,0.32)', lights);
+    else if (dayClock() >= 0.66) applyLighting(ctx, 'rgba(6,12,40,0.5)', lights);
   }
   drawParticles(ctx, now);
   drawShots(ctx, now);
@@ -6415,12 +6862,13 @@ function describeTile(x, y) {
   if (t === TILE.TRAP && revealedTraps.has(key(x, y))) return 'Spike trap — step around it';
   if (t === TILE.FOUNTAIN) return 'The town fountain';
   if (t === TILE.DOOR) {
-    if (scene === 'house') return 'Door — back out to the square';
+    if (scene === 'house') return BUILDINGS[interior.house.id].stone ? 'Door — back out to the bailey' : 'Door — back out to the square';
     const h = houses.find((hh) => hh.doorX === x && hh.doorY === y);
     return h ? `${h.name} — step onto the door to go in` : 'Door';
   }
+  if (scene === 'house' && (t === TILE.UP || t === TILE.DOWN)) { const fl = BUILDINGS[interior.house.id].floors, to = (interior.level || 0) + (t === TILE.UP ? 1 : -1); return `Stairs ${t === TILE.UP ? 'up' : 'down'} — to ${fl && fl[to] ? fl[to].name : 'the undercroft'}`; }
   if (scene === 'house' && decor[y] && decor[y][x]) return decor[y][x].sprite === 'bed' ? 'Bed — lie down to rest' : `${decor[y][x].name} — walk into it`;
-  if (inTown() && t === TILE.WALL) { const h = houses.find((hh) => x >= hh.x && x < hh.x + hh.w && y >= hh.y && y < hh.y + hh.h); if (h) return `${h.name} — the door is at the bottom`; if (groundAt(x, y) === GROUND.RAMPART) return 'Castle wall — the gates are in the middle of each side'; }
+  if (inTown() && t === TILE.WALL) { const h = houses.find((hh) => x >= hh.x && x < hh.x + hh.w && y >= hh.y && y < hh.y + hh.h); if (h) return h.tower ? `${h.name} — three floors to climb. The door faces the bailey` : BUILDINGS[h.id].floors ? `${h.name} — several floors. The door is at the bottom` : `${h.name} — the door is at the bottom`; if (groundAt(x, y) === GROUND.RAMPART) return 'Castle wall — the gates are in the middle of each side'; }
   if (t === TILE.EXIT && inTown()) { const tw = townContaining(x, y) || nearestTownTo(x, y); return `Dungeon gate — ${tw ? `${townDungeon(tw).floors} floors, ${ratingText(townDungeon(tw))}` : 'step here to begin your descent'}`; }
   if (t === TILE.EXIT) { const st = stairsAt(x, y); return st && exit2 ? `Stairs down — below: ${st.mod ? `${FLOOR_MODS[st.mod].label} (${FLOOR_MODS[st.mod].desc})` : 'a quiet floor, no twist'}` : 'Stairs down — the exit from this floor'; }
   if (t === TILE.CRACK) return `Cracked wall — it sounds hollow. Walk into it to break through (${player.weapon === 'warhammer' ? 'one blow with your warhammer' : 'three blows, or one with a warhammer or a bomb'}). The noise wakes monsters`;
@@ -6612,6 +7060,7 @@ function buildLegend() {
   for (const pp of pets) add(petKind(pp).sprite, `Your ${petLabel(pp)}`, pp.down ? 'resting at the inn' : pp.aboard ? 'aboard your ship' : `level ${pp.level}, bites ${pp.atk}`);
   if (scene === 'house') {
     for (const n of npcs) add(n.type.sprite, n.type.name, n.type.action === 'inn' ? 'rest for free' : n.type.action ? 'buy and sell' : 'chat');
+    if (BUILDINGS[interior.house.id].floors) { add('stairs', 'Stairs', 'walk in to climb or go down'); if (decor.some((row) => row.some((d) => d && d.use === 'lookout'))) add('scope', 'Spyglass', 'look out over the country'); return; }
     add('bed', 'Bed', 'rest'); add('counter', 'Counter', 'trade or rest');
     return;
   }
@@ -6636,7 +7085,7 @@ function buildLegend() {
 }
 
 function updateStats() {
-  const where = scene === 'house' ? interior.house.name : scene === 'dungeon' && dungeonDef && dungeonDef.delve ? `${dungeonDef.name[0].toUpperCase() + dungeonDef.name.slice(1)} ${floor}/5 · Daily` : inTown() ? (townContaining(player.x, player.y)?.name ?? 'The wilds') : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floorText()}`;
+  const where = scene === 'house' ? interiorName() : scene === 'dungeon' && dungeonDef && dungeonDef.delve ? `${dungeonDef.name[0].toUpperCase() + dungeonDef.name.slice(1)} ${floor}/5 · Daily` : inTown() ? (townContaining(player.x, player.y)?.name ?? 'The wilds') : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floorText()}`;
   statsEl.textContent = `${where} | HP ${player.hp}/${player.maxHp} | ATK ${player.atk}${weaponAtk() ? '+' + weaponAtk() : ''} | DEF ${armorDef()} | Lv ${player.level} (${player.xp}/${xpToNext(player.level)} XP) | Gold ${player.gold}`;
   hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
   hpBar.style.background = player.hp / player.maxHp > 0.5 ? '#5fe17a' : player.hp / player.maxHp > 0.25 ? '#f5c542' : '#ff6b6b';
@@ -7317,6 +7766,7 @@ function leaveDungeon() {
   if (dungeonDef && dungeonDef.arena) { leaveArena(false); return; }
   rescueCheck(); escort = null; totems.clear(); trial = null;
   const def = dungeonDef;
+  if (def && def.cellar) { leaveCellar(def); return; }
   if (def && def.delve) recordDelve(false);
   sfx.play('stairs');
   track('dungeon_left', { dungeon: def ? (def.kind === 'site' ? def.site.type : 'town') : 'town', floor });
@@ -7388,6 +7838,7 @@ function tryMove(dx, dy) {
   if (t === TILE.MONUMENT) { const tw = townContaining(nx, ny); if (tw && tw.memorial && nx === tw.cx - 4 && ny === tw.cy + 3) log(`The memorial of the Long Night: a column of grey stone with the names of the watch who fell at the walls of ${tw.name}, and on the plinth, in letters a hand high, the name of ${tw.memorial}, who paid for it.`); else if (tw) { const L = townIdentity(tw).landmark; log(`${L.name[0].toUpperCase() + L.name.slice(1)}. ${L.lore}`); } draw(); return; }
   const other = mpPlayerAt(nx, ny);
   if (other) { if (scene !== 'dungeon') openPlayerMenu(other); draw(); return; }
+  if ((t === TILE.UP || t === TILE.DOWN) && scene === 'house') { if (dx) player.face = dx; useStairs(t); return; }
   if (t === TILE.DOOR) {
     const house = scene === 'house' ? null : houses.find((h) => h.doorX === nx && h.doorY === ny);
     if (house && house.id === 'arena') { offerArena(house); draw(); return; }
@@ -7429,6 +7880,8 @@ function tryMove(dx, dy) {
     if (t === TILE.SHOP) openShop(tradeHere() ? 'trade' : 'shop');
     if (t === TILE.BED) {
       if (interior && interior.house.id === 'inn') restAtInn();
+      else if (interior && BUILDINGS[interior.house.id].cellar && cellarClear(interior.house)) { const tired = player.hp < player.maxHp || (player.mana ?? 0) < maxMana(); player.hp = player.maxHp; restoreMana(); log(tired ? "You sleep in the Castellan's guest bed, under a great many blankets, and wake whole." : 'The guest bed is yours, but you are not tired.', tired ? 'good' : ''); updateStats(); }
+      else if (interior && BUILDINGS[interior.house.id].cellar) log('The guest bed, kept for those the Castellan owes a favour. He does not owe you one yet.');
       else log(player.hp < player.maxHp ? 'Not your bed. You lie down anyway, but it does not help.' : 'A bed. Not yours.');
     }
     if (t === TILE.EXIT && bossAlive()) {
@@ -8373,6 +8826,7 @@ function endTurn(moved) {
   stepGuards();
   stepHound(); stepEscort(); tickTotems(); tickTrial(); tickRestless(); tickRifts();
   if (scene === 'dungeon' && dungeonDef && dungeonDef.camp && !dungeonDef.razed && !monsters.some((m) => m.hp > 0)) campCleared();
+  if (scene === 'dungeon' && dungeonDef && dungeonDef.cellar && !dungeonDef.done && !monsters.some((m) => m.hp > 0)) cellarCleared();
   // in a shared dungeon the host moves monsters on a steady beat instead of per turn
   if (scene !== 'house' && !coopActive()) {
     stepMonsters();
@@ -10085,7 +10539,13 @@ function renderGlossary(kind) {
       ['Ysolde the armourer', 'armourer', 'guard', 'castle armouries', 'Armor only, and cheaper than any merchant. Reinforces what you wear.'],
       ['Brother Cael', 'apothecary', 'elder', 'the Apothecary', 'Potions, elixirs and scrolls for the desperate.'],
       ['The Royal Quartermaster', 'keeper of the Royal Armoury', 'guard', 'Castle Aurum', "The finest steel in the realm, at the King's prices."],
-      ['The Castellan', 'lord of a castle', 'guard', 'castle keeps', 'Holds the road, hands out site-clearing quests, and musters knights.'],
+      ['The Castellan', 'lord of a castle', 'guard', 'castle keeps, the Great Hall', 'Holds the road, hands out site-clearing quests, and musters knights. Pays whoever clears the vermin out of his undercroft with the strongbox in his solar and a guest bed.'],
+      ['The steward', 'keeper of the solar', 'elder', 'castle keeps, the Solar (first floor)', "Minds the Castellan's chamber, his strongbox and the guest bed. Has counted the stairs."],
+      ['The sergeant-at-arms', 'drillmaster of the garrison', 'guard', 'castle Watchtowers, the guardroom', 'Drills anyone who pays for the garrison\'s ale: +2 attack for 300 turns. Also says what the watch has seen from the wall.'],
+      ['The astrologer', 'reader of stars', 'elder', "castle Astrologer's Towers, the observatory (top floor)", 'Casts your chart for gold: +2 defence for 400 turns. Asked about the land, points to the nearest lair nobody has found.'],
+      ['The gaoler', 'keeper of the Gaol Tower', 'guard', 'castle Gaol Towers, the ground floor', 'Keeps one guest upstairs, and a high cell with a bed for prisoners of rank.'],
+      ['The prisoner', 'a road thief awaiting the assize', 'villager', 'castle Gaol Towers, the cells (first floor)', 'Speak to him through the bars. For gold he tells where he buried his takings, which marks a treasure ✕ on your map. Once per castle.'],
+      ['The royal librarian', "keeper of the crown's letters", 'elder', 'Castle Aurum, the Royal Library (above the throne room)', 'Three hundred years of royal letters, most of them about money, and a few things about the castle that nobody wrote down.'],
       ['Bram the mason', 'mason', 'farmer', "city cottages", 'Laid every stone of the plaza. Thinks wizards should live on the ground floor.'],
       ['Hilde', 'householder', 'villager', "town homes", 'Make yourself at home, but mind the chest.'],
       ['The arena master', 'of the Grand Arena', 'guard', 'Castle Aurum, the Grand Arena', 'Waves of foes, gold for every wave, and no charge for being dragged out.'],

@@ -190,6 +190,24 @@ spares whoever stands at their feet. A colossus pays three times a boss's purse
 and the title Giant-feller. Every monster kind now has a boss name; the last
 floor under Hearth used to raise a nameless basilisk that broke the drawing.
 
+Castles are more than towns with walls. A building with `floors` in `BUILDINGS`
+is entered on its ground floor and climbed by stairs (`TILE.UP`, `TILE.DOWN`,
+`useStairs`; `interior.level` says which floor). The keep has a Great Hall, the
+Castellan's Solar above it and open battlements on top, where a spyglass marks
+every place for two cells around on the map. Below the hall is the undercroft
+(`cellarDungeon`, `cellarChunk`): one fixed floor of vaulted cellars full of
+vermin with a rat king in the old cistern. Clearing it opens the Castellan's
+strongbox in the solar and makes the guest bed beside it a free rest. The four
+corner towers of the wall are houses two tiles square (`addTowers`, `drawTower`),
+three round floors each: the Watchtower (a sergeant who drills you for +2 attack,
+a watchman who reports the nearest orc camp and dungeon), the Astrologer's Tower
+(+2 defence, or a pointer to an unfound lair), the Gaol Tower (a prisoner who
+sells the spot where he buried his takings, as a treasure chart) and the Old
+Tower (a forgotten chest in the garret). Castle Aurum's Royal Hall has a library
+and battlements above the throne room, and its towers stand on the inner ring.
+What has been taken or cleared is kept in `meta.looted` under the tile of the
+building it belongs to.
+
 Some rooms from the second floor down hold a ring of trial stones (`TILE.TRIAL`,
 `TRIALS`): walk in and take up the Trial of the Swarm (stand twelve turns while a
 monster arrives every other turn) or the Trial of Blood (five at once, all dead
