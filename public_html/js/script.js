@@ -257,6 +257,7 @@ const THEMES = {
 let theme = 'stone';
 const thm = () => THEMES[theme] || THEMES.stone;
 let monsters = [], potions = [], golds = [], shops = [], npcs = [];
+let exit2 = null;   // the second staircase on a forked floor
 let exit = null, houses = [], ground = null, decor = null, interior = null, bubble = null;
 let visible = new Set();       // "x,y" keys lit this turn
 let cam = { x: 0, y: 0 };      // top-left of the view in world pixels
@@ -3884,6 +3885,7 @@ function campChunk(cx, cy) {
   }
   return { cx, cy, tiles, seen: new Uint8Array(CHUNK * CHUNK), rooms, vaults: [], populated: true };
 }
+const stairsAt = (x, y) => (exit && exit.x === x && exit.y === y ? exit : exit2 && exit2.x === x && exit2.y === y ? exit2 : null);
 function campDungeon(wc) {
   const danger = Math.max(Math.abs(wc.i), Math.abs(wc.j)) + 2;
   return { kind: 'camp', camp: wc, name: wc.name, floors: 1, pool: byName('Orc', 'Goblin', 'Archer', 'Shaman', 'Bomber'), gold: 1.5, potions: 1, view: 9, loot: 0.25, treasure: 0, danger, xp: 1.5, theme: 'camp' };
@@ -4233,7 +4235,8 @@ function createDungeon() {
   mp.dead = new Set(); mp.graveyard = new Map();
   theme = pickTheme();
   { const roll = hash32(floorSeed, 99) % 100, gentle = floor === 1 && !(dungeonDef && dungeonDef.danger);
-    floorMod = !gentle && !(dungeonDef && (dungeonDef.arena || dungeonDef.camp)) && roll < 36 ? ['dark', 'swarming', 'treasure', 'cursed'][roll % 4] : null; }
+    floorMod = !gentle && !(dungeonDef && (dungeonDef.arena || dungeonDef.camp)) && roll < 36 ? ['dark', 'swarming', 'treasure', 'cursed'][roll % 4] : null;
+    if (dungeonDef && dungeonDef.nextMod !== undefined) { floorMod = dungeonDef.nextMod; delete dungeonDef.nextMod; } }
   const R = seededRandom(hash32(floorSeed, 4242));
   const spawn = getChunk(0, 0);
   player.x = spawn.rooms[0].cx; player.y = spawn.rooms[0].cy;
@@ -4256,6 +4259,18 @@ function createDungeon() {
   const target = getChunk(ex, ey);
   exit = { x: ex * CHUNK + target.rooms[0].cx, y: ey * CHUNK + target.rooms[0].cy };
   setTile(exit.x, exit.y, TILE.EXIT);
+  // Forked stairs: most floors have a second way down, the other side of the start, and
+  // each staircase shows the twist waiting below it. Not on the last floor, in a shared
+  // party run, or in the Deep.
+  exit2 = null;
+  const lastFloor = floor >= (dungeonDef ? dungeonDef.floors : FINAL_FLOOR);
+  if (!lastFloor && !(dungeonDef && dungeonDef.endless) && !(mp.instance && mp.instance.shared) && R() < 0.75) {
+    const fx = -ey || (ex > 0 ? -1 : 1), fy = ex || 2, t2 = getChunk(fx, fy), mods = ['dark', 'swarming', 'treasure', 'cursed'];
+    const a = R() < 0.5 ? null : mods[Math.floor(R() * 4)]; let b = mods[Math.floor(R() * 4)]; if (b === a) b = mods[(mods.indexOf(b) + 1) % 4];
+    exit.mod = a; exit2 = { x: fx * CHUNK + t2.rooms[0].cx, y: fy * CHUNK + t2.rooms[0].cy, mod: b };
+    setTile(exit2.x, exit2.y, TILE.EXIT); monsters = monsters.filter((m) => !(m.x === exit2.x && m.y === exit2.y));
+    setTimeout(() => { log('This floor forks: two stairs lead down, each to a different floor. Hover over a staircase to see what waits below.', 'good'); tip('forked', 'Two stairs on one floor: each leads to a different floor below. Hover over (or tap) a staircase to see its twist: a treasure floor, a dark one, a swarming one, a cursed one, or a quiet one.'); }, 60);
+  }
   monsters = monsters.filter((m) => !(m.x === exit.x && m.y === exit.y)); monstersDirty = true;
   if (floor === (dungeonDef ? dungeonDef.floors : FINAL_FLOOR) || (dungeonDef && dungeonDef.endless && floor % 5 === 0) || (dungeonDef && dungeonDef.midBossFloor === floor)) {
     placeBoss(target.rooms[0], ex * CHUNK, ey * CHUNK, R);
@@ -6187,7 +6202,7 @@ function describeTile(x, y) {
   if (scene === 'house' && decor[y] && decor[y][x]) return decor[y][x].sprite === 'bed' ? 'Bed — lie down to rest' : `${decor[y][x].name} — walk into it`;
   if (inTown() && t === TILE.WALL) { const h = houses.find((hh) => x >= hh.x && x < hh.x + hh.w && y >= hh.y && y < hh.y + hh.h); if (h) return `${h.name} — the door is at the bottom`; if (groundAt(x, y) === GROUND.RAMPART) return 'Castle wall — the gates are in the middle of each side'; }
   if (t === TILE.EXIT && inTown()) { const tw = townContaining(x, y) || nearestTownTo(x, y); return `Dungeon gate — ${tw ? `${townDungeon(tw).floors} floors, ${ratingText(townDungeon(tw))}` : 'step here to begin your descent'}`; }
-  if (t === TILE.EXIT) return 'Stairs down — the exit from this floor';
+  if (t === TILE.EXIT) { const st = stairsAt(x, y); return st && exit2 ? `Stairs down — below: ${st.mod ? `${FLOOR_MODS[st.mod].label} (${FLOOR_MODS[st.mod].desc})` : 'a quiet floor, no twist'}` : 'Stairs down — the exit from this floor'; }
   if (t === TILE.CRACK) return `Cracked wall — it sounds hollow. Walk into it to break through (${player.weapon === 'warhammer' ? 'one blow with your warhammer' : 'three blows, or one with a warhammer or a bomb'}). The noise wakes monsters`;
   if (t === TILE.CAPTIVE) return 'A captive in chains — walk into them to strike the chains off, then lead them to the stairs or the way out';
   if (t === TILE.TOTEM) return `A goblin totem — it keeps calling goblins. Walk into it to smash it (${totems.get(key(x, y)) || 3} blows, one with a warhammer)`;
@@ -7194,6 +7209,7 @@ function tryMove(dx, dy) {
         enterDungeon('t:' + here.key); return;
       }
       if (coopMember()) { mpSend({ to: mp.hostId, type: 'stairs' }); mpKick(); log('You call the party down the stairs.'); draw(); return; }
+      { const st = exit2 && stairsAt(nx, ny); if (st && dungeonDef) dungeonDef.nextMod = st.mod || null; }
       nextFloor(); return;
     }
     if (t === TILE.SITE && inTown()) {

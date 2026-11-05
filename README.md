@@ -159,6 +159,12 @@ springs, altars, trial stones, found traps, lava, visible foes, your pets and
 you picked out in colour, and a legend. M or Esc closes it; the mobile map
 button opens it too.
 
+Most floors fork (`exit2`, `stairsAt`, `dungeonDef.nextMod`): three in four have a
+second staircase on the far side of the start, and hovering over (or tapping)
+either shows the twist waiting below it, a quiet floor or a Dark, Swarming,
+Treasure or Cursed one. The two always differ. Not on the last floor, in the
+Deep, or in a shared party run.
+
 Some rooms from the second floor down hold a ring of trial stones (`TILE.TRIAL`,
 `TRIALS`): walk in and take up the Trial of the Swarm (stand twelve turns while a
 monster arrives every other turn) or the Trial of Blood (five at once, all dead
