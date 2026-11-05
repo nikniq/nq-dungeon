@@ -6390,6 +6390,7 @@ function monsterHazard(m) {
   if (m.hp <= 0) setTimeout(() => { if (monsters.includes(m)) killMonster(m); }, 0);
 }
 function playerAttack(m) {
+  scaleMonster(m);
   const w = traitOf(player.weapon), sneak = (!m.awake || m.reeling > 0) && !m.boss, solo = !coopMember();
   m.struck = turn; m.reeling = 0;
   let dmg = Math.max(1, player.atk + weaponAtk() + rnd(2) - (m.mod === 'armored' ? 2 : 0));
@@ -6480,7 +6481,7 @@ function killMonster(m) {
     if (m.riftLord) setTimeout(riftLordSlain, 60);
     if (m.boss && dungeonDef && dungeonDef.endless) setTimeout(() => act2Progress('boss', floor), 80);
     if (m.boss) { unlock('boss_slayer'); track('boss_killed', { boss: m.name, floor }); }
-    const xp = Math.round(m.type.xp * (wearing('cantonsbadge') ? 1.2 : 1) * (m.small || m.raised ? 0.4 : 1) * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1) * (m.elite ? 2 : 1) * (scene === 'dungeon' ? (floorMod === 'swarming' ? 1.25 : floorMod === 'cursed' ? 1.5 : 1) : 1));
+    const xp = Math.round((m.xpMult || 1) * m.type.xp * (wearing('cantonsbadge') ? 1.2 : 1) * (m.small || m.raised ? 0.4 : 1) * (dungeonDef ? dungeonDef.xp : 1) * (m.boss ? 5 : 1) * (m.elite ? 2 : 1) * (scene === 'dungeon' ? (floorMod === 'swarming' ? 1.25 : floorMod === 'cursed' ? 1.5 : 1) : 1));
     if (m.boss) {
       log(dungeonDef && dungeonDef.arena ? `You defeat ${m.name}! The crowd is on its feet.` : m.yields ? `${bossTitle(m)} drops his sword and yields. The seal on the stairs breaks.` : /Halvard/.test(m.name) ? 'Ser Halvard goes down on one knee, then flat. "Go on up," he says through his teeth. "He is expecting you." The stairs are open.' : `You slay ${m.name}! The seal on the stairs breaks.`, 'good');
       const purse = 40 + 30 * (dungeonDef ? dungeonDef.danger : 0) + floor * 10;
@@ -6509,11 +6510,31 @@ function freeTileNear(cx, cy, reach = 1) {
   }
   return spots.length ? spots[rnd(spots.length)] : null;
 }
+// Monsters keep pace with the hero. Each place has a level it is meant for: a
+// dungeon its recommended level plus two a floor, the wilds two a region out from
+// Hearth. A hero above it meets monsters with 8% more health and +1 attack per three
+// levels of the gap (health capped at four times, attack at +12), worth 5% more XP a
+// level. Monsters are never scaled down, so a hard place stays hard.
+function placeLevel(m) {
+  if (scene === 'dungeon' && dungeonDef) return recLevel(dungeonDef) + 2 * Math.max(0, floor - 1);
+  const [i, j] = cellOf(m.x, m.y); return 1 + 2 * Math.max(Math.abs(i), Math.abs(j));
+}
+function scaleMonster(m) {
+  if (!m || m.scaled || !player) return m;
+  m.scaled = true;
+  const gap = player.level - placeLevel(m);
+  if (gap <= 0) return m;
+  const mult = Math.min(4, 1 + 0.08 * gap), frac = m.maxHp ? m.hp / m.maxHp : 1;
+  m.maxHp = Math.round(m.maxHp * mult); m.hp = Math.max(1, Math.round(m.maxHp * frac));
+  m.atk += Math.min(12, Math.floor(gap / 3)); m.xpMult = Math.min(4, 1 + 0.05 * gap);
+  return m;
+}
 function addMonster(type, x, y, extra = {}) {
   const danger = dungeonDef ? dungeonDef.danger || 0 : 0;
   const hp = extra.hp || type.hp + Math.floor(floor / 2) + danger;
   const m = { x, y, id: `spawn-${++spawnCounter}`, type, hp, maxHp: hp, atk: type.atk + Math.floor(danger / 2), awake: true, ...extra };
   monsters.push(m); monsterIndex.set(key(x, y), m); monstersDirty = true;
+  if (!extra.hp) scaleMonster(m); else m.scaled = true;
   return m;
 }
 function splitSlime(m) {
@@ -6575,6 +6596,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
   for (const m of monsters) {
     if (swiftOnly && m.mod !== 'swift') continue;
     if (m.hp <= 0) continue;
+    scaleMonster(m);
     for (const st of ['burn', 'venom']) { const e = m[st]; if (!e || e.t <= 0 || swiftOnly) continue; e.t--; m.hp -= e.d; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${e.d}`, st === 'burn' ? '#ff9f43' : '#7ad36b'); if (e.t <= 0) m[st] = null; }
     if (m.hp <= 0) { if (coopMember()) coopHit(m, 0, 'hero'); else killMonster(m); continue; }
     if (m.stunned > 0) { if (!swiftOnly) m.stunned--; if (m.tell && !m.boss) { m.tell = null; m.windup = null; m.guard = false; if (isVisible(m.x, m.y)) log(`The stun breaks ${nameOf(m)}'s ${m.type.tell === 'aim' ? 'aim' : m.type.tell === 'guard' ? 'guard' : 'wind-up'}.`, 'good'); } continue; }

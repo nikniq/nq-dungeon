@@ -115,6 +115,12 @@ gets a parting blow at half strength, unless it is busy with a tell, stunned or
 off balance; a dagger makes a clean break. Potions and mana potions take the
 turn.
 
+Monsters keep pace with the hero (`scaleMonster`, `placeLevel`). A dungeon is
+meant for its recommended level plus two a floor, the wilds for two levels a
+region out from Hearth. A hero above that meets monsters with 8% more health and
++1 attack per three levels of the gap (at most four times the health and +12
+attack), worth 5% more XP a level. Nothing is scaled down.
+
 Hitting a sleeping monster is a sneak attack for double damage. Bosses wind up heavy
 blows that land on the red tiles around them a turn later; at half health they
 enrage, hit harder and call two minions. About a third of dungeon floors have a
