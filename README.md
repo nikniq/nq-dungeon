@@ -104,6 +104,12 @@ step closer while its eyes burn and you turn to stone; wait or step back and
 nothing happens. A stun breaks any tell. Hover text and the phone's size-up
 name the current tell.
 
+The dungeon bites both ways (`monsterHazard`): a walking monster that steps on a
+spike trap takes its damage and spends it, one hammered or driven into lava burns
+for four in ten of its health, and a bomber's blast hurts the monsters beside it.
+Bats and wraiths fly over. Revealed traps no longer wall monsters out of a
+corridor; they walk them and pay.
+
 Leaving melee has a cost (`partingBlows`): each awake foe you step away from
 gets a parting blow at half strength, unless it is busy with a tell, stunned or
 off balance; a dagger makes a clean break. Potions and mana potions take the

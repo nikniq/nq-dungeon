@@ -29,8 +29,8 @@ const MONSTER_TYPES = [
   { name: 'Goblin',   sprite: 'goblin',   hp: 5,  atk: 2, xp: 4,  minFloor: 1 },
   { name: 'Skeleton', sprite: 'skeleton', hp: 8,  atk: 3, xp: 7,  minFloor: 2, tell: 'guard' },
   { name: 'Orc',      sprite: 'orc',      hp: 12, atk: 4, xp: 12, minFloor: 3, tell: 'chop' },
-  { name: 'Wraith',   sprite: 'wraith',   hp: 10, atk: 5, xp: 16, minFloor: 4 },
-  { name: 'Bat',      sprite: 'bat',      hp: 2,  atk: 1, xp: 2,  minFloor: 1, erratic: true },
+  { name: 'Wraith',   sprite: 'wraith',   hp: 10, atk: 5, xp: 16, minFloor: 4, flies: true },
+  { name: 'Bat',      sprite: 'bat',      hp: 2,  atk: 1, xp: 2,  minFloor: 1, erratic: true, flies: true },
   { name: 'Spider',   sprite: 'spider',   hp: 5,  atk: 2, xp: 5,  minFloor: 2, poison: true },
   { name: 'Archer',   sprite: 'archer',   hp: 4,  atk: 2, xp: 6,  minFloor: 2, ranged: 4, tell: 'aim' },
   { name: 'Slime',    sprite: 'slime',    hp: 10, atk: 2, xp: 6,  minFloor: 2, splits: true },
@@ -4169,7 +4169,7 @@ function bfs(sx, sy, limit, blockMonsters, avoidHazards = false, sea = false) {
       const nx = cx + dx, ny = cy + dy, k = key(nx, ny);
       if (d.has(k) || !(walkable(getTile(nx, ny)) || (sea && seaTile(nx, ny)))) continue;
       if (blockMonsters && getMonsterAt(nx, ny)) continue;
-      if (avoidHazards && hazard(nx, ny)) continue;
+      if (avoidHazards === 'lava' ? getTile(nx, ny) === TILE.LAVA : avoidHazards && hazard(nx, ny)) continue;
       d.set(k, dd + 1);
       q.push([nx, ny]);
     }
@@ -6375,7 +6375,20 @@ const WEAPON_TRAITS = {
 const LEGEND_TRAIT = { fangblade: 'dagger', tidecaller: 'longsword', stormhammer: 'warhammer', staffofages: 'greatsword' };
 const traitOf = (id) => { const b = baseOf(id); return LEGEND_TRAIT[b] || b; };
 const nameOf = (m) => (m.boss ? m.name : 'the ' + mName(m));
-function moveMonster(m, x, y) { monsterIndex.delete(key(m.x, m.y)); m.x = x; m.y = y; monsterIndex.set(key(m.x, m.y), m); monstersDirty = true; }
+function moveMonster(m, x, y) { monsterIndex.delete(key(m.x, m.y)); m.x = x; m.y = y; monsterIndex.set(key(m.x, m.y), m); monstersDirty = true; monsterHazard(m); }
+// The dungeon bites both ways: a walking monster that steps on spikes takes them
+// (and the trap is spent), and one driven into lava burns. Flyers pass over.
+function monsterHazard(m) {
+  if (scene !== 'dungeon' || m.hp <= 0 || m.type.flies || m.sea) return;
+  const t = getTile(m.x, m.y), seen = isVisible(m.x, m.y);
+  let dmg = 0, what = '';
+  if (t === TILE.TRAP) { dmg = 3 + floor + (dungeonDef ? dungeonDef.danger : 0); what = 'spikes'; setTile(m.x, m.y, TILE.FLOOR); revealedTraps.delete(key(m.x, m.y)); bgDirty = true; if (seen) burst(m.x, m.y, '#c0c0c0', 10, 120, { rise: 140, life: 400, size: 2 }); }
+  else if (t === TILE.LAVA) { dmg = Math.max(4, Math.ceil(m.maxHp * 0.4)); what = 'lava'; if (seen) burst(m.x, m.y, '#ff9f43', 14, 90, { glow: true, gravity: -80, life: 500 }); }
+  if (!dmg) return;
+  m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 150;
+  if (seen) { floatText(m.x, m.y, `-${dmg}`, '#ff9f43'); log(`${nameOf(m)[0].toUpperCase() + nameOf(m).slice(1)} ${what === 'lava' ? 'is driven into the lava' : 'steps on the spikes'}: ${dmg} damage.`, 'good'); tip('hazard_both', 'Traps and lava hurt monsters too. Lure a chasing foe over a spike trap (it is spent once sprung), or hammer one into the lava.'); }
+  if (m.hp <= 0) setTimeout(() => { if (monsters.includes(m)) killMonster(m); }, 0);
+}
 function playerAttack(m) {
   const w = traitOf(player.weapon), sneak = (!m.awake || m.reeling > 0) && !m.boss, solo = !coopMember();
   m.struck = turn; m.reeling = 0;
@@ -6432,6 +6445,7 @@ function killMonster(m) {
     log(`The ${mName(m)} bursts!`, 'bad');
     if (cheb(m, player) <= 1) { player.hp -= blast; floatText(player.x, player.y, `-${blast}`, '#ff6b6b'); }
     for (const pp of livePets()) if (cheb(m, pp) <= 1) petHurt(pp, blast);
+    for (const o of monsters.filter((o) => o !== m && o.hp > 0 && !o.sea && cheb(m, o) <= 1)) { o.hp -= blast; o.awake = true; o.flashUntil = performance.now() + 150; floatText(o.x, o.y, `-${blast}`, '#ff9f43'); if (o.hp <= 0) setTimeout(() => { if (monsters.includes(o)) killMonster(o); }, 0); }
   }
   if (m.type.splits && !m.small && !m.boss && !coopMember()) splitSlime(m);
   if (m.sea) {
@@ -6556,7 +6570,7 @@ function monsterAttack(m, ranged = false) {
 function stepMonsters(swiftOnly = false, heroes = null) {
   heroes = heroes || [{ x: player.x, y: player.y, me: true }];
   const fields = new Map();
-  const field = (i) => { if (!fields.has(i)) fields.set(i, bfs(heroes[i].x, heroes[i].y, SIM_RADIUS, false, true)); return fields.get(i); };
+  const field = (i) => { if (!fields.has(i)) fields.set(i, bfs(heroes[i].x, heroes[i].y, SIM_RADIUS, false, 'lava')); return fields.get(i); };   // revealed traps are no wall: monsters walk them and pay
   const heroAt = (x, y) => heroes.some((h) => h.x === x && h.y === y);
   for (const m of monsters) {
     if (swiftOnly && m.mod !== 'swift') continue;
@@ -6613,9 +6627,9 @@ function stepMonsters(swiftOnly = false, heroes = null) {
       // archers back off to shoot again
       for (const [dx, dy] of dirs) {
         const nx = m.x + dx, ny = m.y + dy;
-        if (walkable(getTile(nx, ny)) && !getMonsterAt(nx, ny) && !houndAt(nx, ny) && !heroAt(nx, ny) && dist({ x: nx, y: ny }, H) > dist(m, H)) { best = [nx, ny]; break; }
+        if (walkable(getTile(nx, ny)) && getTile(nx, ny) !== TILE.LAVA && !getMonsterAt(nx, ny) && !houndAt(nx, ny) && !heroAt(nx, ny) && dist({ x: nx, y: ny }, H) > dist(m, H)) { best = [nx, ny]; break; }
       }
-      if (best) { monsterIndex.delete(key(m.x, m.y)); m.x = best[0]; m.y = best[1]; monsterIndex.set(key(m.x, m.y), m); continue; }
+      if (best) { moveMonster(m, best[0], best[1]); continue; }
     }
     for (const [dx, dy] of dirs) {
       const nx = m.x + dx, ny = m.y + dy;
@@ -6629,7 +6643,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
       const nx = m.x + dx, ny = m.y + dy;
       if (getTile(nx, ny) === TILE.FLOOR && !getMonsterAt(nx, ny) && !heroAt(nx, ny) && !houndAt(nx, ny) && !(scene === 'world' && townContaining(nx, ny))) best = [nx, ny];
     }
-    if (best) { if (best[0] !== m.x) m.face = Math.sign(best[0] - m.x); monsterIndex.delete(key(m.x, m.y)); m.x = best[0]; m.y = best[1]; monsterIndex.set(key(m.x, m.y), m); }
+    if (best) { if (best[0] !== m.x) m.face = Math.sign(best[0] - m.x); moveMonster(m, best[0], best[1]); }
   }
 }
 // Bosses fight in two phases. Every few beats they wind up a heavy blow that
