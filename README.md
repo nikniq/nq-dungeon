@@ -190,6 +190,14 @@ spares whoever stands at their feet. A colossus pays three times a boss's purse
 and the title Giant-feller. Every monster kind now has a boss name; the last
 floor under Hearth used to raise a nameless basilisk that broke the drawing.
 
+Upgrades can be chosen for the player so that levelling never stops the game
+(Settings, O: `settings.autoPerks`, `settings.autoSkills`, kept in the browser).
+With perks on auto, three are still drawn at random and the best for the hero's
+class is taken (`AUTO_PERKS`, `autoPerkIndex`); the perk picker itself has an
+"Always choose for me" button (key 0). With skills on auto, points are spent down
+the class's two main branches, two to the first for each one to the second
+(`autoSkillPick`). Every choice is written in the log.
+
 Castles are more than towns with walls. A building with `floors` in `BUILDINGS`
 is entered on its ground floor and climbed by stairs (`TILE.UP`, `TILE.DOWN`,
 `useStairs`; `interior.level` says which floor). The keep has a Great Hall, the

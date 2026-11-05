@@ -96,7 +96,7 @@ function resetSkills() {
   player.gold -= cost; player.maxHp -= 4 * skill('toughness'); player.hp = Math.min(player.hp, player.maxHp); player.meta.skills = {};
   player.mana = Math.min(player.mana ?? 0, maxMana()); log(`You unlearn your skills for ${cost} gold. ${spent} points are yours to spend again.`, 'good'); saveProgress('progress'); updateStats(); return true;
 }
-function skillNudge() { if (player && skillPoints() > 0 && player.level >= 2) tip('skills', `You have ${skillPoints()} skill ${skillPoints() === 1 ? 'point' : 'points'} to spend. Press K (or the Skills button) to open the skill tree.`); }
+function skillNudge() { if (player && !settings.autoSkills && skillPoints() > 0 && player.level >= 2) tip('skills', `You have ${skillPoints()} skill ${skillPoints() === 1 ? 'point' : 'points'} to spend. Press K (or the Skills button) to open the skill tree.`); }
 function openSkills() { if (!player || gameOver || perkChoices || storyOpen()) return; openShop('skills'); }
 const abilityCost = (slot = 0) => { const A = (ABILITIES[player.cls] || ABILITIES.warrior)[slot]; return Math.max(1, Math.ceil(A.cost * (1 - 0.2 * perkCount('quickened')) * (1 - 0.1 * skill('efficiency')) * (wearing('starring') ? 0.5 : 1))); };
 function restoreMana(n = Infinity) { player.mana = Math.min(maxMana(), (player.mana ?? 0) + n); }
@@ -234,7 +234,7 @@ function tip(id, text) {
 }
 let shake = null;
 // Player settings, kept per browser.
-const settings = { music: 0.5, sfx: 0.8, shake: true, numbers: true };
+const settings = { music: 0.5, sfx: 0.8, shake: true, numbers: true, autoPerks: false, autoSkills: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('dungeon-settings') || '{}')); } catch (e) { /* defaults */ }
 function saveSettings() { try { localStorage.setItem('dungeon-settings', JSON.stringify(settings)); } catch (e) { /* ignore */ } }
 function shakeScreen(mag, ms = 220) { if (!settings.shake) return; shake = { mag, until: performance.now() + ms }; }
@@ -7023,6 +7023,7 @@ function perkClick(e) {
   const px = (e.clientX - rect.left) * sx, py = (e.clientY - rect.top) * sy;
   const { w, h, gap, x0, y0 } = perkLayout();
   if (py >= y0 && py <= y0 + h) for (let i = 0; i < 3; i++) if (px >= x0 + i * (w + gap) && px <= x0 + i * (w + gap) + w) { choosePerk(i); return true; }
+  { const b = perkAutoButton(); if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) setAutoPerks(true); }
   return true;
 }
 function inspect(e) {
@@ -7093,21 +7094,61 @@ function updateStats() {
 }
 
 // ---------- combat ----------
+// Upgrades chosen for you (Settings, O): with these on, levelling up never stops the
+// game. A perk is still drawn from three at random and the best for the hero's class
+// is taken; skill points follow the class's two main branches.
+const AUTO_PERKS = {
+  warrior: ['second_wind', 'vampiric', 'nimble', 'thick_skin', 'brawn', 'tough', 'hunter', 'lucky', 'packrat', 'quickened'],
+  ranger:  ['nimble', 'second_wind', 'hunter', 'vampiric', 'brawn', 'lucky', 'tough', 'thick_skin', 'packrat', 'quickened'],
+  mage:    ['quickened', 'second_wind', 'nimble', 'hunter', 'tough', 'vampiric', 'lucky', 'thick_skin', 'brawn', 'packrat'],
+};
+const AUTO_BRANCHES = { warrior: ['Might', 'Guard', 'Arcana'], ranger: ['Might', 'Guard', 'Arcana'], mage: ['Arcana', 'Guard', 'Might'] };
+function autoSkillPick() {
+  const [main, second, last] = AUTO_BRANCHES[player.cls] || AUTO_BRANCHES.warrior;
+  const nodesOf = (b) => SKILL_TREE.find((t) => t.branch === b).nodes, spentIn = (b) => nodesOf(b).reduce((a, n) => a + skill(n.id), 0);
+  const pickIn = (b) => {
+    // open the next node down once the one above has two ranks; otherwise fill from the top
+    for (const n of nodesOf(b)) if (skill(n.id) === 0 && (!n.req || skill(n.req) >= Math.min(2, SKILL_NODES[n.req].max))) return n.id;
+    for (const n of nodesOf(b)) if (skill(n.id) < n.max && (!n.req || skill(n.req) >= 1)) return n.id;
+    return null;
+  };
+  for (const b of (spentIn(main) <= spentIn(second) * 2 ? [main, second, last] : [second, main, last])) { const id = pickIn(b); if (id) return id; }
+  return null;
+}
+function autoSpendSkills() {
+  if (!settings.autoSkills || !player || gameOver) return;
+  for (let guard = 0; guard < 60 && skillPoints() > 0; guard++) { const id = autoSkillPick(); if (!id || !learnSkill(id)) break; }
+}
+// Which of the cards on offer suits this hero's class best.
+function autoPerkIndex() {
+  const order = AUTO_PERKS[player.cls] || AUTO_PERKS.warrior, rank = (id) => { const k = order.indexOf(id); return k < 0 ? 99 : k; };
+  return perkChoices.indexOf(perkChoices.slice().sort((a, b) => rank(a) - rank(b))[0]);
+}
+function setAutoPerks(on) {
+  settings.autoPerks = !!on; saveSettings();
+  if (on && player && player.pendingPerks > 0) { if (perkChoices && perkChoices.length) choosePerk(autoPerkIndex(), true); else offerPerks(); log('From now on a perk is chosen for you at every level. Change it in Settings (O).', 'good'); draw(); }
+}
 function offerPerks() {
   if (!player.pendingPerks || perkChoices) return;
   const avail = Object.keys(PERKS).filter((id) => perkCount(id) < PERKS[id].max);
   perkChoices = [];
   while (perkChoices.length < 3 && avail.length) perkChoices.push(avail.splice(rnd(avail.length), 1)[0]);
   perkCursor = 0;
-  tip('perk', 'Level up! Pick a perk with the arrow keys and Enter, press 1, 2 or 3, or click one. Perks stay with your hero for good.');
+  if (settings.autoPerks && perkChoices.length) {
+    choosePerk(autoPerkIndex(), true);
+    return;
+  }
+  if (!perkChoices.length) { perkChoices = null; player.pendingPerks = 0; return; }
+  tip('perk', 'Level up! Pick a perk with the arrow keys and Enter, press 1, 2 or 3, or click one. Perks stay with your hero for good. To have them chosen for you, press 0 here or tick the box in Settings (O).');
 }
-function choosePerk(i) {
+function choosePerk(i, auto = false) {
   const id = perkChoices && perkChoices[i];
   if (!id) return;
   player.perks.push(id);
   if (id === 'tough') { player.maxHp += 6; player.hp += 6; }
   if (id === 'brawn') player.atk += 1;
-  log(`Perk taken: ${PERKS[id].name}, ${PERKS[id].desc}.`, 'good');
+  log(auto ? `Perk chosen for you: ${PERKS[id].name}, ${PERKS[id].desc}.` : `Perk taken: ${PERKS[id].name}, ${PERKS[id].desc}.`, 'good');
+  if (auto) toast = { text: `Level ${player.level}. Perk: ${PERKS[id].name} (${PERKS[id].desc})`, until: performance.now() + 3500 };
   sfx.play('levelup');
   player.pendingPerks--; perkChoices = null;
   updateStats(); buildLegend();
@@ -7139,8 +7180,13 @@ function drawPerks(g) {
     g.fillText(line, x + w / 2, ly);
     if (perkCount(id)) { g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText(`taken ×${perkCount(id)}`, x + w / 2, y0 + h - 24); }
   });
+  { const b = perkAutoButton();
+    g.fillStyle = '#06202c'; g.beginPath(); g.roundRect(b.x, b.y, b.w, b.h, 8); g.fill(); g.strokeStyle = '#12384a'; g.lineWidth = 2; g.stroke();
+    g.fillStyle = '#9fd4ff'; g.font = 'bold 13px sans-serif'; g.fillText(isTouch ? 'Always choose for me' : '0  ·  Always choose for me', b.x + b.w / 2, b.y + 11);
+    g.fillStyle = '#7f95aa'; g.font = '12px sans-serif'; g.fillText('Levelling up will no longer stop the game. Change it in Settings.', canvas.width / 2, b.y + b.h + 10, canvas.width - 24); }
   g.textAlign = 'start'; g.textBaseline = 'alphabetic';
 }
+function perkAutoButton() { const { h, y0 } = perkLayout(), w = Math.min(260, canvas.width - 32); return { x: Math.floor((canvas.width - w) / 2), y: y0 + h + 22, w, h: 36 }; }
 function gainXp(n) {
   n = Math.round(n * (perkCount('hunter') ? 1.5 : 1));
   player.xp += n;
@@ -7149,7 +7195,7 @@ function gainXp(n) {
     player.level++;
     player.maxHp += 4; player.atk += 1; player.hp = player.maxHp; mapCache.ox = null; restoreMana();
     { const A = abilityList().find((a, k) => k > 0 && a.level === player.level); if (A) { log(`New ability: ${A.name} (key ${abilityList().indexOf(A) + 1}): ${A.blurb}.`, 'good'); toast = { text: `New ability: ${A.name}. Press ${abilityList().indexOf(A) + 1}.`, until: performance.now() + 5000 }; } }
-    log(`Level up! You are now level ${player.level}. HP and attack increased, and a skill point to spend (K).`, 'good'); skillNudge();
+    log(`Level up! You are now level ${player.level}. HP and attack increased${settings.autoSkills ? '' : ', and a skill point to spend (K)'}.`, 'good'); skillNudge();
     sfx.play('levelup');
     burst(player.x, player.y, '#ffd86b', 40, 170, { glow: true, gravity: -40, life: 900, size: 3 });
     track('level_up', { level: player.level });
@@ -8069,6 +8115,7 @@ function toggleSettings(show = !settingsOpen()) {
     document.getElementById('set-sfx').value = Math.round(settings.sfx * 100);
     document.getElementById('set-shake').checked = settings.shake;
     document.getElementById('set-numbers').checked = settings.numbers;
+    { const a = document.getElementById('set-autoperks'), b = document.getElementById('set-autoskills'); if (a) a.checked = settings.autoPerks; if (b) b.checked = settings.autoSkills; }
   }
 }
 document.getElementById('camp-btn')?.addEventListener('click', () => { sfx.unlock(); makeCamp(); });
@@ -8080,6 +8127,8 @@ document.getElementById('set-sfx')?.addEventListener('input', (e) => { settings.
 document.getElementById('set-sfx')?.addEventListener('change', () => sfx.play('gold'));
 document.getElementById('set-shake')?.addEventListener('change', (e) => { settings.shake = e.target.checked; saveSettings(); });
 document.getElementById('set-numbers')?.addEventListener('change', (e) => { settings.numbers = e.target.checked; saveSettings(); });
+document.getElementById('set-autoperks')?.addEventListener('change', (e) => setAutoPerks(e.target.checked));
+document.getElementById('set-autoskills')?.addEventListener('change', (e) => { settings.autoSkills = e.target.checked; saveSettings(); if (settings.autoSkills && player) { const n = skillPoints(); autoSpendSkills(); if (n) log(`${n} skill ${n === 1 ? 'point' : 'points'} spent for you. Press K to see the tree; a reset there costs 25 gold a point.`, 'good'); draw(); } });
 const controlsEl = document.getElementById('controls-help');
 const controlsOpen = () => !!controlsEl && !controlsEl.hidden;
 function toggleControls(show = !controlsOpen()) { if (!controlsEl) return; controlsEl.hidden = !show; if (show) stopWalk?.(); }
@@ -8848,6 +8897,7 @@ function endTurn(moved) {
   if (player.hp <= 0) die();
   else arenaTurn();
   if (!gameOver && player.pendingPerks > 0) offerPerks();
+  if (settings.autoSkills && !gameOver && skillPoints() > 0) autoSpendSkills();
   if (scene === 'world' && moved && story2().s === 0 && townContaining(player.x, player.y) && story1Done()) offerStory2();
   if (scene === 'world' && moved && story2().s >= 1 && story2().s < 3 && townContaining(player.x, player.y)) story2Beat();
   if (scene === 'world' && moved && story3().s === 0 && townContaining(player.x, player.y) && story2Done()) offerStory3();
@@ -9212,6 +9262,7 @@ window.addEventListener('keydown', (e) => {
   sfx.unlock();
   if (perkChoices) {   // the perk picker owns the keyboard: numbers, arrows/WASD and Enter
     if (['1', '2', '3'].includes(e.key)) { choosePerk(Number(e.key) - 1); return; }
+    if (e.key === '0') { setAutoPerks(true); return; }
     const n = perkChoices.length;
     if (['ArrowLeft', 'ArrowUp', 'a', 'A', 'w', 'W'].includes(e.key) || (e.key === 'Tab' && e.shiftKey)) { e.preventDefault(); perkCursor = (perkCursor + n - 1) % n; draw(); return; }
     if (['ArrowRight', 'ArrowDown', 'd', 'D', 's', 'S', 'Tab'].includes(e.key)) { e.preventDefault(); perkCursor = (perkCursor + 1) % n; draw(); return; }

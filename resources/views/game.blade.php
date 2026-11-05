@@ -19,6 +19,9 @@
           <label class="setting">Sound effects <input type="range" id="set-sfx" min="0" max="100" step="5"></label>
           <label class="setting check"><input type="checkbox" id="set-shake"> Screen shake</label>
           <label class="setting check"><input type="checkbox" id="set-numbers"> Floating damage and healing numbers</label>
+          <label class="setting check"><input type="checkbox" id="set-autoperks"> Choose my perk at each level up</label>
+          <label class="setting check"><input type="checkbox" id="set-autoskills"> Spend my skill points for me</label>
+          <p class="muted small">With these on, levelling up never stops the game: the best perk of the three for your class is taken, and skill points go down your class's main branches. Each choice is written in the log.</p>
           <p class="muted small">N mutes everything. Settings are kept in this browser.</p>
           <button type="button" id="settings-close" class="primary">Done</button>
         </div>
@@ -34,7 +37,7 @@
                 <li><kbd>Space</kbd> or <kbd>.</kbd> wait a turn</li>
                 <li><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> class abilities (the second comes at level 5, the third at 10) · <kbd>P</kbd> potion · <kbd>B</kbd> bomb · <kbd>T</kbd> scroll of return</li>
                 <li><kbd>M</kbd> world map · <kbd>Q</kbd> quests · <kbd>J</kbd> journal · <kbd>N</kbd> sound · <kbd>C</kbd> make camp in the wilds</li>
-                <li><kbd>Esc</kbd> closes menus and skips story scenes · <kbd>?</kbd> this screen · <kbd>O</kbd> settings</li>
+                <li><kbd>Esc</kbd> closes menus and skips story scenes · <kbd>?</kbd> this screen · <kbd>O</kbd> settings (perks and skill points can be chosen for you there)</li>
                 <li>Not sure what to do? The Journal's Guide page (<kbd>J</kbd>, then <kbd>7</kbd>) has ideas</li>
               </ul>
             </div>
