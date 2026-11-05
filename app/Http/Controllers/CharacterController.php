@@ -137,6 +137,7 @@ class CharacterController extends Controller
             'meta.war.armies.*.troops' => ['required', 'integer', 'min:0', 'max:100000'],
             'meta.war.armies.*.target' => ['required', 'string', 'max:24', 'regex:/^-?\d+,-?\d+$/'],
             'meta.war.armies.*.mine' => ['required', 'boolean'],
+            'meta.war.routed' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'meta.war.camps' => ['nullable', 'array', 'max:500'],
             'meta.war.camps.*' => ['string', 'max:24', 'regex:/^-?\d+,-?\d+$/'],
             'meta.arena' => ['nullable', 'integer', 'min:0', 'max:1000'],

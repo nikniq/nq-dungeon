@@ -162,6 +162,9 @@ const ACHIEVEMENTS = {
   giantslayer: { label: 'Felled a colossus', title: 'the Giant-feller' },
   ratcatcher:  { label: 'Cleared the undercroft of a castle', title: 'the Ratcatcher' },
   troublemaker: { label: 'Broke the peace of a town and brought the watch down on yourself', title: 'the Troublemaker' },
+  raidbreaker: { label: 'Routed an orc war party on the march', title: 'the Raidbreaker' },
+  roadwarden:  { label: 'Routed five orc war parties', title: 'the Roadwarden' },
+  turncoat:    { label: "Fell on a realm's army on the march", title: 'the Turncoat' },
   highground:  { label: 'Looked out from the battlements of a keep', title: 'the Far-sighted' },
   proven:      { label: 'Passed a dungeon trial', title: 'the Proven' },
   unbroken:    { label: 'Passed ten dungeon trials', title: 'the Unbroken' },
@@ -4014,7 +4017,7 @@ function guardStrike(n, m) {
     m.purse = 0;
   }
   if (m.purse) golds.push({ x: m.x, y: m.y, amount: m.purse });
-  monsters = monsters.filter((x) => x !== m); if (scene === 'world') worldMonsters = monsters; monstersDirty = true;
+  monsters = monsters.filter((x) => x !== m); if (scene === 'world') worldMonsters = monsters; monstersDirty = true; bandLoss(m, false);
 }
 function guardHurt(n, m) {
   const R = GUARD_RANKS[n.type.rank], dmg = Math.max(1, m.atk - R.armor);
@@ -4433,6 +4436,7 @@ function assault(dx, dy) {
   assaultArmed = false;
   if (gameOver || !player || shopOpen || perkChoices || entering || storyOpen() || controlsOpen() || settingsOpen()) return;
   const nx = player.x + dx, ny = player.y + dy, n = scene !== 'dungeon' && getNpcAt(nx, ny);
+  { const ar = !n && armyAtTile(nx, ny); if (ar) { if (dx) player.face = dx; attackArmy(ar); return; } }
   if (!n) { tryMove(dx, dy); return; }
   if (scene === 'house') { log(`Not under a roof. Whatever you are thinking of doing to ${n.type.name}, think of it outside.`); draw(); return; }
   tip('assault', 'You struck a townsperson. The watch of this town will hunt you until you leave it; lose to them and you wake in the stocks with a fine to pay. Everyone recovers once you are gone.');
@@ -6806,7 +6810,7 @@ function drawScene(now) {
     if (m.bounty) { ctx.fillStyle = '#ef4444'; ctx.font = 'bold 14px sans-serif'; ctx.fillText('☠', lx * T - cam.x + T / 2 - 6, ly * T - cam.y - 4); }
     if (m.mod) { ctx.fillStyle = ELITE_MODS[m.mod].color; ctx.font = 'bold 12px sans-serif'; ctx.fillText('★', lx * T - cam.x + 1, ly * T - cam.y + 10); }
   }
-  drawArmies(ctx, now); drawRifts(ctx, now);
+  drawArmies(ctx, now); drawParties(ctx, now); drawRifts(ctx, now);
   houseSmoke(now);
   if (escort && scene === 'dungeon' && isVisible(escort.x, escort.y)) {
     const ex = escort.rx ?? escort.x, ey = escort.ry ?? escort.y;
@@ -6987,11 +6991,10 @@ function mapClick(px, py) {
   savePin(); draw();
   return true;
 }
-const MAP_COLORS = ['#3f7d3a', '#2f5f2c', '#dfc78f', '#1d4ed8', '#6b7280', '#a8865a', '#6b7280', '#2e7d32'];
 
 function toggleMap() {
   if (scene === 'house') { log('The map shows the surface. You are indoors.'); return; }
-  mapOpen = !mapOpen;
+  mapOpen = !mapOpen; mapHover = null; canvas.style.cursor = '';
   if (mapOpen && scene === 'dungeon') tip('dmap', 'The dungeon map shows every tile you have seen on this floor: stairs, the way-out door, chests, springs, altars, trial stones and traps you have found. M or Esc closes it.');
   draw();
 }
@@ -7044,61 +7047,184 @@ function isNearFloor(ch, i) {
   for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= CHUNK || ny >= CHUNK) continue; const j = ny * CHUNK + nx; if (ch.seen[j] === 1 && ch.tiles[j] !== TILE.WALL) return true; }
   return false;
 }
+// ---------- the world map, drawn like a chart ----------
+// Terrain is painted once per view into an image a sample to a pixel, then scaled up: the sea
+// shades from shallows to deep water, the land has an inked coast, lit and shaded mountains and
+// a grain like paper. Names are placed last, most important first, and one that would cover
+// another (or an icon) tries the other side or is left off.
+const MAP_INK = { [GROUND.GRASS]: [156, 188, 112], [GROUND.FOREST]: [98, 150, 86], [GROUND.TREE]: [80, 132, 74], [GROUND.SAND]: [233, 215, 162], [GROUND.MOUNTAIN]: [152, 143, 130], [GROUND.ROAD]: [204, 176, 124], [GROUND.COBBLE]: [170, 168, 172], [GROUND.RAMPART]: [150, 150, 158], [GROUND.DOCK]: [176, 136, 96], [GROUND.SNOW]: [236, 241, 246] };
+let mapLabels = [], mapTaken = [];
+let warParties = [];   // orc bands on the march (see the war section); not saved
+function mapLabel(text, x, y, o = {}) { mapLabels.push({ text, x, y, font: o.font || 'bold 11px sans-serif', color: o.color || '#ffd86b', box: o.box !== false, pri: o.pri || 0, up: o.up ?? 8, down: o.down ?? 8, side: o.side ?? 10, sub: o.sub || '', subColor: o.subColor || '#cfe9ff', spaced: !!o.spaced }); }
+const mapKeep = (x, y, w, h) => mapTaken.push({ x, y, w, h });
+function placeMapLabels(g, cw, ch) {
+  const icons = mapTaken.slice(), placed = [];
+  mapLabels.sort((p, q) => q.pri - p.pri);
+  for (const L of mapLabels) {
+    g.font = L.font; if ('letterSpacing' in g) g.letterSpacing = L.spaced ? '2px' : '0px';
+    const tw0 = g.measureText(L.text).width; g.font = '10px sans-serif'; if ('letterSpacing' in g) g.letterSpacing = '0px';
+    const w = Math.max(tw0, L.sub ? g.measureText(L.sub).width : 0) + (L.box ? 10 : 4), h = (L.sub ? 26 : 15);
+    const tries = [[L.x - w / 2, L.y - L.up - h], [L.x - w / 2, L.y + L.down], [L.x + L.side, L.y - h / 2], [L.x - L.side - w, L.y - h / 2]];
+    let spot = null;
+    for (const [x, y] of tries) {
+      if (x < 2 || y < 2 || x + w > cw - 2 || y + h > ch - 2) continue;
+      const hits = (r) => x < r.x + r.w + 2 && x + w + 2 > r.x && y < r.y + r.h + 1 && y + h + 1 > r.y;
+      if (placed.some(hits) || (L.pri < 10 && icons.some(hits))) continue;
+      spot = { x, y, w, h }; break;
+    }
+    if (!spot) continue;
+    placed.push(spot);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    if (L.box) {
+      g.fillStyle = 'rgba(24,18,10,0.8)'; g.beginPath(); g.roundRect(spot.x, spot.y, w, h, 4); g.fill();
+      g.strokeStyle = L.color; g.globalAlpha = 0.4; g.lineWidth = 1; g.beginPath(); g.roundRect(spot.x + 0.5, spot.y + 0.5, w - 1, h - 1, 4); g.stroke(); g.globalAlpha = 1;
+    }
+    g.font = L.font; if ('letterSpacing' in g) g.letterSpacing = L.spaced ? '2px' : '0px';
+    if (!L.box) { g.strokeStyle = 'rgba(20,14,6,0.85)'; g.lineWidth = 3; g.lineJoin = 'round'; g.strokeText(L.text, spot.x + w / 2, spot.y + 8); }
+    g.fillStyle = L.color; g.fillText(L.text, spot.x + w / 2, spot.y + 8);
+    if ('letterSpacing' in g) g.letterSpacing = '0px';
+    if (L.sub) { g.font = '10px sans-serif'; if (!L.box) { g.strokeStyle = 'rgba(20,14,6,0.85)'; g.lineWidth = 3; g.strokeText(L.sub, spot.x + w / 2, spot.y + 20); } g.fillStyle = L.subColor; g.fillText(L.sub, spot.x + w / 2, spot.y + 20); }
+  }
+  g.textAlign = 'start'; g.textBaseline = 'alphabetic';
+}
+// Small glyphs for what stands out in the country: one shape for each kind of dungeon, a tent for a warcamp.
+function drawMapGlyph(g, kind, x, y, col = '#c084fc', big = true) {
+  x = Math.round(x); y = Math.round(y);
+  if (!big && kind === 'camp') { g.fillStyle = '#1b1408'; g.beginPath(); g.moveTo(x, y - 5); g.lineTo(x + 5, y + 4); g.lineTo(x - 5, y + 4); g.fill(); g.fillStyle = col; g.beginPath(); g.moveTo(x, y - 3); g.lineTo(x + 3, y + 3); g.lineTo(x - 3, y + 3); g.fill(); return; }
+  if (!big) { g.fillStyle = '#1b1408'; g.beginPath(); g.arc(x, y, 3.5, 0, Math.PI * 2); g.fill(); g.fillStyle = col; g.beginPath(); g.arc(x, y, 2.2, 0, Math.PI * 2); g.fill(); return; }
+  g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.ellipse(x + 1, y + 6, 8, 3, 0, 0, Math.PI * 2); g.fill();
+  if (kind === 'tower') {
+    g.fillStyle = '#1b1408'; g.fillRect(x - 5, y - 9, 10, 16); g.fillStyle = '#a9a3b8'; g.fillRect(x - 4, y - 6, 8, 12);
+    g.fillStyle = '#d8d3e4'; g.fillRect(x - 4, y - 8, 2, 2); g.fillRect(x - 1, y - 8, 2, 2); g.fillRect(x + 2, y - 8, 2, 2); g.fillStyle = col; g.fillRect(x - 1, y - 3, 2, 4); g.fillStyle = '#1b1408'; g.fillRect(x - 1, y + 2, 2, 4);
+  } else if (kind === 'crypt') {
+    g.fillStyle = '#1b1408'; g.beginPath(); g.roundRect(x - 6, y - 8, 12, 15, [5, 5, 0, 0]); g.fill();
+    g.fillStyle = '#b9bcc4'; g.beginPath(); g.roundRect(x - 5, y - 7, 10, 13, [4, 4, 0, 0]); g.fill();
+    g.fillStyle = col; g.fillRect(x - 1, y - 5, 2, 8); g.fillRect(x - 3, y - 3, 6, 2);
+  } else if (kind === 'warren') {
+    g.fillStyle = '#1b1408'; g.beginPath(); g.ellipse(x, y + 1, 8, 7, 0, Math.PI, 0); g.fill(); g.fillRect(x - 8, y, 16, 3);
+    g.fillStyle = '#a07a4a'; g.beginPath(); g.ellipse(x, y + 1, 7, 6, 0, Math.PI, 0); g.fill(); g.fillRect(x - 7, y, 14, 2);
+    g.fillStyle = '#1b1408'; g.beginPath(); g.ellipse(x, y + 2, 3, 3.5, 0, Math.PI, 0); g.fill(); g.fillStyle = col; g.fillRect(x - 4, y - 5, 2, 2); g.fillRect(x + 2, y - 5, 2, 2);
+  } else if (kind === 'deep') {
+    g.fillStyle = '#0b0b12'; g.beginPath(); g.roundRect(x - 7, y - 9, 14, 16, [6, 6, 0, 0]); g.fill();
+    g.strokeStyle = '#ffd86b'; g.lineWidth = 1.5; g.beginPath(); g.roundRect(x - 6.5, y - 8.5, 13, 15, [6, 6, 0, 0]); g.stroke(); g.fillStyle = '#7c3aed'; g.fillRect(x - 1, y - 3, 2, 8);
+  } else if (kind === 'camp') {
+    g.fillStyle = '#1b1408'; g.beginPath(); g.moveTo(x, y - 8); g.lineTo(x + 8, y + 6); g.lineTo(x - 8, y + 6); g.fill();
+    g.fillStyle = col; g.beginPath(); g.moveTo(x, y - 6); g.lineTo(x + 6, y + 5); g.lineTo(x - 6, y + 5); g.fill();
+    g.fillStyle = '#1b1408'; g.beginPath(); g.moveTo(x, y - 1); g.lineTo(x + 2, y + 5); g.lineTo(x - 2, y + 5); g.fill(); g.fillRect(x, y - 12, 1, 5); g.fillStyle = col; g.fillRect(x + 1, y - 12, 4, 3);
+  } else {   // a cave mouth
+    g.fillStyle = '#1b1408'; g.beginPath(); g.ellipse(x, y + 3, 8, 10, 0, Math.PI, 0); g.fill(); g.fillRect(x - 8, y + 2, 16, 4);
+    g.fillStyle = '#8f8778'; g.beginPath(); g.ellipse(x, y + 3, 7, 9, 0, Math.PI, 0); g.fill(); g.fillRect(x - 7, y + 2, 14, 3);
+    g.fillStyle = '#17120a'; g.beginPath(); g.ellipse(x, y + 5, 4, 6, 0, Math.PI, 0); g.fill(); g.fillStyle = col; g.fillRect(x - 1, y - 9, 2, 2);
+  }
+}
 function renderWorldMap() {
   const W = Math.floor((canvas.width - 40) / MAP_PX), H = Math.floor((canvas.height - 96) / MAP_PX);  // samples
   const ox = Math.floor((player.x - W * MAP_STEP / 2) / 16) * 16, oy = Math.floor((player.y - H * MAP_STEP / 2) / 16) * 16;
   if (mapCache.ox === ox && mapCache.oy === oy) return;
   const c = mapCache.canvas; c.width = W * MAP_PX; c.height = H * MAP_PX;
   const g = c.getContext('2d');
+  mapLabels = []; mapTaken = [];
+  // ----- the land and the sea -----
+  const grid = new Uint8Array(W * H);
+  for (let sy = 0; sy < H; sy++) for (let sx = 0; sx < W; sx++) grid[sy * W + sx] = terrainAt(ox + sx * MAP_STEP, oy + sy * MAP_STEP);
+  const at = (sx, sy) => grid[Math.max(0, Math.min(H - 1, sy)) * W + Math.max(0, Math.min(W - 1, sx))];
+  const wet = (sx, sy) => at(sx, sy) === GROUND.WATER;
+  const RW = Math.ceil(W / 2), realms = new Array(RW * Math.ceil(H / 2));
+  const realmHere = (sx, sy) => { const k = (sy >> 1) * RW + (sx >> 1); return realms[k] || (realms[k] = realmOfTile(ox + (sx & ~1) * MAP_STEP, oy + (sy & ~1) * MAP_STEP)); };
+  const tint = {}; for (const id of ALL_REALMS) { const n = parseInt(REALMS[id].color.slice(1), 16); tint[id] = [n >> 16, (n >> 8) & 255, n & 255]; }
+  const img = g.createImageData(W, H), px = img.data;
   for (let sy = 0; sy < H; sy++) for (let sx = 0; sx < W; sx++) {
-    g.fillStyle = MAP_COLORS[terrainAt(ox + sx * MAP_STEP, oy + sy * MAP_STEP)];
-    g.fillRect(sx * MAP_PX, sy * MAP_PX, MAP_PX, MAP_PX);
+    const t = grid[sy * W + sx], wx = ox + sx * MAP_STEP, wy = oy + sy * MAP_STEP, grain = (noise(wx, wy, 903) - 0.5);
+    let r, gg, b;
+    if (t === GROUND.WATER) {
+      const near = !wet(sx - 1, sy) || !wet(sx + 1, sy) || !wet(sx, sy - 1) || !wet(sx, sy + 1) || !wet(sx - 1, sy - 1) || !wet(sx + 1, sy + 1) || !wet(sx - 1, sy + 1) || !wet(sx + 1, sy - 1);
+      const mid = !near && (!wet(sx - 2, sy) || !wet(sx + 2, sy) || !wet(sx, sy - 2) || !wet(sx, sy + 2) || !wet(sx - 2, sy - 2) || !wet(sx + 2, sy + 2) || !wet(sx - 2, sy + 2) || !wet(sx + 2, sy - 2));
+      const far = !near && !mid && (!wet(sx - 4, sy) || !wet(sx + 4, sy) || !wet(sx, sy - 4) || !wet(sx, sy + 4) || !wet(sx - 3, sy - 3) || !wet(sx + 3, sy + 3) || !wet(sx - 3, sy + 3) || !wet(sx + 3, sy - 3));
+      const swell = valueNoise(wx, wy, 901, 60) * 16 - 8;
+      [r, gg, b] = near ? [134, 190, 200] : mid ? [102, 164, 190] : far ? [78, 138, 176] : [58 + swell * 0.5, 112 + swell, 160 + swell];
+      r += grain * 5; gg += grain * 5; b += grain * 5;
+    } else {
+      [r, gg, b] = MAP_INK[t] || MAP_INK[GROUND.GRASS];
+      const amp = t === GROUND.FOREST || t === GROUND.TREE ? 26 : 12;
+      r += grain * amp; gg += grain * amp; b += grain * amp;
+      if (t === GROUND.MOUNTAIN) {   // lit from the north-west
+        const lit = at(sx - 1, sy - 1) !== GROUND.MOUNTAIN, dark = at(sx + 1, sy + 1) !== GROUND.MOUNTAIN, snowy = !lit && !dark && at(sx - 3, sy - 3) === GROUND.MOUNTAIN && at(sx + 3, sy + 3) === GROUND.MOUNTAIN && at(sx - 3, sy) === GROUND.MOUNTAIN && at(sx + 3, sy) === GROUND.MOUNTAIN;
+        const d = lit ? 34 : dark ? -38 : (noise(wx >> 1, wy >> 1, 905) - 0.5) * 22; r += d; gg += d; b += d;
+        if (snowy) { r = 232; gg = 236; b = 240; }
+      }
+      const rid = realmHere(sx, sy), tc = tint[rid];
+      if (tc) {
+        const edge = realmHere(sx + 2, sy) !== rid || realmHere(sx, sy + 2) !== rid, k = edge && (sx + sy) % 2 === 0 ? 0.6 : 0.09;
+        r += (tc[0] - r) * k; gg += (tc[1] - gg) * k; b += (tc[2] - b) * k;
+      }
+      if (wet(sx - 1, sy) || wet(sx + 1, sy) || wet(sx, sy - 1) || wet(sx, sy + 1)) { r *= 0.62; gg *= 0.6; b *= 0.55; }   // the coast, inked
+    }
+    const o = (sy * W + sx) * 4; px[o] = r; px[o + 1] = gg; px[o + 2] = b; px[o + 3] = 255;
   }
-  // realms: a wash of each realm's colour, and a line where they meet
-  for (let sy = 0; sy < H; sy += 2) for (let sx = 0; sx < W; sx += 2) {
-    const wx = ox + sx * MAP_STEP, wy = oy + sy * MAP_STEP, rid = realmOfTile(wx, wy);
-    g.fillStyle = REALMS[rid].color; g.globalAlpha = 0.1; g.fillRect(sx * MAP_PX, sy * MAP_PX, MAP_PX * 2, MAP_PX * 2);
-    if (realmOfTile(wx + MAP_STEP * 2, wy) !== rid || realmOfTile(wx, wy + MAP_STEP * 2) !== rid) { g.globalAlpha = 0.55; g.fillRect(sx * MAP_PX, sy * MAP_PX, MAP_PX, MAP_PX); }
-    g.globalAlpha = 1;
+  const small = document.createElement('canvas'); small.width = W; small.height = H; small.getContext('2d').putImageData(img, 0, 0);
+  g.imageSmoothingEnabled = false; g.drawImage(small, 0, 0, W * MAP_PX, H * MAP_PX);
+  // a few strokes of swell on the open sea
+  g.strokeStyle = 'rgba(255,255,255,0.22)'; g.lineWidth = 1;
+  for (let sy = 6; sy < H - 6; sy += 9) for (let sx = 6; sx < W - 6; sx += 13) {
+    const wx = ox + sx * MAP_STEP, wy = oy + sy * MAP_STEP;
+    if (noise(wx, wy, 907) > 0.3 || !wet(sx, sy) || !wet(sx - 5, sy) || !wet(sx + 5, sy) || !wet(sx, sy - 5) || !wet(sx, sy + 5)) continue;
+    const x = sx * MAP_PX + noise(wx, wy, 908) * 12, y = sy * MAP_PX + noise(wx, wy, 909) * 10;
+    g.beginPath(); g.moveTo(x - 7, y); g.quadraticCurveTo(x - 3.5, y - 3, x, y); g.quadraticCurveTo(x + 3.5, y + 3, x + 7, y); g.stroke();
   }
+  // the page darkens toward its edges
+  { const vg = g.createRadialGradient(c.width / 2, c.height / 2, Math.min(c.width, c.height) * 0.35, c.width / 2, c.height / 2, Math.hypot(c.width, c.height) * 0.56);
+    vg.addColorStop(0, 'rgba(60,40,10,0)'); vg.addColorStop(1, 'rgba(40,24,6,0.34)'); g.fillStyle = vg; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = 'rgba(244,226,180,0.07)'; g.fillRect(0, 0, c.width, c.height); }
   const toPx = (x, y) => [((x - ox) / MAP_STEP) * MAP_PX, ((y - oy) / MAP_STEP) * MAP_PX];
-  // roads between lattice neighbours, then the towns on top
+  // ----- roads between lattice neighbours, and trails out to the dungeons -----
   const i0 = Math.floor((ox - 20) / TOWN_SPACING) - 1, i1 = Math.floor((ox + W * MAP_STEP) / TOWN_SPACING) + 1;
   const j0 = Math.floor((oy - 15) / TOWN_SPACING) - 1, j1 = Math.floor((oy + H * MAP_STEP) / TOWN_SPACING) + 1;
-  g.strokeStyle = '#a8865a'; g.lineWidth = 2;
+  const roads = new Path2D(), trails = new Path2D();
   for (let i = i0 - 2; i <= i1; i++) for (let j = j0 - 2; j <= j1; j++) {
     const a = townAt(i, j);
     if (!a) continue;
     for (const b of [neighbourTown(i, j, 1, 0), neighbourTown(i, j, 0, 1)]) {
       { const ca = continentOf(a.cx, a.cy); if (!b || ca < 0 || ca !== continentOf(b.cx, b.cy)) continue; }   // roads only within a continent, never across the sea
       const [ax, ay] = toPx(a.cx, a.cy), [bx, by] = toPx(b.cx, b.cy);
-      g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, ay); g.lineTo(bx, by); g.stroke();
+      roads.moveTo(ax, ay); roads.lineTo(bx, ay); roads.lineTo(bx, by);
     }
   }
-  g.lineWidth = 1; g.strokeStyle = '#8c6d45';
   for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
     const st = siteAt(i, j);
-    if (!st) continue;
+    if (!st || (st.lair && !lairKnown(st.lair))) continue;
     const t = nearestTownTo(st.x, st.y), [sx, sy] = toPx(st.x, st.y), [tx, ty] = toPx(t.cx, t.cy);
-    g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx, ty); g.lineTo(tx, ty); g.stroke();
+    if (Math.abs(st.x - t.cx) + Math.abs(st.y - t.cy) > 90) continue;
+    trails.moveTo(sx, sy); trails.lineTo(sx, ty); trails.lineTo(tx, ty);
   }
-  g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom';
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  g.strokeStyle = 'rgba(70,48,20,0.55)'; g.lineWidth = 1; g.setLineDash([2, 3]); g.stroke(trails); g.setLineDash([]);
+  g.strokeStyle = 'rgba(70,48,20,0.8)'; g.lineWidth = MAP_STEP > 4 ? 2.5 : 3.5; g.stroke(roads);
+  g.strokeStyle = '#ecd49a'; g.lineWidth = MAP_STEP > 4 ? 1 : 1.6; g.stroke(roads);
+  // ----- dungeons -----
   for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
     const st = siteAt(i, j);
     if (!st) continue;
     if (st.lair && !lairKnown(st.lair)) continue;
     const [sx, sy] = toPx(st.x, st.y);
-    if (MAP_STEP > 2) { g.fillStyle = st.lair ? '#ef4444' : '#c084fc'; g.fillRect(sx - 2, sy - 2, 4, 4); continue; }   // zoomed out: just a dot
+    if (sx < -10 || sy < -10 || sx > c.width + 10 || sy > c.height + 10) continue;
     if (st.lair) {
-      const L = LAIRS[st.lair], slain = lairState().slain.includes(st.lair);
-      g.fillStyle = slain ? '#6b7280' : '#ef4444'; g.font = 'bold 16px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('☠', sx, sy);
-      g.fillStyle = '#ffd86b'; g.font = 'bold 9px sans-serif'; g.fillText('♛', sx, sy - 11);
-      g.font = 'bold 10px sans-serif'; g.fillStyle = slain ? '#9ca3af' : '#fca5a5'; g.fillText(`${st.name}${slain ? ' (slain)' : ''}`, sx, sy + 13); g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.font = 'bold 11px sans-serif';
+      const slain = lairState().slain.includes(st.lair);
+      if (MAP_STEP > 4) { drawMapGlyph(g, 'lair', sx, sy, slain ? '#9ca3af' : '#ef4444', false); continue; }
+      g.fillStyle = 'rgba(24,18,10,0.75)'; g.beginPath(); g.arc(sx, sy, 10, 0, Math.PI * 2); g.fill();
+      g.fillStyle = slain ? '#9ca3af' : '#ef4444'; g.font = 'bold 15px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('☠', sx, sy + 1);
+      g.fillStyle = '#ffd86b'; g.font = 'bold 9px sans-serif'; g.fillText('♛', sx, sy - 12);
+      mapKeep(sx - 10, sy - 14, 20, 26);
+      mapLabel(`${st.name}${slain ? ' (slain)' : ''}`, sx, sy, { color: slain ? '#c4c8d0' : '#fca5a5', font: 'bold 10px sans-serif', pri: 5, box: false, up: 14, down: 11 });
       continue;
     }
-    g.fillStyle = '#c084fc'; g.fillRect(sx - 4, sy - 4, 8, 8); g.fillStyle = '#1b1b2f'; g.fillRect(sx - 2, sy - 2, 4, 4);
-    g.font = '10px sans-serif'; const rt = rating(siteDungeon(st)); g.fillStyle = '#e9d5ff'; g.fillText(st.name, sx, sy - 16); g.fillStyle = rt.color; g.fillText(`Lv ${rt.rec}+ ${rt.label}`, sx, sy - 6); g.font = 'bold 11px sans-serif';
+    const rt = rating(siteDungeon(st));
+    if (MAP_STEP > 4) { drawMapGlyph(g, st.type, sx, sy, rt.color, false); continue; }
+    drawMapGlyph(g, st.deep ? 'deep' : st.type, sx, sy, rt.color);
+    mapKeep(sx - 8, sy - 10, 16, 18);
+    if (MAP_STEP <= 2) mapLabel(st.name, sx, sy, { color: '#f1e6ff', font: '10px sans-serif', pri: 3, box: false, up: 11, down: 8, sub: `Lv ${rt.rec}+ ${rt.label}`, subColor: rt.color });
+    else mapLabel(st.name, sx, sy, { color: '#f1e6ff', font: '10px sans-serif', pri: 1, box: false, up: 11, down: 8 });
   }
+  g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom';
   for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
     const t = townAt(i, j);
     if (!t) continue;
@@ -7106,32 +7232,30 @@ function renderWorldMap() {
     drawMapTown(g, t, x, y, w, h);
   }
   // places you have discovered
-  g.font = '9px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom';
   for (const k of player.meta.places) {
     const pl = placeAt(...k.split(',').map(Number));
     if (!pl) continue;
-    const [px, py] = toPx(pl.x, pl.y);
-    if (px < 0 || py < 0 || px > c.width || py > c.height) continue;
-    g.fillStyle = '#9fd4ff'; g.beginPath(); g.arc(px, py, MAP_STEP > 2 ? 2 : 3, 0, Math.PI * 2); g.fill();
-    if (MAP_STEP <= 2) { g.fillStyle = '#cfe9ff'; g.fillText(pl.name.replace(/^the /, ''), px, py - 4); }
+    const [px2, py2] = toPx(pl.x, pl.y);
+    if (px2 < 0 || py2 < 0 || px2 > c.width || py2 > c.height) continue;
+    g.fillStyle = '#1b1408'; g.beginPath(); g.arc(px2, py2, MAP_STEP > 2 ? 3 : 4, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#9fd4ff'; g.beginPath(); g.arc(px2, py2, MAP_STEP > 2 ? 2 : 3, 0, Math.PI * 2); g.fill();
+    if (MAP_STEP <= 2) mapLabel(pl.name.replace(/^the /, ''), px2, py2, { color: '#cfe9ff', font: '9px sans-serif', pri: 0, box: false, up: 5, down: 5 });
   }
   // treasure charts
-  g.font = 'bold 13px sans-serif'; g.textBaseline = 'middle';
+  g.font = 'bold 13px sans-serif'; g.textBaseline = 'middle'; g.textAlign = 'center';
   for (const k of charts()) {
-    const [x, y] = k.split(',').map(Number), [px, py] = toPx(x, y);
-    if (px < 0 || py < 0 || px > c.width || py > c.height) continue;
-    g.fillStyle = 'rgba(6,12,20,0.6)'; g.beginPath(); g.arc(px, py, 7, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#ff6b6b'; g.fillText('✕', px, py + 1);
+    const [x, y] = k.split(',').map(Number), [px2, py2] = toPx(x, y);
+    if (px2 < 0 || py2 < 0 || px2 > c.width || py2 > c.height) continue;
+    g.fillStyle = 'rgba(24,18,10,0.7)'; g.beginPath(); g.arc(px2, py2, 7, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#ff6b6b'; g.fillText('✕', px2, py2 + 1); mapKeep(px2 - 7, py2 - 7, 14, 14);
   }
-  g.textBaseline = 'bottom';
-  // realm names over their capitals
-  g.font = 'bold 13px sans-serif';
+  // realm names, lettered wide across the land above each capital
   for (const id of (farShoreOpen() ? ALL_REALMS : REALM_ORDER)) {
     const cap = townAt(...REALMS[id].capital); if (!cap) continue;
-    const [px, py] = toPx(cap.cx, cap.y0);
-    g.fillStyle = 'rgba(6,12,20,0.7)'; const lw = g.measureText(REALMS[id].name).width + 12; g.fillRect(px - lw / 2, py - 46, lw, 18);
-    g.fillStyle = REALMS[id].color; g.fillText(REALMS[id].name, px, py - 31);
+    const [px2, py2] = toPx(cap.cx, cap.y0);
+    mapLabel(REALMS[id].name.toUpperCase(), px2, py2, { color: REALMS[id].color, font: `bold ${MAP_STEP > 4 ? 12 : 14}px Georgia, 'Times New Roman', serif`, pri: 20, box: false, up: MAP_STEP <= 2 ? 44 : 30, down: 30, spaced: true });
   }
+  placeMapLabels(g, c.width, c.height);
   g.textAlign = 'start'; g.textBaseline = 'alphabetic';
   mapCache.ox = ox; mapCache.oy = oy;
 }
@@ -7213,19 +7337,88 @@ function drawMapTown(g, t, x, y, w, h) {
   g.fillStyle = '#5fe17a'; g.fillRect(cx - 1.5, cy + 14 * sc, 3, 3);
   // the name: everything close up; cities, castles, capitals and home when far; capitals only at the widest view
   const big = grand || t.capital || t.size === 'city' || t.walled || t.key === homeTown;
-  if (MAP_STEP <= 2 || (MAP_STEP <= 4 && big) || grand || t.capital) {
-    const label = (t.harbour ? '⚓ ' : '') + (t.key === homeTown ? t.name + ' (home)' : t.name) + (grand ? ' ♛' : t.capital ? ' ✦' : ''), lw = g.measureText(label).width + 8;
-    const ly = cy - (grand ? 26 : t.walled || t.size === 'city' ? 22 : t.size === 'town' ? 18 : 12) * sc - 4;
-    g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(cx - lw / 2, ly - 13, lw, 14, 3); g.fill();
-    g.fillStyle = grand ? '#fbbf24' : t.capital ? col : '#ffd86b'; g.fillText(label, cx, ly);
+  const tall = (grand ? 26 : t.walled || t.size === 'city' ? 22 : t.size === 'town' ? 18 : 12) * sc;
+  mapKeep(cx - tall * 0.8, cy - tall, tall * 1.6, tall + 14 * sc);
+  if (MAP_STEP <= 4 || big) {
+    const label = (t.harbour ? '⚓ ' : '') + (t.key === homeTown ? t.name + ' (home)' : t.name) + (grand ? ' ♛' : t.capital ? ' ✦' : '');
+    mapLabel(label, cx, cy, { color: grand ? '#fbbf24' : t.capital ? col : '#ffe7a8', pri: grand ? 12 : t.capital ? 11 : t.key === homeTown ? 10 : t.walled || t.size === 'city' ? 7 : t.size === 'town' ? 5 : 4, up: tall + 2, down: 16 * sc + 2, side: tall * 0.8 + 2, font: MAP_STEP > 4 ? 'bold 10px sans-serif' : 'bold 11px sans-serif' });
   }
+}
+// A banner on a pole: a realm's army flies a clean pennant, an orc war party a torn black-edged one.
+function drawMapFlag(g, x, y, col, torn) {
+  g.fillStyle = '#1b1408'; g.fillRect(x - 1, y - 14, 2, 15);
+  g.fillStyle = torn ? '#111' : '#1b1408'; g.beginPath(); g.moveTo(x + 1, y - 15); g.lineTo(x + 13, y - 10.5); g.lineTo(x + 1, y - 5); g.fill();
+  g.fillStyle = col; g.beginPath(); g.moveTo(x + 1, y - 14); g.lineTo(x + 11, y - 10.5); if (torn) { g.lineTo(x + 7, y - 9.5); g.lineTo(x + 9, y - 7.5); } g.lineTo(x + 1, y - 6); g.fill();
+}
+// A compass rose and a scale bar in the bottom-left corner of the chart.
+function drawMapFurniture(g, X, Y, c) {
+  if (c.width < 420 || c.height < 300) return;
+  const cx = X + 46, cy = Y + c.height - 78, R = 24;
+  g.fillStyle = 'rgba(24,18,10,0.55)'; g.beginPath(); g.arc(cx, cy, R + 7, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(232,201,122,0.8)'; g.lineWidth = 1; g.beginPath(); g.arc(cx, cy, R + 4, 0, Math.PI * 2); g.stroke(); g.beginPath(); g.arc(cx, cy, R - 6, 0, Math.PI * 2); g.stroke();
+  for (let k = 0; k < 8; k++) {
+    const a = k * Math.PI / 4 - Math.PI / 2, len = k % 2 ? R * 0.55 : R, wd = k % 2 ? 3 : 5;
+    const tx = cx + Math.cos(a) * len, ty = cy + Math.sin(a) * len, nx = Math.cos(a + Math.PI / 2) * wd, ny = Math.sin(a + Math.PI / 2) * wd;
+    g.fillStyle = k === 0 ? '#e25555' : k % 2 ? '#8a6f3c' : '#e8c97a'; g.beginPath(); g.moveTo(tx, ty); g.lineTo(cx + nx, cy + ny); g.lineTo(cx, cy); g.fill();
+    g.fillStyle = k === 0 ? '#8f2f2f' : k % 2 ? '#5c4a26' : '#a8873f'; g.beginPath(); g.moveTo(tx, ty); g.lineTo(cx - nx, cy - ny); g.lineTo(cx, cy); g.fill();
+  }
+  g.fillStyle = '#f3e3b6'; g.font = "bold 11px Georgia, 'Times New Roman', serif"; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('N', cx, cy - R - 12);
+  // the scale
+  const tiles = [25, 50, 100, 200, 400].find((n) => n * MAP_PX / MAP_STEP >= 60) || 400, w = tiles * MAP_PX / MAP_STEP, sx = X + 18, sy = Y + c.height - 24;
+  g.fillStyle = 'rgba(24,18,10,0.55)'; g.fillRect(sx - 6, sy - 16, w + 12, 26);
+  for (let k = 0; k < 4; k++) { g.fillStyle = k % 2 ? '#2a1d0c' : '#f3e3b6'; g.fillRect(sx + k * w / 4, sy, w / 4, 4); }
+  g.strokeStyle = '#2a1d0c'; g.lineWidth = 1; g.strokeRect(sx - 0.5, sy - 0.5, w + 1, 5);
+  g.fillStyle = '#f3e3b6'; g.font = '10px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom'; g.fillText(`${tiles} tiles`, sx + w / 2, sy - 2);
+  g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+}
+// What lies under the pointer on the map: the nearest town, dungeon, camp, party, army or known place.
+let mapHover = null;
+function mapFeatureAt(px, py, X, Y, c) {
+  if (px < X || py < Y || px > X + c.width || py > Y + c.height) return null;
+  const wx = mapCache.ox + ((px - X) / MAP_PX) * MAP_STEP, wy = mapCache.oy + ((py - Y) / MAP_PX) * MAP_STEP;
+  const pix = (x, y) => Math.hypot(X + ((x - mapCache.ox) / MAP_STEP) * MAP_PX - px, Y + ((y - mapCache.oy) / MAP_STEP) * MAP_PX - py);
+  const away = (x, y) => { const d = Math.round(Math.hypot(x - player.x, y - player.y)); return d < 3 ? 'You are here' : `${d} tiles ${compassWord(x - player.x, y - player.y).toLowerCase()} of you`; };
+  let best = null; const take = (d, reach, f) => { if (d <= reach && (!best || d < best.d)) best = { d, f }; };
+  for (const p of warParties) take(pix(p.x, p.y), 12, () => ({ title: `War party of ${p.camp.name.replace(/^the /, '').replace(/ warcamp$/, '')}`, color: '#fca5a5', lines: [`${p.size} strong, led by ${p.chief}`, `Marching on ${p.town.name}`, away(p.x, p.y), 'Walk into it to attack'] }));
+  for (const a of armiesUnlocked() ? war().armies : []) take(pix(a.x, a.y), 12, () => ({ title: `${a.mine ? 'Your army: ' : 'The army of '}${REALMS[a.realm].short.replace(/^the /, '')}`, color: REALMS[a.realm].color, lines: [`${a.troops} ${ARMY[a.realm].label}`, `Marching on ${(campAt(...a.target.split(',').map(Number)) || { name: 'a warcamp' }).name}`, away(a.x, a.y)] }));
+  const [ci, cj] = cellOf(wx, wy);
+  for (let i = ci - 1; i <= ci + 1; i++) for (let j = cj - 1; j <= cj + 1; j++) {
+    const t = townAt(i, j);
+    if (t) take(pix(t.cx, t.cy), MAP_STEP <= 2 ? 22 : 14, () => { const I = townIdentity(t), realm = REALMS[t.realm || 'cantons']; return { title: t.name + (t.key === homeTown ? ' (home)' : ''), color: t.size === 'grand' ? '#fbbf24' : realm.color, lines: [`${t.size === 'grand' ? 'The royal seat' : t.walled && t.size !== 'town' ? 'A castle' : 'A ' + t.size} of ${realm.short}`, `Known for ${I.trade.label}${t.harbour ? ' · a port' : ''}`, away(t.cx, t.cy)] }; });
+    const st = siteAt(i, j);
+    if (st && !(st.lair && !lairKnown(st.lair))) take(pix(st.x, st.y), 11, () => { const rt = rating(siteDungeon(st)); return { title: st.name, color: st.lair ? '#fca5a5' : '#e9d5ff', lines: [`${st.lair ? 'A lair' : st.deep ? 'The endless Deep' : 'A ' + st.type} · ${st.deep ? 'floors without end' : st.floors + ' floors'}`, `Level ${rt.rec}+ · ${rt.label} for you`, away(st.x, st.y)], sub: rt.color }; });
+    const wc = campAt(i, j);
+    if (wc) take(pix(wc.x, wc.y), 11, () => ({ title: wc.name[0].toUpperCase() + wc.name.slice(1), color: campRazed(wc) ? '#c4c8d0' : '#fca5a5', lines: campRazed(wc) ? ['Razed. Nothing stirs but the crows', away(wc.x, wc.y)] : [`Orc warcamp · strength ${wc.strength}`, `${ratingText(campDungeon(wc))}`, away(wc.x, wc.y)] }));
+  }
+  for (const k of player.meta.places) { const pl = placeAt(...k.split(',').map(Number)); if (pl) take(pix(pl.x, pl.y), 8, () => ({ title: pl.name[0].toUpperCase() + pl.name.slice(1), color: '#9fd4ff', lines: ['A place you have found', away(pl.x, pl.y)] })); }
+  return best ? best.f() : null;
+}
+function drawMapHover(g, X, Y, c) {
+  if (!mapHover || isTouch) return;
+  const f = mapFeatureAt(mapHover.px, mapHover.py, X, Y, c);
+  canvas.style.cursor = f ? 'help' : 'crosshair';
+  if (!f) return;
+  g.font = 'bold 13px sans-serif'; let w = g.measureText(f.title).width; g.font = '11px sans-serif'; for (const l of f.lines) w = Math.max(w, g.measureText(l).width);
+  w += 20; const h = 26 + f.lines.length * 15;
+  let x = mapHover.px + 16, y = mapHover.py + 14; if (x + w > canvas.width - 8) x = mapHover.px - w - 12; if (y + h > canvas.height - 34) y = mapHover.py - h - 10;
+  g.fillStyle = 'rgba(0,0,0,0.4)'; g.beginPath(); g.roundRect(x + 3, y + 4, w, h, 6); g.fill();
+  g.fillStyle = 'rgba(24,18,10,0.95)'; g.beginPath(); g.roundRect(x, y, w, h, 6); g.fill();
+  g.strokeStyle = '#c9a25a'; g.lineWidth = 1; g.beginPath(); g.roundRect(x + 0.5, y + 0.5, w - 1, h - 1, 6); g.stroke();
+  g.textAlign = 'left'; g.textBaseline = 'top'; g.font = 'bold 13px sans-serif'; g.fillStyle = f.color; g.fillText(f.title, x + 10, y + 7);
+  g.font = '11px sans-serif'; f.lines.forEach((l, k) => { g.fillStyle = k === 1 && f.sub ? f.sub : '#d9cfba'; g.fillText(l, x + 10, y + 26 + k * 15); });
+  g.textBaseline = 'alphabetic';
 }
 function drawWorldMap(g, now) {
   renderWorldMap();
   const c = mapCache.canvas, X = Math.floor((canvas.width - c.width) / 2), Y = 56;
-  g.fillStyle = 'rgba(6,12,20,0.92)'; g.fillRect(0, 0, canvas.width, canvas.height);
+  g.fillStyle = 'rgba(10,9,7,0.95)'; g.fillRect(0, 0, canvas.width, canvas.height);
   g.drawImage(c, X, Y);
-  g.strokeStyle = '#12384a'; g.lineWidth = 2; g.strokeRect(X - 1, Y - 1, c.width + 2, c.height + 2);
+  // a chart's border: a dark band, a gilt line and a mitred square at each corner
+  g.strokeStyle = '#2a1d0c'; g.lineWidth = 6; g.strokeRect(X - 3, Y - 3, c.width + 6, c.height + 6);
+  g.strokeStyle = '#c9a25a'; g.lineWidth = 1.5; g.strokeRect(X - 5.5, Y - 5.5, c.width + 11, c.height + 11);
+  g.strokeStyle = 'rgba(201,162,90,0.5)'; g.lineWidth = 1; g.strokeRect(X + 3.5, Y + 3.5, c.width - 7, c.height - 7);
+  for (const [qx, qy] of [[X - 8, Y - 8], [X + c.width + 1, Y - 8], [X - 8, Y + c.height + 1], [X + c.width + 1, Y + c.height + 1]]) { g.fillStyle = '#2a1d0c'; g.fillRect(qx, qy, 7, 7); g.fillStyle = '#c9a25a'; g.fillRect(qx + 2, qy + 2, 3, 3); }
+  drawMapFurniture(g, X, Y, c);
   // the story objective
   const obj = storyObjective();
   if (obj) {
@@ -7246,8 +7439,17 @@ function drawWorldMap(g, now) {
       const qx = X + ((wc.x - mapCache.ox) / MAP_STEP) * MAP_PX, qy = Y + ((wc.y - mapCache.oy) / MAP_STEP) * MAP_PX;
       if (qx < X || qy < Y || qx > X + c.width || qy > Y + c.height) continue;
       const razed = campRazed(wc);
-      g.fillStyle = razed ? '#6b7280' : '#dc2626'; g.beginPath(); g.moveTo(qx, qy - 5); g.lineTo(qx + 5, qy + 4); g.lineTo(qx - 5, qy + 4); g.fill();
-      if (!razed && MAP_STEP <= 2) { g.font = '9px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fca5a5'; g.fillText(`camp ${wc.strength}`, qx, qy + 13); g.textAlign = 'left'; }
+      drawMapGlyph(g, 'camp', qx, qy, razed ? '#8b8f98' : '#dc2626', MAP_STEP <= 4);
+      if (!razed && MAP_STEP <= 2) { g.font = 'bold 9px sans-serif'; g.textAlign = 'center'; g.strokeStyle = 'rgba(20,14,6,0.85)'; g.lineWidth = 3; g.strokeText(`camp ${wc.strength}`, qx, qy + 16); g.fillStyle = '#fca5a5'; g.fillText(`camp ${wc.strength}`, qx, qy + 16); g.textAlign = 'left'; }
+    }
+    for (const p of warParties) {
+      const ax = X + ((p.x - mapCache.ox) / MAP_STEP) * MAP_PX, ay = Y + ((p.y - mapCache.oy) / MAP_STEP) * MAP_PX;
+      const tx = X + ((p.tx - mapCache.ox) / MAP_STEP) * MAP_PX, ty = Y + ((p.ty - mapCache.oy) / MAP_STEP) * MAP_PX;
+      if (ax < X || ay < Y || ax > X + c.width || ay > Y + c.height) continue;
+      g.strokeStyle = '#7f1d1d'; g.setLineDash([3, 4]); g.lineWidth = 1.5; g.beginPath(); g.moveTo(ax, ay); g.lineTo(Math.max(X, Math.min(X + c.width, tx)), Math.max(Y, Math.min(Y + c.height, ty))); g.stroke(); g.setLineDash([]);
+      g.fillStyle = `rgba(220,38,38,${0.25 + 0.2 * Math.sin(now / 250)})`; g.beginPath(); g.arc(ax, ay, 9, 0, Math.PI * 2); g.fill();
+      drawMapFlag(g, ax, ay + 2, '#991b1b', true);
+      g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.strokeStyle = 'rgba(20,14,6,0.85)'; g.lineWidth = 3; g.strokeText(`raid ${p.size}`, ax, ay + 13); g.fillStyle = '#fca5a5'; g.fillText(`raid ${p.size}`, ax, ay + 13); g.textAlign = 'left';
     }
     for (const a of armiesUnlocked() ? war().armies : []) {
       const ax = X + ((a.x - mapCache.ox) / MAP_STEP) * MAP_PX, ay = Y + ((a.y - mapCache.oy) / MAP_STEP) * MAP_PX;
@@ -7286,10 +7488,11 @@ function drawWorldMap(g, now) {
   g.font = 'bold 12px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#ffd86b'; g.fillText('You', px, py - 10);
   // title line
   const here = townContaining(player.x, player.y);
-  g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.textAlign = 'left'; g.textBaseline = 'top';
-  g.fillText('World map', 20, 14);
-  g.font = '13px sans-serif'; g.fillStyle = '#a8c0d8';
-  g.fillText(`${here ? here.name : 'The wilds'}  ·  position ${player.x}, ${player.y}  ·  each square is ${MAP_STEP} tiles  ·  + / − or scroll to zoom  ·  click to place or remove a pin  ·  M or Esc closes`, 112, 18);
+  g.fillStyle = '#e8c97a'; g.font = "bold 19px Georgia, 'Times New Roman', serif"; g.textAlign = 'left'; g.textBaseline = 'top';
+  g.fillText('World map', 20, 12);
+  g.font = '12px sans-serif'; g.fillStyle = '#b9ad95';
+  { const realmHere = REALMS[realmOfTile(player.x, player.y)], hint = isTouch ? 'tap to place or remove a pin' : '+ / − or scroll to zoom  ·  hover for details  ·  click to place or remove a pin  ·  M or Esc closes';
+    g.fillText(`${here ? here.name : 'The wilds'}${realmHere ? ', ' + realmHere.name : ''}  ·  ${hint}`, 142, 17, canvas.width - 160); }
   // zoom buttons
   for (const bz of mapZoomButtons()) {
     const on = bz.id === 'in' ? mapZoom > 1 : mapZoom < ZOOM_STEPS.length;
@@ -7299,11 +7502,20 @@ function drawWorldMap(g, now) {
   }
   g.font = 'bold 11px sans-serif'; g.fillStyle = '#cfe9ff'; g.textAlign = 'right'; g.textBaseline = 'middle'; g.fillText(['close', 'far', 'the whole world'][mapZoom - 1], X + c.width - 76, Y + c.height - 21);
   g.textAlign = 'left';
-  // legend
-  const items = [['#3f7d3a', 'grass'], ['#2e7d32', 'forest'], ['#1d4ed8', 'water'], ['#6b7280', 'mountains / town'], ['#a8865a', 'road'], ['#5fe17a', 'gate'], ['#c084fc', 'cave, crypt or tower (★ danger)'], ['#8b5a2b', '⚓ port: ships sail to other ports']];
-  let lx = 20; const ly = canvas.height - 26;
-  g.font = '12px sans-serif'; g.textBaseline = 'middle';
-  for (const [col, name] of items) { g.fillStyle = col; g.fillRect(lx, ly - 5, 10, 10); g.fillStyle = '#cfe9ff'; g.fillText(name, lx + 14, ly); lx += g.measureText(name).width + 30; }
+  // legend: the marks themselves, as many as the width allows
+  { let lx = 24; const ly = canvas.height - 20;
+    const marks = [['Town', (x) => { g.fillStyle = '#1b1408'; g.fillRect(x - 6, ly - 5, 12, 10); g.fillStyle = '#e3cfa6'; g.fillRect(x - 5, ly - 1, 10, 5); g.fillStyle = '#b03a3a'; g.beginPath(); g.moveTo(x - 6, ly - 1); g.lineTo(x, ly - 6); g.lineTo(x + 6, ly - 1); g.fill(); }],
+      ['Dungeon (colour: how hard for you)', (x) => drawMapGlyph(g, 'cave', x, ly - 1, '#c084fc')], ['Lair', (x) => { g.fillStyle = '#ef4444'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center'; g.fillText('☠', x, ly + 1); g.textAlign = 'left'; }],
+      ['Orc warcamp', (x) => drawMapGlyph(g, 'camp', x, ly, '#dc2626')], ['War party', (x) => drawMapFlag(g, x - 3, ly + 6, '#7f1d1d', true)], ['Army', (x) => drawMapFlag(g, x - 3, ly + 6, '#fbbf24', false)],
+      ['Port', (x) => { g.fillStyle = '#e6eef8'; g.font = '13px sans-serif'; g.textAlign = 'center'; g.fillText('⚓', x, ly + 1); g.textAlign = 'left'; }],
+      ['Objective', (x) => { g.fillStyle = '#ffd86b'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center'; g.fillText('★', x, ly + 1); g.textAlign = 'left'; }]];
+    g.textBaseline = 'middle';
+    for (const [name, mark] of marks) {
+      g.font = '12px sans-serif'; const w = g.measureText(name).width;
+      if (lx + 22 + w > canvas.width - 16) break;
+      mark(lx + 6); g.font = '12px sans-serif'; g.fillStyle = '#d9cfba'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(name, lx + 20, ly + 1); lx += w + 44;
+    } }
+  drawMapHover(g, X, Y, c);
   g.textAlign = 'start'; g.textBaseline = 'alphabetic';
 }
 
@@ -7321,6 +7533,8 @@ function describeTile(x, y) {
   if (other) return `${other.data.name}${other.data.title ? ' ' + other.data.title : ''} — level ${other.data.level} ${other.data.cls}${inMyParty(other.id) ? ', in your party' : ''}${scene !== 'dungeon' ? '. Walk into them to invite or wave' : ''}`;
   { const pp = petAt(x, y); if (pp) return `Your ${petLabel(pp)} — ${pp.hp}/${pp.maxHp} HP, bite ${pp.atk}, level ${pp.level}, ${pp.kills} kills`; }
   if (shipAt(x, y)) return 'Your ship — walk into her to go aboard';
+  { const wp = scene === 'world' && partyAt(x, y); if (wp) return `War party of ${campShort(wp.camp)} — ${wp.size} strong under ${wp.chief}, marching on ${wp.town.name}. ${partyOdds(wp)}. Walk into it to attack`; }
+  { const ar = armyAtTile(x, y); if (ar) return `${ar.mine ? 'Your army' : armyName(ar.realm)[0].toUpperCase() + armyName(ar.realm).slice(1)} — ${ar.troops} ${ARMY[ar.realm].label} on the march. Ctrl with a direction (or X, then a direction) falls on them, at a cost to your standing`; }
   { const rf = rifts.find((r) => r.x === x && r.y === y); if (rf) return rf.lord ? 'The Rift Lord\'s door — it shuts when he dies' : `A rift to Midgard — it shuts when its horde (${riftHorde(rf).length} left) is dead`; }
   if (charts().includes(key(x, y))) return 'X marks the spot — step here to dig';
   if (t === TILE.SHIP) { const pt = portAtTile(x, y); return pt ? `The ship of ${pt.name} — walk into it, or speak to the harbourmaster, to sail to another port` : 'A boat'; }
@@ -7587,6 +7801,7 @@ canvas.addEventListener('mousedown', (e) => {
   walk.holding = true; walk.downAt = performance.now();
 });
 canvas.addEventListener('mousemove', (e) => {
+  if (mapOpen && scene === 'world') { mapHover = canvasPoint(e.clientX, e.clientY); draw(); return; }
   // holding and dragging steers the walk toward the pointer
   if (walk.holding && walk.active && !walk.monster && performance.now() - walk.downAt > 220) { const t = tileFromEvent(e); walk.tx = t.x; walk.ty = t.y; }
 });
@@ -7902,7 +8117,7 @@ function killMonster(m) {
   {
     monsters = monsters.filter((x) => x !== m); monstersDirty = true;
     if (scene === 'world') worldMonsters = monsters;
-    kills++; player.lifetimeKills = (player.lifetimeKills || 0) + 1; leaveBones(m);
+    kills++; player.lifetimeKills = (player.lifetimeKills || 0) + 1; leaveBones(m); bandLoss(m, true);
     player.meta.bestiary = player.meta.bestiary || {};
     const firstOfKind = !player.meta.bestiary[m.type.name];
     player.meta.bestiary[m.type.name] = (player.meta.bestiary[m.type.name] || 0) + 1;
@@ -8022,7 +8237,7 @@ function monsterAttack(m, ranged = false) {
   if (player.x !== m.x) m.face = Math.sign(player.x - m.x);
   player.flashUntil = now + 120;
   floatText(player.x, player.y, `-${dmg}`, '#ff6b6b');
-  log(`${m.boss ? m.name[0].toUpperCase() + m.name.slice(1) : m.type.name} hits you for ${dmg}.`, 'bad');
+  log(`${m.boss || m.band ? m.name[0].toUpperCase() + m.name.slice(1) : m.type.name} hits you for ${dmg}.`, 'bad');
   sfx.play('hurt');
 }
 // Monsters act for one beat. heroes defaults to just you; in a shared dungeon
@@ -8451,6 +8666,7 @@ function tryMove(dx, dy) {
   if (t === TILE.WALL && scene === 'world') { const tn = townContaining(nx, ny); const sec = tn && grandSecret(tn, nx - tn.x0, ny - tn.y0); if (sec && !sec.open) { if (dx) player.face = dx; revealSecret(tn, sec, nx, ny); return; } }
   if (t === TILE.WALL && scene === 'world') { const tn = townContaining(nx, ny), st = tn && stallAt(tn, nx, ny); if (st) { if (dx) player.face = dx; const cries = STALL_CRIES[st.goods], line = cries[rnd(cries.length)]; log(`The stallholder: ${line}`); bubble = { x: st.x + (nx === st.x ? 0 : 1), y: st.y, text: line, until: performance.now() + 3500 }; draw(); return; } }
   if (t === TILE.WALL || t === TILE.FOUNTAIN) return;
+  { const wp = scene === 'world' && (dx || dy) && partyAt(nx, ny); if (wp) { challengeParty(wp, dx); return; } }
   const n = scene !== 'dungeon' && getNpcAt(nx, ny);
   if (n && scene === 'world' && wanted && inTownOf(n, wantedTown())) { if (n.type.guard) { strikeNpc(n, dx, dy); return; } if (dx) player.face = dx; const line = isChild(n) ? 'You are scary now. I do not like it.' : ouch('cower'); log(`${n.type.name}: ${line}`); bubble = { x: n.x, y: n.y, text: line, until: performance.now() + 3000 }; draw(); return; }
   if (n) { talk(n); draw(); return; }
@@ -9338,6 +9554,183 @@ function drawArmies(ctx, now) {
   }
 }
 
+// ---------- war parties ----------
+// Orc warcamps send bands out to raid the nearest town. A party marches in real time, like an army,
+// under a torn banner; the hero attacks it by walking into it (twice: the first bump only sizes it
+// up). It then breaks ranks into a band of real monsters with a captain. Kill the band and the town
+// is spared. A party that reaches its town with the hero near falls on it in the open, where the
+// watch joins in; with the hero far away the raid is settled out of sight. A realm's army can be
+// fallen on too, but only on purpose (Ctrl with a direction, or X), and the realm remembers.
+const PARTY_CAPTAINS = ['Snaga Split-lip', 'Radbug the Lean', 'Muzgash', 'Lagduf One-ear', 'Ufthak', 'Golfimbul the Younger', 'Bolg Half-hand', 'Azgra the Quiet'];
+const bands = new Map();   // bands in the field: id -> { size, left, mine, reward, ... }
+let partyClock = 0, partySpawnClock = 0, partySeq = 0, partyWarned = { id: null, turn: -99 };
+const partyAt = (x, y) => warParties.find((p) => p.x === x && p.y === y) || null;
+const armyAtTile = (x, y) => (armiesUnlocked() && scene === 'world' ? war().armies.find((a) => a.x === x && a.y === y) : null) || null;
+const campShort = (camp) => camp.name.replace(/^the /, '').replace(/ warcamp$/, '');
+function musterParty(quiet = false) {
+  if (scene !== 'world' || warParties.length >= 2) return null;
+  for (const camp of campsNear(player.x, player.y, 2)) {
+    const d = Math.hypot(camp.x - player.x, camp.y - player.y);
+    if (d < 18 || d > 260 || warParties.some((p) => p.camp === camp)) continue;
+    const town = nearestTownTo(camp.x, camp.y);
+    if (!town || continentOf(camp.x, camp.y) !== continentOf(town.cx, town.cy) || Math.hypot(town.cx - camp.x, town.cy - camp.y) > 170) continue;
+    const danger = Math.max(Math.abs(camp.i), Math.abs(camp.j));
+    const p = { id: ++partySeq, camp, town, danger, x: camp.x, y: camp.y + 1, tx: town.gate.x, ty: town.gate.y + 3, size: 3 + Math.min(3, Math.floor(danger / 2)) + (player.level >= 15 ? 1 : 0), chief: PARTY_CAPTAINS[rnd(PARTY_CAPTAINS.length)] };
+    warParties.push(p);
+    if (!quiet && d < 220) { log(`Horns from ${camp.name}, to the ${compassWord(camp.x - player.x, camp.y - player.y).toLowerCase()}: a war party marches on ${town.name}. It is on your map.`, 'bad'); sfx.play('boss'); }
+    return p;
+  }
+  return null;
+}
+// One pace toward the target: the long way first, then the short; a blocked party pushes through.
+function marchStep(p) {
+  const dx = Math.sign(p.tx - p.x), dy = Math.sign(p.ty - p.y), near = cheb(p, player) < 50;
+  const primary = Math.abs(p.tx - p.x) >= Math.abs(p.ty - p.y) ? [dx, 0] : [0, dy], secondary = primary[0] ? [0, dy] : [dx, 0];
+  for (const [sx, sy] of [primary, secondary]) {
+    if (!sx && !sy) continue;
+    const nx = p.x + sx, ny = p.y + sy;
+    if (nx === player.x && ny === player.y) return;   // the hero is in the road: they halt and glare
+    if (!near || (walkable(getTile(nx, ny)) && !townContaining(nx, ny))) { p.x = nx; p.y = ny; return; }
+  }
+  if (!(p.x + primary[0] === player.x && p.y + primary[1] === player.y)) { p.x += primary[0]; p.y += primary[1]; }
+}
+function partyTick(now) {
+  if (!player || !player.meta || gameOver || document.hidden || scene !== 'world') return;
+  if (now - partyClock < 900) return;
+  partyClock = now;
+  for (const p of warParties.slice()) {
+    if (Math.abs(p.tx - p.x) + Math.abs(p.ty - p.y) <= 1) { raidArrives(p); continue; }
+    marchStep(p);
+    if (!p.seen && cheb(p, player) <= 9) {
+      p.seen = true;
+      log(`A war party from ${p.camp.name}: ${p.size} strong under ${p.chief}, bound for ${p.town.name}. ${partyOdds(p)}. Walk into it to attack.`, 'bad');
+      tip('warparty', 'Orc war parties march from their camps to raid the nearest town. Walk into one to size it up, and again to attack. Rout it and the town is spared.');
+    }
+  }
+  if (!partySpawnClock) partySpawnClock = now - 25000;   // the first horns sound soon after you step outside
+  if (now - partySpawnClock > 45000) { partySpawnClock = now; musterParty(); }
+}
+function partyOdds(p) {
+  const rec = 3 + 2 * p.danger + p.size, diff = player.level - rec;
+  return `Level ${rec}+ · ${diff >= 4 ? 'Easy' : diff >= 0 ? 'Fair' : diff >= -3 ? 'Hard' : 'Deadly'} for you`;
+}
+// Open ground near a spot, for a band to stand on.
+function bandSpots(x, y, n) {
+  const out = [];
+  for (let r = 0; r <= 5 && out.length < n; r++) for (let oy = -r; oy <= r && out.length < n; oy++) for (let ox = -r; ox <= r && out.length < n; ox++) {
+    if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+    const tx = x + ox, ty = y + oy;
+    if (getTile(tx, ty) === TILE.FLOOR && !townContaining(tx, ty) && !getMonsterAt(tx, ty) && !getNpcAt(tx, ty) && !(tx === player.x && ty === player.y) && !out.some((q) => q.x === tx && q.y === ty)) out.push({ x: tx, y: ty });
+  }
+  return out;
+}
+// A party or an army breaks ranks: its fighters become monsters in the world, tagged as one band.
+function deployBand(x, y, roster, info) {
+  const id = `b${++partySeq}`, spots = bandSpots(x, y, roster.length);
+  monsters = worldMonsters;
+  roster.slice(0, spots.length).forEach((r, k) => {
+    const m = { ...spots[k], id: `band-${id}-${k}`, type: r.type, hp: r.hp, maxHp: r.hp, atk: r.atk, awake: true, wild: true, band: id, name: r.name };
+    if (r.purse) m.purse = r.purse;
+    scaleMonster(m); worldMonsters.push(m);
+  });
+  monsters = worldMonsters; monstersDirty = true;
+  bands.set(id, { ...info, id, size: Math.min(roster.length, spots.length), left: Math.min(roster.length, spots.length), mine: 0 });
+  return id;
+}
+function partyRoster(p) {
+  const d = p.danger, kinds = d <= 1 ? ['Goblin', 'Goblin', 'Orc', 'Archer'] : d <= 2 ? ['Goblin', 'Orc', 'Orc', 'Archer', 'Shaman'] : ['Orc', 'Orc', 'Archer', 'Shaman', 'Bomber'];
+  const orc = byName('Orc')[0], roster = [{ type: orc, hp: Math.round((orc.hp + d * 2) * 2.2), atk: orc.atk + 2 + Math.floor(d / 2), name: p.chief, purse: 25 + d * 20 + rnd(20) }];
+  for (let k = 1; k < p.size; k++) {
+    const t = byName(kinds[rnd(kinds.length)])[0];
+    roster.push({ type: t, hp: t.hp + d * 2, atk: t.atk + Math.floor(d / 2), name: `${t.name.toLowerCase()} raider` });
+  }
+  return roster;
+}
+function challengeParty(p, dx) {
+  if (dx) player.face = dx;
+  stopWalk();
+  if (partyWarned.id !== p.id || turn - partyWarned.turn > 8) {
+    partyWarned = { id: p.id, turn };
+    log(`The war party of ${campShort(p.camp)}: ${p.size} strong under ${p.chief}, marching on ${p.town.name}. ${partyOdds(p)}. Walk into it again to attack.`, 'bad');
+    draw(); return;
+  }
+  engageParty(p);
+}
+function engageParty(p) {
+  warParties = warParties.filter((q) => q !== p);
+  deployBand(p.x, p.y, partyRoster(p), { kind: 'party', camp: p.camp, town: p.town, danger: p.danger, chief: p.chief });
+  log(`You fall on the war party of ${campShort(p.camp)}. ${p.chief} bellows, and ${p.size} of them break ranks and come at you.`, 'bad');
+  shakeScreen(4); sfx.play('boss'); track('party_attacked', { size: p.size, danger: p.danger });
+  endTurn(false);
+}
+// The party has reached its town.
+function raidArrives(p) {
+  warParties = warParties.filter((q) => q !== p);
+  if (scene === 'world' && cheb(p, player) <= 30) {
+    deployBand(p.x, p.y, partyRoster(p), { kind: 'party', raid: true, camp: p.camp, town: p.town, danger: p.danger, chief: p.chief });
+    log(`The war party of ${campShort(p.camp)} falls on ${p.town.name}! The watch turns out. ${p.chief} is at the gate.`, 'bad');
+    shakeScreen(5); sfx.play('boss'); draw(); return;
+  }
+  if (Math.random() < 0.6) log(`Word comes: the watch of ${p.town.name} drove off a war party from ${p.camp.name}.`);
+  else log(`Word comes: a war party from ${p.camp.name} raided ${p.town.name} and got away with the market's takings.`, 'bad');
+}
+// One of a band has fallen, to the hero or to somebody else.
+function bandLoss(m, byHero) {
+  const b = m.band && bands.get(m.band);
+  if (!b) return;
+  b.left--; if (byHero) b.mine++;
+  if (b.left > 0) { if (b.left === 1 && byHero) log('One left.'); return; }
+  bands.delete(b.id);
+  if (b.kind === 'army') {
+    const gold = Math.round(b.troops * 4 * goldMult());
+    player.gold += gold; floatText(player.x, player.y, `+${gold}g`, '#f5c542');
+    log(`The last of ${armyName(b.realm)} breaks and runs. Their pay chest is yours: ${gold} gold. ${REALMS[b.realm].short[0].toUpperCase() + REALMS[b.realm].short.slice(1)} will not forget it.`, 'bad');
+    updateStats(); saveProgress('progress'); return;
+  }
+  if (!b.mine) { log(`The watch of ${b.town.name} cuts down the last of the war party without you.`); return; }
+  const gold = Math.round((20 * b.size + 25 * b.danger + rnd(20)) * goldMult()), xp = 8 * b.size + 6 * b.danger;
+  player.gold += gold; floatText(player.x, player.y, `+${gold}g`, '#f5c542');
+  const W = war(); W.routed = (W.routed || 0) + 1;
+  realmState().standing += 10 * b.size;
+  log(`The war party of ${campShort(b.camp)} is routed${b.raid ? ' at the gate' : ''}, and ${b.town.name} is spared. The town's thanks: ${gold} gold and ${xp} XP.`, 'good');
+  toast = { text: `War party routed. ${b.town.name} is spared.`, until: performance.now() + 3500 };
+  sfx.play('win'); unlock('raidbreaker'); if (W.routed >= 5) unlock('roadwarden');
+  gainXp(xp); track('party_routed', { size: b.size, danger: b.danger, raid: !!b.raid });
+  updateStats(); saveProgress('progress');
+}
+// Falling on a realm's army: only ever on purpose.
+function attackArmy(a) {
+  const W = war(), realm = a.realm, knight = byName('Knight')[0], n = Math.max(3, Math.min(8, Math.ceil(a.troops / 6)));
+  W.armies = W.armies.filter((x) => x !== a);
+  const roster = [{ type: { ...knight, sprite: 'soldier' }, hp: knight.hp * 3, atk: knight.atk + 3, name: `captain of ${REALMS[realm].short}`, purse: 0 }];
+  for (let k = 1; k < n; k++) roster.push({ type: { ...knight, sprite: 'soldier' }, hp: knight.hp + 6, atk: knight.atk + 1, name: `${ARMY[realm].label.replace(/s$/, '')} of ${REALMS[realm].short}` });
+  deployBand(a.x, a.y, roster, { kind: 'army', realm, troops: a.troops });
+  const st = realmState(); st.standing = Math.max(0, st.standing - 150);
+  log(`${a.mine ? 'You turn on your own army' : `You fall on ${armyName(realm)}`}: ${a.troops} ${ARMY[realm].label}, and ${n} of them wheel out of the column to deal with you. ${a.mine ? 'The rest go home, and will not march for you again.' : 'The rest march on without them.'} Your standing suffers.`, 'bad');
+  shakeScreen(4); sfx.play('boss'); unlock('turncoat'); track('army_attacked', { realm, mine: !!a.mine });
+  updateStats(); saveProgress('progress'); endTurn(false);
+}
+function drawParties(ctx, now) {
+  if (scene !== 'world') return;
+  for (const p of warParties) {
+    if (Math.abs(p.x - player.x) > 40 || Math.abs(p.y - player.y) > 30) continue;
+    const dir = Math.sign(p.tx - p.x) || 1;
+    for (let k = 0; k < p.size; k++) {
+      const ox = ((k % 3) - 1) * 0.55 - dir * Math.floor(k / 3) * 0.6, oy = ((k % 2) ? 0.35 : -0.25) + Math.sin(now / 150 + k * 1.3) * 0.06;
+      drawSprite(ctx, k === 0 ? 'orc' : k % 3 === 2 ? 'goblin' : 'orc', p.x + ox, p.y + oy, 1, k === 0 ? 2 : 4, dir < 0);
+    }
+    const bx = p.x * T - cam.x + T / 2, by = p.y * T - cam.y - 20;
+    ctx.fillStyle = '#2a1d0c'; ctx.fillRect(bx, by, 2, 28);
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.moveTo(bx + 2, by - 1); ctx.lineTo(bx + 21, by + 5); ctx.lineTo(bx + 2, by + 13); ctx.fill();
+    ctx.fillStyle = '#991b1b'; ctx.beginPath(); ctx.moveTo(bx + 2, by); ctx.lineTo(bx + 18, by + 5); ctx.lineTo(bx + 12, by + 7); ctx.lineTo(bx + 15, by + 10); ctx.lineTo(bx + 2, by + 12); ctx.fill();
+    ctx.fillStyle = '#e5e7eb'; ctx.fillRect(bx + 5, by + 4, 3, 3); ctx.fillRect(bx + 5, by + 7, 1, 1); ctx.fillRect(bx + 7, by + 7, 1, 1);   // a skull, more or less
+    ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+    const label = `War party of ${campShort(p.camp)} (${p.size})`, w = ctx.measureText(label).width + 10;
+    ctx.fillStyle = 'rgba(6,12,20,0.75)'; ctx.fillRect(bx - w / 2, by - 18, w, 15);
+    ctx.fillStyle = '#fca5a5'; ctx.fillText(label, bx, by - 6); ctx.textAlign = 'start';
+  }
+}
+
 // ---------- the hound ----------
 // ---------- pets ----------
 // Companions of every size, sold at inns (each realm keeps its own), up to three
@@ -10004,11 +10397,11 @@ function touchButtons() {
   const at = (i) => ({ x: canvas.width - r - 12 - (i >= perCol ? 2 * r + 10 : 0), y: top + r + gap * (i % perCol) });
   const cls = heroClass();
   const canCamp = scene === 'world' && !townContaining(player.x, player.y) && !monsters.some((m) => cheb(m, player) <= 6);
-  const canStrike = scene === 'world' && !aboard && npcs.some((n) => !n.down && !isChild(n) && dist(n, player) === 1);
+  const canStrike = scene === 'world' && !aboard && (npcs.some((n) => !n.down && !isChild(n) && dist(n, player) === 1) || DIRS.some(([ax, ay]) => armyAtTile(player.x + ax, player.y + ay)));
   return [
     { id: 'ability', label: (player.mana ?? 0) >= abilityCost() ? '✦' : String(abilityCost() - (player.mana ?? 0)), sub: abilityList()[0].name, ...at(0), r, active: (player.mana ?? 0) >= abilityCost() },
     { id: 'potion', label: '♥', sub: 'Potion', ...at(1), r, active: player.bag.some((id) => itemKind(id) === 'consumable' && itemInfo(id).heal) },
-    canCamp ? { id: 'camp', label: '▲', sub: 'Camp', ...at(2), r, active: true } : canStrike ? { id: 'strike', label: '✊', sub: assaultArmed ? 'Which way?' : 'Strike', ...at(2), r, active: true } : { id: 'wait', label: '⏸', sub: 'Wait', ...at(2), r, active: true },
+    canStrike ? { id: 'strike', label: '✊', sub: assaultArmed ? 'Which way?' : 'Strike', ...at(2), r, active: true } : canCamp ? { id: 'camp', label: '▲', sub: 'Camp', ...at(2), r, active: true } : { id: 'wait', label: '⏸', sub: 'Wait', ...at(2), r, active: true },
     { id: 'map', label: scene === 'world' ? 'M' : 'Q', sub: scene === 'world' ? 'Map' : 'Quests', ...at(3), r, active: true },
     scene === 'dungeon' ? { id: 'explore', label: '➤', sub: 'Explore', ...at(4), r, active: true } : { id: 'journal', label: 'J', sub: 'Journal', ...at(4), r, active: true },
     ...abilityList().map((A, k) => k).filter((k) => k > 0 && abilityUnlocked(k)).map((k, n) => ({ id: `ability${k + 1}`, label: (player.mana ?? 0) >= abilityCost(k) ? `${k + 1}✦` : String(abilityCost(k) - (player.mana ?? 0)), sub: abilityList()[k].name, ...at(5 + n), r, active: (player.mana ?? 0) >= abilityCost(k) })),
@@ -11053,7 +11446,7 @@ function startRun(saved) {
         rescued: Number(saved.meta?.rescued) || 0,
         lairs: saved.meta?.lairs && Array.isArray(saved.meta.lairs.known) ? { known: saved.meta.lairs.known.filter((id) => LAIRS[id]), slain: (saved.meta.lairs.slain || []).filter((id) => LAIRS[id]) } : null,
         act2: saved.meta?.act2 && Number.isInteger(saved.meta.act2.s) ? { s: saved.meta.act2.s, n: 0, told: !!saved.meta.act2.told } : null,
-        war: saved.meta?.war && saved.meta.war.troops ? { troops: { ...emptyTroops(), ...saved.meta.war.troops }, armies: Array.isArray(saved.meta.war.armies) ? saved.meta.war.armies.map((a) => ({ ...a, fightUntil: undefined })) : [], camps: Array.isArray(saved.meta.war.camps) ? saved.meta.war.camps : [] } : null },
+        war: saved.meta?.war && saved.meta.war.troops ? { troops: { ...emptyTroops(), ...saved.meta.war.troops }, armies: Array.isArray(saved.meta.war.armies) ? saved.meta.war.armies.map((a) => ({ ...a, fightUntil: undefined })) : [], camps: Array.isArray(saved.meta.war.camps) ? saved.meta.war.camps : [], routed: Number(saved.meta.war.routed) || 0 } : null },
       relic: ITEMS.relics[saved.relic] ? saved.relic : null,
       weaponPlus: saved.weapon_plus || 0, armorPlus: saved.armor_plus || 0 });
     // heroes made before classes existed start with the warrior's numbers; fresh heroes take their class's
@@ -11133,7 +11526,7 @@ function pollGamepad(now) {
   }
   pad.prev = gp.buttons.map((b) => b.pressed);
 }
-function loop(now) { pollGamepad(now || performance.now()); armyTick(now || performance.now()); if (!gameOver) draw(); requestAnimationFrame(loop); }
+function loop(now) { pollGamepad(now || performance.now()); armyTick(now || performance.now()); partyTick(now || performance.now()); if (!gameOver) draw(); requestAnimationFrame(loop); }
 // ---------- the public glossaries ----------
 // /world/towns and /world/characters load this script in glossary mode and render
 // the generated world as HTML, so the pages always match the game.

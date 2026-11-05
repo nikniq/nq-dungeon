@@ -191,6 +191,37 @@ spares whoever stands at their feet. A colossus pays three times a boss's purse
 and the title Giant-feller. Every monster kind now has a boss name; the last
 floor under Hearth used to raise a nameless basilisk that broke the drawing.
 
+The world map (M) is drawn like a chart (`renderWorldMap`, `MAP_INK`). Terrain
+is painted a sample to a pixel into an image and scaled up: the sea shades from
+shallows to deep water with a few strokes of swell, the coast is inked, mountains
+are lit from the north-west with snow at the heart of a range, each realm tints
+its own land and the line where two meet is dotted on land only. Roads have a
+dark casing and trails to dungeons are dotted. Each kind of dungeon has its own
+glyph, coloured by how hard it is for the hero (`drawMapGlyph`), and warcamps are
+tents. Names are placed last, most important first, and a name that would cover
+another or an icon tries the other three sides before it is left off
+(`mapLabel`, `placeMapLabels`), so labels no longer run into each other. The
+chart has a border, a compass rose, a scale bar and a legend made of the marks
+themselves, and hovering over a town, dungeon, warcamp, war party, army or known
+place shows a card with what it is and how far away (`mapFeatureAt`).
+
+Orc warcamps send out war parties (`warParties`, `musterParty`, `partyTick`).
+About every 45 seconds outdoors, the nearest standing camp within two regions
+that has no party out sends three to seven orcs under a named captain to raid
+the nearest town; horns are logged and the party shows on the map under a torn
+flag with its road ahead. It marches in real time, a pace every 0.9 seconds,
+and only while the hero is outdoors. Walking into it sizes it up, and walking
+into it again attacks (`challengeParty`, `engageParty`): it breaks ranks into a
+band of real monsters (`deployBand`, `bands`, `bandLoss`) scaled like any others.
+Kill the band and the town is spared: gold, XP, standing, the title Raidbreaker
+and a count in `meta.war.routed` (Roadwarden at five). A party that reaches its
+town with the hero within thirty tiles falls on the gate in the open, where the
+watch fights it too; with the hero further off the raid is settled in a line of
+news. Parties are not saved. A realm's army can be fallen on as well, but only
+on purpose: Ctrl with a direction, X then a direction, or the Strike button on
+a phone (`attackArmy`). Three to eight soldiers wheel out to deal with the
+hero, the army is lost, standing drops by 150 and the pay chest is the prize.
+
 Underground the hero can explore alone (`startExplore`, `exploreScan`, Z, the
 Explore button, or the round button on a phone). Each step is one sweep over the
 ground already seen: gold, a chest or a potion that is needed within thirty
