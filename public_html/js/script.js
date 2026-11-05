@@ -3493,6 +3493,52 @@ const STALL_CRIES = {
   flowers: ['Flowers for a sweetheart, or an apology! Same flowers!', 'Cut this morning. They will last the week if you talk to them.'],
 };
 // Trodden paths from every door to the square or the road through it.
+// Shade trees on the greens of an open town. None touches a house, a door's path, a road or
+// another tree, so they can close nothing off.
+const townSig = (town) => `${town.houses.length}:${town.walled ? 1 : 0}`;
+function townTrees(town) {
+  if (town.trees && town.treesFor === townSig(town)) return town.trees;
+  const out = new Set(); town.trees = out; town.treesFor = townSig(town);
+  if (town.walled || !STALL_SPOTS[town.size]) return out;
+  const [pw, ph] = town.plaza, W = tw(town), H = th(town);
+  const blocked = (x, y) => {
+    if (Math.abs(x - town.cx) <= pw + 1 && Math.abs(y - town.cy) <= ph + 1) return true;   // the square and its kerb
+    if (Math.abs(x - town.cx) <= 2 || Math.abs(y - town.cy) <= 2) return true;             // the roads in
+    if (Math.abs(x - town.gate.x) <= 2 && Math.abs(y - town.gate.y) <= 2) return true;
+    for (const h of town.houses) {
+      if (x >= h.x - 1 && x <= h.x + h.w && y >= h.y - 1 && y <= h.y + h.h + 1) return true;   // room to walk all round
+      if (y >= h.doorY && y <= h.doorY + 2 && x >= Math.min(h.doorX, town.cx) - 1 && x <= Math.max(h.doorX, town.cx) + 1) return true;   // the path from its door
+      if (Math.abs(x - h.doorX) <= 1 && y > h.doorY && y < town.cy) return true;
+    }
+    return false;
+  };
+  for (let y = town.y0 + 1; y < town.y0 + H - 1; y++) for (let x = town.x0 + 1; x < town.x0 + W - 1; x++) {
+    if (noise(x, y, 141) >= 0.1 || blocked(x, y)) continue;
+    let crowded = false;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (out.has(key(x + dx, y + dy))) crowded = true;
+    if (!crowded) out.add(key(x, y));
+  }
+  return out;
+}
+// Four stone planters with a young tree each, in the corners of a town or city square.
+const planterAt = (town, x, y) => !town.walled && town.plaza[0] >= 11 && !!STALL_SPOTS[town.size] && Math.abs(x - town.cx) === town.plaza[0] - 3 && Math.abs(y - town.cy) === town.plaza[1] - 2;
+// Lamp posts: one at each corner of the square, and a pair either side of the east and west roads in a city.
+function townLamps(town) {
+  if (town.lamps && town.lampsFor === townSig(town)) return town.lamps;
+  const [pw, ph] = town.walled ? [11, 6] : town.plaza, spots = [[-pw, -ph], [pw, -ph], [-pw, ph], [pw, ph]];
+  if (!town.walled && pw >= 15) spots.push([-pw, -2], [pw, -2], [-pw, 2], [pw, 2]);
+  town.lamps = spots.map(([dx, dy]) => ({ x: town.cx + dx, y: town.cy + dy })).filter((p) => townTile(town, p.x, p.y)[0] === TILE.FLOOR);
+  town.lampsFor = townSig(town);
+  return town.lamps;
+}
+// A bed of flowers on the grass just outside the kerb, clear of the roads in.
+function bedAt(town, x, y) {
+  if (town.walled || !STALL_SPOTS[town.size]) return null;
+  const [pw, ph] = town.plaza, dx = x - town.cx, dy = y - town.cy;
+  if (Math.abs(dy) === ph + 1 && Math.abs(dx) <= pw - 1 && Math.abs(dx) >= 3 && (dx + 400) % 4 !== 0) return 'h';
+  if (Math.abs(dx) === pw + 1 && Math.abs(dy) <= ph - 1 && Math.abs(dy) >= 3 && (dy + 400) % 3 !== 0) return 'v';
+  return null;
+}
 function townPaths(town) {
   if (town.paths && town.pathsFor === town.houses.length) return town.paths;
   const out = new Set(), [pw, ph] = town.plaza, paved = (x, y) => townTile(town, x, y)[1] !== GROUND.GRASS && townTile(town, x, y)[1] !== GROUND.SNOW;
@@ -3542,6 +3588,8 @@ function townTile(town, wx, wy) {
   if (lx >= cx - 1 && lx <= cx + 1) g = GROUND.COBBLE;            // the path through the square to the roads
   if (ly >= cy - 1 && ly <= cy && lx >= cx - 1 && lx <= cx) { t = TILE.FOUNTAIN; g = GROUND.COBBLE; }
   if (ly === cy - ph && stallAt(town, wx, wy)) { t = TILE.WALL; g = GROUND.COBBLE; }
+  if (planterAt(town, wx, wy)) { t = TILE.WALL; g = GROUND.COBBLE; }
+  if (t === TILE.FLOOR && g !== GROUND.COBBLE && townTrees(town).has(key(wx, wy))) { t = TILE.WALL; g = GROUND.TREE; }
   for (const h of town.houses) {
     if (wx >= h.x && wx < h.x + h.w && wy >= h.y && wy < h.y + h.h) t = (wx === h.doorX && wy === h.doorY) ? TILE.DOOR : TILE.WALL;
   }
@@ -3938,8 +3986,15 @@ function guardNpc(town, rank, k) {
 function guardBeat(town, k) {
   const [pw, ph] = town.plaza, c = { x: town.cx, y: town.cy };
   const ring = [[c.x - pw + 1, c.y - ph + 1], [c.x + pw - 1, c.y - ph + 1], [c.x + pw - 1, c.y + ph - 1], [town.gate.x, town.gate.y - 1], [c.x - pw + 1, c.y + ph - 1]];
+  // a corner of the square may lie under a house or a wall (castles are built close): step to the nearest open ground
+  const open = ([x, y]) => {
+    for (let d = 0; d <= 5; d++) for (let oy = -d; oy <= d; oy++) for (let ox = -d; ox <= d; ox++) {
+      if (Math.max(Math.abs(ox), Math.abs(oy)) === d && townTile(town, x + ox, y + oy)[0] === TILE.FLOOR) return { x: x + ox, y: y + oy };
+    }
+    return { x, y };
+  };
   const start = k % ring.length;
-  return ring.slice(start).concat(ring.slice(0, start)).map(([x, y]) => ({ x, y }));
+  return ring.slice(start).concat(ring.slice(0, start)).map(open);
 }
 function guardStrike(n, m) {
   const R = GUARD_RANKS[n.type.rank];
@@ -4965,7 +5020,8 @@ function createDungeon() {
     const a = R() < 0.5 ? null : mods[Math.floor(R() * 4)]; let b = mods[Math.floor(R() * 4)]; if (b === a) b = mods[(mods.indexOf(b) + 1) % 4];
     exit.mod = a; exit2 = { x: fx * CHUNK + t2.rooms[0].cx, y: fy * CHUNK + t2.rooms[0].cy, mod: b };
     setTile(exit2.x, exit2.y, TILE.EXIT); monsters = monsters.filter((m) => !(m.x === exit2.x && m.y === exit2.y));
-    setTimeout(() => { log('This floor forks: two stairs lead down, each to a different floor. Hover over a staircase to see what waits below.', 'good'); tip('forked', 'Two stairs on one floor: each leads to a different floor below. Hover over (or tap) a staircase to see its twist: a treasure floor, a dark one, a swarming one, a cursed one, or a quiet one.'); }, 60);
+    const beenBelow = tipShown.has('dungeon');   // a first descent gets the basics, not this
+    setTimeout(() => { log('This floor forks: two stairs lead down, each to a different floor. Hover over a staircase to see what waits below.', 'good'); if (beenBelow) tip('forked', 'Two stairs on one floor: each leads to a different floor below. Hover over (or tap) a staircase to see its twist: a treasure floor, a dark one, a swarming one, a cursed one, or a quiet one.'); }, 60);
   }
   monsters = monsters.filter((m) => !(m.x === exit.x && m.y === exit.y)); monstersDirty = true;
   if (floor === (dungeonDef ? dungeonDef.floors : FINAL_FLOOR) || (dungeonDef && dungeonDef.endless && floor % 5 === 0) || (dungeonDef && dungeonDef.midBossFloor === floor)) {
@@ -5180,25 +5236,83 @@ const PAVING = {
   suryadesh: ['#a16207', '#e2b76b', '#d4a85c', '#ebc47c'],
   severin: ['#4b4035', '#8a7d6a', '#7b6f5d', '#978a76'],
 };
+// Paving is laid once per realm and style into small tiles and stamped from there. Cobbles and setts
+// run in a bond of half-height courses, every other course shifted half a stone, and the stones that
+// cross a tile's edge are all one tone so the tiles join without a seam. Flagstones are four bevelled slabs.
+const pavingCache = new Map();
+function pavingTile(realm, style, v) {
+  const id = `${realm}:${style}:${v}`;
+  let cv = pavingCache.get(id);
+  if (cv) return cv;
+  cv = document.createElement('canvas'); cv.width = T; cv.height = T; pavingCache.set(id, cv);
+  const g = cv.getContext('2d'), P = PAVING[realm] || PAVING.cantons;
+  let seed = hash32(v, style.length, 977);
+  const R = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  g.fillStyle = P[0]; g.fillRect(0, 0, T, T);
+  if (style === 'flag') {
+    for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {
+      const x = i * 16, y = j * 16;
+      g.fillStyle = shade((i + j) % 2 ? P[3] : P[1], (R() - 0.5) * 0.08); g.fillRect(x + 1, y + 1, 15, 15);
+      g.fillStyle = 'rgba(255,255,255,0.22)'; g.fillRect(x + 1, y + 1, 15, 1); g.fillRect(x + 1, y + 1, 1, 15);
+      g.fillStyle = 'rgba(0,0,0,0.16)'; g.fillRect(x + 1, y + 15, 15, 1); g.fillRect(x + 15, y + 1, 1, 15);
+      if (R() < 0.6) { const vx = x + 3 + Math.floor(R() * 7), vy = y + 4 + Math.floor(R() * 8); g.fillStyle = 'rgba(0,0,0,0.07)'; g.fillRect(vx, vy, 4, 1); g.fillRect(vx + 3, vy + 1, 3, 1); }
+    }
+    return cv;
+  }
+  const jit = style === 'cobble' ? 2 : 0;
+  for (let j = 0; j < 4; j++) {
+    const y = j * 8, cuts = j % 2 ? [0, 8, 24, 32] : [0, 16, 32];
+    const xs = cuts.map((x, i) => (i === 0 || i === cuts.length - 1) ? x : x + Math.round((R() - 0.5) * 2 * jit));
+    for (let i = 0; i < xs.length - 1; i++) {
+      const x = xs[i], w = xs[i + 1] - x, cutL = j % 2 === 1 && i === 0, cutR = j % 2 === 1 && i === xs.length - 2;
+      const bx = cutL ? x : x + 1, bw = w - (cutL ? 0 : 1);   // a line of mortar to the left of every whole stone
+      g.fillStyle = cutL || cutR ? P[2] : shade(P[1 + Math.floor(R() * 3)], (R() - 0.5) * (style === 'cobble' ? 0.14 : 0.07));
+      g.fillRect(bx, y + 1, bw, 7);
+      g.fillStyle = 'rgba(255,255,255,0.17)'; g.fillRect(bx + (cutL ? 0 : 1), y + 1, bw - (cutL ? 0 : 1) - (cutR ? 0 : 1), 1);
+      g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(bx + (cutL ? 0 : 1), y + 7, bw - (cutL ? 0 : 1) - (cutR ? 0 : 1), 1);
+      if (style === 'cobble') {   // knock the corners off
+        g.fillStyle = P[0];
+        if (!cutL) { g.fillRect(bx, y + 1, 1, 1); g.fillRect(bx, y + 7, 1, 1); }
+        if (!cutR) { g.fillRect(bx + bw - 1, y + 1, 1, 1); g.fillRect(bx + bw - 1, y + 7, 1, 1); }
+      }
+    }
+  }
+  return cv;
+}
+// Where a poor town's paving has worn through, it goes stone by stone: whole cobbles are missing in
+// soft-edged patches, with mud, the odd puddle and weeds where they were. The ways through the
+// square and the ring round the fountain are kept up.
+function pavingWear(g, town, c, r, X, Y, tier) {
+  const dx = c - town.cx, dy = r - town.cy, thresh = tier === 0 ? 0.43 : 0.3;
+  if (Math.abs(dx) <= 1 || Math.abs(dy) <= 1 || Math.hypot(c + 0.5 - town.cx, r + 0.5 - town.cy) < 4.6) return;
+  if (valueNoise(c + 0.5, r + 0.5, 107, 4) > thresh + 0.2) return;
+  let worn = 0;
+  for (let j = 0; j < 4; j++) {
+    const cuts = j % 2 ? [0, 8, 24, 32] : [0, 16, 32], wy = r + (j * 8 + 4) / T;
+    for (let i = 0; i < cuts.length - 1; i++) {
+      const sx = c * 2 + i, wx = c + (j % 2 ? i * 16 : i * 16 + 8) / T;
+      if (valueNoise(wx, wy, 107, 4) + (noise(sx, r * 4 + j, 109) - 0.5) * 0.16 >= thresh) continue;
+      worn++;
+      const n = noise(sx, r * 4 + j, 111);
+      g.fillStyle = n < 0.34 ? '#6b5236' : n < 0.67 ? '#5e4830' : '#66502f'; g.fillRect(X + cuts[i], Y + j * 8, cuts[i + 1] - cuts[i], 8);
+      if (valueNoise(wx, wy - 0.25, 107, 4) >= thresh) { g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(X + cuts[i], Y + j * 8, cuts[i + 1] - cuts[i], 2); }   // the lip of the stones above
+      if (n > 0.8) { g.fillStyle = 'rgba(0,0,0,0.15)'; g.fillRect(X + cuts[i] + 3, Y + j * 8 + 4, 3, 2); }
+    }
+  }
+  if (worn === 10 && noise(c, r, 113) < 0.22) { g.fillStyle = 'rgba(96,150,200,0.7)'; g.beginPath(); g.ellipse(X + T / 2, Y + T / 2, 11, 6, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(X + 12, Y + 13, 5, 1); }
+  else if (worn >= 5 && noise(c, r, 115) < 0.35) {   // weeds
+    const bx = X + 6 + Math.floor(noise(c, r, 116) * 18), by = Y + 8 + Math.floor(noise(c, r, 118) * 16);
+    g.fillStyle = '#4c8a3f'; g.fillRect(bx, by, 1, 4); g.fillRect(bx + 2, by - 1, 1, 5); g.fillRect(bx + 4, by + 1, 1, 3);
+    g.fillStyle = '#6fb35a'; g.fillRect(bx + 1, by + 1, 1, 3); g.fillRect(bx + 3, by, 1, 4);
+  }
+}
 function drawCobble(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y, q = T / 2;
-  const P = PAVING[scene === 'world' ? realmOfTile(c, r) : 'cantons'];
+  const realm = scene === 'world' ? realmOfTile(c, r) : 'cantons', P = PAVING[realm] || PAVING.cantons;
   const town = scene === 'world' ? townContaining(c, r) : null, tier = town ? townTier(town) : 2;
-  if (tier === 0 && noise(c, r, 107) < 0.45) {   // worn through to mud
-    const n = noise(c, r, 109);
-    g.fillStyle = n < 0.5 ? '#6b5236' : '#5e4830'; g.fillRect(X, Y, T, T);
-    g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(X + 4 + Math.floor(n * 10), Y + 8, 8, 2); g.fillRect(X + 14, Y + 20 - Math.floor(n * 6), 6, 2);
-    if (noise(c, r, 113) < 0.18) { g.fillStyle = 'rgba(110,140,170,0.55)'; g.beginPath(); g.ellipse(X + T / 2, Y + T / 2, 11, 6, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(X + 12, Y + 13, 5, 1); }
-    return;
-  }
-  g.fillStyle = P[0]; g.fillRect(X, Y, T, T);
-  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
-    const n = noise(c * 2 + i, r * 2 + j, 3);
-    g.fillStyle = tier >= 3 ? ((c + r + i + j) % 2 ? P[3] : P[1]) : n < 0.33 ? P[1] : n < 0.66 ? P[2] : P[3];
-    g.fillRect(X + i * q + 2, Y + j * q + 2, q - 4, q - 4);
-  }
-  if (tier === 0) { g.fillStyle = 'rgba(40,30,20,0.25)'; if (noise(c, r, 117) < 0.5) g.fillRect(X + 2, Y + q + 2, q - 4, q - 4); }   // missing stones
-  if (tier >= 3 && (c + r) % 4 === 0) { g.fillStyle = 'rgba(255,216,107,0.35)'; g.fillRect(X + q - 2, Y + q - 2, 4, 4); }   // brass studs
+  g.drawImage(pavingTile(PAVING[realm] ? realm : 'cantons', tier >= 3 ? 'flag' : tier === 2 ? 'sett' : 'cobble', Math.floor(noise(c, r, 3) * 6)), X, Y);
+  if (town && tier <= 1) pavingWear(g, town, c, r, X, Y, tier);
+  if (tier >= 3 && (c + r) % 4 === 0) { g.fillStyle = 'rgba(255,216,107,0.45)'; g.fillRect(X + q - 2, Y + q - 2, 4, 4); g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(X + q - 2, Y + q - 2, 2, 1); }   // brass studs
   if (town) plazaDetail(g, town, c, r, X, Y, P, tier);
 }
 // What makes a square a square: a ring of dressed stone round the fountain, laid in
@@ -5206,6 +5320,16 @@ function drawCobble(g, c, r) {
 function plazaDetail(g, town, c, r, X, Y, P, tier) {
   const [pw, ph] = town.plaza, dx = c - town.cx, dy = r - town.cy;
   const fx = town.cx * T - off.x, fy = town.cy * T - off.y, d = Math.hypot(c + 0.5 - town.cx, r + 0.5 - town.cy);
+  if (Math.abs(dx) <= pw && Math.abs(dy) <= ph) {
+    const ax = Math.abs(dx) <= 1, ay = Math.abs(dy) <= 1;   // the ways through: as wide as the roads that meet them
+    if (ax || ay) {
+      g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(X, Y, T, T);
+      g.fillStyle = 'rgba(0,0,0,0.3)';
+      if (ax && !ay) { if (dx === -1) g.fillRect(X, Y, 2, T); if (dx === 1) g.fillRect(X + T - 2, Y, 2, T); }
+      if (ay && !ax) { if (dy === -1) g.fillRect(X, Y, T, 2); if (dy === 1) g.fillRect(X, Y + T - 2, T, 2); }
+    } else if (Math.abs(dx) === pw || Math.abs(dy) === ph) { g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(X, Y, T, T); }
+    else if (tier >= 2 && (Math.abs(dx) === pw - 1 || Math.abs(dy) === ph - 1)) { g.fillStyle = 'rgba(255,255,255,0.07)'; g.fillRect(X, Y, T, T); }
+  }
   if (d < 4.4) {
     g.save(); g.beginPath(); g.rect(X, Y, T, T); g.clip();
     const R0 = T * 1.55, R1 = T * 3.1;
@@ -5225,6 +5349,54 @@ function plazaDetail(g, town, c, r, X, Y, P, tier) {
   if (dy === ph && !road) kerb(X, Y + T - 5, T, 5);
   if (dx === -pw && Math.abs(dy) > 1) kerb(X, Y, 5, T);
   if (dx === pw && Math.abs(dy) > 1) kerb(X + T - 5, Y, 5, T);
+}
+// A lamp post: a stone foot, an iron post, a glazed lantern and a pennant in the realm's colour.
+function drawLampPost(g, town, c, r) {
+  const X = c * T - off.x + T / 2, Y = r * T - off.y + T - 5, lit = dayPhase() === 'night' || dayPhase() === 'dusk';
+  g.fillStyle = 'rgba(0,0,0,0.28)'; g.beginPath(); g.ellipse(X + 5, Y + 2, 11, 3.5, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#4b5563'; g.fillRect(X - 4, Y - 4, 9, 6); g.fillStyle = '#7b8494'; g.fillRect(X - 4, Y - 4, 9, 1); g.fillStyle = '#374151'; g.fillRect(X - 4, Y + 1, 9, 1);
+  g.fillStyle = '#111827'; g.fillRect(X - 1, Y - 36, 3, 32); g.fillStyle = '#4b5563'; g.fillRect(X - 1, Y - 36, 1, 32);
+  g.fillStyle = '#111827'; g.fillRect(X - 3, Y - 20, 7, 2); g.fillRect(X - 3, Y - 37, 7, 2);
+  // the pennant, on a short arm
+  g.fillStyle = '#111827'; g.fillRect(X + 2, Y - 31, 8, 1);
+  g.fillStyle = REALMS[town.realm] ? REALMS[town.realm].color : '#ffd86b'; g.beginPath(); g.moveTo(X + 4, Y - 30); g.lineTo(X + 10, Y - 30); g.lineTo(X + 10, Y - 19); g.lineTo(X + 7, Y - 22); g.lineTo(X + 4, Y - 19); g.fill();
+  g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(X + 4, Y - 30, 1, 10);
+  // the lantern
+  g.fillStyle = lit ? '#ffe7a0' : '#d9b65a'; g.fillRect(X - 4, Y - 49, 9, 12);
+  g.fillStyle = lit ? '#fffbe6' : '#f1d98a'; g.fillRect(X - 1, Y - 46, 3, 6);
+  g.fillStyle = '#111827'; g.fillRect(X - 5, Y - 49, 1, 12); g.fillRect(X + 5, Y - 49, 1, 12); g.fillRect(X - 6, Y - 51, 13, 2); g.fillRect(X - 4, Y - 54, 9, 3); g.fillRect(X - 1, Y - 56, 3, 2);
+  g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(X - 6, Y - 51, 13, 1);
+}
+// A square stone planter with a young tree in it.
+function drawPlanter(g, c, r) {
+  const X = c * T - off.x, Y = r * T - off.y, snow = r < ICE_Y;
+  g.fillStyle = 'rgba(0,0,0,0.28)'; g.beginPath(); g.ellipse(X + T / 2 + 5, Y + T - 3, 15, 5, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#5b6370'; g.fillRect(X + 4, Y + 16, 24, 13); g.fillStyle = '#8b94a3'; g.fillRect(X + 4, Y + 16, 24, 3); g.fillStyle = '#3f4652'; g.fillRect(X + 4, Y + 27, 24, 2);
+  g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(X + 15, Y + 19, 1, 8);
+  g.fillStyle = '#4a3622'; g.fillRect(X + 6, Y + 14, 20, 3);
+  g.fillStyle = '#5b3a1a'; g.fillRect(X + 14, Y + 2, 4, 13); g.fillStyle = '#7a5230'; g.fillRect(X + 14, Y + 2, 1, 13);
+  const leaf = snow ? ['#2f5d3a', '#3f7a4a', '#f1f5f9'] : ['#2f6b33', '#4c9a48', '#7cc46a'];
+  g.fillStyle = leaf[0]; g.beginPath(); g.arc(X + 16, Y - 4, 13, 0, Math.PI * 2); g.fill();
+  g.fillStyle = leaf[1]; g.beginPath(); g.arc(X + 13, Y - 7, 9, 0, Math.PI * 2); g.fill(); g.beginPath(); g.arc(X + 21, Y - 2, 6, 0, Math.PI * 2); g.fill();
+  g.fillStyle = leaf[2]; g.beginPath(); g.arc(X + 11, Y - 10, 4, 0, Math.PI * 2); g.fill(); g.fillRect(X + 18, Y - 9, 3, 2);
+  if (!snow) { g.fillStyle = '#e25555'; g.fillRect(X + 7, Y + 13, 2, 2); g.fillRect(X + 22, Y + 12, 2, 2); g.fillStyle = '#ffd86b'; g.fillRect(X + 10, Y + 12, 2, 2); g.fillRect(X + 19, Y + 13, 2, 2); }
+}
+// A bed of flowers along the kerb: turned earth edged with stones, planted in the realm's colour.
+function drawFlowerBed(g, town, c, r, dir) {
+  const X = c * T - off.x, Y = r * T - off.y, col = REALMS[town.realm] ? REALMS[town.realm].color : '#ffd86b';
+  const inner = dir === 'h' ? (r < town.cy ? T - 16 : 2) : (c < town.cx ? T - 16 : 2);   // hard against the kerb
+  const [bx, by, bw, bh] = dir === 'h' ? [X + 2, Y + inner, T - 4, 14] : [X + inner, Y + 2, 14, T - 4];
+  g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(bx, by + 2, bw + 2, bh + 1);
+  g.fillStyle = '#9aa3b2'; g.fillRect(bx - 1, by - 1, bw + 2, bh + 2); g.fillStyle = '#5b6370'; g.fillRect(bx - 1, by + bh, bw + 2, 1);
+  g.fillStyle = '#4a3622'; g.fillRect(bx, by, bw, bh);
+  g.fillStyle = '#3f8a3a'; g.fillRect(bx + 1, by + 1, bw - 2, bh - 2); g.fillStyle = '#56a34c';
+  for (let k = 0; k < 5; k++) g.fillRect(bx + 1 + Math.floor(noise(c * 5 + k, r, 149) * (bw - 4)), by + 1 + Math.floor(noise(c, r * 5 + k, 150) * (bh - 4)), 2, 2);
+  const tones = [col, '#ffffff', '#ffd86b', '#f08bb4', col];
+  for (let k = 0; k < 5; k++) {
+    const u = (k + 0.5) / 5, n = noise(c * 7 + k, r, 151), fx = Math.round(dir === 'h' ? bx + u * bw - 1 : bx + 2 + n * (bw - 7)), fy = Math.round(dir === 'h' ? by + 2 + n * (bh - 7) : by + u * bh - 1);
+    g.fillStyle = tones[Math.floor(noise(c, r * 7 + k, 153) * tones.length)]; g.fillRect(fx, fy, 3, 3);
+    g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillRect(fx + 1, fy + 1, 1, 1);
+  }
 }
 // A path of stepping stones worn into the grass.
 function drawTownPath(g, c, r) {
@@ -6038,7 +6210,7 @@ function renderBackground() {
       else if (gnd === GROUND.DOCK) drawDock(g, c, r);
       else if (gnd === GROUND.SNOW) drawSnow(g, c, r);
       else if (gnd === GROUND.FOREST || gnd === GROUND.TREE) {
-        if (r * 1 < ICE_Y) drawSnow(g, c, r); else drawGrass(g, c, r, true);
+        if (r * 1 < ICE_Y) drawSnow(g, c, r); else drawGrass(g, c, r, !(gnd === GROUND.TREE && townContaining(c, r)));
         if (gnd === GROUND.TREE) {   // every tree a little different: size, lean and which way it faces
           const tn = noise(c, r, 71), pad = tn < 0.25 ? -2 : tn < 0.6 ? 0 : tn < 0.85 ? 1 : 3, lean = (noise(c, r, 73) - 0.5) * 0.22;
           g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(c * T - off.x + T / 2 + 4 + lean * T, r * T - off.y + T - 4, T * (0.46 - pad * 0.03), 6, 0, 0, Math.PI * 2); g.fill();
@@ -6046,7 +6218,7 @@ function renderBackground() {
           drawSprite(g, kind, c + lean, r - (pad < 0 ? 0.06 : 0), 1, pad, tn > 0.5);
         }
       }
-      else { const fk = t === TILE.FLOOR && fieldAt(c, r); if (fk) drawField(g, c, r, fk); else { drawGrass(g, c, r); const tp = t === TILE.FLOOR && townContaining(c, r); if (tp && townPaths(tp).has(key(c, r))) drawTownPath(g, c, r); else if (t === TILE.FLOOR && noise(c, r, 9) < 0.06) drawSprite(g, 'flower', c, r); } }
+      else { const fk = t === TILE.FLOOR && fieldAt(c, r); if (fk) drawField(g, c, r, fk); else { drawGrass(g, c, r); const tp = t === TILE.FLOOR && townContaining(c, r); const bed = tp && !townPaths(tp).has(key(c, r)) && bedAt(tp, c, r); if (tp && townPaths(tp).has(key(c, r))) drawTownPath(g, c, r); else if (bed) drawFlowerBed(g, tp, c, r, bed); else if (t === TILE.FLOOR && noise(c, r, 9) < 0.06) drawSprite(g, 'flower', c, r); } }
       if (t === TILE.EXIT) {
         const X = c * T - off.x, Y = r * T - off.y;
         g.fillStyle = '#374151'; g.fillRect(X - 6, Y - 6, T + 12, T + 12);
@@ -6088,11 +6260,13 @@ function renderBackground() {
     for (const town of nearbyTowns(player.x, player.y, 1)) if (STALL_SPOTS[town.size]) for (const st of townStalls(town)) if (st.x + 2 >= x0 && st.x <= x1 && st.y + 1 >= y0 && st.y - 1 <= y1) drawStall(g, town, st);
     for (const town of nearbyTowns(player.x, player.y, 1)) {
       if (town.cx < x0 - 12 || town.cx > x1 + 12 || town.cy < y0 - 8 || town.cy > y1 + 8) continue;
-      for (const [lc, lr] of [[town.cx - 11, town.cy - 6], [town.cx + 11, town.cy - 6], [town.cx - 11, town.cy + 6], [town.cx + 11, town.cy + 6]]) drawSprite(g, 'lamp', lc, lr);
+      if (!town.walled && town.plaza[0] >= 11 && STALL_SPOTS[town.size]) for (const sx of [-1, 1]) for (const sy of [-1, 1]) drawPlanter(g, town.cx + sx * (town.plaza[0] - 3), town.cy + sy * (town.plaza[1] - 2));
+      for (const lp of townLamps(town)) drawLampPost(g, town, lp.x, lp.y);
       if (player && player.meta && player.meta.story && player.meta.story.phase === 'done') {   // bunting for the mended crown
         const col = REALMS[town.realm || 'cantons'].color;
-        for (const [ax, ay, bx] of [[town.cx - 11, town.cy - 6, town.cx + 11], [town.cx - 11, town.cy + 6, town.cx + 11]]) {
-          const x0 = ax * T - off.x + T / 2, x1 = bx * T - off.x + T / 2, y0 = ay * T - off.y + 6;
+        const [bw, bh] = town.walled ? [11, 6] : town.plaza;
+        for (const [ax, ay, bx] of [[town.cx - bw, town.cy - bh, town.cx + bw], [town.cx - bw, town.cy + bh, town.cx + bw]]) {
+          const x0 = ax * T - off.x + T / 2, x1 = bx * T - off.x + T / 2, y0 = ay * T - off.y - 24;
           g.strokeStyle = '#3b2a1a'; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo((x0 + x1) / 2, y0 + 18, x1, y0); g.stroke();
           for (let k = 1; k < 22; k++) { const u = k / 22, x = x0 + (x1 - x0) * u, y = y0 + 18 * 2 * u * (1 - u); g.fillStyle = k % 2 ? col : '#ffd86b'; g.beginPath(); g.moveTo(x - 4, y); g.lineTo(x + 4, y); g.lineTo(x, y + 8); g.fill(); }
         }
@@ -6680,9 +6854,9 @@ function drawScene(now) {
       const k = t < 0.72 ? (t - 0.66) / 0.06 : t > 0.94 ? (1 - t) / 0.06 : 1;
       const night = [{ x: px, y: py, r: T * 5.5, glow: 'rgba(255,200,120,0.08)' }];
       for (const town of nearbyTowns(player.x, player.y, 1)) {
-        for (const [lc, lr] of [[town.cx - 11, town.cy - 6], [town.cx + 11, town.cy - 6], [town.cx - 11, town.cy + 6], [town.cx + 11, town.cy + 6]]) {
+        for (const { x: lc, y: lr } of townLamps(town)) {
           if (lc < x0 - 4 || lc > x1 + 4 || lr < y0 - 4 || lr > y1 + 4) continue;
-          night.push({ x: lc * T - cam.x + T / 2, y: lr * T - cam.y + 8, r: T * 3.8, glow: 'rgba(255,210,120,0.3)', gr: T * 2 });
+          night.push({ x: lc * T - cam.x + T / 2, y: lr * T - cam.y - 6, r: T * 4.2, glow: 'rgba(255,210,120,0.32)', gr: T * 2.2 });
         }
       }
       for (const town of nearbyTowns(player.x, player.y, 1)) {
@@ -7182,6 +7356,7 @@ function describeTile(x, y) {
   }
   if (scene === 'house' && (t === TILE.UP || t === TILE.DOWN)) { const fl = BUILDINGS[interior.house.id].floors, to = (interior.level || 0) + (t === TILE.UP ? 1 : -1); return `Stairs ${t === TILE.UP ? 'up' : 'down'} — to ${fl && fl[to] ? fl[to].name : 'the undercroft'}`; }
   if (scene === 'house' && decor[y] && decor[y][x]) return decor[y][x].sprite === 'bed' ? 'Bed — lie down to rest' : `${decor[y][x].name} — walk into it`;
+  if (inTown() && t === TILE.WALL) { const tn1 = townContaining(x, y); if (tn1 && planterAt(tn1, x, y)) return 'A stone planter with a young tree'; if (tn1 && townTrees(tn1).has(key(x, y))) return 'A shade tree on the green'; }
   if (inTown() && t === TILE.WALL) { const tn0 = townContaining(x, y), st0 = tn0 && stallAt(tn0, x, y); if (st0) return `Market stall — ${st0.goods}. Walk into it to hear what is on offer`; }
   if (inTown() && t === TILE.WALL) { const h = houses.find((hh) => x >= hh.x && x < hh.x + hh.w && y >= hh.y && y < hh.y + hh.h); if (h) return h.tower ? `${h.name} — three floors to climb. The door faces the bailey` : BUILDINGS[h.id].floors ? `${h.name} — several floors. The door is at the bottom` : `${h.name} — the door is at the bottom`; if (groundAt(x, y) === GROUND.RAMPART) return 'Castle wall — the gates are in the middle of each side'; }
   if (t === TILE.EXIT && inTown()) { const tw = townContaining(x, y) || nearestTownTo(x, y); return `Dungeon gate — ${tw ? `${townDungeon(tw).floors} floors, ${ratingText(townDungeon(tw))}` : 'step here to begin your descent'}`; }
@@ -7250,7 +7425,105 @@ function pathTo(tx, ty, limit = 60) {
   }
   return path;
 }
-function stopWalk() { walk.active = false; walk.monster = null; clearInterval(walk.timer); walk.timer = null; }
+function stopWalk() { walk.active = false; walk.monster = null; clearInterval(walk.timer); walk.timer = null; stopExplore(); }
+// ---------- auto-explore ----------
+// Z sends the hero off alone underground: to gold, a chest or a needed potion within reach, then to the
+// nearest ground nobody has looked at, leaning toward the stairs. Anything that wants a decision stops
+// them: a foe in sight, a wound, a find. > walks to stairs already found. Any key or click takes over.
+const explore = { on: false, timer: null, hp: 0, stairs: false, sig: '', stopped: 0, known: new Set(), noted: new Set(), skip: new Set() };
+let exploreSights = null;
+const sightAt = (x, y) => {
+  exploreSights = exploreSights || new Map([[TILE.EXIT, 'the stairs down'], [TILE.SPRING, 'a healing spring'], [TILE.ALTAR, 'an altar'], [TILE.CAPTIVE, 'a captive in chains'], [TILE.TOTEM, 'a goblin totem'], [TILE.LEVER, 'a lever'], [TILE.TRIAL, 'a ring of trial stones'], [TILE.CRACK, 'a cracked wall'], [TILE.SHOP, 'a merchant']]);
+  return exploreSights.get(getTile(x, y));
+};
+const foeName = (m) => m.boss ? m.name : `${/^[aeiou]/i.test(m.type.name) ? 'an' : 'a'} ${m.type.name.toLowerCase()}`;
+function stopExplore(why) {
+  if (!explore.on) return;
+  explore.on = false; clearInterval(explore.timer); explore.timer = null; explore.stopped = performance.now();
+  if (why) { log(`You stop: ${why}.`); draw(); }
+}
+// What is new in sight since the hero last looked: a foe, or something worth a decision.
+function exploreNews() {
+  let foe = null, sight = null;
+  for (const m of monsters) {
+    if (m.hp <= 0 || !isVisible(m.x, m.y)) continue;
+    if (m.awake || !explore.known.has(m)) foe = foe && foe.awake ? foe : m;
+    explore.known.add(m);
+  }
+  for (const k of visible) {
+    if (explore.noted.has(k)) continue;
+    const [x, y] = k.split(',').map(Number), what = sightAt(x, y);
+    if (what) { explore.noted.add(k); sight = sight || what; }
+  }
+  return { foe, sight };
+}
+// One breadth-first sweep over the ground already seen. Returns the next step, or null if there is nowhere to go.
+function exploreScan(throughPotions = false) {
+  const hurt = player.maxHp - player.hp, start = key(player.x, player.y);
+  const from = new Map([[start, null]]), q = [[player.x, player.y, 0]];
+  const wanted = (p) => hurt >= Math.min(5, potionHeal(p.heal));
+  let loot = null, front = null, frontCost = Infinity, stairs = null;
+  for (let i = 0; i < q.length && i < 6000; i++) {
+    const [cx, cy, d] = q[i], here = key(cx, cy);
+    for (const [dx, dy] of DIRS) {
+      const nx = cx + dx, ny = cy + dy, k = key(nx, ny);
+      if (from.has(k)) continue;
+      if (!wasSeen(nx, ny)) {
+        const c = d + (exit ? 0.35 * (Math.abs(nx - exit.x) + Math.abs(ny - exit.y)) : 0);
+        if (c < frontCost) { frontCost = c; front = { k: here, d }; }
+        continue;
+      }
+      const t = getTile(nx, ny);
+      if (t === TILE.EXIT) { if (!stairs) stairs = { k: here, d }; continue; }
+      if (t === TILE.CHEST) { if (!loot && !explore.skip.has(k)) loot = { k: here, d: d + 1, bump: [dx, dy], chest: k }; continue; }
+      if (!walkable(t) || t === TILE.SHOP || t === TILE.SITE || hazard(nx, ny) || getMonsterAt(nx, ny)) continue;
+      const pot = getPotionAt(nx, ny);
+      if (pot && !wanted(pot) && !throughPotions) continue;   // no sense drinking one at full health
+      from.set(k, here); q.push([nx, ny, d + 1]);
+      if (!loot && (getGoldAt(nx, ny) || (pot && wanted(pot)))) loot = { k, d: d + 1 };
+    }
+  }
+  const goal = explore.stairs ? stairs : (loot && (loot.d <= 30 || !front) ? loot : front);
+  if (!goal) return null;
+  if (goal.k === start) return goal.bump ? { dx: goal.bump[0], dy: goal.bump[1], chest: goal.chest } : { arrived: true };
+  let k = goal.k; while (from.get(k) !== start) k = from.get(k);
+  const [x, y] = k.split(',').map(Number);
+  return { dx: x - player.x, dy: y - player.y };
+}
+function exploreTick() {
+  if (!explore.on) return;
+  if (gameOver || !player || scene !== 'dungeon' || shopOpen || perkChoices || mapOpen || questsOpen || journalOpen || entering || storyOpen() || controlsOpen() || settingsOpen()) { stopExplore(); return; }
+  if (player.hp < explore.hp) { stopExplore('you are hurt'); return; }
+  explore.hp = player.hp;
+  const { foe, sight } = exploreNews();
+  if (foe) { stopExplore(foe.awake ? `${foeName(foe)} has seen you` : `${foeName(foe)} sleeps ahead`); return; }
+  if (sight && !explore.stairs) { stopExplore(`you find ${sight}`); return; }
+  const step = exploreScan() || exploreScan(true);
+  if (!step) { stopExplore(explore.stairs ? 'the way to the stairs is blocked' : 'there is nothing more to find from here'); return; }
+  if (step.arrived) { stopExplore(explore.stairs ? 'the stairs are beside you' : 'there is nothing more to find from here'); return; }
+  const was = { x: player.x, y: player.y, turn, floor, sig: explore.sig };
+  tryMove(step.dx, step.dy);
+  if (step.chest && getTile(was.x + step.dx, was.y + step.dy) === TILE.CHEST) explore.skip.add(step.chest);   // it would not open: leave it be
+  if (scene !== 'dungeon' || floor !== was.floor || turn === was.turn) stopExplore();
+}
+function startExplore(toStairs = false) {
+  const again = explore.on && explore.stairs === toStairs;
+  stopWalk();
+  if (again || gameOver || !player || shopOpen || perkChoices || entering || storyOpen()) return;   // the same key again only stops
+  if (scene !== 'dungeon') { log(scene === 'world' ? 'Exploring alone is for dungeons. Out here, click the world map to drop a pin and follow the compass.' : 'There is nothing to explore in here.'); draw(); return; }
+  if (trial) { log('Not in the middle of a trial.', 'bad'); draw(); return; }
+  const sig = `${dungeonDef ? dungeonDef.name : ''}:${floor}`;
+  if (sig !== explore.sig) { explore.sig = sig; explore.known.clear(); explore.noted.clear(); explore.skip.clear(); }
+  const awake = monsters.find((m) => m.hp > 0 && m.awake && isVisible(m.x, m.y));
+  if (awake) { log(`Not with ${foeName(awake)} in sight.`, 'bad'); draw(); return; }
+  exploreNews();   // what is already in view is no news
+  const found = [exit, exit2].some((e) => e && wasSeen(e.x, e.y));
+  if (toStairs && !found) { log('You have not found the stairs on this floor yet. Z explores toward them.'); draw(); return; }
+  Object.assign(explore, { on: true, stairs: toStairs, hp: player.hp });
+  tip('explore', 'You explore by yourself and stop when something needs you: a foe, a wound or a find. Any key or click stops you sooner. Press > to walk to stairs you have found.');
+  exploreTick();
+  if (explore.on) explore.timer = setInterval(exploreTick, 90);
+}
 function startWalk(t) {
   stopWalk();
   if (t.x === player.x && t.y === player.y) { wait(); return; }   // clicking yourself waits a turn
@@ -7324,7 +7597,7 @@ canvas.addEventListener('wheel', (e) => { if (!mapOpen) return; e.preventDefault
 canvas.addEventListener('contextmenu', (e) => {
   e.preventDefault();
   if (isTouch || !player || gameOver || perkChoices || shopOpen || journalOpen || mapOpen || questsOpen || storyOpen()) return;
-  const wasWalking = walk.active;
+  const wasWalking = walk.active || explore.on;
   stopWalk();
   if (wasWalking) { draw(); return; }   // the first right-click only stops a walk
   sfx.unlock(); clearInspect();
@@ -7384,6 +7657,7 @@ function buildLegend() {
   const danger = scene === 'dungeon' && dungeonDef ? dungeonDef.danger : 0;
   for (const t of pool) {
     const locked = !(dungeonDef && dungeonDef.pool) && t.minFloor > Math.max(floor, 1);
+    if (t.noSpawn && !(dungeonDef && dungeonDef.pool)) continue;   // met only in their own places: lairs, the sea, a chest with teeth
     add(t.sprite, t.name, locked ? `from floor ${t.minFloor}` : `${t.hp + danger} HP, attack ${t.atk + Math.floor(danger / 2)}, ${t.xp} XP`, locked);
   }
   add('potion', 'Potion', '+5 HP');
@@ -7401,6 +7675,7 @@ function buildLegend() {
 }
 
 function updateStats() {
+  { const eb = document.getElementById('explore-btn'), cb = document.getElementById('camp-btn'); if (eb) eb.hidden = scene !== 'dungeon'; if (cb) cb.hidden = scene !== 'world'; }
   const where = scene === 'house' ? interiorName() : scene === 'dungeon' && dungeonDef && dungeonDef.delve ? `${dungeonDef.name[0].toUpperCase() + dungeonDef.name.slice(1)} ${floor}/5 · Daily` : inTown() ? (townContaining(player.x, player.y)?.name ?? 'The wilds') : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floorText()}`;
   statsEl.textContent = `${where} | HP ${player.hp}/${player.maxHp} | ATK ${player.atk}${weaponAtk() ? '+' + weaponAtk() : ''} | DEF ${armorDef()} | Lv ${player.level} (${player.xp}/${xpToNext(player.level)} XP) | Gold ${player.gold}`;
   hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
@@ -8162,6 +8437,7 @@ function stoneTurn() {
 function tryMove(dx, dy) {
   if (gameOver || !player || shopOpen || perkChoices || entering || storyOpen() || controlsOpen() || settingsOpen()) return;
   if (stoneTurn()) return;
+  if (assaultArmed && (dx || dy)) { assault(dx, dy); return; }
   const nx = player.x + dx, ny = player.y + dy;
   const t = getTile(nx, ny);
   if (t === TILE.WALL && scene === 'world' && groundAt(nx, ny) === GROUND.WATER) {
@@ -8438,6 +8714,7 @@ function toggleSettings(show = !settingsOpen()) {
 }
 document.getElementById('camp-btn')?.addEventListener('click', () => { sfx.unlock(); makeCamp(); });
 document.getElementById('skills-btn')?.addEventListener('click', () => { sfx.unlock(); openSkills(); });
+document.getElementById('explore-btn')?.addEventListener('click', () => { sfx.unlock(); startExplore(); });
 document.getElementById('settings-btn')?.addEventListener('click', () => { sfx.unlock(); toggleSettings(); });
 document.getElementById('settings-close')?.addEventListener('click', () => toggleSettings(false));
 document.getElementById('set-music')?.addEventListener('input', (e) => { settings.music = e.target.value / 100; music.refresh(); saveSettings(); });
@@ -9589,7 +9866,8 @@ window.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choosePerk(perkCursor); }
     return;
   }
-  if (walk.active && !['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) stopWalk();   // any key takes back control
+  const exploring = explore.on;
+  if ((walk.active || explore.on) && !['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) stopWalk();   // any key takes back control
   if (e.key === 'Enter' && chatInput) { e.preventDefault(); chatInput.focus(); return; }
   if ((e.key === 'y' || e.key === 'Y') && mp.invites.length) { acceptInvite(); return; }
   if (e.key === 'Escape') { closeShop(); if (mapOpen || questsOpen) { mapOpen = false; questsOpen = false; draw(); } return; }
@@ -9597,6 +9875,7 @@ window.addEventListener('keydown', (e) => {
   { const strike = KEYS[e.key]; if (strike && ((e.ctrlKey && !e.metaKey) || assaultArmed)) { e.preventDefault(); mapOpen = false; questsOpen = false; assault(strike[0], strike[1]); return; } }
   if (assaultArmed) { assaultArmed = false; log('You think better of it.'); draw(); if (!['x', 'X'].includes(e.key)) { /* the key still does what it does */ } else return; }
   if ((e.key === 'x' || e.key === 'X') && !e.ctrlKey && !e.metaKey) { armAssault(); return; }
+  if ((e.key === 'z' || e.key === 'Z' || e.key === '>') && !e.ctrlKey && !e.metaKey) { e.preventDefault(); mapOpen = false; questsOpen = false; if (!exploring) startExplore(e.key === '>'); else draw(); return; }
   if (e.key === 'm' || e.key === 'M') { questsOpen = false; toggleMap(); return; }
   if (mapOpen && ['+', '=', '-', '_'].includes(e.key)) { e.preventDefault(); setMapZoom(mapZoom + (e.key === '-' || e.key === '_' ? 1 : -1)); return; }
   if (e.key === 'q' || e.key === 'Q') { mapOpen = false; questsOpen = !questsOpen; draw(); return; }
@@ -9693,7 +9972,7 @@ const soundBtn = document.getElementById('sound');
 function toggleSound() { const muted = sfx.toggle(); if (soundBtn) soundBtn.textContent = muted ? 'Sound off' : 'Sound on'; log(muted ? 'Sound off.' : 'Sound on.'); }
 if (soundBtn) soundBtn.textContent = sfx.muted ? 'Sound off' : 'Sound on';
 soundBtn?.addEventListener('click', () => { sfx.unlock(); toggleSound(); });
-canvas.addEventListener('pointerdown', () => sfx.unlock(), { passive: true });
+canvas.addEventListener('pointerdown', () => { sfx.unlock(); stopExplore(); }, { passive: true });
 document.addEventListener('fullscreenchange', () => { fitCanvas(); if (fsBtn) fsBtn.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'; });
 window.addEventListener('resize', queueFit);
 window.addEventListener('orientationchange', queueFit);
@@ -9725,12 +10004,13 @@ function touchButtons() {
   const at = (i) => ({ x: canvas.width - r - 12 - (i >= perCol ? 2 * r + 10 : 0), y: top + r + gap * (i % perCol) });
   const cls = heroClass();
   const canCamp = scene === 'world' && !townContaining(player.x, player.y) && !monsters.some((m) => cheb(m, player) <= 6);
+  const canStrike = scene === 'world' && !aboard && npcs.some((n) => !n.down && !isChild(n) && dist(n, player) === 1);
   return [
     { id: 'ability', label: (player.mana ?? 0) >= abilityCost() ? '✦' : String(abilityCost() - (player.mana ?? 0)), sub: abilityList()[0].name, ...at(0), r, active: (player.mana ?? 0) >= abilityCost() },
     { id: 'potion', label: '♥', sub: 'Potion', ...at(1), r, active: player.bag.some((id) => itemKind(id) === 'consumable' && itemInfo(id).heal) },
-    canCamp ? { id: 'camp', label: '▲', sub: 'Camp', ...at(2), r, active: true } : { id: 'wait', label: '⏸', sub: 'Wait', ...at(2), r, active: true },
+    canCamp ? { id: 'camp', label: '▲', sub: 'Camp', ...at(2), r, active: true } : canStrike ? { id: 'strike', label: '✊', sub: assaultArmed ? 'Which way?' : 'Strike', ...at(2), r, active: true } : { id: 'wait', label: '⏸', sub: 'Wait', ...at(2), r, active: true },
     { id: 'map', label: scene === 'world' ? 'M' : 'Q', sub: scene === 'world' ? 'Map' : 'Quests', ...at(3), r, active: true },
-    { id: 'journal', label: 'J', sub: 'Journal', ...at(4), r, active: true },
+    scene === 'dungeon' ? { id: 'explore', label: '➤', sub: 'Explore', ...at(4), r, active: true } : { id: 'journal', label: 'J', sub: 'Journal', ...at(4), r, active: true },
     ...abilityList().map((A, k) => k).filter((k) => k > 0 && abilityUnlocked(k)).map((k, n) => ({ id: `ability${k + 1}`, label: (player.mana ?? 0) >= abilityCost(k) ? `${k + 1}✦` : String(abilityCost(k) - (player.mana ?? 0)), sub: abilityList()[k].name, ...at(5 + n), r, active: (player.mana ?? 0) >= abilityCost(k) })),
   ];
 }
@@ -9807,6 +10087,8 @@ canvas.addEventListener('pointerdown', (e) => {
     else if (btn.id === 'map') { if (scene === 'house') { questsOpen = true; draw(); } else toggleMap(); }
     else if (btn.id === 'journal') { journalOpen = true; draw(); }
     else if (btn.id === 'camp') makeCamp();
+    else if (btn.id === 'strike') { if (assaultArmed) { assaultArmed = false; log('You think better of it.'); draw(); } else { armAssault(); log('Now tap or swipe toward them.', 'bad'); } }
+    else if (btn.id === 'explore') { if (performance.now() - explore.stopped > 400) startExplore(); }
     return;
   }
   stopTouchWalk();

@@ -35,6 +35,7 @@
               <ul>
                 <li><kbd>↑ ↓ ← →</kbd> <kbd>WASD</kbd> <kbd>HJKL</kbd> move; walk into a monster to attack</li>
                 <li><kbd>Space</kbd> or <kbd>.</kbd> wait a turn</li>
+                <li><kbd>Z</kbd> explore a dungeon floor by yourself: the hero stops for a foe, a wound or a find. <kbd>&gt;</kbd> walks to stairs already found</li>
                 <li><kbd>Ctrl</kbd> + <kbd>↑ ↓ ← →</kbd> (or <kbd>X</kbd>, then a direction) strike a townsperson. The town's watch will come for you until you leave</li>
                 <li><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> class abilities (the second comes at level 5, the third at 10) · <kbd>P</kbd> potion · <kbd>B</kbd> bomb · <kbd>T</kbd> scroll of return</li>
                 <li><kbd>M</kbd> world map · <kbd>Q</kbd> quests · <kbd>J</kbd> journal · <kbd>N</kbd> sound · <kbd>C</kbd> make camp in the wilds</li>
@@ -126,6 +127,7 @@
       <button type="button" id="controls" class="fs">Controls (?)</button>
       <button type="button" id="skills-btn" class="fs">Skills (K)</button>
       <button type="button" id="camp-btn" class="fs">Make camp (C)</button>
+      <button type="button" id="explore-btn" class="fs" hidden>Explore (Z)</button>
       <button type="button" id="settings-btn" class="fs">Settings (O)</button>
       <button type="button" id="sound" class="fs">Sound on</button>
       <button type="button" id="fullscreen" class="fs">Fullscreen</button>
@@ -156,7 +158,7 @@
       <p class="muted small">Hover over or tap anything on the map to see what it is.</p>
     </details>
     <p class="help">
-      <b>Keys:</b> arrows, WASD or HJKL move; walking into a monster attacks. Space or <kbd>.</kbd> waits, <kbd>1</kbd> uses your class ability, <kbd>P</kbd> drinks a potion, <kbd>B</kbd> throws a bomb, <kbd>T</kbd> reads a scroll of return, <kbd>M</kbd> world map, <kbd>Q</kbd> quests, <kbd>J</kbd> journal, <kbd>N</kbd> sound, <kbd>F</kbd> fullscreen, <kbd>R</kbd> restarts.
+      <b>Keys:</b> arrows, WASD or HJKL move; walking into a monster attacks. Space or <kbd>.</kbd> waits, <kbd>1</kbd> uses your class ability, <kbd>P</kbd> drinks a potion, <kbd>B</kbd> throws a bomb, <kbd>T</kbd> reads a scroll of return, <kbd>Z</kbd> explores a dungeon floor for you (<kbd>&gt;</kbd> walks to stairs you have found), <kbd>M</kbd> world map, <kbd>Q</kbd> quests, <kbd>J</kbd> journal, <kbd>N</kbd> sound, <kbd>F</kbd> fullscreen, <kbd>R</kbd> restarts.
       <b>Mouse:</b> right-click uses your ability, aimed where you click (a Ranger's arrow flies along that row or column, a Mage's fireball bursts there); click a spot to walk there, click a monster to attack it until it falls, click people, doors, shops, chests or waystones to use them, and hold and drag to steer. Hover to see the path; right-click or any key stops.
       <b>Touch:</b> tap or hold anywhere on the map to walk that way (holding stops by itself when a foe wakes beside you); swipe to step, and keep your finger down and drag to steer; tap a monster beside you to strike it, or one further off to size it up; the round buttons on the right use your abilities, drink a potion, wait, or open the map. Gamepads work too.
       <b>Dungeons:</b> every dungeon shows a recommended level and how hard it is for you (Easy, Fair, Hard, Very hard, Deadly). Every floor has a golden door by the entrance: walk into it twice to leave early and keep your loot.

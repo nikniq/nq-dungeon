@@ -7,6 +7,7 @@ Controls:
 - Move / attack: Arrow keys, WASD or HJKL (or the on-screen D-pad)
 - Wait a turn: Space or `.`
 - Mouse: click to walk, attack or use; right-click uses your class ability, aimed at the clicked tile
+- Explore a dungeon floor by yourself: `z`; walk to stairs already found: `>`
 - Restart: Click Restart or press `r`
 
 Your hero looks the part. Armour repaints the body: leather, chain, scale, plate
@@ -189,6 +190,39 @@ beside them) with a stomp whose shockwave lands on the ring two paces out and
 spares whoever stands at their feet. A colossus pays three times a boss's purse
 and the title Giant-feller. Every monster kind now has a boss name; the last
 floor under Hearth used to raise a nameless basilisk that broke the drawing.
+
+Underground the hero can explore alone (`startExplore`, `exploreScan`, Z, the
+Explore button, or the round button on a phone). Each step is one sweep over the
+ground already seen: gold, a chest or a potion that is needed within thirty
+steps comes first, then the nearest ground nobody has looked at, leaning toward
+the stairs. Potions are left where they lie while health is full, and known
+traps, lava, the merchant's tile and the stairs are walked round. The hero stops
+when a foe comes into sight, when hurt, and on first sight of the stairs, a
+spring, an altar, a captive, a totem, a lever, trial stones, a cracked wall or a
+merchant (`exploreNews`). `>` walks to stairs already found. Any key, click or
+tap takes control back. Not during a trial, and not above ground.
+
+The page under the game gives the message log a row of its own (it had been
+squeezed to a sliver by the buttons), the buttons sit two to a row on a phone,
+Make camp shows only in the wilds and Explore only underground, the legend no
+longer lists monsters "from floor 99", and a first descent shows the basic
+dungeon tip before the one about forked stairs. On a phone, a Strike button
+takes the place of Wait beside a townsperson: tap it, then tap or swipe toward
+them (`tryMove` honours `assaultArmed` for every kind of input). Guards' beats
+are snapped to open ground (`guardBeat`), so castle guards no longer aim for
+points under a house.
+
+Towns have paving worth looking at (`pavingTile`, `pavingWear`, `plazaDetail`).
+Cobbles and setts are laid in a running bond, flagstones as bevelled slabs, each
+drawn once per realm and style into a cached tile. A poor town's square wears
+through stone by stone in soft patches of mud with puddles and weeds, never on
+the ways through it or round the fountain. Every square has lighter ways along
+both axes and a darker border course. Lamp posts with a lantern and a pennant in
+the realm's colour stand at the corners (`townLamps`, `drawLampPost`), eight in a
+city, and light the square at night. Town and city squares have four stone
+planters with a young tree (`planterAt`, solid), flower beds lie along the kerb
+(`bedAt`), and open towns have shade trees on their greens (`townTrees`, solid,
+never touching a house, a path, a road or each other).
 
 Upgrades can be chosen for the player so that levelling never stops the game
 (Settings, O: `settings.autoPerks`, `settings.autoSkills`, kept in the browser).
