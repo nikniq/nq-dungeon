@@ -120,6 +120,7 @@
       <button type="button" id="quests" class="fs">Quests (Q)</button>
       <button type="button" id="journal" class="fs">Journal (J)</button>
       <button type="button" id="controls" class="fs">Controls (?)</button>
+      <button type="button" id="skills-btn" class="fs">Skills (K)</button>
       <button type="button" id="camp-btn" class="fs">Make camp (C)</button>
       <button type="button" id="settings-btn" class="fs">Settings (O)</button>
       <button type="button" id="sound" class="fs">Sound on</button>

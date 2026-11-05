@@ -119,6 +119,8 @@ class CharacterController extends Controller
             'meta.rod' => ['nullable', 'boolean'],
             'meta.forged' => ['nullable', 'boolean'],
             'meta.trials' => ['nullable', 'integer', 'min:0', 'max:100000'],
+            'meta.skills' => ['nullable', 'array', 'max:40'],
+            'meta.skills.*' => ['integer', 'min:0', 'max:10'],
             'meta.war' => ['nullable', 'array'],
             'meta.war.troops' => ['nullable', 'array:'.implode(',', config('game.realms'))],
             'meta.war.troops.*' => ['integer', 'min:0', 'max:100000'],

@@ -121,6 +121,16 @@ region out from Hearth. A hero above that meets monsters with 8% more health and
 +1 attack per three levels of the gap (at most four times the health and +12
 attack), worth 5% more XP a level. Nothing is scaled down.
 
+Each class has six abilities on keys 1 to 6, unlocking at levels 1, 5, 10, 15,
+20 and 30: the Warrior adds Charge, Rally and Earthshaker; the Ranger Snare, Venom
+Arrow and Rain of Arrows; the Mage Chain Lightning, Arcane Ward and Meteor.
+
+The skill tree (`SKILL_TREE`, K or the Skills button, `meta.skills`) gives a point
+every level from 2. Three branches of four nodes, each needing the one above:
+Might (attack, brutal doubles, executioner, bloodlust), Guard (toughness, plating,
+recovery, last stand) and Arcana (focus, spellpower, efficiency, channelling).
+A reset costs 25 gold a point spent.
+
 Hitting a sleeping monster is a sneak attack for double damage. Bosses wind up heavy
 blows that land on the red tiles around them a turn later; at half health they
 enrage, hit harder and call two minions. About a third of dungeon floors have a

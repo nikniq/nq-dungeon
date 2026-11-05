@@ -54,13 +54,56 @@ const MONSTER_TYPES = [
 ];
 // Hero classes: base stats, a sprite, and one ability on the 1 key.
 // Abilities run on mana: a pool that grows with level and refills a point a turn.
-const maxMana = () => { const c = CLASSES[player.cls] || CLASSES.warrior; return c.mana + c.manaPerLevel * (player.level - 1); };
-const abilityCost = (slot = 0) => { const A = (ABILITIES[player.cls] || ABILITIES.warrior)[slot]; return Math.max(1, Math.ceil(A.cost * (1 - 0.2 * perkCount('quickened')) * (wearing('starring') ? 0.5 : 1))); };
+const maxMana = () => { const c = CLASSES[player.cls] || CLASSES.warrior; return c.mana + c.manaPerLevel * (player.level - 1) + 3 * skill('focus'); };
+// ---------- the skill tree ----------
+// A skill point every level from 2. Three branches of four, each node needing the
+// one above it; spend points with K (or the Skills button). Toughness adds its
+// health when bought. A reset at any time costs 25 gold a point and refunds them all.
+const SKILL_TREE = [
+  { branch: 'Might', color: '#ff9f43', nodes: [
+    { id: 'might', name: 'Might', max: 5, desc: '+1 attack a rank' },
+    { id: 'brutal', name: 'Brutal Blows', max: 3, desc: '+5% a rank for a melee blow to land double', req: 'might' },
+    { id: 'executioner', name: 'Executioner', max: 3, desc: '+15% damage a rank against foes under a third of their health', req: 'brutal' },
+    { id: 'bloodlust', name: 'Bloodlust', max: 1, desc: 'every kill heals 2 + a tenth of your level', req: 'executioner' },
+  ] },
+  { branch: 'Guard', color: '#7bdfff', nodes: [
+    { id: 'toughness', name: 'Toughness', max: 5, desc: '+4 max health a rank' },
+    { id: 'plating', name: 'Plating', max: 3, desc: '+1 defence a rank', req: 'toughness' },
+    { id: 'recovery', name: 'Recovery', max: 3, desc: 'heal 1 every 12 turns, 3 sooner a rank', req: 'plating' },
+    { id: 'laststand', name: 'Last Stand', max: 1, desc: 'below a quarter of your health, every hit does 3 less', req: 'recovery' },
+  ] },
+  { branch: 'Arcana', color: '#c084fc', nodes: [
+    { id: 'focus', name: 'Focus', max: 5, desc: '+3 max mana a rank' },
+    { id: 'spellpower', name: 'Spellpower', max: 5, desc: '+10% damage from your abilities a rank', req: 'focus' },
+    { id: 'efficiency', name: 'Efficiency', max: 3, desc: 'abilities cost 10% less mana a rank', req: 'spellpower' },
+    { id: 'channel', name: 'Channelling', max: 1, desc: 'mana returns two points a turn instead of one', req: 'efficiency' },
+  ] },
+];
+const SKILL_NODES = Object.fromEntries(SKILL_TREE.flatMap((b) => b.nodes.map((n) => [n.id, { ...n, branch: b.branch }])));
+const skills = () => (player && player.meta ? (player.meta.skills || (player.meta.skills = {})) : {});
+const skill = (id) => (player && player.meta && player.meta.skills ? player.meta.skills[id] || 0 : 0);
+const skillSpent = () => Object.values(skills()).reduce((a, b) => a + b, 0);
+const skillPoints = () => Math.max(0, (player.level - 1) - skillSpent());
+const spellDmg = (d) => Math.max(1, Math.round(d * (1 + 0.1 * skill('spellpower'))));
+function learnSkill(id) {
+  const n = SKILL_NODES[id]; if (!n || skillPoints() < 1 || skill(id) >= n.max || (n.req && skill(n.req) < 1)) return false;
+  skills()[id] = skill(id) + 1;
+  if (id === 'toughness') { player.maxHp += 4; player.hp += 4; }
+  sfx.play('quest'); log(`${n.name} rank ${skill(id)}: ${n.desc}.`, 'good'); unlock('skilled'); saveProgress('progress'); updateStats(); return true;
+}
+function resetSkills() {
+  const spent = skillSpent(), cost = spent * 25; if (!spent || player.gold < cost) return false;
+  player.gold -= cost; player.maxHp -= 4 * skill('toughness'); player.hp = Math.min(player.hp, player.maxHp); player.meta.skills = {};
+  player.mana = Math.min(player.mana ?? 0, maxMana()); log(`You unlearn your skills for ${cost} gold. ${spent} points are yours to spend again.`, 'good'); saveProgress('progress'); updateStats(); return true;
+}
+function skillNudge() { if (player && skillPoints() > 0 && player.level >= 2) tip('skills', `You have ${skillPoints()} skill ${skillPoints() === 1 ? 'point' : 'points'} to spend. Press K (or the Skills button) to open the skill tree.`); }
+function openSkills() { if (!player || gameOver || perkChoices || storyOpen()) return; openShop('skills'); }
+const abilityCost = (slot = 0) => { const A = (ABILITIES[player.cls] || ABILITIES.warrior)[slot]; return Math.max(1, Math.ceil(A.cost * (1 - 0.2 * perkCount('quickened')) * (1 - 0.1 * skill('efficiency')) * (wearing('starring') ? 0.5 : 1))); };
 function restoreMana(n = Infinity) { player.mana = Math.min(maxMana(), (player.mana ?? 0) + n); }
 const CLASSES = {
-  warrior: { name: 'Warrior', hp: 24, atk: 3, sprite: 'player', ability: 'Shield Wall', mana: 20, manaPerLevel: 1, cost: 18, blurb: 'Shield Wall now; Whirlwind at level 5, War Cry at level 10.' },
-  ranger:  { name: 'Ranger',  hp: 18, atk: 3, sprite: 'ranger', ability: 'Arrow',       mana: 12, manaPerLevel: 1, cost: 3,  blurb: 'Arrow now; Volley at level 5, Evade at level 10. Rangers also spot traps two tiles away.' },
-  mage:    { name: 'Mage',    hp: 16, atk: 2, sprite: 'mage',   ability: 'Fireball',    mana: 24, manaPerLevel: 2, cost: 8,  blurb: 'Fireball now; Frost Nova at level 5, Blink at level 10.' },
+  warrior: { name: 'Warrior', hp: 24, atk: 3, sprite: 'player', ability: 'Shield Wall', mana: 20, manaPerLevel: 1, cost: 18, blurb: 'Shield Wall now; Whirlwind at 5, War Cry at 10, Charge at 15, Rally at 20, Earthshaker at 30.' },
+  ranger:  { name: 'Ranger',  hp: 18, atk: 3, sprite: 'ranger', ability: 'Arrow',       mana: 12, manaPerLevel: 1, cost: 3,  blurb: 'Arrow now; Volley at 5, Evade at 10, Snare at 15, Venom Arrow at 20, Rain of Arrows at 30. Rangers also spot traps two tiles away.' },
+  mage:    { name: 'Mage',    hp: 16, atk: 2, sprite: 'mage',   ability: 'Fireball',    mana: 24, manaPerLevel: 2, cost: 8,  blurb: 'Fireball now; Frost Nova at 5, Blink at 10, Chain Lightning at 15, Arcane Ward at 20, Meteor at 30.' },
 };
 const heroClass = () => CLASSES[player && player.cls] || CLASSES.warrior;
 
@@ -114,6 +157,7 @@ const ACHIEVEMENTS = {
   lairslayer:  { label: 'Slew a super boss in its lair', title: 'the Legend-slayer' },
   legend:      { label: 'Cleared all six lairs', title: 'the Living Legend' },
   dawnbreaker: { label: 'Reforged Dawnbreaker, the sword of the First King', title: 'the Dawnbringer' },
+  skilled:     { label: 'Learned a skill', title: 'the Apprentice' },
   proven:      { label: 'Passed a dungeon trial', title: 'the Proven' },
   unbroken:    { label: 'Passed ten dungeon trials', title: 'the Unbroken' },
   seawolf:     { label: 'Sank a pirate sloop', title: 'the Sea-wolf' },
@@ -317,8 +361,8 @@ const wornAffix = (slot) => affixOf(player[slot]);
 const wearing = (id) => !!player && player.relic === id;
 const goldMult = () => (perkCount('lucky') ? 1.25 : 1) * (wearing('luckycoin') ? 1.4 : 1) * (wearing('ledger') ? 1.25 : 1) * (wearing('founderseal') ? 1.15 : 1);
 const potionHeal = (h) => h * (wearing('royalsignet') ? 2 : 1);
-const weaponAtk = () => ((player.weapon && itemKind(player.weapon) === 'weapon') ? itemInfo(player.weapon).atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0) + (player.rage > 0 ? 2 : 0) + (wearing('bearcharm') && dayPhase() === 'night' ? 3 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('riftheart') ? 2 : 0);
-const armorDef = () => ((player.armor && itemKind(player.armor) === 'armor') ? itemInfo(player.armor).def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('sunlotus') && dayPhase() !== 'night' ? 2 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('frostheart') ? 4 : 0) + (wearing('riftheart') ? 2 : 0) + (wearing('founderseal') ? 1 : 0) + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
+const weaponAtk = () => skill('might') + ((player.weapon && itemKind(player.weapon) === 'weapon') ? itemInfo(player.weapon).atk + (player.weaponPlus || 0) : 0) + (wearing('emberbrand') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0) + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.atk || 0) : 0) + (realmState().rank >= 3 ? 1 : 0) + (wearing('bloodtorc') && player.hp <= player.maxHp / 2 ? 3 : 0) + (player.rage > 0 ? 2 : 0) + (wearing('bearcharm') && dayPhase() === 'night' ? 3 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('riftheart') ? 2 : 0);
+const armorDef = () => skill('plating') + ((player.armor && itemKind(player.armor) === 'armor') ? itemInfo(player.armor).def + (player.armorPlus || 0) : 0) + perkCount('thick_skin') + (wearing('sunlotus') && dayPhase() !== 'night' ? 2 : 0) + (wearing('hollowcrown') ? 3 : 0) + (wearing('frostheart') ? 4 : 0) + (wearing('riftheart') ? 2 : 0) + (wearing('founderseal') ? 1 : 0) + (wearing('bonecharm') ? 2 : 0) + (wearing('crown') ? 2 : 0) + (wearing('deepheart') ? 3 : 0)
   + ((player.meta && player.meta.blessing && player.meta.blessing.turns > 0) ? (player.meta.blessing.def || 0) : 0) + (realmState().rank >= 2 ? 1 : 0);
 const SAVE_EVERY_TURNS = 20;
 // What the hero has bought into in each realm: noble rank in Aurum, civic
@@ -340,7 +384,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, pets: petsState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, story4: player.meta.story4 || null, story5: player.meta.story5 || null, delve: player.meta.delve || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, forged: !!player.meta.forged, trials: player.meta.trials || 0, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, story4: player.meta.story4 || null, story5: player.meta.story5 || null, delve: player.meta.delve || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, forged: !!player.meta.forged, trials: player.meta.trials || 0, skills: player.meta.skills || {}, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -6354,7 +6398,7 @@ function gainXp(n) {
     player.level++;
     player.maxHp += 4; player.atk += 1; player.hp = player.maxHp; mapCache.ox = null; restoreMana();
     { const A = abilityList().find((a, k) => k > 0 && a.level === player.level); if (A) { log(`New ability: ${A.name} (key ${abilityList().indexOf(A) + 1}): ${A.blurb}.`, 'good'); toast = { text: `New ability: ${A.name}. Press ${abilityList().indexOf(A) + 1}.`, until: performance.now() + 5000 }; } }
-    log(`Level up! You are now level ${player.level}. HP and attack increased.`, 'good');
+    log(`Level up! You are now level ${player.level}. HP and attack increased, and a skill point to spend (K).`, 'good'); skillNudge();
     sfx.play('levelup');
     burst(player.x, player.y, '#ffd86b', 40, 170, { glow: true, gravity: -40, life: 900, size: 3 });
     track('level_up', { level: player.level });
@@ -6408,6 +6452,8 @@ function playerAttack(m) {
     else if (getTile(bx, by) === TILE.WALL && !(scene === 'world' && groundAt(bx, by) === GROUND.WATER)) { dmg += 3; notes.push('Slammed into the wall!'); shakeScreen(3); }
   }
   if (w === 'dawnbreaker') { const sd = Math.ceil(m.maxHp * 0.1); dmg += sd; notes.push('The blade sunders!'); }
+  if (!sneak && skill('brutal') && Math.random() < 0.05 * skill('brutal')) { dmg *= 2; notes.push('A brutal blow!'); }
+  if (skill('executioner') && m.hp < m.maxHp / 3) dmg = Math.round(dmg * (1 + 0.15 * skill('executioner')));
   if (m.guard && w !== 'warhammer') { dmg = 1; notes.push('Its shield takes the blow.'); }
   m.hp -= dmg; m.awake = true;
   if (wa && m.hp > 0) {   // the blade's enchantment takes hold
@@ -6440,6 +6486,7 @@ function playerAttack(m) {
 function killMonster(m) {
   if (m.id) { mp.dead.add(m.id); mp.graveyard.set(m.id, m); }
   if (m.trial && trial && m.trial === trial) trial.kills++;
+  if (skill('bloodlust') && player.hp > 0 && player.hp < player.maxHp) { const h = Math.min(player.maxHp - player.hp, 2 + Math.floor(player.level / 10)); player.hp += h; floatText(player.x, player.y, `+${h}`, '#ff6b9b'); }
   if (m.mod === 'explosive' || m.type.bomber) {
     const blast = 3 + floor;
     burst(m.x, m.y, '#ff9f43', 36, 180, { glow: true, life: 600, size: 3 }); shakeScreen(5); sfx.play('fire');
@@ -6564,7 +6611,8 @@ function monsterAttack(m, ranged = false) {
   if (!ranged && traitOf(player.weapon) === 'longsword' && Math.random() < 0.2) { log(`You parry ${nameOf(m)}'s blow with your longsword.`, 'good'); floatText(player.x, player.y, 'parry', '#e6eef8'); sfx.play('shield'); return; }
   const aa = wornAffix('armor');
   if (aa && aa.id === 'swift' && Math.random() < 0.08 + 0.04 * aa.tier) { log(`You slip aside from ${nameOf(m)} in your swift ${itemInfo(player.armor).name.toLowerCase()}.`, 'good'); floatText(player.x, player.y, 'dodge', '#7bdfff'); return; }
-  const dmg = Math.max(1, m.atk - armorDef() - (player.shield > 0 ? 2 : 0));
+  let dmg = Math.max(1, m.atk - armorDef() - (player.shield > 0 ? 2 : 0) - (skill('laststand') && player.hp < player.maxHp / 4 ? 3 : 0));
+  if (player.ward > 0) { const soak = Math.min(player.ward, dmg); player.ward -= soak; dmg -= soak; floatText(player.x, player.y, `ward ${soak}`, '#c084fc'); if (player.ward <= 0) log('Your arcane ward shatters.', 'bad'); if (dmg <= 0) return; }
   player.hp -= dmg;
   if (aa && aa.id === 'spiked' && !ranged) { const sp = 1 + aa.tier; m.hp -= sp; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${sp}`, '#e6eef8'); if (m.hp <= 0) setTimeout(() => { if (!monsters.includes(m)) return; killMonster(m); if (player.hp <= 0 && !gameOver) { if (perkCount('second_wind') && !player.meta.second_wind) { player.meta.second_wind = true; player.hp = 1; log('Second wind! You refuse to fall.', 'good'); unlock('survivor'); } else die(); updateStats(); } }, 0); }
   if (m.mod === 'vampiric' && m.hp < m.maxHp) { const h = Math.min(dmg, m.maxHp - m.hp); m.hp += h; floatText(m.x, m.y, `+${h}`, '#ff6b9b'); }
@@ -7258,6 +7306,7 @@ function toggleSettings(show = !settingsOpen()) {
   }
 }
 document.getElementById('camp-btn')?.addEventListener('click', () => { sfx.unlock(); makeCamp(); });
+document.getElementById('skills-btn')?.addEventListener('click', () => { sfx.unlock(); openSkills(); });
 document.getElementById('settings-btn')?.addEventListener('click', () => { sfx.unlock(); toggleSettings(); });
 document.getElementById('settings-close')?.addEventListener('click', () => toggleSettings(false));
 document.getElementById('set-music')?.addEventListener('input', (e) => { settings.music = e.target.value / 100; music.refresh(); saveSettings(); });
@@ -7996,7 +8045,8 @@ function endTurn(moved) {
   mp.lastActive = performance.now();
   if (moved && turn % 2 === 0) sfx.play('step');
   if (moved && scene === 'world') { const gnd = groundAt(player.x, player.y); if (gnd === GROUND.ROAD || gnd === GROUND.SAND) burst(player.x, player.y, gnd === GROUND.SAND ? '#e7d3a1' : '#b9976a', 3, 25, { foot: true, gravity: -10, life: 380, size: 2 }); }
-  if ((player.mana ?? 0) < maxMana()) player.mana = Math.min(maxMana(), (player.mana ?? 0) + 1);
+  if ((player.mana ?? 0) < maxMana()) player.mana = Math.min(maxMana(), (player.mana ?? 0) + 1 + skill('channel'));
+  if (skill('recovery') && player.hp < player.maxHp && player.hp > 0 && turn % (12 - 3 * skill('recovery')) === 0) player.hp += 1;
   if (player.shield > 0 && --player.shield === 0) log('Your shield wall fades.');
   if (player.rage > 0 && --player.rage === 0) log('Your war cry fades.');
   if (player.poison > 0) {
@@ -8201,7 +8251,7 @@ const ABILITIES = {
       if (!foes.length) { log('Nothing beside you to swing at.'); return false; }
       shakeScreen(3); sfx.play('hit'); burst(player.x, player.y, '#fff3c4', 20, 160, { glow: true, life: 300, gravity: 0, size: 2 });
       log(`You spin with your blade out and hit ${foes.length} ${foes.length === 1 ? 'foe' : 'foes'}.`, 'good');
-      for (const m of foes) { const dmg = Math.max(1, player.atk + weaponAtk() + rnd(2) - (m.mod === 'armored' ? 2 : 0)); m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); }
+      for (const m of foes) { const dmg = spellDmg(Math.max(1, player.atk + weaponAtk() + rnd(2) - (m.mod === 'armored' ? 2 : 0))); m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); }
       for (const m of foes) { if (coopMember()) coopHit(m, 1, 'hero'); else if (m.hp <= 0) killMonster(m); }
       return true; } },
     { name: 'War Cry', cost: 14, level: 10, blurb: 'stun every foe within 2 tiles for 2 turns and hit 2 harder for 5 turns', run: () => {
@@ -8209,12 +8259,35 @@ const ABILITIES = {
       player.rage = 5; for (const m of foes) { if (!m.boss) m.stunned = 2; m.awake = true; floatText(m.x, m.y, '✦', '#ffd86b'); }
       shakeScreen(5); sfx.play('boss'); burst(player.x, player.y, '#ff9f43', 30, 140, { glow: true, gravity: -40, life: 600 });
       log(`Your war cry rings off the walls: ${foes.filter((m) => !m.boss).length} foes reel, and your blows will land harder for 5 turns.`, 'good'); return true; } },
+    { name: 'Charge', cost: 8, level: 15, blurb: 'rush up to 4 tiles at the first foe the way you face (or where you click), strike it for double and stun it', run: (aim) => {
+      const t = aim ? aimedLine(aim, 5) : null; let dx = t ? t.dx : player.face || 1, dy = t ? t.dy : 0, target = t ? t.m : null;
+      if (!target) for (let d = 1; d <= 5; d++) { const x = player.x + dx * d, y = player.y + dy * d; const m = getMonsterAt(x, y); if (m) { target = m; break; } if (!walkable(getTile(x, y))) break; }
+      if (!target) { log('Nothing to charge at that way. Face a foe within five tiles.'); return false; }
+      let sx = target.x - dx, sy = target.y - dy; while ((sx !== player.x || sy !== player.y) && (!walkable(getTile(sx, sy)) || getMonsterAt(sx, sy) || hazard(sx, sy))) { sx -= dx; sy -= dy; }
+      burst(player.x, player.y, '#fff3c4', 14, 140, { life: 300 }); player.x = sx; player.y = sy; settle(player);
+      const dmg = spellDmg(Math.max(1, (player.atk + weaponAtk()) * 2 + rnd(2) - (target.mod === 'armored' ? 2 : 0)));
+      target.hp -= dmg; target.awake = true; target.struck = turn; if (!target.boss) target.stunned = 1; target.flashUntil = performance.now() + 120; floatText(target.x, target.y, `-${dmg}`, '#ffd86b'); shakeScreen(5); sfx.play('hit');
+      log(`You charge ${nameOf(target)} and hit it for ${dmg}.`, 'good'); if (coopMember()) coopHit(target, dmg, 'hero'); else if (target.hp <= 0) killMonster(target);
+      return true; } },
+    { name: 'Rally', cost: 16, level: 20, blurb: 'recover a third of your health, purge poison and shake off stone', run: () => {
+      const h = Math.min(player.maxHp - player.hp, Math.ceil(player.maxHp / 3)); player.hp += h; player.poison = 0; player.stunned = 0;
+      floatText(player.x, player.y, `+${h}`, '#9ef0b0'); burst(player.x, player.y, '#9ef0b0', 24, 100, { glow: true, gravity: -60, life: 600 }); sfx.play('potion');
+      log(`You plant your feet and steady your breath: ${h} HP back.`, 'good'); return true; } },
+    { name: 'Earthshaker', cost: 22, level: 30, blurb: 'slam the ground: every foe within 3 tiles takes a full blow and is thrown back a tile', run: () => {
+      const foes = monsters.filter((m) => m.hp > 0 && cheb(m, player) <= 3 && !m.sea);
+      if (!foes.length) { log('Nothing near enough to shake loose.'); return false; }
+      shakeScreen(9, 500); sfx.play('boss'); for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) if (Math.random() < 0.4) burst(player.x + i, player.y + j, '#b9976a', 3, 80, { life: 500, size: 3 });
+      for (const m of foes) { const dmg = spellDmg(Math.max(1, player.atk + weaponAtk() + rnd(3))); m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b');
+        if (m.hp > 0 && !m.boss) { const bx = m.x + Math.sign(m.x - player.x), by = m.y + Math.sign(m.y - player.y); if (walkable(getTile(bx, by)) && !getMonsterAt(bx, by) && !(bx === player.x && by === player.y)) moveMonster(m, bx, by); } }
+      log(`The ground bucks under ${foes.length} ${foes.length === 1 ? 'foe' : 'foes'}.`, 'good');
+      for (const m of foes) { if (coopMember()) coopHit(m, 1, 'hero'); else if (m.hp <= 0 && monsters.includes(m)) killMonster(m); }
+      return true; } },
   ],
   ranger: [
     { name: 'Arrow', cost: 3, level: 1, blurb: 'shoot the nearest foe in a straight line, up to 6 tiles', run: (aim) => {
       const t = aim ? aimedLine(aim, 6) : lineTarget(6);
       if (!t) { log(aim ? 'No clear shot there. Arrows fly straight up, down, left or right, up to 6 tiles.' : 'No target in a straight line. Arrows fly up, down, left or right.'); return false; }
-      const dmg = Math.max(1, player.atk + weaponAtk() + 1 + rnd(2) - (t.m.mod === 'armored' ? 2 : 0));
+      const dmg = spellDmg(Math.max(1, player.atk + weaponAtk() + 1 + rnd(2) - (t.m.mod === 'armored' ? 2 : 0)));
       if (t.dx) player.face = t.dx;
       t.m.hp -= dmg; t.m.awake = true; t.m.struck = turn; t.m.flashUntil = performance.now() + 120;
       floatText(t.m.x, t.m.y, `-${dmg}`, '#ffd86b');
@@ -8226,7 +8299,7 @@ const ABILITIES = {
       const foes = monsters.filter((m) => m.hp > 0 && cheb(m, player) <= 6 && isVisible(m.x, m.y)).sort((a, b) => cheb(a, player) - cheb(b, player)).slice(0, 3);
       if (!foes.length) { log('No foe in sight for a volley.'); return false; }
       sfx.play('arrow'); for (const m of foes) shoot(player.x, player.y, m.x, m.y, 'arrow');
-      for (const m of foes) { const dmg = Math.max(1, Math.round((player.atk + weaponAtk() + rnd(2)) * 0.8) - (m.mod === 'armored' ? 2 : 0)); m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); floatText(player.x + Math.sign(m.x - player.x), player.y + Math.sign(m.y - player.y), '➤', '#d9b382'); }
+      for (const m of foes) { const dmg = spellDmg(Math.max(1, Math.round((player.atk + weaponAtk() + rnd(2)) * 0.8) - (m.mod === 'armored' ? 2 : 0))); m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); floatText(player.x + Math.sign(m.x - player.x), player.y + Math.sign(m.y - player.y), '➤', '#d9b382'); }
       log(`A volley of arrows: ${foes.length} ${foes.length === 1 ? 'foe' : 'foes'} struck.`, 'good');
       for (const m of foes) { if (coopMember()) coopHit(m, 1, 'hero'); else if (m.hp <= 0) killMonster(m); }
       return true; } },
@@ -8239,6 +8312,26 @@ const ABILITIES = {
       }
       burst(player.x, player.y, '#7bdfff', 16, 100, { glow: true, gravity: 0, life: 400 }); sfx.play('shield');
       log('You slip aside. The next three blows aimed at you will miss.', 'good'); return true; } },
+    { name: 'Snare', cost: 6, level: 15, blurb: 'pin the nearest foe in sight to the ground for 3 turns (1 for a boss)', run: () => {
+      const m = monsters.filter((m) => m.hp > 0 && cheb(m, player) <= 6 && isVisible(m.x, m.y)).sort((a, b) => cheb(a, player) - cheb(b, player))[0];
+      if (!m) { log('No foe in sight to snare.'); return false; }
+      m.stunned = m.boss ? 1 : 3; m.tell = null; m.windup = null; m.guard = false; m.awake = true; shoot(player.x, player.y, m.x, m.y, 'arrow'); floatText(m.x, m.y, 'snared', '#d9b382'); sfx.play('arrow');
+      log(`A weighted line wraps ${nameOf(m)}: it is pinned for ${m.stunned} ${m.stunned === 1 ? 'turn' : 'turns'}.`, 'good'); return true; } },
+    { name: 'Venom Arrow', cost: 7, level: 20, blurb: 'a poisoned arrow in a straight line: a hit now, and poison that bites for 5 turns', run: (aim) => {
+      const t = aim ? aimedLine(aim, 6) : lineTarget(6);
+      if (!t) { log('No target in a straight line for a venom arrow.'); return false; }
+      const dmg = spellDmg(Math.max(1, player.atk + weaponAtk() + rnd(2))); if (t.dx) player.face = t.dx;
+      t.m.hp -= dmg; t.m.awake = true; t.m.struck = turn; t.m.venom = { t: 5, d: spellDmg(2 + Math.floor(player.level / 5)) }; t.m.flashUntil = performance.now() + 120;
+      shoot(player.x, player.y, t.m.x, t.m.y, 'arrow'); floatText(t.m.x, t.m.y, `-${dmg} ☠`, '#7ad36b'); sfx.play('arrow');
+      log(`Your venom arrow hits ${nameOf(t.m)} for ${dmg}, and the poison takes hold.`, 'good');
+      if (coopMember()) coopHit(t.m, dmg, 'hero'); else if (t.m.hp <= 0) killMonster(t.m); return true; } },
+    { name: 'Rain of Arrows', cost: 14, level: 30, blurb: 'arrows fall on every foe in sight within 6 tiles', run: () => {
+      const foes = monsters.filter((m) => m.hp > 0 && cheb(m, player) <= 6 && isVisible(m.x, m.y));
+      if (!foes.length) { log('No foe in sight for the rain.'); return false; }
+      sfx.play('arrow'); for (const m of foes) shoot(m.x, m.y - 4, m.x, m.y, 'arrow');
+      for (const m of foes) { const dmg = spellDmg(Math.max(1, Math.round((player.atk + weaponAtk()) * 0.7) + rnd(2))); m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ffd86b'); }
+      log(`Arrows rain on ${foes.length} ${foes.length === 1 ? 'foe' : 'foes'}.`, 'good');
+      for (const m of foes) { if (coopMember()) coopHit(m, 1, 'hero'); else if (m.hp <= 0) killMonster(m); } return true; } },
   ],
   mage: [
     { name: 'Fireball', cost: 8, level: 1, blurb: 'burn every foe within 2 tiles of the nearest one in sight (range 5)', run: (aim) => {
@@ -8250,7 +8343,7 @@ const ABILITIES = {
       }
       else for (const m of monsters) { const d = cheb(m, player); if (d <= 5 && isVisible(m.x, m.y) && d < bd) { bd = d; target = m; } }
       if (!target) { log('No monster in sight to aim at.'); return false; }
-      const dmg = 5 + player.level + rnd(3);
+      const dmg = spellDmg(5 + player.level + rnd(3));
       const hit = monsters.filter((m) => cheb(m, target) <= 2);
       for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) if (Math.random() < 0.5) floatText(target.x + i, target.y + j, '✸', '#ff9f43');
       sfx.play('fire');
@@ -8262,7 +8355,7 @@ const ABILITIES = {
     { name: 'Frost Nova', cost: 10, level: 5, blurb: 'freeze every foe within 2 tiles for 2 turns and chill them', run: () => {
       const foes = monsters.filter((m) => m.hp > 0 && cheb(m, player) <= 2);
       if (!foes.length) { log('Nothing near enough to freeze.'); return false; }
-      const dmg = 3 + Math.floor(player.level / 2);
+      const dmg = spellDmg(3 + Math.floor(player.level / 2));
       sfx.play('potion'); for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) burst(player.x + i, player.y + j, '#9fd4ff', 3, 60, { glow: true, gravity: -30, life: 700, size: 3 });
       for (const m of foes) { if (!m.boss) m.stunned = 2; m.hp -= dmg; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg} ❄`, '#9fd4ff'); }
       log(`Frost bursts from your staff: ${foes.length} ${foes.length === 1 ? 'foe is' : 'foes are'} frozen for 2 turns.`, 'good');
@@ -8278,6 +8371,26 @@ const ABILITIES = {
       player.x = dest.x; player.y = dest.y; settle(player);
       burst(player.x, player.y, '#c084fc', 20, 110, { glow: true, gravity: -60, life: 500 }); sfx.play('stairs');
       log('You blink across the room in a shimmer of violet.', 'good'); return true; } },
+    { name: 'Chain Lightning', cost: 9, level: 15, blurb: 'lightning leaps from the nearest foe in sight to up to 4 more within 3 tiles of each other', run: () => {
+      let cur = monsters.filter((m) => m.hp > 0 && cheb(m, player) <= 6 && isVisible(m.x, m.y)).sort((a, b) => cheb(a, player) - cheb(b, player))[0];
+      if (!cur) { log('No foe in sight for the lightning to find.'); return false; }
+      const hit = []; let from = player, dmg = spellDmg(4 + player.level + rnd(3));
+      while (cur && hit.length < 5) { hit.push(cur); shoot(from.x, from.y, cur.x, cur.y, 'hex'); cur.hp -= dmg; cur.awake = true; cur.flashUntil = performance.now() + 120; floatText(cur.x, cur.y, `-${dmg} ⚡`, '#9fd4ff'); from = cur; dmg = Math.max(1, Math.round(dmg * 0.8)); const last = cur; cur = monsters.filter((m) => m.hp > 0 && !hit.includes(m) && cheb(m, last) <= 3).sort((a, b) => cheb(a, last) - cheb(b, last))[0]; }
+      sfx.play('fire'); shakeScreen(3); log(`Lightning leaps through ${hit.length} ${hit.length === 1 ? 'foe' : 'foes'}.`, 'good');
+      for (const m of hit) { if (coopMember()) coopHit(m, 1, 'hero'); else if (m.hp <= 0 && monsters.includes(m)) killMonster(m); } return true; } },
+    { name: 'Arcane Ward', cost: 12, level: 20, blurb: 'a shimmering ward that soaks up the next 10 + your level in damage', run: () => {
+      player.ward = spellDmg(10 + player.level); burst(player.x, player.y, '#c084fc', 26, 90, { glow: true, gravity: 0, life: 700 }); sfx.play('shield');
+      log(`A ward of violet light closes round you: it will soak up ${player.ward} damage.`, 'good'); return true; } },
+    { name: 'Meteor', cost: 20, level: 30, blurb: 'call a falling star on the nearest foe in sight (or where you click): huge damage in a 3x3, and it burns', run: (aim) => {
+      let target = null;
+      if (aim) { if (cheb(aim, player) > 6 || !isVisible(aim.x, aim.y)) { log('Too far, or out of sight. A meteor reaches 6 tiles.'); return false; } target = aim; }
+      else target = monsters.filter((m) => m.hp > 0 && cheb(m, player) <= 6 && isVisible(m.x, m.y)).sort((a, b) => cheb(a, player) - cheb(b, player))[0];
+      if (!target) { log('No foe in sight to drop a star on.'); return false; }
+      const dmg = spellDmg(12 + player.level * 2 + rnd(4)), hit = monsters.filter((m) => m.hp > 0 && cheb(m, target) <= 1);
+      shakeScreen(10, 600); sfx.play('boss'); for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) burst(target.x + i, target.y + j, i || j ? '#ff9f43' : '#fff3c4', 8, 140, { glow: true, gravity: -40, life: 700, size: 3 });
+      for (const m of hit) { m.hp -= dmg; m.burn = { t: 3, d: 2 + Math.floor(player.level / 10) }; m.awake = true; m.flashUntil = performance.now() + 120; floatText(m.x, m.y, `-${dmg}`, '#ff9f43'); }
+      log(`A star falls: ${hit.length} ${hit.length === 1 ? 'foe takes' : 'foes take'} ${dmg}.`, 'good');
+      for (const m of hit) { if (coopMember()) coopHit(m, 1, 'hero'); else if (m.hp <= 0) killMonster(m); } return true; } },
   ],
 };
 const abilityList = () => ABILITIES[player.cls] || ABILITIES.warrior;
@@ -8345,7 +8458,8 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'c' || e.key === 'C') { makeCamp(); return; }
   if (e.key === 'j' || e.key === 'J') { mapOpen = false; questsOpen = false; journalOpen = true; draw(); return; }
   if (e.key === 'n' || e.key === 'N') { toggleSound(); return; }
-  if (e.key === '1' || e.key === '2' || e.key === '3') { e.preventDefault(); useAbility(null, Number(e.key) - 1); return; }
+  if (['1', '2', '3', '4', '5', '6'].includes(e.key)) { e.preventDefault(); useAbility(null, Number(e.key) - 1); return; }
+  if (e.key === 'k' || e.key === 'K') { openSkills(); return; }
   if ((mapOpen || questsOpen) && KEYS[e.key]) { mapOpen = false; questsOpen = false; }
   if (e.key === 'r' || e.key === 'R') { init(); return; }
   if (e.key === 'p' || e.key === 'P') { drinkPotion(); return; }
@@ -8472,7 +8586,7 @@ function touchButtons() {
     canCamp ? { id: 'camp', label: '▲', sub: 'Camp', ...at(2), r, active: true } : { id: 'wait', label: '⏸', sub: 'Wait', ...at(2), r, active: true },
     { id: 'map', label: scene === 'world' ? 'M' : 'Q', sub: scene === 'world' ? 'Map' : 'Quests', ...at(3), r, active: true },
     { id: 'journal', label: 'J', sub: 'Journal', ...at(4), r, active: true },
-    ...[1, 2].filter((k) => abilityUnlocked(k)).map((k, n) => ({ id: `ability${k + 1}`, label: (player.mana ?? 0) >= abilityCost(k) ? `${k + 1}✦` : String(abilityCost(k) - (player.mana ?? 0)), sub: abilityList()[k].name, ...at(5 + n), r, active: (player.mana ?? 0) >= abilityCost(k) })),
+    ...abilityList().map((A, k) => k).filter((k) => k > 0 && abilityUnlocked(k)).map((k, n) => ({ id: `ability${k + 1}`, label: (player.mana ?? 0) >= abilityCost(k) ? `${k + 1}✦` : String(abilityCost(k) - (player.mana ?? 0)), sub: abilityList()[k].name, ...at(5 + n), r, active: (player.mana ?? 0) >= abilityCost(k) })),
   ];
 }
 function drawTouchButtons(g) {
@@ -8542,8 +8656,7 @@ canvas.addEventListener('pointerdown', (e) => {
   const btn = touchButtons().find((b) => Math.hypot(px - b.x, py - b.y) <= b.r + 6);
   if (btn) {
     if (btn.id === 'ability') useAbility();
-    else if (btn.id === 'ability2') useAbility(null, 1);
-    else if (btn.id === 'ability3') useAbility(null, 2);
+    else if (/^ability\d$/.test(btn.id)) useAbility(null, Number(btn.id.slice(7)) - 1);
     else if (btn.id === 'potion') drinkPotion();
     else if (btn.id === 'wait') wait();
     else if (btn.id === 'map') { if (scene === 'house') { questsOpen = true; draw(); } else toggleMap(); }
@@ -8759,7 +8872,7 @@ function priceMult() {
 }
 const sellRate = () => (wearing('ledger') ? 0.7 : currentRealm() === 'league' ? 0.6 : 0.5);
 const sellPrice = (id) => Math.floor(itemInfo(id).price * sellRate());
-const SERVICE_SHOPS = new Set(['travel', 'player', 'court', 'council', 'chieftain', 'shaman', 'bank', 'hermit', 'harbour', 'yamen', 'durbar', 'terem', 'rebuild']);
+const SERVICE_SHOPS = new Set(['skills', 'travel', 'player', 'court', 'council', 'chieftain', 'shaman', 'bank', 'hermit', 'harbour', 'yamen', 'durbar', 'terem', 'rebuild']);
 const SHOPS = {
   shop: { title: 'Merchant', stock: (id, it) => it.floor <= Math.max(floor, 1) + 1, price: (it) => it.price, greet: 'The merchant greets you. Buy and sell with the buttons, Esc to leave.' },
   potions: { title: "Mara's potions", stock: (id) => id === 'potion' || id === 'manapotion', price: (it) => it.price - 2, greet: 'Mara sets out her potions. She buys gear too, at half price.' },
@@ -8786,6 +8899,7 @@ Object.assign(SHOPS, {
   shaman: { title: 'The Spirits', stock: () => false, price: (it) => it.price, greet: 'The shaman throws herbs on the fire. "Which spirit would you walk with?"' },
   bank: { title: 'The Goldspire Exchange', stock: () => false, price: (it) => it.price, greet: 'The banker steeples her fingers. "Deposits are safe from death itself. There is a small fee."' },
   caravan: { title: 'The merchant caravan', stock: (id, it) => (!!ITEMS.consumables[id] && it.floor < 99) || (it.floor >= 3 && it.floor <= 7), price: (it) => Math.round(it.price * 0.95), greet: 'The caravan master throws back a tarp. Goods from every corner of the four realms.' },
+  skills: { title: 'Skills', stock: () => false, price: (it) => it.price, greet: '' },
   harbour: { title: 'The harbour', stock: () => false, price: (it) => it.price, greet: 'Gulls, tar and rope. The harbourmaster runs a finger down a list of ports.' },
   hermit: { title: "The hermit's maps", stock: () => false, price: (it) => it.price, greet: 'The hermit spreads out a bundle of hand-drawn maps. "Places I have been. Places I would not go again."' },
 });
@@ -9149,6 +9263,20 @@ function renderShop() {
   shopGold.textContent = `${player.gold} gold`;
   { const note = document.getElementById('shop-note'); if (note) note.textContent = SERVICE_SHOPS.has(shopKind) || shopKind === 'inn' ? 'Press Esc to leave.' : `Merchants here pay ${sellRate() === 0.6 ? '60%' : 'half'} of an item's price when you sell. Press Esc to leave.`; }
   shopBuy.innerHTML = '';
+  if (shopKind === 'skills') {
+    shopBuy.appendChild(shopRow(`${skillPoints()} skill ${skillPoints() === 1 ? 'point' : 'points'} to spend. You earn one every level; each node needs the one above it.`));
+    for (const B of SKILL_TREE) {
+      shopBuy.appendChild(shopRow(`— ${B.branch} —`));
+      for (const n of B.nodes) {
+        const r = skill(n.id), locked = n.req && skill(n.req) < 1;
+        shopBuy.appendChild(shopRow(`${n.name} ${'●'.repeat(r)}${'○'.repeat(n.max - r)}: ${n.desc}${locked ? ` (needs ${SKILL_NODES[n.req].name})` : ''}`, r >= n.max ? 'Mastered' : 'Learn', () => { learnSkill(n.id); renderShop(); draw(); }, r >= n.max || locked || skillPoints() < 1));
+      }
+    }
+    const spent = skillSpent();
+    shopBuy.appendChild(shopRow(`Unlearn everything and get your ${spent} points back`, `Reset ${spent * 25}g`, () => { resetSkills(); renderShop(); draw(); }, !spent || player.gold < spent * 25));
+    shopBuy.appendChild(shopRow(`Your abilities: ${abilityList().map((A, k) => `${k + 1} ${A.name}${abilityUnlocked(k) ? '' : ` (level ${A.level})`}`).join(', ')}.`));
+    return;
+  }
   if (shopKind === 'inn') {
     shopBuy.appendChild(player.hp < player.maxHp ? shopRow('A bed for the night (full health)', 'Rest, free', () => { restAtInn(); renderShop(); draw(); }) : shopRow('You are already in perfect health'));
     // pets: the ones you have, then the ones this realm's inns sell
@@ -9486,7 +9614,7 @@ function startRun(saved) {
         story: saved.meta?.story && saved.meta.story.phase ? saved.meta.story : null, blessing: saved.meta?.blessing || null,
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
-        rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, forged: !!saved.meta?.forged, trials: Number(saved.meta?.trials) || 0, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
+        rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, forged: !!saved.meta?.forged, trials: Number(saved.meta?.trials) || 0, skills: saved.meta?.skills && !Array.isArray(saved.meta.skills) ? Object.fromEntries(Object.entries(saved.meta.skills).filter(([k, v]) => SKILL_NODES[k] && Number.isInteger(v) && v > 0).map(([k, v]) => [k, Math.min(v, SKILL_NODES[k].max)])) : {}, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
         story2: saved.meta?.story2 && Number.isInteger(saved.meta.story2.s) ? { s: Math.max(0, Math.min(3, saved.meta.story2.s)) } : null,
         story3: saved.meta?.story3 && Number.isInteger(saved.meta.story3.s) ? { s: Math.max(0, Math.min(2, saved.meta.story3.s)) } : null,
         delve: typeof saved.meta?.delve === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(saved.meta.delve) ? saved.meta.delve : null,
