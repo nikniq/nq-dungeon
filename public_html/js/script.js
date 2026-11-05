@@ -3464,6 +3464,51 @@ function monumentRows() {
   }
   return rows;
 }
+// ---------- the look of a town ----------
+// A market row along the north edge of the square: stalls two tiles wide that face
+// the fountain. They are solid, like the fountain. A village has one, a city up to six.
+const STALL_SPOTS = { village: [3], town: [-9, -6, 4, 7], city: [-13, -10, -7, 5, 8, 11] };
+const STALL_GOODS = ['fruit', 'bread', 'fish', 'cloth', 'pots', 'cheese', 'flowers'];
+function townStalls(town) {
+  if (town.stalls && town.stallsFor === town.houses.length) return town.stalls;
+  const y = town.cy - town.plaza[1], out = [];
+  (STALL_SPOTS[town.size] || []).forEach((dx, k) => {
+    if (cellRand(town.i, town.j, 950 + k) > (town.size === 'village' ? 0.8 : 0.78)) return;
+    const x = town.cx + dx;
+    if (town.houses.some((h) => x + 1 >= h.x - 1 && x <= h.x + h.w && y >= h.y - 1 && y <= h.y + h.h)) return;   // keep clear of every house
+    out.push({ x, y, k, goods: STALL_GOODS[Math.floor(cellRand(town.i, town.j, 970 + k) * STALL_GOODS.length)] });
+  });
+  town.stalls = out; town.stallsFor = town.houses.length;
+  return out;
+}
+const stallAt = (town, x, y) => (STALL_SPOTS[town.size] ? townStalls(town).find((st) => y === st.y && (x === st.x || x === st.x + 1)) || null : null);
+const STALL_CRIES = {
+  fruit: ['Apples, pears, and plums that were on the tree this morning!', 'Two for a copper! Three if you smile!'],
+  bread: ['Hot loaves! Mind your fingers!', 'Baked before dawn, gone before noon!'],
+  fish: ['Fresh, fresh, fresh! It was swimming yesterday!', 'Eels! Lovely eels! Do not look at them, just buy them!'],
+  cloth: ['Wool for winter, linen for summer, and a ribbon for whoever is waiting at home!', 'Feel that. Go on. That is honest cloth.'],
+  pots: ['Pots that hold water! You would be surprised how rare that is!', 'Jugs, bowls, and one thing I cannot identify. Make an offer!'],
+  cheese: ['Hard cheese for the road, soft cheese for tonight!', 'Try a sliver. The first is free and it is the last free thing you will get here.'],
+  flowers: ['Flowers for a sweetheart, or an apology! Same flowers!', 'Cut this morning. They will last the week if you talk to them.'],
+};
+// Trodden paths from every door to the square or the road through it.
+function townPaths(town) {
+  if (town.paths && town.pathsFor === town.houses.length) return town.paths;
+  const out = new Set(), [pw, ph] = town.plaza, paved = (x, y) => townTile(town, x, y)[1] !== GROUND.GRASS && townTile(town, x, y)[1] !== GROUND.SNOW;
+  for (const h of town.houses) {
+    if (h.tower) continue;
+    let x = h.doorX, y = h.doorY + 1;
+    const down = y < town.cy - ph && Math.abs(x - town.cx) <= pw;
+    for (let n = 0; n < 22; n++) {
+      const [t] = townTile(town, x, y);
+      if (t !== TILE.FLOOR || paved(x, y)) break;
+      out.add(key(x, y));
+      if (down) y++; else if (x === town.cx) break; else x += Math.sign(town.cx - x);
+    }
+  }
+  town.paths = out; town.pathsFor = town.houses.length;
+  return out;
+}
 // Town layout in local coordinates, shared by the stamp and the renderer.
 function townTile(town, wx, wy) {
   const lx = wx - town.x0, ly = wy - town.y0;
@@ -3495,6 +3540,7 @@ function townTile(town, wx, wy) {
   }
   if (lx >= cx - 1 && lx <= cx + 1) g = GROUND.COBBLE;            // the path through the square to the roads
   if (ly >= cy - 1 && ly <= cy && lx >= cx - 1 && lx <= cx) { t = TILE.FOUNTAIN; g = GROUND.COBBLE; }
+  if (ly === cy - ph && stallAt(town, wx, wy)) { t = TILE.WALL; g = GROUND.COBBLE; }
   for (const h of town.houses) {
     if (wx >= h.x && wx < h.x + h.w && wy >= h.y && wy < h.y + h.h) t = (wx === h.doorX && wy === h.doorY) ? TILE.DOOR : TILE.WALL;
   }
@@ -5020,7 +5066,134 @@ function drawCobble(g, c, r) {
   }
   if (tier === 0) { g.fillStyle = 'rgba(40,30,20,0.25)'; if (noise(c, r, 117) < 0.5) g.fillRect(X + 2, Y + q + 2, q - 4, q - 4); }   // missing stones
   if (tier >= 3 && (c + r) % 4 === 0) { g.fillStyle = 'rgba(255,216,107,0.35)'; g.fillRect(X + q - 2, Y + q - 2, 4, 4); }   // brass studs
+  if (town) plazaDetail(g, town, c, r, X, Y, P, tier);
 }
+// What makes a square a square: a ring of dressed stone round the fountain, laid in
+// wedges, and a kerb where the paving meets the grass.
+function plazaDetail(g, town, c, r, X, Y, P, tier) {
+  const [pw, ph] = town.plaza, dx = c - town.cx, dy = r - town.cy;
+  const fx = town.cx * T - off.x, fy = town.cy * T - off.y, d = Math.hypot(c + 0.5 - town.cx, r + 0.5 - town.cy);
+  if (d < 4.4) {
+    g.save(); g.beginPath(); g.rect(X, Y, T, T); g.clip();
+    const R0 = T * 1.55, R1 = T * 3.1;
+    g.fillStyle = tier === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.13)'; g.beginPath(); g.arc(fx, fy, R1, 0, Math.PI * 2); g.arc(fx, fy, R0, 0, Math.PI * 2, true); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = 2; g.beginPath(); g.arc(fx, fy, R1, 0, Math.PI * 2); g.stroke(); g.beginPath(); g.arc(fx, fy, R0, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.12)'; g.lineWidth = 1; g.beginPath(); g.arc(fx, fy, R1 - 2, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = 'rgba(0,0,0,0.22)'; g.lineWidth = 1;
+    for (let k = 0; k < 24; k++) { const a = k * Math.PI / 12; g.beginPath(); g.moveTo(fx + Math.cos(a) * R0, fy + Math.sin(a) * R0); g.lineTo(fx + Math.cos(a) * R1, fy + Math.sin(a) * R1); g.stroke(); }
+    if (tier >= 2) { g.fillStyle = REALMS[town.realm] ? REALMS[town.realm].color : '#ffd86b'; g.globalAlpha = 0.5; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + Math.PI / 8, rr = (R0 + R1) / 2; g.beginPath(); g.moveTo(fx + Math.cos(a) * (rr - 5), fy + Math.sin(a) * (rr - 5)); g.lineTo(fx + Math.cos(a + 0.09) * rr, fy + Math.sin(a + 0.09) * rr); g.lineTo(fx + Math.cos(a) * (rr + 5), fy + Math.sin(a) * (rr + 5)); g.lineTo(fx + Math.cos(a - 0.09) * rr, fy + Math.sin(a - 0.09) * rr); g.fill(); } g.globalAlpha = 1; }
+    g.restore();
+  }
+  if (town.walled || Math.abs(dx) > pw || Math.abs(dy) > ph) return;
+  // the kerb: a line of long stones along the outer edge, open where the road comes through
+  const kerb = (x, y, w, h) => { g.fillStyle = P[0]; g.fillRect(x, y, w, h); g.fillStyle = tier === 0 ? P[2] : P[3]; if (w > h) { for (let i = 0; i < w; i += 16) g.fillRect(x + i + 1, y + 1, Math.min(14, w - i - 1), h - 2); } else { for (let i = 0; i < h; i += 16) g.fillRect(x + 1, y + i + 1, w - 2, Math.min(14, h - i - 1)); } g.fillStyle = 'rgba(255,255,255,0.14)'; g.fillRect(x, y, w, 1); };
+  const road = Math.abs(dx) <= 1;
+  if (dy === -ph && !road) kerb(X, Y, T, 5);
+  if (dy === ph && !road) kerb(X, Y + T - 5, T, 5);
+  if (dx === -pw && Math.abs(dy) > 1) kerb(X, Y, 5, T);
+  if (dx === pw && Math.abs(dy) > 1) kerb(X + T - 5, Y, 5, T);
+}
+// A path of stepping stones worn into the grass.
+function drawTownPath(g, c, r) {
+  const X = c * T - off.x, Y = r * T - off.y;
+  g.fillStyle = 'rgba(120,96,60,0.35)'; g.beginPath(); g.ellipse(X + T / 2, Y + T / 2, T / 2 + 2, T / 2 - 4, 0, 0, Math.PI * 2); g.fill();
+  for (let k = 0; k < 3; k++) {
+    const n = noise(c * 3 + k, r, 131), sx = X + 3 + k * 10 + Math.floor(n * 3), sy = Y + 8 + Math.floor(noise(c, r * 3 + k, 133) * 10), w = 8 + Math.floor(n * 4), h = 6 + (k % 2) * 2;
+    g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.roundRect(sx + 1, sy + 2, w, h, 3); g.fill();
+    g.fillStyle = n < 0.5 ? '#9aa0aa' : '#8a909b'; g.beginPath(); g.roundRect(sx, sy, w, h, 3); g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(sx + 2, sy + 1, w - 4, 1);
+  }
+}
+// A market stall: a trestle of goods, someone behind it, and a striped awning on two poles.
+function drawStall(g, town, st) {
+  const X = st.x * T - off.x, Y = st.y * T - off.y, W = 2 * T, tier = townTier(town), shabby = tier === 0;
+  const col = ['#c0392b', '#2c6fb3', '#2e8b57', '#b7791f', '#7d4fb0', '#c2410c'][(st.k + town.i * 3 + town.j) % 6 < 0 ? 0 : ((st.k + Math.abs(town.i) * 3 + Math.abs(town.j)) % 6)];
+  g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(X + 6, Y + 26, W - 4, 7);
+  // the stallholder, behind the trestle
+  drawSprite(g, ['merchant', 'farmer', 'villager', 'innkeeper'][(st.k + Math.abs(town.i + town.j)) % 4], st.x + 0.5, st.y - 0.22, 1, 5);
+  // the trestle
+  g.fillStyle = '#5b3a1a'; g.fillRect(X + 5, Y + 16, 3, 15); g.fillRect(X + W - 8, Y + 16, 3, 15);
+  g.fillStyle = shabby ? '#7a5a3a' : '#8b5a2b'; g.fillRect(X + 2, Y + 12, W - 4, 8);
+  g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(X + 2, Y + 12, W - 4, 1); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(X + 2, Y + 19, W - 4, 1);
+  g.fillStyle = shabby ? '#6b6250' : shade(col, -0.25); g.fillRect(X + 3, Y + 20, W - 6, 7);   // a cloth hung from the front
+  g.fillStyle = 'rgba(255,255,255,0.15)'; for (let x = X + 6; x < X + W - 6; x += 8) g.fillRect(x, Y + 20, 2, 7);
+  // the goods
+  const blob = (x, y, rw, rh, c2) => { g.fillStyle = c2; g.beginPath(); g.ellipse(x, y, rw, rh, 0, 0, Math.PI * 2); g.fill(); };
+  for (let k = 0; k < 7; k++) {
+    const gx = X + 8 + k * 8, gy = Y + 11 - (k % 2);
+    if (st.goods === 'fruit') blob(gx, gy, 3.5, 3.5, ['#e74c3c', '#f39c12', '#7ad36b'][k % 3]);
+    else if (st.goods === 'bread') blob(gx, gy, 4.5, 2.5, k % 2 ? '#c98b4a' : '#dba25c');
+    else if (st.goods === 'fish') { blob(gx, gy, 4.5, 2, '#9fb6c9'); g.fillStyle = '#6f8aa0'; g.fillRect(gx + 3, gy - 2, 2, 4); }
+    else if (st.goods === 'cloth') { g.fillStyle = ['#c0392b', '#2c6fb3', '#e2b76b', '#7d4fb0'][k % 4]; g.fillRect(gx - 3, gy - 4, 7, 6); g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(gx - 3, gy - 4, 7, 1); }
+    else if (st.goods === 'pots') { blob(gx, gy - 1, 3, 4, k % 2 ? '#a0522d' : '#8b4a2b'); g.fillStyle = '#5b3a1a'; g.fillRect(gx - 2, gy - 6, 4, 2); }
+    else if (st.goods === 'cheese') { g.fillStyle = k % 2 ? '#f2c94c' : '#e6b23a'; g.beginPath(); g.moveTo(gx - 4, gy + 2); g.lineTo(gx + 4, gy + 2); g.lineTo(gx + 4, gy - 4); g.fill(); }
+    else { blob(gx, gy - 2, 3.5, 3.5, ['#ff9ecf', '#ffd86b', '#b18cff', '#e74c3c'][k % 4]); g.fillStyle = '#2e7d32'; g.fillRect(gx - 1, gy, 2, 3); }
+  }
+  // poles and awning
+  g.fillStyle = '#4a2f17'; g.fillRect(X + 2, Y - 12, 3, 30); g.fillRect(X + W - 5, Y - 12, 3, 30);
+  const ay = Y - 16, stripes = 8, sw = (W + 8) / stripes;
+  for (let k = 0; k < stripes; k++) {
+    g.fillStyle = k % 2 ? (shabby ? '#b9ae96' : '#f4ead2') : (shabby ? shade(col, -0.35) : col);
+    g.beginPath(); g.moveTo(X - 4 + k * sw, ay + 12); g.lineTo(X + k * sw + (k === 0 ? -2 : 0), ay); g.lineTo(X + (k + 1) * sw - (k === stripes - 1 ? 6 : 0), ay); g.lineTo(X - 4 + (k + 1) * sw, ay + 12); g.closePath(); g.fill();
+    g.beginPath(); g.arc(X - 4 + (k + 0.5) * sw, ay + 12, sw / 2, 0, Math.PI); g.fill();   // the scalloped edge
+  }
+  g.fillStyle = 'rgba(255,255,255,0.2)'; g.fillRect(X, ay, W, 2); g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(X - 4, ay + 11, W + 8, 1);
+  if (shabby) { g.fillStyle = '#6b6250'; g.fillRect(X + 22, ay + 3, 8, 6); g.strokeStyle = '#3b2a1a'; g.lineWidth = 1; g.strokeRect(X + 22.5, ay + 3.5, 7, 5); }   // a patch
+}
+// Things that stand against the side of a house: what is there says what the house is.
+const HOUSE_PROPS = { inn: ['barrel', 'barrel'], shop: ['crate', 'sacks'], market: ['sacks', 'crate'], smithy: ['anvil', 'wood'], armoury: ['shields', 'crate'], herbs: ['flowers', 'pots'], apothecary: ['pots', 'flowers'],
+  home: ['wood', 'flowers'], cottage: ['hay', 'wood'], watch: ['shields', 'barrel'], keep: ['barrel', 'crate'], council: ['flowers', 'flowers'], townhall: ['flowers', 'flowers'], longhouse: ['wood', 'hay'], shamanhut: ['pots', 'wood'], exchange: ['pots', 'pots'] };
+function drawProp(g, kind, x, y) {   // x: centre, y: the ground line
+  g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(x + 2, y, 9, 3, 0, 0, Math.PI * 2); g.fill();
+  if (kind === 'barrel') { g.fillStyle = '#8b5a2b'; g.beginPath(); g.roundRect(x - 6, y - 16, 12, 16, 3); g.fill(); g.fillStyle = '#5b3a1a'; g.fillRect(x - 6, y - 13, 12, 2); g.fillRect(x - 6, y - 5, 12, 2); g.fillStyle = 'rgba(255,255,255,0.2)'; g.fillRect(x - 4, y - 15, 2, 14); g.fillStyle = '#3b2a1a'; g.beginPath(); g.ellipse(x, y - 16, 6, 2, 0, 0, Math.PI * 2); g.fill(); }
+  else if (kind === 'crate') { g.fillStyle = '#9b7a4a'; g.fillRect(x - 7, y - 13, 14, 13); g.strokeStyle = '#5b3a1a'; g.lineWidth = 1; g.strokeRect(x - 6.5, y - 12.5, 13, 12); g.beginPath(); g.moveTo(x - 6, y - 12); g.lineTo(x + 6, y - 1); g.moveTo(x + 6, y - 12); g.lineTo(x - 6, y - 1); g.stroke(); g.fillStyle = '#b08a55'; g.fillRect(x - 3, y - 20, 9, 7); g.strokeRect(x - 2.5, y - 19.5, 8, 6); }
+  else if (kind === 'sacks') { g.fillStyle = '#c9b48a'; g.beginPath(); g.ellipse(x - 3, y - 6, 6, 7, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = '#b8a070'; g.beginPath(); g.ellipse(x + 4, y - 5, 5, 6, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = '#7a6a48'; g.fillRect(x - 5, y - 13, 4, 2); g.fillRect(x + 2, y - 11, 4, 2); }
+  else if (kind === 'wood') { for (let row = 0; row < 3; row++) for (let k = 0; k < 3 - (row === 2 ? 1 : 0); k++) { const lx = x - 6 + k * 6 + (row === 2 ? 3 : 0), ly = y - 3 - row * 5; g.fillStyle = '#6b4423'; g.beginPath(); g.arc(lx, ly, 3, 0, Math.PI * 2); g.fill(); g.fillStyle = '#c69863'; g.beginPath(); g.arc(lx, ly, 1.8, 0, Math.PI * 2); g.fill(); } }
+  else if (kind === 'anvil') { g.fillStyle = '#5b3a1a'; g.fillRect(x - 5, y - 7, 10, 7); g.fillStyle = '#3f4652'; g.fillRect(x - 7, y - 13, 14, 5); g.fillRect(x - 3, y - 9, 6, 3); g.fillRect(x + 6, y - 12, 4, 2); g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(x - 7, y - 13, 14, 1); }
+  else if (kind === 'shields') { g.fillStyle = '#6b7280'; g.beginPath(); g.arc(x - 3, y - 8, 7, 0, Math.PI * 2); g.fill(); g.fillStyle = '#c0392b'; g.beginPath(); g.arc(x - 3, y - 8, 5, 0, Math.PI * 2); g.fill(); g.fillStyle = '#ffd86b'; g.fillRect(x - 4, y - 9, 2, 2); g.fillStyle = '#8b5a2b'; g.fillRect(x + 5, y - 20, 2, 20); g.fillStyle = '#c0c0c0'; g.beginPath(); g.moveTo(x + 6, y - 25); g.lineTo(x + 9, y - 19); g.lineTo(x + 3, y - 19); g.fill(); }
+  else if (kind === 'flowers') { g.fillStyle = '#5b3a1a'; g.fillRect(x - 9, y - 5, 18, 5); g.fillStyle = '#2e7d32'; g.fillRect(x - 8, y - 9, 16, 5); for (let k = 0; k < 5; k++) { g.fillStyle = ['#ff9ecf', '#ffd86b', '#e74c3c', '#b18cff', '#f4f4f4'][k]; g.fillRect(x - 7 + k * 3 + (k % 2), y - 11 - (k % 2) * 2, 3, 3); } }
+  else if (kind === 'pots') { for (const [px, c2] of [[x - 4, '#a0522d'], [x + 5, '#8b4a2b']]) { g.fillStyle = c2; g.beginPath(); g.moveTo(px - 4, y - 8); g.lineTo(px + 4, y - 8); g.lineTo(px + 3, y); g.lineTo(px - 3, y); g.fill(); g.fillStyle = '#2e7d32'; g.beginPath(); g.arc(px, y - 11, 4, 0, Math.PI * 2); g.fill(); g.fillStyle = '#7ad36b'; g.fillRect(px - 1, y - 14, 2, 2); } }
+  else if (kind === 'hay') { g.fillStyle = '#d9b84a'; g.beginPath(); g.roundRect(x - 9, y - 12, 18, 12, 3); g.fill(); g.fillStyle = '#b8962e'; for (let k = 0; k < 4; k++) g.fillRect(x - 8 + k * 5, y - 11, 1, 10); g.fillStyle = '#7a5a2a'; g.fillRect(x - 9, y - 8, 18, 1); g.fillRect(x - 9, y - 4, 18, 1); }
+}
+function drawHouseProps(g, h) {
+  const set = HOUSE_PROPS[h.id] || (h.trade ? ['crate', 'barrel'] : null); if (!set || h.tower) return;
+  const town = houseTown(h), shabby = townTier(town) === 0, by = h.y + h.h - 1;
+  [[h.x - 1, T - 9, set[0]], [h.x + h.w, 9, set[1]]].forEach(([tx, ox, kind], k) => {
+    if (getTile(tx, by) !== TILE.FLOOR || townPaths(town).has(key(tx, by)) || noise(h.x + k, h.y, 141) < (shabby ? 0.5 : 0.15)) return;
+    drawProp(g, shabby && kind === 'flowers' ? 'wood' : kind, tx * T - off.x + ox, by * T - off.y + T - 5);
+  });
+}
+// The paving, stalls and props are painted once into the background; the pigeons in the square are alive.
+const birdsAway = new Map();
+function drawPigeons(now) {
+  const town = townContaining(player.x, player.y) || nearbyTowns(player.x, player.y, 1).find((t) => Math.abs(t.cx - player.x) < 24 && Math.abs(t.cy - player.y) < 18);
+  if (!town) return;
+  const [pw, ph] = town.plaza, n = town.size === 'village' ? 3 : 6;
+  for (let k = 0; k < n; k++) {
+    const bx = town.cx + Math.round((cellRand(town.i, town.j, 1100 + k) - 0.5) * 2 * Math.min(pw - 2, 8)), by = town.cy + Math.round((cellRand(town.i, town.j, 1150 + k) - 0.5) * 2 * Math.min(ph - 1, 5));
+    if (getTile(bx, by) !== TILE.FLOOR || Math.abs(bx - player.x) > 18 || Math.abs(by - player.y) > 12) continue;
+    const id = `${town.key}:${k}`, st = birdsAway.get(id);
+    const scared = cheb({ x: bx, y: by }, player) <= 2 || !!getNpcAt(bx, by);
+    if (!st && scared) birdsAway.set(id, { at: now, until: now + 9000 + k * 1700 });
+    const a = birdsAway.get(id);
+    if (a && now > a.until && !scared) birdsAway.delete(id);
+    const px = bx * T - cam.x + 10 + (k * 7) % 12, py = by * T - cam.y + 14 + (k * 5) % 10;
+    if (a) {
+      const age = now - a.at; if (age > 800 || age < 0) continue;
+      const f = age / 800, fx = px + f * 90 * (k % 2 ? 1 : -1), fy = py - f * 110, flap = Math.sin(now / 45 + k) * 4;
+      ctx.globalAlpha = 1 - f; ctx.fillStyle = '#8f98a8'; ctx.fillRect(Math.round(fx - 2), Math.round(fy), 5, 3);
+      ctx.fillStyle = '#c7ced9'; ctx.fillRect(Math.round(fx - 6), Math.round(fy - flap), 4, 2); ctx.fillRect(Math.round(fx + 3), Math.round(fy - flap), 4, 2); ctx.globalAlpha = 1;
+      continue;
+    }
+    const t = now / 1000 + k * 1.7, peck = (t % 3.1) < 0.35, hop = Math.floor(t / 4.3) % 3 - 1, face = (Math.floor(t / 6.1) + k) % 2 ? 1 : -1, x = Math.round(px + hop * 3), y = Math.round(py);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x - 3, y + 4, 7, 1);
+    ctx.fillStyle = k % 3 === 0 ? '#c7ced9' : '#8f98a8'; ctx.fillRect(x - 3, y, 6, 4);
+    ctx.fillStyle = '#6b7484'; ctx.fillRect(x - 3 - face, y + 1, 2, 2);                                  // tail
+    ctx.fillStyle = k % 3 === 0 ? '#aab3c2' : '#7c8799'; ctx.fillRect(x + (face > 0 ? 2 : -4), y - 2 + (peck ? 4 : 0), 3, 3);   // head
+    ctx.fillStyle = '#f39c12'; ctx.fillRect(x + (face > 0 ? 5 : -5), y - 1 + (peck ? 4 : 0), 1, 1);
+  }
+}
+
 function drawGrass(g, c, r, forest = false) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 11);
   // soft meadow tones: value noise sampled per quarter tile and mixed continuously, so patches
@@ -5740,7 +5913,7 @@ function renderBackground() {
           drawSprite(g, kind, c + lean, r - (pad < 0 ? 0.06 : 0), 1, pad, tn > 0.5);
         }
       }
-      else { const fk = t === TILE.FLOOR && fieldAt(c, r); if (fk) drawField(g, c, r, fk); else { drawGrass(g, c, r); if (t === TILE.FLOOR && noise(c, r, 9) < 0.06) drawSprite(g, 'flower', c, r); } }
+      else { const fk = t === TILE.FLOOR && fieldAt(c, r); if (fk) drawField(g, c, r, fk); else { drawGrass(g, c, r); const tp = t === TILE.FLOOR && townContaining(c, r); if (tp && townPaths(tp).has(key(c, r))) drawTownPath(g, c, r); else if (t === TILE.FLOOR && noise(c, r, 9) < 0.06) drawSprite(g, 'flower', c, r); } }
       if (t === TILE.EXIT) {
         const X = c * T - off.x, Y = r * T - off.y;
         g.fillStyle = '#374151'; g.fillRect(X - 6, Y - 6, T + 12, T + 12);
@@ -5778,7 +5951,8 @@ function renderBackground() {
       g.fillStyle = rt.color; g.fillText(sub, st.x * T - off.x + T / 2, st.y * T - off.y - 6);
       g.textAlign = 'start'; g.textBaseline = 'alphabetic';
     }
-    for (const h of houses) if (h.x <= x1 && h.x + h.w >= x0 && h.y - (h.tower ? 2 : 0) <= y1 && h.y + h.h >= y0) { if (h.tower) drawTower(g, h); else drawHouse(g, h); }
+    for (const h of houses) if (h.x <= x1 && h.x + h.w >= x0 && h.y - (h.tower ? 2 : 0) <= y1 && h.y + h.h >= y0) { if (h.tower) drawTower(g, h); else { drawHouse(g, h); drawHouseProps(g, h); } }
+    for (const town of nearbyTowns(player.x, player.y, 1)) if (STALL_SPOTS[town.size]) for (const st of townStalls(town)) if (st.x + 2 >= x0 && st.x <= x1 && st.y + 1 >= y0 && st.y - 1 <= y1) drawStall(g, town, st);
     for (const town of nearbyTowns(player.x, player.y, 1)) {
       if (town.cx < x0 - 12 || town.cx > x1 + 12 || town.cy < y0 - 8 || town.cy > y1 + 8) continue;
       for (const [lc, lr] of [[town.cx - 11, town.cy - 6], [town.cx + 11, town.cy - 6], [town.cx - 11, town.cy + 6], [town.cx + 11, town.cy + 6]]) drawSprite(g, 'lamp', lc, lr);
@@ -6221,6 +6395,7 @@ function drawScene(now) {
   }
   const shadow = (x, y) => { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x * T - cam.x + T / 2, y * T - cam.y + T - 4, T * 0.3, 4, 0, 0, Math.PI * 2); ctx.fill(); };
   const bob = (o, idle = true) => (idle ? Math.sin(now / 260 + (o.x * 7 + o.y * 13)) * 0.03 : 0);
+  if (scene === 'world' && !aboard) drawPigeons(now);
   if (scene !== 'dungeon') for (const n of npcs) if (!n.down && inView(n)) {
     const [ldx, ldy] = lunge(n, now);
     const [lx, ly] = [(n.rx ?? n.x) + ldx / T, (n.ry ?? n.y) + ldy / T]; shadow(lx, n.ry ?? n.y);
@@ -6868,6 +7043,7 @@ function describeTile(x, y) {
   }
   if (scene === 'house' && (t === TILE.UP || t === TILE.DOWN)) { const fl = BUILDINGS[interior.house.id].floors, to = (interior.level || 0) + (t === TILE.UP ? 1 : -1); return `Stairs ${t === TILE.UP ? 'up' : 'down'} — to ${fl && fl[to] ? fl[to].name : 'the undercroft'}`; }
   if (scene === 'house' && decor[y] && decor[y][x]) return decor[y][x].sprite === 'bed' ? 'Bed — lie down to rest' : `${decor[y][x].name} — walk into it`;
+  if (inTown() && t === TILE.WALL) { const tn0 = townContaining(x, y), st0 = tn0 && stallAt(tn0, x, y); if (st0) return `Market stall — ${st0.goods}. Walk into it to hear what is on offer`; }
   if (inTown() && t === TILE.WALL) { const h = houses.find((hh) => x >= hh.x && x < hh.x + hh.w && y >= hh.y && y < hh.y + hh.h); if (h) return h.tower ? `${h.name} — three floors to climb. The door faces the bailey` : BUILDINGS[h.id].floors ? `${h.name} — several floors. The door is at the bottom` : `${h.name} — the door is at the bottom`; if (groundAt(x, y) === GROUND.RAMPART) return 'Castle wall — the gates are in the middle of each side'; }
   if (t === TILE.EXIT && inTown()) { const tw = townContaining(x, y) || nearestTownTo(x, y); return `Dungeon gate — ${tw ? `${townDungeon(tw).floors} floors, ${ratingText(townDungeon(tw))}` : 'step here to begin your descent'}`; }
   if (t === TILE.EXIT) { const st = stairsAt(x, y); return st && exit2 ? `Stairs down — below: ${st.mod ? `${FLOOR_MODS[st.mod].label} (${FLOOR_MODS[st.mod].desc})` : 'a quiet floor, no twist'}` : 'Stairs down — the exit from this floor'; }
@@ -7858,6 +8034,7 @@ function tryMove(dx, dy) {
     fishAt(nx, ny); return;
   }
   if (t === TILE.WALL && scene === 'world') { const tn = townContaining(nx, ny); const sec = tn && grandSecret(tn, nx - tn.x0, ny - tn.y0); if (sec && !sec.open) { if (dx) player.face = dx; revealSecret(tn, sec, nx, ny); return; } }
+  if (t === TILE.WALL && scene === 'world') { const tn = townContaining(nx, ny), st = tn && stallAt(tn, nx, ny); if (st) { if (dx) player.face = dx; const cries = STALL_CRIES[st.goods], line = cries[rnd(cries.length)]; log(`The stallholder: ${line}`); bubble = { x: st.x + (nx === st.x ? 0 : 1), y: st.y, text: line, until: performance.now() + 3500 }; draw(); return; } }
   if (t === TILE.WALL || t === TILE.FOUNTAIN) return;
   const n = scene !== 'dungeon' && getNpcAt(nx, ny);
   if (n) { talk(n); draw(); return; }

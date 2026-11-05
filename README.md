@@ -198,6 +198,18 @@ class is taken (`AUTO_PERKS`, `autoPerkIndex`); the perk picker itself has an
 the class's two main branches, two to the first for each one to the second
 (`autoSkillPick`). Every choice is written in the log.
 
+Towns are dressed as well as planned. A market row of stalls stands along the
+north edge of each square (`STALL_SPOTS`, `townStalls`, `drawStall`): one in a
+village, up to four in a town and six in a city, each with a striped awning, a
+stallholder and goods of one kind. Stalls are solid like the fountain, and
+walking into one makes the stallholder cry their wares. The fountain sits in a
+ring of dressed stone laid in wedges and the square has a kerb where the paving
+meets the grass (`plazaDetail`). Stepping stones run from every door to the
+square or the road (`townPaths`), barrels, crates, woodpiles, anvils and flower
+boxes stand against the side of the house they belong to (`HOUSE_PROPS`), and
+pigeons peck about the square and fly off when the hero comes close
+(`drawPigeons`).
+
 Castles are more than towns with walls. A building with `floors` in `BUILDINGS`
 is entered on its ground floor and climbed by stairs (`TILE.UP`, `TILE.DOWN`,
 `useStairs`; `interior.level` says which floor). The keep has a Great Hall, the
