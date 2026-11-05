@@ -158,6 +158,7 @@ const ACHIEVEMENTS = {
   legend:      { label: 'Cleared all six lairs', title: 'the Living Legend' },
   dawnbreaker: { label: 'Reforged Dawnbreaker, the sword of the First King', title: 'the Dawnbringer' },
   skilled:     { label: 'Learned a skill', title: 'the Apprentice' },
+  campbreaker: { label: 'Razed a war camp with your own hands', title: 'the Camp-breaker' },
   proven:      { label: 'Passed a dungeon trial', title: 'the Proven' },
   unbroken:    { label: 'Passed ten dungeon trials', title: 'the Unbroken' },
   seawolf:     { label: 'Sank a pirate sloop', title: 'the Sea-wolf' },
@@ -250,6 +251,7 @@ const THEMES = {
   bone:    { name: 'Bone crypts',     floor: ['#34343e', '#30303a', '#383844'], face: '#3b3b48', cap: '#5d5d6e', capHi: '#73738a', bricks: ['#45455a', '#404052', '#4a4a5e', '#3c3c4e'], top: ['#22222b', '#1f1f28'], rim: '#40404f', moss: 0.03, bones: 0.1 },
   lava:    { name: 'Ember deeps',     floor: ['#3a2622', '#35231f', '#402a25'], face: '#3d2a26', cap: '#6b3a2a', capHi: '#8a4a34', bricks: ['#4a302a', '#452c26', '#50342d', '#402924'], top: ['#241815', '#211613'], rim: '#4a2f28', moss: 0, bones: 0.04, lava: true },
   frost:   { name: 'Halls of ice',     floor: ['#8fa9c0', '#86a0b8', '#98b2c9'], face: '#5c7b96', cap: '#c6d8e8', capHi: '#e3eef8', bricks: ['#7b99b3', '#7291ab', '#84a2bc', '#6c8aa4'], top: ['#48647e', '#425d76'], rim: '#6c89a3', moss: 0, bones: 0.04, puddles: false },
+  camp:    { name: 'War camp',        floor: ['#5a4a2e', '#54452b', '#604f32'], face: '#4a3420', cap: '#7a5a34', capHi: '#94703f', bricks: ['#5e4126', '#583d23', '#644529', '#523820'], top: ['#2e2214', '#2a1f12'], rim: '#4a3420', moss: 0.04, bones: 0.05 },
   arcane:  { name: 'Arcane halls',    floor: ['#2c2452', '#28214c', '#30285a'], face: '#352c5c', cap: '#5a4a8c', capHi: '#7563b0', bricks: ['#41356c', '#3c3166', '#463a73', '#382e60'], top: ['#1e1936', '#1b1631'], rim: '#3d3366', moss: 0, bones: 0.02, runes: true },
 };
 let theme = 'stone';
@@ -3856,8 +3858,59 @@ function arenaChunk(cx, cy) {
   }
   return { cx, cy, tiles, seen: new Uint8Array(CHUNK * CHUNK), rooms, vaults: [], populated: true };
 }
+// A war camp from the inside: a palisade ring with one gate, rows of tents (solid
+// blocks) along lanes, a bonfire at the heart, and the warchief's tent behind it.
+// rooms[0] is the trampled ground outside the gate, where the hero arrives.
+function campChunk(cx, cy) {
+  const tiles = new Uint8Array(CHUNK * CHUNK).fill(TILE.WALL), rooms = [];
+  if (cx === 0 && cy === 0) {
+    const at = (x, y) => y * CHUNK + x, set = (x, y, t) => { if (x >= 0 && y >= 0 && x < CHUNK && y < CHUNK) tiles[at(x, y)] = t; };
+    const rand = seededRandom(hash32(floorSeed, 77));
+    for (let y = 3; y <= 26; y++) for (let x = 3; x <= 28; x++) set(x, y, TILE.FLOOR);   // inside the palisade
+    for (let y = 27; y <= 30; y++) for (let x = 12; x <= 19; x++) set(x, y, TILE.FLOOR);  // the gate and the ground before it
+    rooms.push({ x: 12, y: 28, w: 8, h: 3, cx: 15, cy: 29 });
+    rooms.push({ x: 4, y: 4, w: 24, h: 22, cx: 16, cy: 14 });
+    // tents: two rows of solid blocks with lanes between
+    for (const ty of [6, 11, 18, 22]) for (let tx = 5; tx <= 24; tx += 5) {
+      if (ty >= 11 && ty <= 18 && tx >= 10 && tx <= 20) continue;   // the open ground round the fire
+      if (rand() < 0.15) continue;
+      for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 3; dx++) set(tx + dx, ty + dy, TILE.WALL);
+      if (rand() < 0.35) set(tx + 1, ty + 2, TILE.CHEST);   // loot by the tent flap
+    }
+    set(15, 14, TILE.LAVA); set(16, 14, TILE.LAVA);   // the bonfire
+    for (let dx = 0; dx < 5; dx++) set(13 + dx, 4, TILE.WALL); set(13, 5, TILE.WALL); set(17, 5, TILE.WALL);   // the warchief's tent, open to the south
+    if (rand() < 0.7) set(4 + Math.floor(rand() * 3), 25, TILE.TOTEM);
+    set(15, 17, TILE.FLOOR); set(16, 17, TILE.FLOOR);
+  }
+  return { cx, cy, tiles, seen: new Uint8Array(CHUNK * CHUNK), rooms, vaults: [], populated: true };
+}
+function campDungeon(wc) {
+  const danger = Math.max(Math.abs(wc.i), Math.abs(wc.j)) + 2;
+  return { kind: 'camp', camp: wc, name: wc.name, floors: 1, pool: byName('Orc', 'Goblin', 'Archer', 'Shaman', 'Bomber'), gold: 1.5, potions: 1, view: 9, loot: 0.25, treasure: 0, danger, xp: 1.5, theme: 'camp' };
+}
+function enterCamp(wc) {
+  const def = campDungeon(wc);
+  if (!confirmEntry(def, 'c:' + wc.key)) { draw(); return; }
+  player.wx = wc.x; player.wy = wc.y + 1; homeTown = nearestTownTo(wc.x, wc.y).key;
+  dungeonDef = def; floor = 1; mp.instance = null;
+  createDungeon(); afterSceneChange(); sfx.play('boss');
+  log(`You slip through the gate of ${wc.name}. Drums, smoke and orcs everywhere. Clear the camp to raze it; the gate behind you leads out.`, 'bad');
+  tip('camp', 'Kill every orc in the camp to raze it. Most are asleep: sneak attacks first. The warchief waits in the big tent at the back.');
+  track('camp_enter', { camp: wc.key });
+}
+function campCleared() {
+  const def = dungeonDef; if (!def || !def.camp || def.razed) return;
+  def.razed = true; const wc = def.camp, W = war();
+  if (!W.camps.includes(wc.key)) W.camps.push(wc.key);
+  const gold = Math.round(wc.strength * 6 * goldMult()), xp = wc.strength * 2;
+  player.gold += gold; gainXp(xp); bgDirty = true; mapCache.ox = null; unlock('campbreaker');
+  sfx.play('win'); shakeScreen(6, 500); toast = { text: `${wc.name[0].toUpperCase() + wc.name.slice(1)} is razed!`, until: performance.now() + 3500 };
+  log(`The last orc falls. You put ${wc.name} to the torch: ${gold} gold and ${xp} XP. Leave by the gate when you are ready.`, 'good');
+  track('camp_razed', { camp: wc.key, by: 'hero' }); saveProgress('progress');
+}
 function generateChunk(cx, cy) {
   if (dungeonDef && dungeonDef.arena) return arenaChunk(cx, cy);
+  if (dungeonDef && dungeonDef.camp) return campChunk(cx, cy);
   const rand = seededRandom(hash32(floorSeed, cx, cy));
   const r = (n) => Math.floor(rand() * n);
   const tiles = new Uint8Array(CHUNK * CHUNK).fill(TILE.WALL);
@@ -4180,13 +4233,23 @@ function createDungeon() {
   mp.dead = new Set(); mp.graveyard = new Map();
   theme = pickTheme();
   { const roll = hash32(floorSeed, 99) % 100, gentle = floor === 1 && !(dungeonDef && dungeonDef.danger);
-    floorMod = !gentle && !(dungeonDef && dungeonDef.arena) && roll < 36 ? ['dark', 'swarming', 'treasure', 'cursed'][roll % 4] : null; }
+    floorMod = !gentle && !(dungeonDef && (dungeonDef.arena || dungeonDef.camp)) && roll < 36 ? ['dark', 'swarming', 'treasure', 'cursed'][roll % 4] : null; }
   const R = seededRandom(hash32(floorSeed, 4242));
   const spawn = getChunk(0, 0);
   player.x = spawn.rooms[0].cx; player.y = spawn.rooms[0].cy;
   wayoutWarned = -99; crackHits.clear(); usedSprings.clear();
   { const room = spawn.rooms[0]; setTile(room.x, room.y, TILE.WAYOUT); monsters = monsters.filter((m) => !(m.x === room.x && m.y === room.y)); }
   if (dungeonDef && dungeonDef.arena) { exit = null; return; }
+  if (dungeonDef && dungeonDef.camp) {
+    exit = null;
+    const wc = dungeonDef.camp, inside = spawn.rooms[1], spots = [];
+    for (let y = inside.y; y < inside.y + inside.h; y++) for (let x = inside.x; x < inside.x + inside.w; x++) if (getTile(x, y) === TILE.FLOOR && y < 25) spots.push({ x, y });
+    const n = Math.min(24, 6 + Math.floor(wc.strength / 8)), pool = dungeonDef.pool;
+    for (let i = 0; i < n && spots.length; i++) { const c = spots.splice(Math.floor(R() * spots.length), 1)[0]; addMonster(pool[Math.floor(R() * pool.length)], c.x, c.y, { awake: R() < 0.2 }); }
+    const orc = MONSTER_TYPES.find((t) => t.name === 'Orc'), hp = Math.round((orc.hp + 10) * (2.5 + dungeonDef.danger * 0.4));
+    addMonster(orc, 15, 5, { id: 'boss', boss: true, name: `${CAMP_CHIEFS[hash32(floorSeed, 5) % CAMP_CHIEFS.length]}, warchief of ${wc.name.replace(/^the /, 'the ')}`, hp, atk: orc.atk + 2 + dungeonDef.danger, awake: false });
+    return;
+  }
   // The stairs down: a few chunks away in a direction fixed by the seed, in that chunk's first room.
   const angle = R() * Math.PI * 2, far = 2 + Math.floor(R() * 2);
   const ex = Math.round(Math.cos(angle) * far) || 2, ey = Math.round(Math.sin(angle) * far);
@@ -6092,7 +6155,7 @@ function describeTile(x, y) {
   if (charts().includes(key(x, y))) return 'X marks the spot — step here to dig';
   if (t === TILE.SHIP) { const pt = portAtTile(x, y); return pt ? `The ship of ${pt.name} — walk into it, or speak to the harbourmaster, to sail to another port` : 'A boat'; }
   if (scene === 'world' && groundAt(x, y) === GROUND.DOCK) return 'The pier — the harbourmaster at the end sells passage by sea';
-  if (t === TILE.WARCAMP) { const wc = campAtTile(x, y); if (wc) return campRazed(wc) ? `${wc.name} — razed` : `${wc.name} — orc warcamp, strength ${wc.strength}. ${armiesUnlocked() ? 'Send a realm\'s army' : `Armies open at level ${ARMY_LEVEL}`}`; }
+  if (t === TILE.WARCAMP) { const wc = campAtTile(x, y); if (wc) return campRazed(wc) ? `${wc.name} — razed` : `${wc.name} — orc warcamp, strength ${wc.strength}. Walk in to assault it, ${ratingText(campDungeon(wc))}. ${armiesUnlocked() ? 'Send a realm\'s army' : `Armies open at level ${ARMY_LEVEL}`}`; }
   if (t === TILE.PLOT) { const tw = townContaining(x, y); if (tw) { const b = buildingAt(tw, plotSlot(tw, x, y)); return b ? `${b.builder}'s ${monumentName(b)}, level ${b.level}${b.upgrader && b.upgrader !== b.builder ? ` (upgraded by ${b.upgrader})` : ''} — ${levelDesc(b.type, b.level)}. Walk into it to use it${monumentUsed(tw, plotSlot(tw, x, y)) ? ' (used recently)' : ''}` : 'Empty building plot — pay an innkeeper here to build a monument for every hero'; } }
   if (t === TILE.MONUMENT) { const tw = townContaining(x, y); if (tw && tw.memorial && x === tw.cx - 4 && y === tw.cy + 3) return `The memorial of the Long Night — raised by ${tw.memorial}. Walk into it to read the names`; if (tw) { const L = townIdentity(tw).landmark; return `${L.name[0].toUpperCase() + L.name.slice(1)} — the pride of ${tw.name}. Walk into it to look closer`; } }
   if (getTile(x, y) === TILE.WAYSTONE) return 'Waystone — walk into it to travel to any town you have visited';
@@ -7011,6 +7074,7 @@ function leaveDungeon() {
   track('dungeon_left', { dungeon: def ? (def.kind === 'site' ? def.site.type : 'town') : 'town', floor });
   floor = TOWN; createWorld();
   if (def && def.kind === 'site') { player.x = def.site.x; player.y = def.site.y + 1; }
+  else if (def && def.camp) { player.x = def.camp.x; player.y = def.camp.y + 1; if (!walkable(getTile(player.x, player.y))) { const f = freeTileNear(def.camp.x, def.camp.y, 3); if (f) { player.x = f.x; player.y = f.y; } } }
   else {
     const t = townAt(...homeTown.split(',').map(Number)) || townAt(0, 0);
     player.x = t.gate.x; player.y = t.gate.y - 1;
@@ -7072,7 +7136,7 @@ function tryMove(dx, dy) {
   if (t === TILE.PLACE) { usePlace(placeAtTile(nx, ny)); draw(); return; }
   if (t === TILE.PLOT) { const tw = townContaining(nx, ny); if (tw) useMonument(tw, plotSlot(tw, nx, ny)); draw(); return; }
   if (t === TILE.SHIP) { const pt = portAtTile(nx, ny); if (pt) openShop('harbour'); else log('A boat with nobody to sail it.'); draw(); return; }
-  if (t === TILE.WARCAMP) { const wc = campAtTile(nx, ny); if (wc) log(campRazed(wc) ? `The burnt-out remains of ${wc.name}. The realm's soldiers did their work.` : `${wc.name[0].toUpperCase() + wc.name.slice(1)}: palisades, drums and far too many orcs (strength ${wc.strength}). No single hero can take it. ${armiesUnlocked() ? 'Recruit an army at a realm\'s seat and send it here.' : `Heroes of level ${ARMY_LEVEL} can raise a realm's army against it.`}`, campRazed(wc) ? '' : 'bad'); draw(); return; }
+  if (t === TILE.WARCAMP) { const wc = campAtTile(nx, ny); if (wc && !campRazed(wc)) { enterCamp(wc); return; } if (wc) log(`The burnt-out remains of ${wc.name}. Nothing stirs but the crows.`); draw(); return; }
   if (t === TILE.MONUMENT) { const tw = townContaining(nx, ny); if (tw && tw.memorial && nx === tw.cx - 4 && ny === tw.cy + 3) log(`The memorial of the Long Night: a column of grey stone with the names of the watch who fell at the walls of ${tw.name}, and on the plinth, in letters a hand high, the name of ${tw.memorial}, who paid for it.`); else if (tw) { const L = townIdentity(tw).landmark; log(`${L.name[0].toUpperCase() + L.name.slice(1)}. ${L.lore}`); } draw(); return; }
   const other = mpPlayerAt(nx, ny);
   if (other) { if (scene !== 'dungeon') openPlayerMenu(other); draw(); return; }
@@ -7756,6 +7820,7 @@ const ARMY = {
 // raise no armies of their own, and any army already raised waits where it stands.
 const ARMY_LEVEL = 50;
 const armiesUnlocked = () => !!player && player.level >= ARMY_LEVEL;
+const CAMP_CHIEFS = ['Gorbag Ironjaw', 'Ugluk the Flayer', 'Shagrat Two-Axes', 'Mauhur Bloodeye', 'Grishnak the Sly', 'Lugdush Tuskbreaker'];
 const CAMP_NAMES = ['Bonegrinder', 'Redtusk', 'Skullhill', 'Black Banner', 'Gutripper', 'Ashfang', 'Broken Tooth', 'Mudhollow'];
 const camps = new Map();
 function campAt(i, j) {
@@ -8057,6 +8122,7 @@ function endTurn(moved) {
   if (scene !== 'dungeon') stepNpcs();
   stepGuards();
   stepHound(); stepEscort(); tickTotems(); tickTrial(); tickRifts();
+  if (scene === 'dungeon' && dungeonDef && dungeonDef.camp && !dungeonDef.razed && !monsters.some((m) => m.hp > 0)) campCleared();
   // in a shared dungeon the host moves monsters on a steady beat instead of per turn
   if (scene !== 'house' && !coopActive()) {
     stepMonsters();

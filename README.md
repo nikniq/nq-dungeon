@@ -198,6 +198,13 @@ and pastures around the towns that live off the land (`fieldAt`), wheel-rutted
 roads with green verges, crags with snow on the high peaks, and bushes and tufts
 in the grass.
 
+Walk into an orc war camp to assault it yourself (`enterCamp`, `campChunk`): a
+palisade ring with one gate, rows of tents with loot by their flaps, a bonfire
+at the heart, a totem, and the warchief's tent at the back. Its orcs, goblins,
+archers, shamans and bombers mostly sleep; clear every one and the camp is
+razed, for six gold and two XP per point of its strength. Armies can still raze
+camps as before.
+
 Six super-boss lairs (`LAIRS`) lie hidden in the far corners of the world: the
 Spider Queen's Hollow, the Wyrm's Roost, the Drowned King's Hall, Old Grumm's
 Bridge, the Lich's Observatory and the Direwolf's Den. They stay off the map
