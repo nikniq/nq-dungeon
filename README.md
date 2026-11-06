@@ -224,7 +224,7 @@ monster is worth less XP the further the hero has outgrown the place
 (`outgrown`): full up to two levels over, a tenth less a level after, never
 under a quarter. It used to be worth 5% more a level, so the safest floor paid
 best and scripted heroes left the starter dungeon at level 22 to 51; they now
-leave at 18 to 26, all twelve of twelve, in 1,200 to 3,000 turns.
+leave at 18 to 28, all twelve of twelve, in about 1,000 to 3,400 turns.
 
 The land can be changed (`WORKS`, `groundWorkStep`, `terraPut`). G, or the
 Groundwork button, opens a list of jobs in the open country; pick one and the
