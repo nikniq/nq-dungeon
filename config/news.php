@@ -6,6 +6,43 @@
 return [
     'articles' => [
         [
+            'slug' => 'shape-the-land',
+            'title' => 'Shape the land: fell trees, lay roads, build bridges',
+            'date' => '2026-11-06',
+            'tag' => 'New feature',
+            'summary' => 'The country outside the towns is no longer fixed. Press G and you can cut a way through a forest, lay a road to your favourite dungeon, or bridge the river that was in the way.',
+            'sections' => [
+                ['heading' => null, 'text' => [
+                    'Until now the world was something you walked across. The forest between you and a cave stayed a forest, and the river stayed in the way. From today you can change it. The work is called Groundwork, and whatever you do stays done: it is saved with your hero and is there when you come back.',
+                ]],
+                ['heading' => 'How it works', 'text' => [
+                    'Step outside a town and press G, or use the Groundwork button under the game. A list of jobs opens. Pick one and your steps do that work until you press G again. There is no cursor to aim and no building screen: you work by walking.',
+                ], 'points' => [
+                    'Fell trees. Walk into a tree. Two blows bring it down and you keep a log of wood.',
+                    'Quarry rock. Walk into a mountainside. Three blows break a way in and give you two blocks of stone.',
+                    'Beat a track. Just walk. Every step over grass, sand, snow or forest floor leaves a dirt road behind you, and it costs nothing.',
+                    'Pave in stone. Just walk. Every step lays paving, for one stone a tile, or three gold a tile when you have no stone.',
+                    'Plant trees. Walk toward open grass. One wood plants one tree.',
+                    'Bridge water. Walk into water. Two wood lays a span of planks you can cross.',
+                    'Put it back. Walk into anything you have changed and it returns to what it was.',
+                ]],
+                ['heading' => 'What it is good for', 'text' => [
+                    'Roads are now safer than open country. On any road or paving outside a town, the beasts of the wilds notice you two tiles later than they would on grass, so a track from your home town to a dungeon you visit often is worth the walk it takes to lay. A felled line through a forest or a bridge over a river can cut a long detour to a few steps. If you click a far spot with Beat a track switched on, your hero lays the road all the way there.',
+                ]],
+                ['heading' => 'The limits', 'text' => [
+                    'A few rules keep the world recognisable.',
+                ], 'points' => [
+                    'Towns cannot be changed. The trees on a town green belong to the town.',
+                    'A bridge needs natural shore within three tiles. Rivers, lakes and narrow straits can be crossed. The open sea cannot, so ships still matter.',
+                    'Each hero can keep 1,500 works. At the limit, put some back to make room.',
+                    'Your works are your own. Other heroes do not see them in their world.',
+                ]],
+                ['heading' => 'Where to look', 'text' => [
+                    'A felled tree leaves a stump and broken rock leaves rubble. Your roads and bridges are drawn on the world map (M), and hovering over any tile you have changed says what you did there. The first thing you change earns the title Groundbreaker. A hundred works standing at once earns Roadbuilder.',
+                ]],
+            ],
+        ],
+        [
             'slug' => 'castles-you-can-climb',
             'title' => 'Castles you can climb',
             'date' => '2026-11-06',
