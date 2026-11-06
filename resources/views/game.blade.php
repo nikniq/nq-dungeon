@@ -36,7 +36,7 @@
                 <li><kbd>↑ ↓ ← →</kbd> <kbd>WASD</kbd> <kbd>HJKL</kbd> move; walk into a monster to attack</li>
                 <li><kbd>Space</kbd> or <kbd>.</kbd> wait a turn</li>
                 <li><kbd>G</kbd> groundwork in the open country: fell trees, quarry rock, beat a track or pave a road as you walk, plant trees, bridge water, or put your works back. <kbd>G</kbd> again stops</li>
-                <li><kbd>Z</kbd> explore a dungeon floor by yourself: the hero stops for a foe, a wound or a find. <kbd>&gt;</kbd> walks to stairs already found</li>
+                <li><kbd>Z</kbd> explore a dungeon floor by yourself, toward the stairs the compass points at: the hero picks up what lies near the way and stops for a foe, a wound or a find. <kbd>&gt;</kbd> walks to stairs already found</li>
                 <li><kbd>Ctrl</kbd> + <kbd>↑ ↓ ← →</kbd> (or <kbd>X</kbd>, then a direction) strike a townsperson. The town's watch will come for you until you leave</li>
                 <li><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> class abilities (the second comes at level 5, the third at 10) · <kbd>P</kbd> potion · <kbd>B</kbd> bomb · <kbd>T</kbd> scroll of return</li>
                 <li><kbd>M</kbd> world map · <kbd>Q</kbd> quests · <kbd>J</kbd> journal · <kbd>N</kbd> sound · <kbd>C</kbd> make camp in the wilds</li>

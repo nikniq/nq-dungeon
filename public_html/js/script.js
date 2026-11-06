@@ -4827,6 +4827,8 @@ const viewRadius = () => Math.max(3, (dungeonDef ? dungeonDef.view : VIEW_RADIUS
 const CAPTIVE_NAMES = ['Wat the miller', 'Sister Ilse', 'Pip the apprentice', 'old Brom', 'Elka the trader', 'young Tam', 'Goody Marsh', 'Corran the scribe'];
 let escort = null;   // a freed captive following the hero
 const totems = new Map();   // "x,y" -> hits left
+const totemCalls = new Map();   // "x,y" -> goblins called so far: a totem has eight in it, so it is a fight and not a well of XP
+const TOTEM_GOBLINS = 8;
 let eventSeed = 0;
 function placeFloorEvents(chunk, rand) {
   if (!dungeonDef || dungeonDef.arena || floor < 2) return;
@@ -4915,7 +4917,12 @@ function tickTotems() {
     if (monsters.filter((m) => m.type.name === 'Goblin' && cheb(m, { x, y }) <= 5).length >= 3) continue;
     const spot = freeTileNear(x, y, 1); if (!spot) continue;
     addMonster(MONSTER_TYPES.find((t) => t.name === 'Goblin'), spot.x, spot.y, { awake: isVisible(x, y) });
-    if (isVisible(x, y)) { burst(spot.x, spot.y, '#7ad36b', 10, 80, { life: 400 }); log('Drums beat, and another goblin crawls out from behind the totem.', 'bad'); tip('totem', 'A goblin totem keeps calling goblins. Walk into it to smash it (three blows, one with a warhammer).'); }
+    const called = (totemCalls.get(k) || 0) + 1; totemCalls.set(k, called);
+    if (isVisible(x, y)) { burst(spot.x, spot.y, '#7ad36b', 10, 80, { life: 400 }); log('Drums beat, and another goblin crawls out from behind the totem.', 'bad'); tip('totem', 'A goblin totem keeps calling goblins, eight at most. Walk into it to smash it (three blows, one with a warhammer) and take the offerings.'); }
+    if (called >= TOTEM_GOBLINS) {   // the last of them: the totem is spent, and there are no offerings for outlasting it
+      totems.delete(k); totemCalls.delete(k); setTile(x, y, TILE.FLOOR); bgDirty = true;
+      if (isVisible(x, y)) { burst(x, y, '#8b5a2b', 14, 90, { life: 500, size: 3 }); log('The drums falter and stop. The totem has called its last goblin and falls apart, its offerings spent.'); }
+    }
   }
 }
 // Trials: a ring of stones in a room from the second floor down. Take one up and the
@@ -5081,7 +5088,7 @@ function createDungeon() {
   const R = seededRandom(hash32(floorSeed, 4242));
   const spawn = getChunk(0, 0);
   player.x = spawn.rooms[0].cx; player.y = spawn.rooms[0].cy;
-  wayoutWarned = -99; crackHits.clear(); usedSprings.clear(); usedRunes.clear(); restless = []; player.slip = false;
+  wayoutWarned = -99; crackHits.clear(); usedSprings.clear(); usedRunes.clear(); restless = []; player.slip = false; totemCalls.clear();
   { const room = spawn.rooms[0]; setTile(room.x, room.y, TILE.WAYOUT); monsters = monsters.filter((m) => !(m.x === room.x && m.y === room.y)); }
   if (dungeonDef && dungeonDef.arena) { exit = null; return; }
   if (dungeonDef && dungeonDef.cellar) { exit = null; exit2 = null; populateCellar(R); return; }
@@ -7687,7 +7694,7 @@ function describeTile(x, y) {
   if (t === TILE.EXIT) { const st = stairsAt(x, y); return st && exit2 ? `Stairs down — below: ${st.mod ? `${FLOOR_MODS[st.mod].label} (${FLOOR_MODS[st.mod].desc})` : 'a quiet floor, no twist'}` : 'Stairs down — the exit from this floor'; }
   if (t === TILE.CRACK) return `Cracked wall — it sounds hollow. Walk into it to break through (${player.weapon === 'warhammer' ? 'one blow with your warhammer' : 'three blows, or one with a warhammer or a bomb'}). The noise wakes monsters`;
   if (t === TILE.CAPTIVE) return 'A captive in chains — walk into them to strike the chains off, then lead them to the stairs or the way out';
-  if (t === TILE.TOTEM) return `A goblin totem — it keeps calling goblins. Walk into it to smash it (${totems.get(key(x, y)) || 3} blows, one with a warhammer)`;
+  if (t === TILE.TOTEM) return `A goblin totem — it calls goblins, ${Math.max(1, TOTEM_GOBLINS - (totemCalls.get(key(x, y)) || 0))} more at most. Walk into it to smash it (${totems.get(key(x, y)) || 3} blows, one with a warhammer)`;
   if (t === TILE.LEVER) return 'A lever in the wall — pull it to sink every spike trap on this floor';
   if (t === TILE.ALTAR) return 'A dungeon altar — walk into it to make an offering, or drink from its font';
   if (t === TILE.TRIAL) return trial && trial.x === x && trial.y === y ? `${TRIALS[trial.kind].label} is under way: ${trial.turns} turns left` : 'A ring of trial stones — walk into it to take up a trial for a sure reward';
@@ -7754,7 +7761,13 @@ function stopWalk() { walk.active = false; walk.monster = null; clearInterval(wa
 // Z sends the hero off alone underground: to gold, a chest or a needed potion within reach, then to the
 // nearest ground nobody has looked at, leaning toward the stairs. Anything that wants a decision stops
 // them: a foe in sight, a wound, a find. > walks to stairs already found. Any key or click takes over.
-const explore = { on: false, timer: null, hp: 0, stairs: false, sig: '', stopped: 0, known: new Set(), noted: new Set(), skip: new Set() };
+// How hard the explorer leans toward the stairs the compass already points at, how many steps
+// out of its way gold, a chest or a needed potion is worth, and how long a way round a trap or
+// a sleeper it takes without asking. A floor has no edge, so if loot always came first the hero
+// would follow it away from the stairs for thousands of turns; measured over ten seeded floors,
+// this lean finds the stairs in a median of 360 turns where the old one took 1,330.
+const EXPLORE_LEAN = 2, EXPLORE_DETOUR = 12, EXPLORE_ROUND = 30;
+const explore = { on: false, timer: null, hp: 0, stairs: false, sig: '', stopped: 0, known: new Set(), noted: new Set(), skip: new Set(), passed: new Set() };   // passed: sleepers the player chose to walk round, not to be asked about again
 let exploreSights = null;
 const sightAt = (x, y) => {
   exploreSights = exploreSights || new Map([[TILE.EXIT, 'the stairs down'], [TILE.SPRING, 'a healing spring'], [TILE.ALTAR, 'an altar'], [TILE.CAPTIVE, 'a captive in chains'], [TILE.TOTEM, 'a goblin totem'], [TILE.LEVER, 'a lever'], [TILE.TRIAL, 'a ring of trial stones'], [TILE.CRACK, 'a cracked wall'], [TILE.SHOP, 'a merchant']]);
@@ -7782,39 +7795,47 @@ function exploreNews() {
   return { foe, sight };
 }
 // One breadth-first sweep over the ground already seen. Returns the next step, or null if there is nowhere to go.
+// through: '' keeps clear of known hazards and of foes; 'hazard' walks over traps and lava; 'sleeper' walks
+// through foes; 'all' does both. The last three only answer "what is in the way?".
 function exploreScan(throughPotions = false, through = '') {
   const hurt = player.maxHp - player.hp, start = key(player.x, player.y);
   const from = new Map([[start, null]]), q = [[player.x, player.y, 0]];
   const wanted = (p) => hurt >= Math.min(5, potionHeal(p.heal));
-  let loot = null, front = null, frontCost = Infinity, stairs = null;
+  let loot = null, lootCost = Infinity, front = null, frontCost = Infinity, stairs = null;
+  const prize = (c, o) => { if (c < lootCost) { lootCost = c; loot = o; } };   // loot is weighed like ground: near and on the way beats far and behind
+  const ways = [exit, exit2].filter(Boolean), lean = (x, y) => (ways.length ? EXPLORE_LEAN * Math.min(...ways.map((e) => Math.abs(x - e.x) + Math.abs(y - e.y))) : 0);
   for (let i = 0; i < q.length && i < 6000; i++) {
     const [cx, cy, d] = q[i], here = key(cx, cy);
     for (const [dx, dy] of DIRS) {
       const nx = cx + dx, ny = cy + dy, k = key(nx, ny);
       if (from.has(k)) continue;
       if (!wasSeen(nx, ny)) {
-        const c = d + (exit ? 0.35 * (Math.abs(nx - exit.x) + Math.abs(ny - exit.y)) : 0);
+        const c = d + lean(nx, ny);
         if (c < frontCost) { frontCost = c; front = { k: here, d }; }
         continue;
       }
       const t = getTile(nx, ny);
       if (t === TILE.EXIT) { if (!stairs) stairs = { k: here, d }; continue; }
-      if (t === TILE.CHEST) { if (!loot && !explore.skip.has(k)) loot = { k: here, d: d + 1, bump: [dx, dy], chest: k }; continue; }
+      if (t === TILE.CHEST) { if (!explore.skip.has(k)) prize(d + 1 + lean(nx, ny), { k: here, d: d + 1, bump: [dx, dy], chest: k }); continue; }
       if (!walkable(t) || t === TILE.SHOP || t === TILE.SITE) continue;
-      if (hazard(nx, ny) && !through) continue;
-      if (getMonsterAt(nx, ny) && isVisible(nx, ny) && through !== 'all') continue;   // one out of sight is not one the hero knows is there
+      if (hazard(nx, ny) && through !== 'hazard' && through !== 'all') continue;
+      { const m = getMonsterAt(nx, ny);   // a foe in sight bars the way, and so does a sleeper the hero has already seen: it has not moved. One never seen is not known to be there
+        if (m && through !== 'all' && !(through === 'sleeper' && !explore.passed.has(m)) && (isVisible(nx, ny) || (!m.awake && explore.known.has(m)))) continue; }
       const pot = getPotionAt(nx, ny);
-      if (pot && !wanted(pot) && !throughPotions) continue;   // no sense drinking one at full health
+      if (pot && !wanted(pot) && (hurt > 0 || player.poison > 0) && !throughPotions) continue;   // no sense spending one on a scratch; unhurt, the hero steps over it and it keeps
       from.set(k, here); q.push([nx, ny, d + 1]);
-      if (!loot && (getGoldAt(nx, ny) || (pot && wanted(pot)))) loot = { k, d: d + 1 };
+      if (getGoldAt(nx, ny) || (pot && wanted(pot))) prize(d + 1 + lean(nx, ny), { k, d: d + 1 });
     }
   }
-  const goal = explore.stairs ? stairs : (loot && (loot.d <= 30 || !front) ? loot : front);
+  const goal = explore.stairs ? stairs : (loot && (!front || lootCost - EXPLORE_DETOUR < frontCost) ? loot : front);
   if (!goal) return null;
-  if (goal.k === start) return goal.bump ? { dx: goal.bump[0], dy: goal.bump[1], chest: goal.chest } : { arrived: true };
+  const cost = goal === stairs ? stairs.d : goal === loot ? lootCost - EXPLORE_DETOUR : frontCost;
+  if (goal.k === start) return goal.bump ? { dx: goal.bump[0], dy: goal.bump[1], chest: goal.chest, cost } : { arrived: true, cost };
+  const via = [];   // whoever stands on the way there: only a 'sleeper' or 'all' sweep can have any
+  if (through) for (let p = goal.k; p && p !== start; p = from.get(p)) { const [px, py] = p.split(',').map(Number), m = getMonsterAt(px, py); if (m && (isVisible(px, py) || explore.known.has(m))) via.push(m); }
   let k = goal.k; while (from.get(k) !== start) k = from.get(k);
   const [x, y] = k.split(',').map(Number);
-  return { dx: x - player.x, dy: y - player.y };
+  return { dx: x - player.x, dy: y - player.y, cost, via };
 }
 function exploreTick() {
   if (!explore.on) return;
@@ -7824,13 +7845,28 @@ function exploreTick() {
   const { foe, sight } = exploreNews();
   if (foe) { stopExplore(foe.awake ? `${foeName(foe)} has seen you` : `${foeName(foe)} sleeps ahead`); return; }
   if (sight && !explore.stairs) { stopExplore(`you find ${sight}`); return; }
-  const step = exploreScan() || exploreScan(true);
+  let step = exploreScan(), overPotions = false;
+  if (!step) { step = exploreScan(true); overPotions = true; }
   if (!step) {
     const why = exploreScan(true, 'hazard') ? 'a trap or a pool of lava bars the only way on. Crossing it is your call' : exploreScan(true, 'all') ? 'a sleeper lies across the only way on' : explore.stairs ? 'the way to the stairs is blocked' : 'there is nothing more to find from here';
     stopExplore(why); return;
   }
   if (step.arrived) { stopExplore(explore.stairs ? 'the stairs are beside you' : 'there is nothing more to find from here'); return; }
+  // A floor has no edge, so there is always another way to try. If a sleeper the hero has seen lies across
+  // a much shorter way on, say so once instead of setting off on the long way round unasked. (Traps and
+  // lava are walked round without a word: a pool at the edge of sight looks like a short way and is not.)
+  if (!explore.stairs && !explore.round) {
+    const short = exploreScan(overPotions, 'sleeper');   // like for like: the same sweep, but through sleepers
+    if (short && short.via && short.via.length && step.cost - short.cost > EXPLORE_ROUND) {
+      const who = short.via[short.via.length - 1];   // the nearest of them
+      explore.asked = `${turn}:${player.x},${player.y}`; explore.asking = short.via;
+      stopExplore(`${foeName(who)} sleeps across the short way on. Deal with it yourself, or press ${isTouch ? 'Explore' : 'Z'} again to go the long way round`); return;
+    }
+  }
   const was = { x: player.x, y: player.y, turn, floor, sig: explore.sig };
+  // never pace: three returns in a row to the tile before last means the plan keeps changing its mind
+  explore.trail = (explore.trail || []).concat(key(was.x, was.y)).slice(-7);
+  if (explore.trail.length === 7 && explore.trail.every((k, i) => k === explore.trail[i % 2])) { explore.trail = []; stopExplore('you cannot settle on a way from here. Pick a direction yourself'); return; }
   tryMove(step.dx, step.dy);
   if (step.chest && getTile(was.x + step.dx, was.y + step.dy) === TILE.CHEST) explore.skip.add(step.chest);   // it would not open: leave it be
   if (scene !== 'dungeon' || floor !== was.floor || turn === was.turn) stopExplore();
@@ -7842,14 +7878,17 @@ function startExplore(toStairs = false) {
   if (scene !== 'dungeon') { log(scene === 'world' ? 'Exploring alone is for dungeons. Out here, click the world map to drop a pin and follow the compass.' : 'There is nothing to explore in here.'); draw(); return; }
   if (trial) { log('Not in the middle of a trial.', 'bad'); draw(); return; }
   const sig = `${dungeonDef ? dungeonDef.name : ''}:${floor}`;
-  if (sig !== explore.sig) { explore.sig = sig; explore.known.clear(); explore.noted.clear(); explore.skip.clear(); }
+  if (sig !== explore.sig) { explore.sig = sig; explore.known.clear(); explore.noted.clear(); explore.skip.clear(); explore.passed.clear(); explore.asked = ''; }
   const awake = monsters.find((m) => m.hp > 0 && m.awake && isVisible(m.x, m.y));
   if (awake) { log(`Not with ${foeName(awake)} in sight.`, 'bad'); draw(); return; }
   exploreNews();   // what is already in view is no news
   const found = [exit, exit2].some((e) => e && wasSeen(e.x, e.y));
   if (toStairs && !found) { log('You have not found the stairs on this floor yet. Z explores toward them.'); draw(); return; }
-  Object.assign(explore, { on: true, stairs: toStairs, hp: player.hp });
-  tip('explore', 'You explore by yourself and stop when something needs you: a foe, a wound or a find. Any key or click stops you sooner. Press > to walk to stairs you have found.');
+  const round = explore.asked === `${turn}:${player.x},${player.y}`;   // asked and pressed again where they stand: take the long way, and do not ask about those sleepers again
+  if (round) for (const m of explore.asking || []) explore.passed.add(m);
+  explore.asked = ''; explore.asking = null;
+  Object.assign(explore, { on: true, stairs: toStairs, hp: player.hp, trail: [], round });
+  tip('explore', 'You explore toward the stairs the compass points at, picking up what lies near the way, and stop when something needs you: a foe, a wound or a find. Any key or click stops you sooner. Press > to walk to stairs you have found.');
   exploreTick();
   if (explore.on) explore.timer = setInterval(exploreTick, 90);
 }
@@ -8255,6 +8294,7 @@ function killMonster(m) {
       sfx.play('win');
     } else log(`You slay the ${mName(m)} (+${xp} XP).`, 'good');
     gainXp(xp);
+    if ((m.xpMult || 1) <= 0.5 && !m.boss) tip('outgrown', scene === 'dungeon' ? 'You have outgrown this floor: its monsters are worth half their XP or less to you now. The stairs down lead to foes worth fighting; the compass points at them.' : 'You have outgrown these parts: the monsters here are worth half their XP or less to you now. Wilder country, further from Hearth, pays in full.');
     questProgress('slay', m.type.name, 1);
     if (m.bounty) {
       questProgress('bounty', m.bounty, 1);
@@ -8279,12 +8319,17 @@ function freeTileNear(cx, cy, reach = 1) {
 // Monsters keep pace with the hero. Each place has a level it is meant for: a
 // dungeon its recommended level plus two a floor, the wilds two a region out from
 // Hearth. A hero above it meets monsters with 8% more health and +1 attack per three
-// levels of the gap (health capped at four times, attack at +12), worth 5% more XP a
-// level. Monsters are never scaled down, so a hard place stays hard.
+// levels of the gap (health capped at four times, attack at +12). They are worth less
+// XP the further the hero has outgrown the place (see outgrown), so the way to keep
+// levelling is down. Monsters are never scaled down, so a hard place stays hard.
 function placeLevel(m) {
   if (scene === 'dungeon' && dungeonDef) return recLevel(dungeonDef) + 2 * Math.max(0, floor - 1);
   const [i, j] = cellOf(m.x, m.y); return 1 + 2 * Math.max(Math.abs(i), Math.abs(j));
 }
+// What a kill is worth to a hero gap levels above the place: full up to two levels over, then a
+// tenth less a level, never under a quarter. It used to grow by 5% a level, so the safest floor
+// paid best: scripted heroes left a five-floor starter dungeon at level 22 to 51 without a potion.
+const outgrown = (gap) => (gap <= 2 ? 1 : Math.max(0.25, 1 - 0.1 * (gap - 2)));
 function scaleMonster(m) {
   if (!m || m.scaled || !player) return m;
   m.scaled = true;
@@ -8292,7 +8337,7 @@ function scaleMonster(m) {
   if (gap <= 0) return m;
   const mult = Math.min(4, 1 + 0.08 * gap), frac = m.maxHp ? m.hp / m.maxHp : 1;
   m.maxHp = Math.round(m.maxHp * mult); m.hp = Math.max(1, Math.round(m.maxHp * frac));
-  m.atk += Math.min(12, Math.floor(gap / 3)); m.xpMult = Math.min(4, 1 + 0.05 * gap);
+  m.atk += Math.min(12, Math.floor(gap / 3)); m.xpMult = outgrown(gap);
   return m;
 }
 function addMonster(type, x, y, extra = {}) {
@@ -8839,7 +8884,9 @@ function tryMove(dx, dy) {
       tip('lava', 'Lava burns every time you step in it. Walk around the pools; clicking a spot finds a safe path.');
     }
     const pot = getPotionAt(nx, ny);
-    if (pot) {
+    if (pot && player.hp >= player.maxHp && !(player.poison > 0)) {
+      if (!pot.left) { pot.left = true; log('You are unhurt, so you leave the potion where it stands. It will keep.'); }
+    } else if (pot) {
       const healed = Math.min(potionHeal(pot.heal), player.maxHp - player.hp);
       player.hp += healed;
       potions = potions.filter((p) => p !== pot);

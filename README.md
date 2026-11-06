@@ -205,6 +205,27 @@ alone (`PARTY_LEVEL`) and muster every 75 seconds, not 45. And the screen shown
 on falling says what killed the hero, what was kept and lost, and one piece of
 advice about that killer (`lastHurt`, `DEATH_TIPS`).
 
+A second playtest by script sent heroes down all five floors under Hearth, and
+found that most never got there. The auto-explorer could pace between two tiles
+for ever when a sleeping monster was in sight from one of them and hidden from
+the next (introduced by the change above): it now remembers sleepers it has seen
+(`explore.known`), and stops rather than pace (`explore.trail`). It also never
+made headway: loot within thirty steps always came first and the pull toward
+the stairs was too weak to turn it round, so on a floor with no edge it followed
+gold away from the stairs for thousands of turns. Ground and loot are now
+weighed alike, by steps there plus twice the distance left to the nearer stairs,
+with loot worth twelve steps of detour (`EXPLORE_LEAN`, `EXPLORE_DETOUR`): over
+ten seeded floors the stairs come into view in a median of 360 turns, from
+1,330. A sleeper across a much shorter way on is reported once, and Z again
+takes the long way round (`EXPLORE_ROUND`). An unhurt hero steps over a potion
+on the floor instead of wasting it. A goblin totem calls eight goblins and falls
+apart (`TOTEM_GOBLINS`); it used to call them without end, each worth XP. And a
+monster is worth less XP the further the hero has outgrown the place
+(`outgrown`): full up to two levels over, a tenth less a level after, never
+under a quarter. It used to be worth 5% more a level, so the safest floor paid
+best and scripted heroes left the starter dungeon at level 22 to 51; they now
+leave at 18 to 26, all twelve of twelve, in 1,200 to 3,000 turns.
+
 The land can be changed (`WORKS`, `groundWorkStep`, `terraPut`). G, or the
 Groundwork button, opens a list of jobs in the open country; pick one and the
 hero's steps do that work until G is pressed again. Fell trees: walk into a
