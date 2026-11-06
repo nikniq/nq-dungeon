@@ -152,6 +152,8 @@ const ACHIEVEMENTS = {
   wanderer10:  { label: 'Discovered ten places', title: 'the Pathfinder' },
   collector:   { label: 'Found five treasures', title: 'the Treasure-seeker' },
   crownbearer: { label: 'Restored the Crown of Aurum', title: 'Crownbearer' },
+  groundbreaker: { label: 'Changed the face of the land with your own hands', title: 'the Groundbreaker' },
+  roadbuilder: { label: 'Left a hundred works on the map', title: 'the Roadbuilder' },
   peacemaker:  { label: 'Spoke for Prince Edric when nobody else would', title: 'the Peacemaker' },
   kingscounsel: { label: 'Told King Aldric the hard thing, every time he asked', title: "the King's Counsel" },
   rescuer:     { label: 'Led a captive out of a dungeon', title: 'the Rescuer' },
@@ -396,7 +398,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, pets: petsState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, story4: player.meta.story4 || null, story5: player.meta.story5 || null, delve: player.meta.delve || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, forged: !!player.meta.forged, trials: player.meta.trials || 0, skills: player.meta.skills || {}, war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
+          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, story4: player.meta.story4 || null, story5: player.meta.story5 || null, delve: player.meta.delve || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, forged: !!player.meta.forged, trials: player.meta.trials || 0, skills: player.meta.skills || {}, terra: terraList().slice(0, TERRA_MAX), wood: terraStock('wood'), stone: terraStock('stone'), war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -3875,6 +3877,7 @@ function generateWorldChunk(cx, cy) {
       worldMonsters.push({ ...cell, type: t, hp, maxHp: hp, atk: t.atk + Math.floor(danger / 2), awake: false, wild: true, sea: true, purse: t.purse ? 30 + danger * 20 + Math.floor(rand() * 30) : 0 });
     }
   }
+  terraChunk(cx, cy, tiles, gr);
   return { tiles, seen: new Uint8Array(CHUNK * CHUNK), rooms: [], ground: gr };
 }
 function groundAt(x, y) {
@@ -5486,6 +5489,18 @@ function drawFlowerBed(g, town, c, r, dir) {
     g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillRect(fx + 1, fy + 1, 1, 1);
   }
 }
+// What is left where the hero cleared the ground: a stump where a tree stood, rubble where rock was broken.
+function drawCleared(g, c, r) {
+  const X = c * T - off.x, Y = r * T - off.y, was = terraOrig.get(key(c, r));
+  if (was && was[1] === GROUND.MOUNTAIN) {
+    for (let k = 0; k < 5; k++) { const sx = X + 4 + Math.floor(noise(c * 5 + k, r, 161) * 20), sy = Y + 8 + Math.floor(noise(c, r * 5 + k, 163) * 16), w = 4 + (k % 3) * 2; g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(sx + 1, sy + 2, w, 3); g.fillStyle = k % 2 ? '#9a9388' : '#827b70'; g.fillRect(sx, sy, w, 4); g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(sx, sy, w, 1); }
+    return;
+  }
+  g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(X + 17, Y + 23, 8, 3, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#6b4423'; g.fillRect(X + 11, Y + 15, 10, 7); g.fillStyle = '#d6a15c'; g.beginPath(); g.ellipse(X + 16, Y + 15, 5, 2.5, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#a8763a'; g.lineWidth = 1; g.beginPath(); g.ellipse(X + 16, Y + 15, 2.5, 1.2, 0, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = '#5b3a1a'; g.fillRect(X + 9, Y + 21, 3, 2); g.fillRect(X + 20, Y + 21, 3, 2);
+}
 // A path of stepping stones worn into the grass.
 function drawTownPath(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y;
@@ -6306,7 +6321,7 @@ function renderBackground() {
           drawSprite(g, kind, c + lean, r - (pad < 0 ? 0.06 : 0), 1, pad, tn > 0.5);
         }
       }
-      else { const fk = t === TILE.FLOOR && fieldAt(c, r); if (fk) drawField(g, c, r, fk); else { drawGrass(g, c, r); const tp = t === TILE.FLOOR && townContaining(c, r); const bed = tp && !townPaths(tp).has(key(c, r)) && bedAt(tp, c, r); if (tp && townPaths(tp).has(key(c, r))) drawTownPath(g, c, r); else if (bed) drawFlowerBed(g, tp, c, r, bed); else if (t === TILE.FLOOR && noise(c, r, 9) < 0.06) drawSprite(g, 'flower', c, r); } }
+      else { const fk = t === TILE.FLOOR && fieldAt(c, r); if (fk) drawField(g, c, r, fk); else { drawGrass(g, c, r); if (terraIdx.map.size && terraIdx.map.get(key(c, r)) === 'g') drawCleared(g, c, r); const tp = t === TILE.FLOOR && townContaining(c, r); const bed = tp && !townPaths(tp).has(key(c, r)) && bedAt(tp, c, r); if (tp && townPaths(tp).has(key(c, r))) drawTownPath(g, c, r); else if (bed) drawFlowerBed(g, tp, c, r, bed); else if (t === TILE.FLOOR && noise(c, r, 9) < 0.06) drawSprite(g, 'flower', c, r); } }
       if (t === TILE.EXIT) {
         const X = c * T - off.x, Y = r * T - off.y;
         g.fillStyle = '#374151'; g.fillRect(X - 6, Y - 6, T + 12, T + 12);
@@ -6506,6 +6521,13 @@ function drawHud(g, now) {
     g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(8, oy, g.measureText(ot).width + 20, 20, 5); g.fill();
     g.fillStyle = '#ffd86b'; g.fillText(ot, 18, oy + 4);
     qOffset = 24;
+  }
+  if (groundJob && scene === 'world') {
+    g.font = 'bold 12px sans-serif';
+    const wt = `⚒ ${WORKS[groundJob].doing} · ${terraStock('wood')} wood · ${terraStock('stone')} stone · G stops`, wy = (canvas.width < 560 ? 116 : 74) + hudExtra + qOffset;
+    g.fillStyle = 'rgba(40,28,10,0.85)'; g.beginPath(); g.roundRect(8, wy, g.measureText(wt).width + 20, 20, 5); g.fill();
+    g.fillStyle = '#f3c98b'; g.fillText(wt, 18, wy + 4);
+    qOffset += 24;
   }
   const q = player.quests && questsActive()[0];
   if (q) {
@@ -7284,6 +7306,8 @@ function renderWorldMap() {
   g.strokeStyle = 'rgba(70,48,20,0.55)'; g.lineWidth = 1; g.setLineDash([2, 3]); g.stroke(trails); g.setLineDash([]);
   g.strokeStyle = 'rgba(70,48,20,0.8)'; g.lineWidth = MAP_STEP > 4 ? 2.5 : 3.5; g.stroke(roads);
   g.strokeStyle = '#ecd49a'; g.lineWidth = MAP_STEP > 4 ? 1 : 1.6; g.stroke(roads);
+  { const sz = Math.max(1.5, MAP_PX / MAP_STEP + 0.5);   // the hero's own roads, paving and bridges
+    for (const [k, code] of terraMap()) { if (code !== 'r' && code !== 'c' && code !== 'b') continue; const [wx, wy] = k.split(',').map(Number), [qx, qy] = toPx(wx, wy); if (qx < 0 || qy < 0 || qx > c.width || qy > c.height) continue; g.fillStyle = code === 'r' ? '#f0d9a0' : code === 'c' ? '#e4e4ea' : '#8b5a2b'; g.fillRect(qx - sz / 2, qy - sz / 2, sz, sz); } }
   // ----- dungeons -----
   for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
     const st = siteAt(i, j);
@@ -7622,6 +7646,7 @@ function describeTile(x, y) {
   { const rf = rifts.find((r) => r.x === x && r.y === y); if (rf) return rf.lord ? 'The Rift Lord\'s door — it shuts when he dies' : `A rift to Midgard — it shuts when its horde (${riftHorde(rf).length} left) is dead`; }
   if (charts().includes(key(x, y))) return 'X marks the spot — step here to dig';
   if (t === TILE.SHIP) { const pt = portAtTile(x, y); return pt ? `The ship of ${pt.name} — walk into it, or speak to the harbourmaster, to sail to another port` : 'A boat'; }
+  if (scene === 'world') { const mine = terraMap().get(key(x, y)); if (mine) return { g: 'Ground you cleared', r: 'A track you beat', c: 'Paving you laid', t: 'A tree you planted', b: 'A bridge you built' }[mine] + ' — Groundwork (G), Put it back, undoes it'; }
   if (scene === 'world' && groundAt(x, y) === GROUND.DOCK) return 'The pier — the harbourmaster at the end sells passage by sea';
   if (t === TILE.WARCAMP) { const wc = campAtTile(x, y); if (wc) return campRazed(wc) ? `${wc.name} — razed` : `${wc.name} — orc warcamp, strength ${wc.strength}. Walk in to assault it, ${ratingText(campDungeon(wc))}. ${armiesUnlocked() ? 'Send a realm\'s army' : `Armies open at level ${ARMY_LEVEL}`}`; }
   if (t === TILE.PLOT) { const tw = townContaining(x, y); if (tw) { const b = buildingAt(tw, plotSlot(tw, x, y)); return b ? `${b.builder}'s ${monumentName(b)}, level ${b.level}${b.upgrader && b.upgrader !== b.builder ? ` (upgraded by ${b.upgrader})` : ''} — ${levelDesc(b.type, b.level)}. Walk into it to use it${monumentUsed(tw, plotSlot(tw, x, y)) ? ' (used recently)' : ''}` : 'Empty building plot — pay an innkeeper here to build a monument for every hero'; } }
@@ -7974,7 +7999,7 @@ function buildLegend() {
 }
 
 function updateStats() {
-  { const eb = document.getElementById('explore-btn'), cb = document.getElementById('camp-btn'); if (eb) eb.hidden = scene !== 'dungeon'; if (cb) cb.hidden = scene !== 'world'; }
+  { const eb = document.getElementById('explore-btn'), cb = document.getElementById('camp-btn'); if (eb) eb.hidden = scene !== 'dungeon'; if (cb) cb.hidden = scene !== 'world'; const wb = document.getElementById('works-btn'); if (wb) { wb.hidden = scene !== 'world'; wb.textContent = groundJob ? 'Stop work (G)' : 'Groundwork (G)'; } if (groundJob && scene !== 'world') groundJob = null; }
   const where = scene === 'house' ? interiorName() : scene === 'dungeon' && dungeonDef && dungeonDef.delve ? `${dungeonDef.name[0].toUpperCase() + dungeonDef.name.slice(1)} ${floor}/5 · Daily` : inTown() ? (townContaining(player.x, player.y)?.name ?? 'The wilds') : `${dungeonDef ? dungeonDef.name : 'Dungeon'} ${floorText()}`;
   statsEl.textContent = `${where} | HP ${player.hp}/${player.maxHp} | ATK ${player.atk}${weaponAtk() ? '+' + weaponAtk() : ''} | DEF ${armorDef()} | Lv ${player.level} (${player.xp}/${xpToNext(player.level)} XP) | Gold ${player.gold}`;
   hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
@@ -8352,7 +8377,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
         if (!m.awake && Math.random() < 0.6) m.awake = true;
         if (m.awake && Math.random() < 0.7) { petBitten(pv, m); continue; }
       } }
-    const wake = (scene === 'world' ? (dayPhase() === 'night' ? 10 : 6) : theme === 'moss' ? 3 : 6) - (wearing('wardstone') ? (scene === 'dungeon' && theme === 'moss' ? 1 : 3) : 0);
+    const wake = (scene === 'world' ? (dayPhase() === 'night' ? 10 : 6) - ([GROUND.ROAD, GROUND.COBBLE].includes(groundAt(player.x, player.y)) && !townContaining(player.x, player.y) ? 2 : 0) : theme === 'moss' ? 3 : 6) - (wearing('wardstone') ? (scene === 'dungeon' && theme === 'moss' ? 1 : 3) : 0);
     if (!m.awake && dist(m, H) <= wake && (H.me ? isVisible(m.x, m.y) : true) && Math.random() < 0.7) m.awake = true;
     if (m.boss && m.awake && !swiftOnly && bossTurn(m, H, heroes)) continue;
     if (escort && scene === 'dungeon' && dist(m, escort) === 1 && !heroes.some((h) => dist(m, h) === 1) && (m.awake || Math.random() < 0.5)) { m.awake = true; escortHurt(m); if (!escort) continue; continue; }
@@ -8738,6 +8763,7 @@ function tryMove(dx, dy) {
   if (gameOver || !player || shopOpen || perkChoices || entering || storyOpen() || controlsOpen() || settingsOpen()) return;
   if (stoneTurn()) return;
   if (assaultArmed && (dx || dy)) { assault(dx, dy); return; }
+  if (groundJob && (dx || dy) && groundWorkStep(dx, dy)) return;
   const nx = player.x + dx, ny = player.y + dy;
   const t = getTile(nx, ny);
   if (t === TILE.WALL && scene === 'world' && groundAt(nx, ny) === GROUND.WATER) {
@@ -8855,7 +8881,7 @@ function tryMove(dx, dy) {
     if (inTown()) { player.wx = nx; player.wy = ny; }
   }
   // on horseback the second tile comes free, if the road ahead is clear
-  if (!m && (dx || dy) && riding() && !(walk.active && player.x === walk.tx && player.y === walk.ty)) {
+  if (!m && (dx || dy) && riding() && !groundJob && !(walk.active && player.x === walk.tx && player.y === walk.ty)) {
     const x2 = player.x + dx, y2 = player.y + dy;
     if (getTile(x2, y2) === TILE.FLOOR && !getMonsterAt(x2, y2) && !getNpcAt(x2, y2) && !townContaining(x2, y2) && !getGoldAt(x2, y2) && !mpPlayerAt(x2, y2) && !houndAt(x2, y2)) {
       player.x = x2; player.y = y2; player.wx = x2; player.wy = y2;
@@ -9016,6 +9042,7 @@ function toggleSettings(show = !settingsOpen()) {
 document.getElementById('camp-btn')?.addEventListener('click', () => { sfx.unlock(); makeCamp(); });
 document.getElementById('skills-btn')?.addEventListener('click', () => { sfx.unlock(); openSkills(); });
 document.getElementById('explore-btn')?.addEventListener('click', () => { sfx.unlock(); startExplore(); });
+document.getElementById('works-btn')?.addEventListener('click', () => { sfx.unlock(); openGroundwork(); });
 document.getElementById('settings-btn')?.addEventListener('click', () => { sfx.unlock(); toggleSettings(); });
 document.getElementById('settings-close')?.addEventListener('click', () => toggleSettings(false));
 document.getElementById('set-music')?.addEventListener('input', (e) => { settings.music = e.target.value / 100; music.refresh(); saveSettings(); });
@@ -9640,6 +9667,155 @@ function drawArmies(ctx, now) {
     ctx.fillStyle = col; ctx.fillText(label, bx, by - 6); ctx.textAlign = 'start';
     if (a.fightUntil && Math.random() < 0.3) burst(a.tx, a.ty, Math.random() < 0.5 ? '#fff3c4' : '#ff9f43', 4, 120, { life: 300, size: 2 });
   }
+}
+
+// ---------- groundwork: changing the land ----------
+// G opens the Groundwork list. Pick a job and the hero's steps do that work until G is pressed again:
+// walk into a tree to fell it, into a mountainside to quarry it, into water to bridge it; walk
+// anywhere to leave a track or a paved road behind; walk toward open grass to plant a tree. Works are
+// kept per hero as "x,y,code" in meta.terra (g cleared ground, r track, c paving, t tree, b bridge)
+// and laid over the world as its chunks are made. Nothing can be changed inside a town.
+const TERRA_MAX = 1500, PAVE_GOLD = 3;
+const WORKS = {
+  fell:    { name: 'Fell trees', doing: 'Felling trees', desc: 'Walk into a tree to cut it down: two blows, and a log of wood for it' },
+  quarry:  { name: 'Quarry rock', doing: 'Quarrying', desc: 'Walk into a mountainside to break a way in: three blows, and two blocks of stone' },
+  track:   { name: 'Beat a track', doing: 'Beating a track', desc: 'Every step over grass, sand, snow or forest floor leaves a dirt road behind you. It costs nothing' },
+  pave:    { name: 'Pave in stone', doing: 'Paving', desc: `Every step lays paving under your feet, over open ground or a dirt road. One stone a tile, or ${PAVE_GOLD} gold a tile carted in when you have none` },
+  plant:   { name: 'Plant trees', doing: 'Planting', desc: 'Walk toward open grass to plant a tree there. One wood a tree' },
+  bridge:  { name: 'Bridge water', doing: 'Bridging', desc: 'Walk into water to lay a span of planks. Two wood a span, and never more than three tiles from the natural shore' },
+  restore: { name: 'Put it back', doing: 'Undoing your works', desc: 'Walk into anything you have changed to put it back as it was' },
+};
+let groundJob = null, groundHit = { k: '', n: 0 };
+const terraIdx = { src: null, map: new Map() }, terraOrig = new Map();   // what is changed, and what was there before
+const terraStock = (what) => (player && player.meta ? player.meta[what] || 0 : 0);
+const terraTiles = (code, y) => code === 'r' ? [TILE.FLOOR, GROUND.ROAD] : code === 'c' ? [TILE.FLOOR, GROUND.COBBLE] : code === 't' ? [TILE.WALL, GROUND.TREE] : code === 'b' ? [TILE.FLOOR, GROUND.DOCK] : [TILE.FLOOR, y < ICE_Y ? GROUND.SNOW : GROUND.GRASS];
+// Write one work into its chunk, if that chunk exists yet, remembering what it replaced.
+function terraStamp(x, y, code) {
+  const cx = Math.floor(x / CHUNK), cy = Math.floor(y / CHUNK), ch = worldChunks.get(key(cx, cy));
+  if (!ch || !ch.ground) return;
+  const i = (y - cy * CHUNK) * CHUNK + (x - cx * CHUNK), k = key(x, y);
+  if (!terraOrig.has(k)) terraOrig.set(k, [ch.tiles[i], ch.ground[i]]);
+  const [t, g] = code ? terraTiles(code, y) : terraOrig.get(k);
+  ch.tiles[i] = t; ch.ground[i] = g;
+  if (!code) terraOrig.delete(k);
+}
+// The hero's works as a map. A different hero (or a fresh start) takes the old works off the land first.
+function terraMap() {
+  if (!player || !player.meta) return terraIdx.map;
+  if (!Array.isArray(player.meta.terra)) player.meta.terra = [];
+  if (terraIdx.src === player.meta.terra) return terraIdx.map;
+  for (const k of [...terraOrig.keys()]) { const [x, y] = k.split(',').map(Number); terraStamp(x, y, null); }
+  terraIdx.map = new Map(); terraIdx.src = player.meta.terra;
+  for (const e of player.meta.terra) { const m = /^(-?\d+),(-?\d+),([grctb])$/.exec(e); if (m && terraIdx.map.size < TERRA_MAX) { terraIdx.map.set(`${m[1]},${m[2]}`, m[3]); terraStamp(Number(m[1]), Number(m[2]), m[3]); } }
+  bgDirty = true; mapCache.ox = null;
+  return terraIdx.map;
+}
+const terraList = () => [...terraMap()].map(([k, c]) => `${k},${c}`);
+// Lay every work that falls in a chunk as it is made.
+function terraChunk(cx, cy, tiles, gr) {
+  const map = terraMap();
+  if (!map.size) return;
+  for (const [k, code] of map) {
+    const [x, y] = k.split(',').map(Number);
+    if (Math.floor(x / CHUNK) !== cx || Math.floor(y / CHUNK) !== cy) continue;
+    const i = (y - cy * CHUNK) * CHUNK + (x - cx * CHUNK);
+    terraOrig.set(k, [tiles[i], gr[i]]);
+    const [t, g] = terraTiles(code, y); tiles[i] = t; gr[i] = g;
+  }
+}
+// Change one tile. A change that only puts back what was there is an undo, and frees its place in the list.
+function terraPut(x, y, code) {
+  const map = terraMap(), k = key(x, y);
+  getTile(x, y);   // make sure its chunk exists
+  if (!terraOrig.has(k)) terraOrig.set(k, [getTile(x, y), groundAt(x, y)]);
+  const orig = terraOrig.get(k), want = code ? terraTiles(code, y) : orig;
+  if (!code || (want[0] === orig[0] && want[1] === orig[1])) { map.delete(k); terraStamp(x, y, null); }
+  else { map.set(k, code); terraStamp(x, y, code); }
+  player.meta.terra = terraList(); terraIdx.src = player.meta.terra;
+  player.meta.works = (player.meta.works || 0) + 1;
+  bgDirty = true; mapCache.ox = null; monstersDirty = true;
+  unlock('groundbreaker'); if (map.size >= 100) unlock('roadbuilder');
+  if (map.size % 25 === 0) saveProgress('progress');
+}
+function setGroundJob(id) {
+  if (id && scene !== 'world') { log('Groundwork is for the open country. There is nothing to dig up in here.'); draw(); return; }
+  const was = groundJob;
+  groundJob = id || null; groundHit = { k: '', n: 0 };
+  if (groundJob) { log(`${WORKS[groundJob].doing}. ${WORKS[groundJob].desc}. Press G to stop.`, 'good'); tip('groundwork', 'While a job is on, your steps do the work. Press G to put your tools away. Nothing can be changed inside a town, and Put it back undoes any of your works.'); }
+  else if (was) { log('You put your tools away.'); saveProgress('progress'); }
+  updateStats(); draw();
+}
+function openGroundwork() {
+  if (!player || gameOver || perkChoices || storyOpen()) return;
+  if (groundJob) { setGroundJob(null); return; }
+  if (scene !== 'world') { log('Groundwork is for the open country. There is nothing to dig up in here.'); draw(); return; }
+  if (aboard) { log('Not from the deck of a ship.'); draw(); return; }
+  stopWalk(); openShop('works');
+}
+// One step with a job on. Returns true when the step was spent on the work rather than on walking.
+function groundWorkStep(dx, dy) {
+  if (!groundJob) return false;
+  if (scene !== 'world' || aboard) { groundJob = null; return false; }
+  const x = player.x + dx, y = player.y + dy, t = getTile(x, y), gnd = groundAt(x, y), k = key(x, y), map = terraMap();
+  if (getMonsterAt(x, y) || getNpcAt(x, y) || partyAt(x, y) || armyAtTile(x, y) || shipAt(x, y)) return false;
+  const town = townContaining(x, y), open = t === TILE.FLOOR && !town && !getGoldAt(x, y);
+  const full = () => { if (map.size < TERRA_MAX || map.has(k)) return false; log(`The realm's surveyors will record ${TERRA_MAX} works from one hero and no more. Put some back to make room.`, 'bad'); setGroundJob(null); return true; };
+  const spend = () => { if (dx) player.face = dx; endTurn(false); return true; };
+  const blows = (need, what) => { if (groundHit.k !== k) groundHit = { k, n: 0 }; groundHit.n++; sfx.play('hit'); burst(x, y, what === 'rock' ? '#9ca3af' : '#8b5a2b', 8, 70, { life: 350, size: 3 }); shakeScreen(2); return groundHit.n >= need; };
+  if (groundJob === 'restore') {
+    if (!map.has(k)) return false;
+    terraPut(x, y, null); log('You put it back as it was.'); return spend();
+  }
+  if (groundJob === 'fell') {
+    if (!(t === TILE.WALL && gnd === GROUND.TREE)) return false;
+    if (town) { log(`That tree belongs to ${town.name}. The watch is looking at you.`); draw(); return true; }
+    if (full()) return true;
+    if (!blows(2, 'wood')) { log('You swing at the trunk. One more.'); return spend(); }
+    terraPut(x, y, 'g'); player.meta.wood = terraStock('wood') + 1; floatText(x, y, '+1 wood', '#d6a15c');
+    log(`The tree comes down. You have ${terraStock('wood')} wood.`, 'good'); return spend();
+  }
+  if (groundJob === 'quarry') {
+    if (!(t === TILE.WALL && gnd === GROUND.MOUNTAIN)) return false;
+    if (full()) return true;
+    if (!blows(3, 'rock')) { log(groundHit.n === 1 ? 'You set about the rock face.' : 'The rock is giving. One more.'); return spend(); }
+    terraPut(x, y, 'g'); player.meta.stone = terraStock('stone') + 2; floatText(x, y, '+2 stone', '#cbd5e1');
+    log(`The rock face breaks open. You have ${terraStock('stone')} stone.`, 'good'); return spend();
+  }
+  if (groundJob === 'plant') {
+    if (!(open && (gnd === GROUND.GRASS || gnd === GROUND.SNOW || gnd === GROUND.FOREST))) return false;
+    if (!terraStock('wood')) { log('You have no wood to plant from. Fell a tree first.', 'bad'); setGroundJob(null); return true; }
+    if (full()) return true;
+    terraPut(x, y, 't'); player.meta.wood--; sfx.play('step'); burst(x, y, '#4c9a48', 8, 50, { life: 400 });
+    log(`You plant a tree. ${terraStock('wood')} wood left.`, 'good'); return spend();
+  }
+  if (groundJob === 'bridge') {
+    if (!(t === TILE.WALL && gnd === GROUND.WATER)) return false;
+    let footing = false;
+    for (let oy = -3; oy <= 3 && !footing; oy++) for (let ox = -3; ox <= 3; ox++) if (terrainAt(x + ox, y + oy) !== GROUND.WATER) { footing = true; break; }
+    if (!footing) { log('Too far out. A span needs natural shore within three tiles to stand on.', 'bad'); draw(); return true; }
+    if (terraStock('wood') < 2) { log(`A span takes two wood, and you have ${terraStock('wood')}. Fell some trees.`, 'bad'); setGroundJob(null); return true; }
+    if (full()) return true;
+    terraPut(x, y, 'b'); player.meta.wood -= 2; sfx.play('chest'); burst(x, y, '#8b5a2b', 10, 60, { life: 400 });
+    log(`You lay a span of planks. ${terraStock('wood')} wood left.`, 'good'); return spend();
+  }
+  // track and paving are laid on the tile being stepped onto, and the step goes ahead
+  if (!open) return false;
+  if (groundJob === 'track' && (gnd === GROUND.GRASS || gnd === GROUND.FOREST || gnd === GROUND.SAND || gnd === GROUND.SNOW)) { if (!full()) terraPut(x, y, 'r'); return false; }
+  if (groundJob === 'pave' && (gnd === GROUND.GRASS || gnd === GROUND.FOREST || gnd === GROUND.SAND || gnd === GROUND.SNOW || gnd === GROUND.ROAD)) {
+    if (!terraStock('stone') && player.gold < PAVE_GOLD) { log(`You are out of stone, and out of the ${PAVE_GOLD} gold a tile it costs to have it carted in. Quarry a mountainside, or come back richer.`, 'bad'); setGroundJob(null); return false; }
+    if (!full()) { terraPut(x, y, 'c'); if (terraStock('stone')) player.meta.stone--; else { player.gold -= PAVE_GOLD; floatText(x, y, `-${PAVE_GOLD}g`, '#f5c542'); } }
+  }
+  return false;
+}
+function worksRows() {
+  const rows = [], map = terraMap();
+  rows.push(shopRow(`You carry ${terraStock('wood')} wood and ${terraStock('stone')} stone, and have ${map.size} of ${TERRA_MAX} works on the land. Pick a job, then walk: your steps do the work. G stops.`));
+  for (const [id, W] of Object.entries(WORKS)) {
+    const lacks = (id === 'plant' && !terraStock('wood')) || (id === 'bridge' && terraStock('wood') < 2) || (id === 'pave' && !terraStock('stone') && player.gold < PAVE_GOLD) || (id === 'restore' && !map.size);
+    rows.push(shopRow(`${W.name}: ${W.desc}`, 'Start', () => { closeShop(); setGroundJob(id); }, lacks));
+  }
+  rows.push(shopRow('Roads are safer than open country: on a track or paving, the beasts of the wilds notice you two tiles later.'));
+  return rows;
 }
 
 // ---------- war parties ----------
@@ -10366,6 +10542,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'n' || e.key === 'N') { toggleSound(); return; }
   if (['1', '2', '3', '4', '5', '6'].includes(e.key)) { e.preventDefault(); useAbility(null, Number(e.key) - 1); return; }
   if (e.key === 'k' || e.key === 'K') { openSkills(); return; }
+  if ((e.key === 'g' || e.key === 'G') && !e.ctrlKey && !e.metaKey) { mapOpen = false; questsOpen = false; openGroundwork(); return; }
   if ((mapOpen || questsOpen) && KEYS[e.key]) { mapOpen = false; questsOpen = false; }
   if (e.key === 'r' || e.key === 'R') { init(); return; }
   if (e.key === 'p' || e.key === 'P') { drinkPotion(); return; }
@@ -10781,7 +10958,7 @@ function priceMult() {
 }
 const sellRate = () => (wearing('ledger') ? 0.7 : currentRealm() === 'league' ? 0.6 : 0.5);
 const sellPrice = (id) => Math.floor(itemInfo(id).price * sellRate());
-const SERVICE_SHOPS = new Set(['skills', 'travel', 'player', 'court', 'council', 'chieftain', 'shaman', 'bank', 'hermit', 'harbour', 'yamen', 'durbar', 'terem', 'rebuild']);
+const SERVICE_SHOPS = new Set(['works', 'skills', 'travel', 'player', 'court', 'council', 'chieftain', 'shaman', 'bank', 'hermit', 'harbour', 'yamen', 'durbar', 'terem', 'rebuild']);
 const SHOPS = {
   shop: { title: 'Merchant', stock: (id, it) => it.floor <= Math.max(floor, 1) + 1, price: (it) => it.price, greet: 'The merchant greets you. Buy and sell with the buttons, Esc to leave.' },
   potions: { title: "Mara's potions", stock: (id) => id === 'potion' || id === 'manapotion', price: (it) => it.price - 2, greet: 'Mara sets out her potions. She buys gear too, at half price.' },
@@ -10809,6 +10986,7 @@ Object.assign(SHOPS, {
   bank: { title: 'The Goldspire Exchange', stock: () => false, price: (it) => it.price, greet: 'The banker steeples her fingers. "Deposits are safe from death itself. There is a small fee."' },
   caravan: { title: 'The merchant caravan', stock: (id, it) => (!!ITEMS.consumables[id] && it.floor < 99) || (it.floor >= 3 && it.floor <= 7), price: (it) => Math.round(it.price * 0.95), greet: 'The caravan master throws back a tarp. Goods from every corner of the four realms.' },
   skills: { title: 'Skills', stock: () => false, price: (it) => it.price, greet: '' },
+  works: { title: 'Groundwork', stock: () => false, price: (it) => it.price, greet: '' },
   harbour: { title: 'The harbour', stock: () => false, price: (it) => it.price, greet: 'Gulls, tar and rope. The harbourmaster runs a finger down a list of ports.' },
   hermit: { title: "The hermit's maps", stock: () => false, price: (it) => it.price, greet: 'The hermit spreads out a bundle of hand-drawn maps. "Places I have been. Places I would not go again."' },
 });
@@ -11172,6 +11350,7 @@ function renderShop() {
   shopGold.textContent = `${player.gold} gold`;
   { const note = document.getElementById('shop-note'); if (note) note.textContent = SERVICE_SHOPS.has(shopKind) || shopKind === 'inn' ? 'Press Esc to leave.' : `Merchants here pay ${sellRate() === 0.6 ? '60%' : 'half'} of an item's price when you sell. Press Esc to leave.`; }
   shopBuy.innerHTML = '';
+  if (shopKind === 'works') { for (const row of worksRows()) shopBuy.appendChild(row); return; }
   if (shopKind === 'skills') {
     shopBuy.appendChild(shopRow(`${skillPoints()} skill ${skillPoints() === 1 ? 'point' : 'points'} to spend. You earn one every level; each node needs the one above it.`));
     for (const B of SKILL_TREE) {
@@ -11523,7 +11702,7 @@ function startRun(saved) {
         story: saved.meta?.story && saved.meta.story.phase ? saved.meta.story : null, blessing: saved.meta?.blessing || null,
         realm: { rank: 0, standing: 0, oath: false, guild: false, bank: 0, ...(saved.meta?.realm || {}) }, encounters: Number(saved.meta?.encounters) || 0,
         room: !!saved.meta?.room, stash: Array.isArray(saved.meta?.stash) ? saved.meta.stash.filter(itemInfo).slice(0, STASH_SIZE) : [], deepest: Number(saved.meta?.deepest) || 0,
-        rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, forged: !!saved.meta?.forged, trials: Number(saved.meta?.trials) || 0, skills: saved.meta?.skills && !Array.isArray(saved.meta.skills) ? Object.fromEntries(Object.entries(saved.meta.skills).filter(([k, v]) => SKILL_NODES[k] && Number.isInteger(v) && v > 0).map(([k, v]) => [k, Math.min(v, SKILL_NODES[k].max)])) : {}, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
+        rq: saved.meta?.rq && !Array.isArray(saved.meta.rq) ? saved.meta.rq : {}, horse: !!saved.meta?.horse, forged: !!saved.meta?.forged, trials: Number(saved.meta?.trials) || 0, terra: Array.isArray(saved.meta?.terra) ? saved.meta.terra.filter((e) => /^-?\d+,-?\d+,[grctb]$/.test(e)).slice(0, 1500) : [], wood: Number(saved.meta?.wood) || 0, stone: Number(saved.meta?.stone) || 0, skills: saved.meta?.skills && !Array.isArray(saved.meta.skills) ? Object.fromEntries(Object.entries(saved.meta.skills).filter(([k, v]) => SKILL_NODES[k] && Number.isInteger(v) && v > 0).map(([k, v]) => [k, Math.min(v, SKILL_NODES[k].max)])) : {}, arena: Number(saved.meta?.arena) || 0, rod: !!saved.meta?.rod,
         story2: saved.meta?.story2 && Number.isInteger(saved.meta.story2.s) ? { s: Math.max(0, Math.min(3, saved.meta.story2.s)), met: !!saved.meta.story2.met, mem: Array.isArray(saved.meta.story2.mem) ? saved.meta.story2.mem.filter((k) => ['jadeseal', 'sunlotus', 'bearcharm'].includes(k)).slice(0, 3) : [], gift: ['name', 'breath', 'sleep', 'none'].includes(saved.meta.story2.gift) ? saved.meta.story2.gift : null } : null,
         story3: saved.meta?.story3 && Number.isInteger(saved.meta.story3.s) ? { s: Math.max(0, Math.min(2, saved.meta.story3.s)) } : null,
         delve: typeof saved.meta?.delve === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(saved.meta.delve) ? saved.meta.delve : null,

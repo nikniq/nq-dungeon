@@ -363,6 +363,20 @@ class CharacterTest extends TestCase
         $this->actingAs($user)->postJson('/api/character', $state + ['bag' => [], 'quests' => [['kind' => 'heist'] + $bounty]])->assertUnprocessable();
     }
 
+    public function test_groundwork_is_saved_and_checked(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla']);
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 3, 'xp' => 0, 'gold' => 10, 'hp' => 30, 'max_hp' => 30, 'atk' => 4, 'kills' => 0, 'bag' => []];
+        $meta = ['terra' => ['23,-1,g', '24,-1,r', '-5,45,b', '30,30,c', '31,30,t'], 'wood' => 4, 'stone' => 2];
+
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => $meta])->assertOk()->assertJson(['meta' => $meta]);
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['terra' => ['23,-1,x']]])->assertUnprocessable();
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['terra' => ['drop table']]])->assertUnprocessable();
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['terra' => array_map(fn ($i) => "$i,0,r", range(1, 1501))]])->assertUnprocessable();
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['wood' => -1]])->assertUnprocessable();
+    }
+
     public function test_story_answers_are_saved_and_checked(): void
     {
         $user = User::factory()->create();

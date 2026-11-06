@@ -8,6 +8,7 @@ Controls:
 - Wait a turn: Space or `.`
 - Mouse: click to walk, attack or use; right-click uses your class ability, aimed at the clicked tile
 - Explore a dungeon floor by yourself: `z`; walk to stairs already found: `>`
+- Groundwork (cut trees, quarry, lay roads, plant, bridge): `g`, and `g` again to stop
 - Restart: Click Restart or press `r`
 
 Your hero looks the part. Armour repaints the body: leather, chain, scale, plate
@@ -190,6 +191,26 @@ beside them) with a stomp whose shockwave lands on the ring two paces out and
 spares whoever stands at their feet. A colossus pays three times a boss's purse
 and the title Giant-feller. Every monster kind now has a boss name; the last
 floor under Hearth used to raise a nameless basilisk that broke the drawing.
+
+The land can be changed (`WORKS`, `groundWorkStep`, `terraPut`). G, or the
+Groundwork button, opens a list of jobs in the open country; pick one and the
+hero's steps do that work until G is pressed again. Fell trees: walk into a
+tree, two blows, one wood. Quarry rock: walk into a mountainside, three blows,
+two stone, and the way is open. Beat a track: every step over grass, sand, snow
+or forest floor leaves a dirt road, free. Pave in stone: every step lays paving,
+one stone a tile or three gold when there is none (`PAVE_GOLD`). Plant trees:
+one wood each. Bridge water: two wood a span, never more than three tiles from
+the natural shore, so rivers and lakes can be crossed and the open sea cannot.
+Put it back: walk into any work to undo it. Nothing can be changed inside a
+town. Works are kept per hero as `x,y,code` strings in `meta.terra` (g cleared,
+r track, c paving, t tree, b bridge; at most `TERRA_MAX`, 1500), with
+`meta.wood` and `meta.stone`, and are laid over the world as its chunks are
+made (`terraChunk`); a change that only restores what was there removes its
+entry. Cleared ground shows a stump or rubble, the world map shows laid roads
+and bridges, and hover text names each work. Roads now matter a little: on any
+road or paving outside a town, the beasts of the wilds notice the hero two
+tiles later. The first work earns the title Groundbreaker, a hundred standing
+works Roadbuilder.
 
 Story 1 has more to it between the fights. Entering the dungeon of the current
 shard for the first time opens a scene at its door (`SHARD_ARRIVAL`,
