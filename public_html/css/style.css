@@ -13,6 +13,7 @@ h1{margin:0 0 8px;font-size:1.5rem}
 .overlay.show{display:flex}
 .overlay h2{margin:0 0 8px;font-size:2rem;color:#ffd86b}
 .overlay p{margin:4px 0;max-width:520px}
+#overlay-text{white-space:pre-line;line-height:1.5}
 .overlay .hint{color:#a8c0d8;font-size:.9rem}
 .bottom{display:flex;gap:12px;margin-top:8px;align-items:flex-start}
 .log{flex:1;list-style:none;margin:0;padding:8px;background:#06202c;border-radius:6px;min-height:72px;max-height:150px;overflow:hidden;font-size:.9rem;color:#cfe9ff}

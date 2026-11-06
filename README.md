@@ -192,6 +192,19 @@ spares whoever stands at their feet. A colossus pays three times a boss's purse
 and the title Giant-feller. Every monster kind now has a boss name; the last
 floor under Hearth used to raise a nameless basilisk that broke the drawing.
 
+A playtest by script (an honest level-one hero of each class, exploring and
+fighting by rule for six thousand turns) led to five changes. A spike trap the
+hero springs is now spent, as one a monster springs already was (`springTrap`):
+before, a trap in a corridor hurt on every crossing and sealed the corridor to
+the auto-explorer, which then claimed there was nothing more to find. The
+explorer no longer treats monsters it cannot see as obstacles, and when the only
+way on is barred it says by what: a trap or lava, or a sleeper
+(`exploreScan(throughPotions, through)`). Nothing stands within four tiles of
+the foot of the stairs on arrival. War parties leave heroes below level four
+alone (`PARTY_LEVEL`) and muster every 75 seconds, not 45. And the screen shown
+on falling says what killed the hero, what was kept and lost, and one piece of
+advice about that killer (`lastHurt`, `DEATH_TIPS`).
+
 The land can be changed (`WORKS`, `groundWorkStep`, `terraPut`). G, or the
 Groundwork button, opens a list of jobs in the open country; pick one and the
 hero's steps do that work until G is pressed again. Fell trees: walk into a
@@ -242,7 +255,7 @@ themselves, and hovering over a town, dungeon, warcamp, war party, army or known
 place shows a card with what it is and how far away (`mapFeatureAt`).
 
 Orc warcamps send out war parties (`warParties`, `musterParty`, `partyTick`).
-About every 45 seconds outdoors, the nearest standing camp within two regions
+About every 75 seconds outdoors, for a hero of level four or more, the nearest standing camp within two regions
 that has no party out sends three to seven orcs under a named captain to raid
 the nearest town; horns are logged and the party shows on the map under a torn
 flag with its road ahead. It marches in real time, a pace every 0.9 seconds,

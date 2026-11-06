@@ -109,7 +109,7 @@
       <div id="overlay" class="overlay">
         <h2 id="overlay-title"></h2>
         <p id="overlay-text"></p>
-        <p class="hint">Click or press R to restart</p>
+        <p class="hint">Click or press R to carry on</p>
       </div>
     </div>
     <div class="bottom">

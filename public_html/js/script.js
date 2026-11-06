@@ -5101,6 +5101,7 @@ function createDungeon() {
   const target = getChunk(ex, ey);
   exit = { x: ex * CHUNK + target.rooms[0].cx, y: ey * CHUNK + target.rooms[0].cy };
   setTile(exit.x, exit.y, TILE.EXIT);
+  monsters = monsters.filter((m) => m.boss || cheb(m, player) > 4); monstersDirty = true;   // nothing waits at the foot of the stairs: a moment to look round
   // Forked stairs: most floors have a second way down, the other side of the start, and
   // each staircase shows the twist waiting below it. Not on the last floor, in a shared
   // party run, or in the Deep.
@@ -7781,7 +7782,7 @@ function exploreNews() {
   return { foe, sight };
 }
 // One breadth-first sweep over the ground already seen. Returns the next step, or null if there is nowhere to go.
-function exploreScan(throughPotions = false) {
+function exploreScan(throughPotions = false, through = '') {
   const hurt = player.maxHp - player.hp, start = key(player.x, player.y);
   const from = new Map([[start, null]]), q = [[player.x, player.y, 0]];
   const wanted = (p) => hurt >= Math.min(5, potionHeal(p.heal));
@@ -7799,7 +7800,9 @@ function exploreScan(throughPotions = false) {
       const t = getTile(nx, ny);
       if (t === TILE.EXIT) { if (!stairs) stairs = { k: here, d }; continue; }
       if (t === TILE.CHEST) { if (!loot && !explore.skip.has(k)) loot = { k: here, d: d + 1, bump: [dx, dy], chest: k }; continue; }
-      if (!walkable(t) || t === TILE.SHOP || t === TILE.SITE || hazard(nx, ny) || getMonsterAt(nx, ny)) continue;
+      if (!walkable(t) || t === TILE.SHOP || t === TILE.SITE) continue;
+      if (hazard(nx, ny) && !through) continue;
+      if (getMonsterAt(nx, ny) && isVisible(nx, ny) && through !== 'all') continue;   // one out of sight is not one the hero knows is there
       const pot = getPotionAt(nx, ny);
       if (pot && !wanted(pot) && !throughPotions) continue;   // no sense drinking one at full health
       from.set(k, here); q.push([nx, ny, d + 1]);
@@ -7822,7 +7825,10 @@ function exploreTick() {
   if (foe) { stopExplore(foe.awake ? `${foeName(foe)} has seen you` : `${foeName(foe)} sleeps ahead`); return; }
   if (sight && !explore.stairs) { stopExplore(`you find ${sight}`); return; }
   const step = exploreScan() || exploreScan(true);
-  if (!step) { stopExplore(explore.stairs ? 'the way to the stairs is blocked' : 'there is nothing more to find from here'); return; }
+  if (!step) {
+    const why = exploreScan(true, 'hazard') ? 'a trap or a pool of lava bars the only way on. Crossing it is your call' : exploreScan(true, 'all') ? 'a sleeper lies across the only way on' : explore.stairs ? 'the way to the stairs is blocked' : 'there is nothing more to find from here';
+    stopExplore(why); return;
+  }
   if (step.arrived) { stopExplore(explore.stairs ? 'the stairs are beside you' : 'there is nothing more to find from here'); return; }
   const was = { x: player.x, y: player.y, turn, floor, sig: explore.sig };
   tryMove(step.dx, step.dy);
@@ -8347,6 +8353,7 @@ function monsterAttack(m, ranged = false) {
   player.flashUntil = now + 120;
   floatText(player.x, player.y, `-${dmg}`, '#ff6b6b');
   log(`${m.boss || m.band ? m.name[0].toUpperCase() + m.name.slice(1) : m.type.name} hits you for ${dmg}.`, 'bad');
+  lastHurt = { at: turn, by: m.boss || m.band ? m.name : `${/^[aeiou]/i.test(mName(m)) ? 'an' : 'a'} ${mName(m).toLowerCase()}`, kind: m.boss ? 'boss' : m.type.name };
   sfx.play('hurt');
 }
 // Monsters act for one beat. heroes defaults to just you; in a shared dungeon
@@ -8828,7 +8835,7 @@ function tryMove(dx, dy) {
       const fp = wornAffix('armor'); const burn = Math.max(1, Math.round((3 + floor) * (fp && fp.id === 'fireproof' ? 0.5 : 1)));
       player.hp -= burn; floatText(nx, ny, `-${burn}`, '#ff9f43'); shakeScreen(3);
       burst(nx, ny, '#ff9f43', 14, 90, { glow: true, gravity: -80, life: 500 });
-      log(`The lava sears you for ${burn}.`, 'bad');
+      log(`The lava sears you for ${burn}.`, 'bad'); lastHurt = { at: turn, by: 'lava', kind: 'lava' };
       tip('lava', 'Lava burns every time you step in it. Walk around the pools; clicking a spot finds a safe path.');
     }
     const pot = getPotionAt(nx, ny);
@@ -9686,6 +9693,7 @@ const WORKS = {
   restore: { name: 'Put it back', doing: 'Undoing your works', desc: 'Walk into anything you have changed to put it back as it was' },
 };
 let groundJob = null, groundHit = { k: '', n: 0 };
+let lastHurt = null;   // what last hurt the hero: { by, kind }
 const terraIdx = { src: null, map: new Map() }, terraOrig = new Map();   // what is changed, and what was there before
 const terraStock = (what) => (player && player.meta ? player.meta[what] || 0 : 0);
 const terraTiles = (code, y) => code === 'r' ? [TILE.FLOOR, GROUND.ROAD] : code === 'c' ? [TILE.FLOOR, GROUND.COBBLE] : code === 't' ? [TILE.WALL, GROUND.TREE] : code === 'b' ? [TILE.FLOOR, GROUND.DOCK] : [TILE.FLOOR, y < ICE_Y ? GROUND.SNOW : GROUND.GRASS];
@@ -9825,6 +9833,7 @@ function worksRows() {
 // is spared. A party that reaches its town with the hero near falls on it in the open, where the
 // watch joins in; with the hero far away the raid is settled out of sight. A realm's army can be
 // fallen on too, but only on purpose (Ctrl with a direction, or X), and the realm remembers.
+const PARTY_LEVEL = 4;   // the camps take no notice of a nobody
 const PARTY_CAPTAINS = ['Snaga Split-lip', 'Radbug the Lean', 'Muzgash', 'Lagduf One-ear', 'Ufthak', 'Golfimbul the Younger', 'Bolg Half-hand', 'Azgra the Quiet'];
 const bands = new Map();   // bands in the field: id -> { size, left, mine, reward, ... }
 let partyClock = 0, partySpawnClock = 0, partySeq = 0, partyWarned = { id: null, turn: -99 };
@@ -9832,7 +9841,7 @@ const partyAt = (x, y) => warParties.find((p) => p.x === x && p.y === y) || null
 const armyAtTile = (x, y) => (armiesUnlocked() && scene === 'world' ? war().armies.find((a) => a.x === x && a.y === y) : null) || null;
 const campShort = (camp) => camp.name.replace(/^the /, '').replace(/ warcamp$/, '');
 function musterParty(quiet = false) {
-  if (scene !== 'world' || warParties.length >= 2) return null;
+  if (scene !== 'world' || warParties.length >= 2 || (!quiet && player.level < PARTY_LEVEL)) return null;
   for (const camp of campsNear(player.x, player.y, 2)) {
     const d = Math.hypot(camp.x - player.x, camp.y - player.y);
     if (d < 18 || d > 260 || warParties.some((p) => p.camp === camp)) continue;
@@ -9871,8 +9880,8 @@ function partyTick(now) {
       tip('warparty', 'Orc war parties march from their camps to raid the nearest town. Walk into one to size it up, and again to attack. Rout it and the town is spared.');
     }
   }
-  if (!partySpawnClock) partySpawnClock = now - 25000;   // the first horns sound soon after you step outside
-  if (now - partySpawnClock > 45000) { partySpawnClock = now; musterParty(); }
+  if (!partySpawnClock) partySpawnClock = now - 45000;   // the first horns sound soon after you step outside
+  if (now - partySpawnClock > 75000) { partySpawnClock = now; musterParty(); }
 }
 function partyOdds(p) {
   const rec = 3 + 2 * p.danger + p.size, diff = player.level - rec;
@@ -10120,7 +10129,7 @@ function endTurn(moved) {
   if (player.shield > 0 && --player.shield === 0) log('Your shield wall fades.');
   if (player.rage > 0 && --player.rage === 0) log('Your war cry fades.');
   if (player.poison > 0) {
-    player.poison--; player.hp -= 1; floatText(player.x, player.y, '-1', '#7ad36b');
+    player.poison--; player.hp -= 1; floatText(player.x, player.y, '-1', '#7ad36b'); if (player.hp <= 0) lastHurt = { at: turn, by: 'poison', kind: 'poison' };
     if (player.poison === 0) log('The poison wears off.', 'good');
   }
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
@@ -10190,6 +10199,26 @@ function endTurn(moved) {
   draw();
 }
 
+const DEATH_TIPS = {
+  Archer: 'An archer shows an amber line before it shoots. Step off the line, close in, or put another monster in the way.',
+  Orc: 'An orc winding up puts a red tile under you. Step off it and your next blow on the orc is a sneak attack.',
+  Troll: 'A troll winding up puts a red tile under you. Step off it and the troll is left off balance.',
+  'Cave troll': 'A cave troll heals as it fights. Step off its red tile, then hit it while it is off balance, and do not let the fight drag on.',
+  Spider: 'Spider poison keeps hurting after the fight. Any potion cures it.',
+  Bomber: 'A bomber bursts when it dies and hurts everything beside it. Kill it from range, or with something else standing next to it.',
+  Basilisk: 'Never strike a basilisk or step closer while its eyes burn. Wait a turn, or step back.',
+  Skeleton: 'A skeleton with its shield up turns blows to scratches. Wait out the guard, or bring a warhammer.',
+  Shaman: 'A shaman heals the others. Kill it first.',
+  Necromancer: 'A necromancer keeps raising skeletons. Run it down before you deal with what it raised.',
+  Slime: 'A slime splits when it dies. Fight it in a corridor so the halves come at you one at a time.',
+  Thief: 'A thief takes gold and runs. It is not worth dying over.',
+  Wraith: 'Wraiths hit hard and fly over traps. Fight them at full health or not at all.',
+  boss: 'Bosses wind up heavy blows that land on red tiles a turn later. Step off the red, and bring potions: they enrage at half health.',
+  trap: 'Spike traps hide in corridors. Rangers spot them two tiles away, and a lever on some floors sinks them all.',
+  lava: 'Lava burns on every step. Click a spot to walk and the path goes round the pools.',
+  poison: 'Poison ticks every turn until it wears off. Any potion cures it, so keep one back.',
+  any: 'Drink a potion (P) before you are below a third of your health, and leave by the golden door when you are out of them. Sleeping monsters take double damage from your first blow.',
+};
 function die() {
   if (wanted && scene === 'world' && !gameOver && arrest()) return;
   if (dungeonDef && dungeonDef.arena && scene === 'dungeon') { leaveArena(true); return; }
@@ -10203,13 +10232,17 @@ function die() {
   player.hp = 0; updateStats();
   const t = townAt(...homeTown.split(',').map(Number)) || townAt(0, 0);
   const lost = Math.ceil(player.gold / 2);
-  endGame('You fell', `You fell ${scene === 'world' ? 'in the wilds' : 'on ' + (dungeonDef ? dungeonDef.name : 'the dungeon') + ' floor ' + floor} after ${turn} turns. You wake at the inn in ${t.name}: level and gear kept, ${lost} gold and your potions gone. Press R to carry on.`);
+  { const where = scene === 'world' ? 'in the wilds' : `on floor ${floor} of ${dungeonDef ? dungeonDef.name : 'the dungeon'}`, spent = player.bag.filter((id) => id === 'potion' || id === 'elixir').length, errands = (player.quests || []).filter((q) => !q.done).length;
+    const hurt = lastHurt && turn - lastHurt.at <= 1 ? lastHurt : null; lastHurt = null;   // only a blow from this turn or the last is the one that did it
+    const cause = hurt ? `Killed by ${hurt.by} ${where}` : `You fell ${where}`;
+    const tipText = DEATH_TIPS[hurt ? hurt.kind : 'any'] || DEATH_TIPS.any;
+    endGame('You fell', `${cause}, after ${turn} turns.\nYou wake at the inn in ${t.name}. Kept: level ${player.level}, your gear, your pets and your place in the story. Lost: ${lost} gold${spent ? `, ${spent} healing potion${spent === 1 ? '' : 's'}` : ''}${errands ? `, and the ${errands === 1 ? 'errand' : `${errands} errands`} you had taken on` : ''}.\n${tipText}`); }
   player.wx = t.spawn.x; player.wy = t.spawn.y;
   sfx.play('die');
   track('hero_died', { where: scene === 'world' ? 'wilds' : (dungeonDef ? (dungeonDef.kind === 'site' ? dungeonDef.site.type : 'town') : 'dungeon'), floor, turns: turn });
   if (!ACCOUNT.user) {
     guestRespawn = { name: null, floor: 0, level: player.level, xp: player.xp, gold: player.gold - lost, hp: player.maxHp, max_hp: player.maxHp, atk: player.atk,
-      weapon: player.weapon, armor: player.armor, bag: player.bag.filter((id) => itemKind(id) !== 'consumable'), quests: [], quests_done: player.questsDone || 0,
+      weapon: player.weapon, armor: player.armor, bag: player.bag.filter((id) => id !== 'potion' && id !== 'elixir'), quests: [], quests_done: player.questsDone || 0,
       wx: t.spawn.x, wy: t.spawn.y, home: t.key, class: player.cls, guest: true,
       perks: player.perks, achievements: player.achievements, title: player.title, meta: { ...player.meta, pets: petsState() }, weapon_plus: player.weaponPlus, armor_plus: player.armorPlus, kills: player.lifetimeKills };
   }
@@ -10275,12 +10308,12 @@ function drinkSpring(x, y) {
 }
 function springTrap(x, y) {
   const dmg = 3 + floor + (dungeonDef ? dungeonDef.danger : 0);
-  revealedTraps.add(key(x, y)); bgDirty = true;
-  player.hp -= dmg;
-  log(`Spikes shoot up from the floor! You take ${dmg} damage.`, 'bad');
+  setTile(x, y, TILE.FLOOR); revealedTraps.delete(key(x, y)); bgDirty = true;   // sprung once, it is spent: the way back is safe
+  player.hp -= dmg; lastHurt = { at: turn, by: 'a spike trap', kind: 'trap' };
+  log(`Spikes shoot up from the floor! You take ${dmg} damage. The trap is spent.`, 'bad');
   burst(x, y, '#c0c0c0', 10, 120, { rise: 140, life: 400, size: 2 });
   shakeScreen(4);
-  tip('trap', 'Spike traps hide in corridors and show once sprung. Step around them. Rangers see them two tiles away.');
+  tip('trap', 'Spike traps hide in corridors. One you have sprung is spent and safe to cross again. One you have only spotted is still set: go round it. Rangers see them two tiles away.');
   floatText(x, y, `-${dmg}`, '#ff6b6b');
   player.flashUntil = performance.now() + 150;
   sfx.play('trap');
