@@ -807,6 +807,18 @@ sponsored structures or monuments from the shared world. The nav shows one item
 for the signed-in hero (their name, which opens their profile) and, for admins,
 an Admin link.
 
+## The front page
+
+`/` sells the game to someone who has never seen it: a headline and a free-play
+button above the fold, a strip of the monsters, the three classes with their
+portraits, a run in three steps, a gallery of the world, then the hall of heroes,
+the news and a last call to play. Every picture is the game's own art:
+`tools/capture-home.mjs` drives a local copy in Playwright, switches the HUD off,
+walks to Hearth, Castle Aurum, the port of Quilfield and a seeded dungeon fight,
+and writes the scenes as WebP and the sprites and class portraits as PNG into
+`public_html/images/home/` (about 680 KB in all, `og.png` for link previews).
+Run it again after a change to the art.
+
 ## Public glossaries
 
 `/world/towns` and `/world/characters` are public pages that load `script.js` in
