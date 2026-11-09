@@ -246,7 +246,7 @@ class CharacterTest extends TestCase
 
     public function test_landing_page_shows_leaderboard(): void
     {
-        $this->get('/')->assertOk()->assertSee('Play free now')->assertSee('Choose your hero')->assertSee('images/home/dungeon.webp')->assertSee('No heroes yet');
+        $this->get('/')->assertOk()->assertSee('Play free now')->assertSee('Choose your hero')->assertSee('images/home/dungeon.webp')->assertSee('images/home/play.mp4')->assertSee('play?class=mage')->assertSee('No heroes yet');
 
         $a = User::factory()->create(); $a->character()->create(['name' => 'Ayla', 'wins' => 2, 'best_floor' => 5]);
         $b = User::factory()->create(); $b->character()->create(['name' => 'Bram', 'wins' => 0, 'best_floor' => 3]);

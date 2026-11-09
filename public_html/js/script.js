@@ -11800,7 +11800,8 @@ function startRun(saved) {
     // heroes made before classes existed start with the warrior's numbers; fresh heroes take their class's
     if (player.level === 1 && player.xp === 0 && player.maxHp === 20) { player.maxHp = heroClass().hp; player.hp = Math.min(player.hp + heroClass().hp - 20, heroClass().hp); player.atk = heroClass().atk; }
   } else {
-    let remembered = null; try { remembered = localStorage.getItem('dungeon-class'); } catch (e) { /* ignore */ }
+    // the front page's class cards link here with ?class=; otherwise the last class a guest chose
+    let remembered = null; try { const asked = new URLSearchParams(location.search).get('class'); remembered = CLASSES[asked] ? asked : localStorage.getItem('dungeon-class'); if (CLASSES[asked]) localStorage.setItem('dungeon-class', asked); } catch (e) { /* ignore */ }
     if (CLASSES[remembered]) { player.cls = remembered; player.maxHp = CLASSES[remembered].hp; player.hp = player.maxHp; player.atk = CLASSES[remembered].atk; }
     else if (classPick) classPick.hidden = false;
   }

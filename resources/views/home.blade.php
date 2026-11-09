@@ -34,7 +34,12 @@
     </ul>
   </div>
   <a href="{{ route('game') }}" class="splash-art" aria-label="Play Dungeon Adventure">
-    <img class="shot main" src="{{ asset('images/home/dungeon.webp') }}" alt="A torchlit dungeon room: the hero faces a goblin and a skeleton among piles of gold" width="700" height="400">
+    <video class="shot main" autoplay muted loop playsinline preload="metadata" poster="{{ asset('images/home/play-poster.jpg') }}" width="668" height="494" aria-label="Fourteen seconds of play: a warrior fights a goblin and a skeleton, picks up gold, levels up and opens a chest that bites">
+      <source src="{{ asset('images/home/play.mp4') }}" type="video/mp4">
+      <source src="{{ asset('images/home/play.webm') }}" type="video/webm">
+      <img src="{{ asset('images/home/dungeon.webp') }}" alt="A torchlit dungeon room: the hero faces a goblin and a skeleton among piles of gold" width="700" height="400">
+    </video>
+    <span class="live">Real play, not a trailer</span>
     <img class="shot inset" src="{{ asset('images/home/port.webp') }}" alt="A port town by the sea, with a pier and a signposted dungeon on the shore" width="788" height="591">
     <img class="peek" src="{{ asset('images/home/goblin.png') }}" alt="" width="144" height="144">
   </a>
@@ -63,18 +68,21 @@
       <h3>Warrior</h3>
       <p class="stat">24 HP · 3 attack</p>
       <p>Stands in the doorway and holds it. Shield Wall from the start, then Whirlwind to hit everything beside you and a War Cry that stuns the room.</p>
+      <a class="play-as" href="{{ route('game') }}?class=warrior">Play as the warrior →</a>
     </article>
     <article>
       <img src="{{ asset('images/home/hero-ranger.png') }}" alt="The ranger in leather with a bow" width="224" height="224" loading="lazy">
       <h3>Ranger</h3>
       <p class="stat">18 HP · 3 attack</p>
       <p>Shoots first. Arrow from the start, Volley for the three nearest foes, Evade to slip away, and an eye that spots traps two tiles out.</p>
+      <a class="play-as" href="{{ route('game') }}?class=ranger">Play as the ranger →</a>
     </article>
     <article>
       <img src="{{ asset('images/home/hero-mage.png') }}" alt="The mage in a purple robe with a staff" width="224" height="224" loading="lazy">
       <h3>Mage</h3>
       <p class="stat">16 HP · 2 attack · most mana</p>
       <p>Fragile and furious. Fireball from the start, Frost Nova to freeze the pack, then Blink out of the corner they thought they had you in.</p>
+      <a class="play-as" href="{{ route('game') }}?class=mage">Play as the mage →</a>
     </article>
   </div>
 </section>
@@ -176,6 +184,18 @@
   </ul>
 </section>
 
+<section class="faq" aria-labelledby="faq-h">
+  <div class="section-head"><h2 id="faq-h">Before you go down</h2></div>
+  <div class="faq-grid">
+    <details open><summary>Is it really free?</summary><p>Yes. No price, no adverts, nothing to buy with real money. It is a hobby project that grew.</p></details>
+    <details open><summary>Do I need an account?</summary><p>No. Press play and you are in Hearth as a guest. Create a hero, with an email or Google, when you want the run saved and your name in the hall of heroes.</p></details>
+    <details open><summary>Does it work on a phone?</summary><p>Yes. Tap a tile to walk there, tap a monster to hit it, and use the on-screen buttons for abilities, the map and auto-explore.</p></details>
+    <details open><summary>What do I lose when I die?</summary><p>Half the gold you carry and your potions. Never your level, your gear or your place in the story.</p></details>
+    <details open><summary>How long is it?</summary><p>The first dungeon is an evening. The four realms, two stories, the sea and the far shore are a good many more, and the dungeons go as deep as you dare.</p></details>
+    <details open><summary>Is it still being made?</summary><p>Yes, most days. The <a href="{{ route('news.index') }}">news</a> says what changed.</p></details>
+  </div>
+</section>
+
 <section class="last-call">
   <div>
     <h2>The gate is at the bottom of the square.</h2>
@@ -183,4 +203,18 @@
     <a href="{{ route('game') }}" class="primary big">Play free now</a>
   </div>
 </section>
+<a href="{{ route('game') }}" class="sticky-play primary" id="sticky-play" hidden>Play free now</a>
+@endsection
+@section('scripts')
+<script>
+  // on a phone the play button follows once the first one has scrolled away
+  (() => {
+    const bar = document.getElementById('sticky-play'), first = document.querySelector('.splash .cta'), last = document.querySelector('.last-call');
+    const v = document.querySelector('.splash video'); if (v && matchMedia('(prefers-reduced-motion: reduce)').matches) { v.removeAttribute('autoplay'); v.pause(); v.controls = true; }
+    if (!bar || !first || !('IntersectionObserver' in window)) return;
+    const seen = new Set();
+    const io = new IntersectionObserver((es) => { for (const e of es) e.isIntersecting ? seen.add(e.target) : seen.delete(e.target); bar.hidden = seen.size > 0; });
+    io.observe(first); io.observe(last);
+  })();
+</script>
 @endsection

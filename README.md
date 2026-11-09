@@ -819,6 +819,14 @@ and writes the scenes as WebP and the sprites and class portraits as PNG into
 `public_html/images/home/` (about 680 KB in all, `og.png` for link previews).
 Run it again after a change to the art.
 
+The picture above the fold is a fourteen-second clip of real play, muted and
+looping (`play.mp4`, `play.webm`, poster `play-poster.jpg`), recorded from the
+game canvas by `tools/capture-clip.mjs`; visitors who ask for reduced motion get
+it paused with controls. Each class card links to `/play?class=warrior|ranger|mage`,
+which a guest's fresh hero takes instead of the class picker. Below the gallery
+sit six short questions (free, account, phone, death, length, upkeep), and on a
+phone a play button follows once the first one has scrolled away.
+
 ## Public glossaries
 
 `/world/towns` and `/world/characters` are public pages that load `script.js` in
