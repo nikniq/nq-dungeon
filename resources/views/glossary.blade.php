@@ -16,12 +16,14 @@
     </p>
     <label class="search">Search <input type="search" id="glossary-search" placeholder="{{ $kind === 'towns' ? 'a town, realm, trade or landmark' : 'a name, role or town' }}" autocomplete="off"></label>
     <p class="muted small" id="glossary-count">Building the world…</p>
+    <p class="muted small">Click {{ $kind === 'towns' ? 'a town for its figures: size, shops, people, fares and the dungeons around it' : 'anyone to read everything they say' }}.</p>
   </div>
   <noscript><p class="flash">This page is drawn from the game's own world generator and needs JavaScript.</p></noscript>
   <div id="glossary" class="glossary"></div>
   {{-- the game script expects a stage and a death overlay; here they stay hidden --}}
   <div class="stage" hidden><canvas id="game" width="32" height="32"></canvas></div>
   <div id="overlay" hidden></div><button type="button" id="restart" hidden></button>
+  @include('partials.detail')
 @endsection
 @section('scripts')
   <script>
@@ -29,7 +31,7 @@
       mode: 'glossary', kind: @json($kind), user: false,
       items: @json(config('items')),
       buildings: @json(['slots' => config('game.building_slots'), 'costs' => config('game.building_costs'), 'types' => config('game.buildings')]),
-      townsUrl: @json(route('world.towns')), charactersUrl: @json(route('world.characters')),
+      townsUrl: @json(route('world.towns')), charactersUrl: @json(route('world.characters')), itemsUrl: @json(route('world.items')),
     };
   </script>
   <script src="{{ asset('js/script.js') }}?v={{ filemtime(public_path('js/script.js')) }}"></script>

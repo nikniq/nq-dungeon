@@ -853,6 +853,20 @@ history, landmark, leader, watch and notable local; and every character, from th
 fixed cast to each town's leader and notable with their lines. They are linked
 from the site navigation and footer, searchable, and cross-linked by anchor.
 
+Everything on the public pages can be clicked for its figures. A shared sheet
+(`resources/views/partials/detail.blade.php`, `window.showDetail`) opens as a
+dialog, closes on Esc or a click outside, and puts the entry in the address
+(`/world/items#weapon-longsword`, `/world/towns#hearth`) so it can be linked.
+On the item catalogue every weapon, armour, consumable and relic row opens one:
+price and sale value, gold per point, rank, first floor stocked, fighting style,
+the next step up in the shops, and a link to the towns of its trade
+(`/world/towns?q=wool` fills the search). On the towns page a card opens the
+town's realm and ruler, size, walls, trade, port, distance and waystone fare
+from Hearth, buildings, people, its dungeon's level, what its trade shop sells
+(linked back to the catalogue), the dungeons nearby with floors and level, and
+the next towns by road, each of which opens in turn (`townDetail`). Characters
+open the same way.
+
 ## Multiplayer
 
 Logged-in heroes see each other live in the open world, inside buildings and in

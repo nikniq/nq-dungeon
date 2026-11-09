@@ -11975,11 +11975,36 @@ function renderGlossary(kind) {
   for (const t of towns) { townIdentity(t); notableNpc(t); }
   const byRealm = (list, keyOf) => ALL_REALMS.map((r) => [r, list.filter((x) => keyOf(x) === r)]).filter(([, l]) => l.length);
   const section = (title, cards) => { const h = document.createElement('h3'); h.className = 'realm'; h.textContent = title; root.appendChild(h); const grid = document.createElement('div'); grid.className = 'cards'; for (const c of cards) grid.appendChild(c); root.appendChild(grid); };
-  const card = (sprites, title, sub, body, search) => {
-    const el = document.createElement('div'); el.className = 'card'; el.dataset.search = search.toLowerCase(); el.id = slug(title);
-    el.appendChild(thumb(sprites));
+  // every card opens a detail sheet: `detail` builds its figures when asked, and the card's own text is the fallback
+  const card = (sprites, title, sub, body, search, detail) => {
+    const el = document.createElement('div'); el.className = 'card pick'; el.dataset.search = search.toLowerCase(); el.id = slug(title); el.tabIndex = 0; el.setAttribute('role', 'button');
+    const art = thumb(sprites); el.appendChild(art);
     const d = document.createElement('div'); d.innerHTML = `<h4>${esc(title)}${sub ? `<small>${esc(sub)}</small>` : ''}</h4>${body}`; el.appendChild(d);
+    el.open = () => { if (!window.showDetail) return; let more = null; try { more = detail ? detail() : null; } catch (e) { more = null; } window.showDetail({ title, sub, art, hash: el.id, ...(more || { html: body }) }); };
+    el.addEventListener('click', (e) => { if (!e.target.closest('a')) el.open(); });
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.open(); } });
     return el;
+  };
+  // A town's figures, worked out from the same generator the game walks on.
+  const compass = (dx, dy) => (Math.abs(dy) > Math.abs(dx) * 2 ? '' : dx > 0 ? 'east' : 'west').replace(/^/, Math.abs(dx) > Math.abs(dy) * 2 ? '' : dy > 0 ? 'south-' : 'north-').replace(/-$/, '') || 'here';
+  const townDetail = (t, body) => {
+    const I = townIdentity(t), R = REALMS[t.realm], home = townAt(0, 0), dx = t.cx - home.cx, dy = t.cy - home.cy, far = Math.abs(dx) + Math.abs(dy);
+    const D = townDungeon(t), npcs = townNpcs(t), shops = [...new Set(t.houses.map((h) => h.name).filter(Boolean))];
+    const stats = [
+      ['Realm', `${R.name} (${R.gov})`], ['Ruler', R.ruler], ['Size', `${t.size === 'grand' ? 'royal seat' : t.size}, ${TIER_WORDS[townTier(t)]}`], ['Walls', t.walled ? 'walled' : 'open'],
+      ['Trade', I.trade.label], ['Port', t.harbour ? 'yes: passage, charts and ships' : 'no'],
+      ['From Hearth', far ? `${far} tiles ${compass(dx, dy)}` : 'this is Hearth'], ['Waystone fare', far ? `${10 + Math.round(far / 12)} gold from Hearth` : 'none'],
+      ['Buildings', String(t.houses.length)], ['People', String(npcs.length)], ['Its dungeon', `5 floors, level ${recLevel(D)}+`], ['Map position', `${t.cx}, ${t.cy}`],
+    ];
+    const sites = nearbySites(t.cx, t.cy, 1).filter((st) => !st.deep).map((st) => ({ st, d: Math.abs(st.x - t.cx) + Math.abs(st.y - t.cy) })).sort((a, b) => a.d - b.d).slice(0, 6);
+    const near = [[1, 0, 'east'], [-1, 0, 'west'], [0, 1, 'south'], [0, -1, 'north']].map(([di, dj, w]) => { const n = neighbourTown(t.i, t.j, di, dj); return n ? `<li><a href="#${slug(n.name)}" data-town="${slug(n.name)}">${esc(n.name)}</a>, ${Math.abs(n.cx - t.cx) + Math.abs(n.cy - t.cy)} tiles ${w}${n.realm !== t.realm ? `, in ${esc(REALMS[n.realm].short)}` : ''}</li>` : ''; }).join('');
+    const wares = t.tradeShop && TRADE_SHOP[t.tradeShop] ? Object.entries(ITEMS.consumables).map(([id, it]) => [`item-${id}`, it]).concat(Object.entries(ITEMS.weapons).map(([id, it]) => [`weapon-${id}`, it]), Object.entries(ITEMS.armor).map(([id, it]) => [`armour-${id}`, it])).filter(([, it]) => it.trade === t.tradeShop) : [];
+    const html = body +
+      (shops.length ? `<h4>Buildings you can enter</h4><p>${shops.map(esc).join(' · ')}</p>` : '') +
+      (wares.length ? `<h4>${esc(TRADE_SHOP[t.tradeShop].name)} sells</h4><ul>${wares.map(([hash, it]) => `<li><a href="${ACCOUNT.itemsUrl || '/world/items'}#${hash}">${esc(it.name)}</a>, ${it.price} gold</li>`).join('')}</ul>` : '') +
+      (sites.length ? `<h4>Dungeons and places nearby</h4><ul>${sites.map(({ st, d }) => { const def = siteDungeon(st); return `<li>${esc(st.name[0].toUpperCase() + st.name.slice(1))}: ${st.floors} floors, level ${recLevel(def)}+, ${d} tiles ${compass(st.x - t.cx, st.y - t.cy)}</li>`; }).join('')}</ul>` : '') +
+      (near ? `<h4>Next towns by road</h4><ul>${near}</ul>` : '');
+    return { stats, html };
   };
   const townUrl = (t) => `${ACCOUNT.townsUrl}#${slug(t.name)}`;
   let total = 0;
@@ -11993,7 +12018,7 @@ function renderGlossary(kind) {
           (() => { const folk = townNpcs(t).filter((n) => n.type.folk); const hm = t.harbour ? harbourmasterNpc(t) : null; return `<p><b>Townsfolk:</b> ${esc(folk.map((n) => n.type.name).join(', ') || 'none to speak of')}.${hm ? ` <b>Harbour:</b> ${esc(hm.name)}.` : ''}</p>`; })() +
           `<p><b>Watch:</b> ${esc(guards.map((g) => g.type.name).join(', ') || 'none')}.${site ? ` <b>Nearby:</b> ${esc(site.name)}, ${esc(site.floors)} floors.` : ''} <span class="muted small">Position ${t.cx}, ${t.cy}.</span></p>`;
         total++;
-        return card([I.landmark.sprite], t.name, `${REALMS[realm].short}`, body, `${t.name} ${REALMS[realm].name} ${I.kind} ${I.famous} ${I.landmark.name} ${I.leader} ${N.name} ${TIER_WORDS[townTier(t)]} ${townNpcs(t).filter((n) => n.type.folk).map((n) => n.type.name).join(' ')}`);
+        return card([I.landmark.sprite], t.name, `${REALMS[realm].short}`, body, `${t.name} ${REALMS[realm].name} ${I.kind} ${I.famous} ${I.trade.label} ${t.tradeShop || ''} ${I.landmark.name} ${I.leader} ${N.name} ${TIER_WORDS[townTier(t)]} ${townNpcs(t).filter((n) => n.type.folk).map((n) => n.type.name).join(' ')}`, () => townDetail(t, body));
       });
       section(`${REALMS[realm].name} · ${REALMS[realm].gov}`, cards);
     }
@@ -12066,9 +12091,12 @@ function renderGlossary(kind) {
     let shown = 0;
     for (const el of root.querySelectorAll('.card')) { const hit = !q || el.dataset.search.includes(q); el.hidden = !hit; if (hit) shown++; }
     for (const h of root.querySelectorAll('h3.realm')) { const grid = h.nextElementSibling; h.hidden = grid && ![...grid.children].some((c) => !c.hidden); }
-    if (count) count.textContent = q ? `${shown} of ${total} entries match.` : `${total} entries.`;
+    if (count) count.textContent = !q ? `${total} entries.` : shown ? `${shown} of ${total} entries match.` : `Nothing here matches \u201c${q}\u201d. This page lists the ${kind === 'towns' ? 'towns' : 'people'} nearest Hearth; some trades are only found further out in the world.`;
   });
-  if (location.hash) { const el = document.getElementById(location.hash.slice(1)); if (el) { el.scrollIntoView(); el.style.outline = '2px solid #ffd86b'; } }
+  // ?q= arrives from the item catalogue ("towns known for smithing"); a link inside a sheet opens the next town
+  { const q0 = new URLSearchParams(location.search).get('q'); if (q0 && search) { search.value = q0; search.dispatchEvent(new Event('input')); } }
+  document.getElementById('detail')?.addEventListener('click', (e) => { const a = e.target.closest('a[data-town]'); if (!a) return; const el = document.getElementById(a.dataset.town); if (el && el.open) { e.preventDefault(); el.open(); } });
+  if (location.hash) { const el = document.getElementById(location.hash.slice(1)); if (el) { el.scrollIntoView(); el.style.outline = '2px solid #ffd86b'; if (el.open) el.open(); } }
 }
 if (ACCOUNT.mode === 'glossary') renderGlossary(ACCOUNT.kind);
 else { requestAnimationFrame(loop); init(); }

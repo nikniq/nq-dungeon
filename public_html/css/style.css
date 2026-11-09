@@ -362,3 +362,30 @@ body.landing{background:#0b1220 radial-gradient(ellipse 900px 520px at 70% -80px
 @media (max-width:860px){.faq-grid{grid-template-columns:1fr}.class-cards .play-as{left:142px}
   .sticky-play:not([hidden]){display:block;position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:5;padding:14px!important;text-align:center;font-size:1.05rem;box-shadow:0 8px 30px rgba(0,0,0,.6)}
   body.landing .foot{padding-bottom:70px}}
+/* --- detail sheets on the public pages: click an item or a town --- */
+.pick{cursor:pointer}
+.catalog tr.pick:hover td,.catalog tr.pick:focus td{background:rgba(123,223,255,.08)}
+.catalog tr.pick:focus{outline:2px solid #7bdfff;outline-offset:-2px}
+.glossary .card.pick{transition:border-color .12s ease,transform .12s ease}
+.glossary .card.pick:hover,.glossary .card.pick:focus{border-color:#7bdfff;transform:translateY(-2px);outline:none}
+.pick-hint{margin:8px 0 0}
+.detail{width:min(680px,calc(100vw - 24px));max-height:calc(100vh - 32px);padding:20px 22px;border:1px solid #2a5673;border-radius:12px;background:#081a26;color:#e6eef8;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.detail::backdrop{background:rgba(4,8,14,.72)}
+.detail-close{position:absolute;right:12px;top:12px;width:34px;height:34px;padding:0;border-radius:50%}
+.detail-head{display:flex;gap:14px;align-items:center;margin:0 40px 12px 0}
+.detail-head canvas{flex:none;width:72px;height:72px;border-radius:8px;border:1px solid #16304a;image-rendering:pixelated;background:#0f1724}
+.detail-head canvas[hidden]{display:none}
+.detail h3{margin:0;font-size:1.4rem;color:#ffd86b}
+.detail-head p{margin:2px 0 0}
+.detail-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin:0 0 12px}
+.detail-stats div{background:#0f2231;border-radius:8px;padding:8px 10px}
+.detail-stats dt{font-size:.75rem;color:#a8c0d8;text-transform:uppercase;letter-spacing:.05em}
+.detail-stats dd{margin:2px 0 0;font-weight:600}
+.detail h4{margin:14px 0 4px;font-size:.95rem;color:#7bdfff}
+.detail p,.detail li{font-size:.93rem;line-height:1.5}
+.detail p{margin:6px 0}
+.detail ul{margin:4px 0;padding-left:20px}
+.detail .tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:.78rem;background:#0f1724;color:#cfe9ff;margin:2px 4px 2px 0}
+.detail-links{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px!important}
+/* the glossaries carry a hidden game stage, so the phone header rule above misses them */
+@media (max-width:720px){body:has(.stage[hidden]) .top{flex-wrap:wrap}body:has(.stage[hidden]) .account{flex-wrap:wrap;row-gap:4px}.glossary-head .search input{min-width:0;width:calc(100% - 70px)}}
