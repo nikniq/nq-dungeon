@@ -593,6 +593,23 @@ in `characters.meta.realm`, and the server validates it.
 
 ## The stories and the Far Shore
 
+The hero always knows which story they are in (`storyNow`, `storyLabel`): the
+gold objective line reads "★ Story 2 · The Far Shore — …", the journal's Story
+page opens on "Story 2 of 5", the act and its progress, a ladder of the five
+stories (told, now, and "???" for those not yet opened) and one paragraph of the
+tale so far (`STORY_RECAP`), with Story 1's finished steps folded away once it is
+told. A chapter card shows whenever the story or act changes (`announceStory`),
+and a returning hero is told where they stand on waking. None of it is saved:
+it is all read from the story state already in `meta`.
+
+The five stories share one thread, the doors. Story 3's opening says why the
+gate opened (the breath the Hollow King held went north); runestones on each
+landing of Midgard give Thrym's own account (`GATE_RUNES`, `gateFloor`): he shut
+the door himself, stood in the way of what is behind it, and sent the raven
+asking for help. In Story 4 the one who opens speaks through each rift as it
+folds (`RIFT_WORDS`), counting, and names what Thrym was before the sagas: the
+Doorward. The finales pay it off.
+
 The objective line and its gold star never go blank between stories: after the
 crown, it points to Prince Edric for Act II; when Act II ends, Story 2 begins at
 once (and any town brings it on if missed); during Story 2 it points to the

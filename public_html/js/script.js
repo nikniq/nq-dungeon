@@ -1043,7 +1043,20 @@ function drawJournal(g) {
   const W = canvas.width - 48, X = 24; let y = 100;
   const st = story();
   if (journalTab === 0) {
-    g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.fillText('Story 1: The Shattered Crown', X, y); y += 26;
+    const SN = storyNow();
+    g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.fillText(SN ? `Story ${SN.n} of ${SN.of}: ${SN.title}` : 'Story 1: The Shattered Crown', X, y); y += 22;
+    if (SN) {
+      g.fillStyle = '#ffd86b'; g.font = 'bold 13px sans-serif'; g.fillText(`${SN.act}${SN.prog ? ` · ${SN.prog}` : ''}`, X, y); y += 22;
+      // the five stories as a ladder: told, now, and still to come (unnamed until they open)
+      g.font = '12px sans-serif'; let lx = X;
+      for (const T of STORIES) {
+        const told = T.n < SN.n || SN.all, now = T.n === SN.n && !SN.all, text = `${told ? '✓' : now ? '▶' : '·'} ${T.n} ${told || now ? T.title : '???'}`, w = g.measureText(text).width + 18;
+        if (lx + w > X + W) { lx = X; y += 18; }
+        g.fillStyle = told ? '#9ef0b0' : now ? '#ffd86b' : '#6b8299'; g.fillText(text, lx, y); lx += w;
+      }
+      y += 24;
+      if (SN.n > 1 || SN.all) { g.fillStyle = '#a8c0d8'; g.font = 'italic 12px sans-serif'; y = wrapText(g, `The tale so far: ${STORY_RECAP[SN.all ? 4 : SN.n - 2]}`, X, y, W, 17) + 8; }
+    }
     const obj = storyObjective();
     g.fillStyle = '#9ef0b0'; g.font = '13px sans-serif'; y = wrapText(g, obj ? `Now: ${obj.text}.` : 'The crown is whole again. The realms are safe, for now.', X, y, W, 18) + 8;
     const steps = [['The summons', 'Answer King Aldric\'s call at Castle Aurum.', st.phase !== 'summons']], S0 = lairState();
@@ -1065,11 +1078,12 @@ function drawJournal(g) {
       if (S2.s >= 1 && S2.met) steps.push(['The Grey Envoy', S2.s === 3 ? 'Mirel, six years old in the Grey Winter, the first one he kept. She has the quiet now.' : keyMems().length >= 3 ? 'She waits at the top of the thousand steps. She has been down there long enough.' : keyMems().length === 2 ? 'She serves no court. "The court I belonged to is under the mountain."' : keyMems().length === 1 ? 'She does not eat, and nobody has seen her arrive anywhere.' : 'A woman in grey silk whom each court believes the others sent.', S2.s === 3]);
       if (S2.s >= 1) for (const r of FAR_REALMS) { const Q = REALM_QUESTS[r], rq = rqState(r); steps.push([`${Q.title} (the ${itemInfo(Q.relic).name})`, rq.s === 5 ? (keyMems().includes(Q.relic) ? { jadeseal: 'It holds his name, taken by his chancellor so that no order of his would bind the living.', sunlotus: 'It holds his breath, the one he kept for himself, taken by his physician while he slept.', bearcharm: 'It holds his sleep, laid on him by the huntsman who carried him down and froze at his door.' }[Q.relic] : `${Q.ruler} gave you the key.`) : rq.s === 4 ? `Report to ${Q.ruler}.` : rq.s === 0 ? `${Q.ruler} waits in ${CAPITAL_NAMES[r]}.` : Q.steps[rq.s - 1].label + '.', rq.s === 5]); }
       if (S2.s >= 2) steps.push(['The Thousand-Step Barrow', S2.s === 3 ? 'The Hollow King is slain.' : (S2.gift ? `At the heart of the Far Shore. ${HOLLOW_GIFTS[S2.gift].log}` : 'At the heart of the Far Shore. Six floors, his own account on every landing, and the Hollow King at the bottom.'), S2.s === 3]);
-      if (story4Done()) { const S5 = story5(); steps.push(['Story 5: The Rebuilding', S5.s === 0 ? 'Story 4 is told. Stand in any town and the reckoning will find you.' : S5.s === 2 ? `You are a Founder: ${S5.n} structures stand with your name on them.` : `Talk to town leaders to sponsor walls, buildings, memorials and roads: ${S5.n || 0}/${FOUNDER_AT} sponsored. The heroes page ranks the builders.`, S5.s === 2]); }
-      if (story3Done()) { const S4 = story4(); steps.push(['Story 4: The Long Night', S4.s === 0 ? 'Story 3 is told. Stand in any town and watch the sky.' : S4.s === 2 ? 'The Rift Lord is dust and every rift is shut.' : `Rifts to Midgard open outside the towns. Kill a horde to close its rift: ${S4.closed || 0}/${RIFTS_TO_CLOSE} closed${(S4.closed || 0) >= RIFTS_TO_CLOSE ? '. The Rift Lord is coming' : ''}.`, S4.s === 2]); }
       if (S2.s === 3) { const S3 = story3(); steps.push(['Story 3: The Frozen Gate', S3.s === 0 ? 'Story 2 is told. Stand in any town and a raven will find you.' : S3.s === 2 ? 'Thrym is dead and the gate is shut. The north is quiet.' : 'A door of ice on an island in the far north opens on Midgard. Take passage to Hrafnvik and go down through it to Thrym, Jarl of the Frost Giants.', S3.s === 2]); }
+      if (story3Done()) { const S4 = story4(); steps.push(['Story 4: The Long Night', S4.s === 0 ? 'Story 3 is told. Stand in any town and watch the sky.' : S4.s === 2 ? 'The Rift Lord is dust and every rift is shut.' : `Rifts to Midgard open outside the towns. Kill a horde to close its rift: ${S4.closed || 0}/${RIFTS_TO_CLOSE} closed${(S4.closed || 0) >= RIFTS_TO_CLOSE ? '. The Rift Lord is coming' : ''}.`, S4.s === 2]); }
+      if (story4Done()) { const S5 = story5(); steps.push(['Story 5: The Rebuilding', S5.s === 0 ? 'Story 4 is told. Stand in any town and the reckoning will find you.' : S5.s === 2 ? `You are a Founder: ${S5.n} structures stand with your name on them.` : `Talk to town leaders to sponsor walls, buildings, memorials and roads: ${S5.n || 0}/${FOUNDER_AT} sponsored. The heroes page ranks the builders.`, S5.s === 2]); }
     }
-    for (const [name, desc, done] of steps) {
+    // once Story 1 is told its finished steps fold away, so the page opens on the story being lived
+    for (const [name, desc, done] of (SN && SN.n > 1 ? steps.filter(([name, , done]) => !done || /^Story \d/.test(name)) : steps)) {
       g.fillStyle = done ? '#9ef0b0' : '#e6eef8'; g.font = 'bold 14px sans-serif'; g.fillText(`${done ? '✓' : '•'} ${name}`, X, y);
       g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText(desc, X + 22, y + 18); y += 40;
     }
@@ -2106,6 +2120,47 @@ const STORIES = [
   { n: 4, title: 'The Long Night', acts: ['Rifts', 'The Rift Lord'] },
   { n: 5, title: 'The Rebuilding', acts: ['The reckoning', 'The builders'] },
 ];
+// Which story the hero is in now, for the HUD, the journal and the chapter cards:
+// the number, the title, the act within it and a short measure of progress.
+function storyNow() {
+  if (!player || !player.meta) return null;
+  const st = story(), at = scene === 'world' ? player : { x: player.wx ?? player.x, y: player.wy ?? player.y };
+  let n, act = 0, prog = '';
+  if (!story1Done()) {
+    n = 1;
+    if (st.phase !== 'done') prog = `${Math.min(5, st.phase === 'summons' ? 0 : st.ch + (st.phase === 'return' ? 1 : 0))}/5 shards`;
+    else { act = 1; prog = act2().s ? `step ${Math.min(act2().s, 5)} of 5` : 'not yet begun'; }
+  } else if (story2().s < 3) {
+    n = 2; const keys = FAR_REALMS.filter((r) => rqState(r).s === 5).length;
+    act = story2().s === 2 ? 2 : story2().s === 1 && (keys > 0 || at.x > VEIL_X) ? 1 : 0;
+    prog = story2().s === 0 ? 'about to begin' : `${keys}/3 keys`;
+  } else if (story3().s < 2) { n = 3; act = story3().s === 1 && at.y < ICE_Y ? 1 : 0; prog = story3().s === 0 ? 'about to begin' : ''; }
+  else if (story4().s < 2) { n = 4; const c = Math.min(story4().closed || 0, RIFTS_TO_CLOSE); act = story4().s === 1 && c >= RIFTS_TO_CLOSE ? 1 : 0; prog = story4().s === 0 ? 'about to begin' : `${c}/${RIFTS_TO_CLOSE} rifts closed`; }
+  else { n = 5; const S5 = story5(); act = (S5.n || 0) > 0 ? 1 : 0; prog = S5.s === 0 ? 'about to begin' : S5.s === 2 ? 'told' : `${S5.n || 0}/${FOUNDER_AT} structures`; }
+  const S = STORIES[n - 1];
+  return { n, of: STORIES.length, title: S.title, act: S.acts[act], prog, key: `${n}:${act}`, all: n === 5 && story5().s === 2 };
+}
+const storyLabel = (S = storyNow()) => (S ? `Story ${S.n} of ${S.of}: ${S.title} · ${S.act}${S.prog ? ` (${S.prog})` : ''}` : '');
+// A chapter card whenever the story or its act changes, and one line on waking, so
+// a hero who comes back after a week knows where in the tale they stand.
+let storyShown = null;
+function announceStory(waking) {
+  const S = storyNow(); if (!S || storyOpen() || gameOver) return;
+  if (storyShown === S.key) return;
+  const first = storyShown === null; storyShown = S.key;
+  if (first && !waking) return;   // nothing to compare with yet
+  if (waking) { if (!S.all) log(`${storyLabel(S)}. The journal (J) keeps the tale so far.`, 'good'); return; }
+  toast = { text: `Story ${S.n} of ${S.of} · ${S.title} · ${S.act}`, until: performance.now() + 7000 };
+  log(`${storyLabel(S)}.`, 'good');
+}
+// One paragraph for each story already told, shown in the journal.
+const STORY_RECAP = [
+  'The Crown of Aurum cracked and its five lights fled. You brought the shards home one by one, each pointing at the King\'s brother, Prince Edric, chose what to do about him, and then went down through the Deep to quiet the Dreaming Maw.',
+  'Mending the crown dropped the Veil. Beyond it you earned three keys from three crowns, learned from the Grey Envoy that each held a piece of the Hollow King, and went down a thousand steps to end him.',
+  'The breath the Hollow King had held went home, and in the far north a door of ice opened. You went through Midgard and killed Thrym, Jarl of the Frost Giants, who had been holding that door shut from the inside.',
+  'With Thrym dead every door stood open. Rifts tore the sky over the towns until you had shut five and the Rift Lord came through to stop you. It did not.',
+  'Seven realms counted the cost and you paid for a good part of it: ten works stand with your name on them.',
+];
 const story2 = () => player.meta.story2 || (player.meta.story2 = { s: 0 });   // 0 locked, 1 the keys, 2 the Barrow open, 3 done
 const story1Done = () => !!player && !!player.meta && story().phase === 'done' && act2().s >= 6;
 const farShoreOpen = () => !!player && !!player.meta && story2().s >= 1;
@@ -2117,6 +2172,8 @@ const northOpen = () => !!player && !!player.meta && story3().s >= 1;
 const STORY3_INTRO = [
   { who: 'A raven at the window', sprite: 'letter', bg: 'town', title: 'Story 3: The Frozen Gate',
     text: 'It is on the sill when you wake, black and patient, with a strip of birch bark tied to its leg. The bark says, in a hand that has not written much: "Hrafnvik. The gate in the hill is open. Giants. Come." The raven watches you read it, and then watches you some more.' },
+  { who: 'The breath goes home', sprite: 'necromancer', bg: 'crypt', title: 'The breath goes home',
+    text: 'You think about the timing on the way to the harbour. When the Hollow King fell, the breath of a continent went home all at once, a wind that blew for three days and was felt in every realm. The harbourmasters say it went north, over the ice. Something up there had been holding its own breath for a thousand years, and that week it let it out.' },
   { who: 'Hrafnvik', sprite: 'villager:severin', bg: 'sea', title: 'Hrafnvik',
     text: 'Hrafnvik is the last village before the ice: forty souls, a pier, a church with a stove, on an island so far north that the sea around it freezes to the horizon in winter. Behind it is a hill, and in the hill a door of blue ice taller than a house, which the sagas say was shut by the gods and which the villagers, sensibly, do not go near.' },
   { who: 'Midgard', sprite: 'troll', bg: 'crypt', title: 'Midgard',
@@ -2124,11 +2181,27 @@ const STORY3_INTRO = [
   { who: 'North', sprite: 'ship', bg: 'sea', title: 'North',
     text: 'Any harbourmaster will take you north to Hrafnvik now, through the pack ice, or you can sail yourself if your ship is stout. Go through the Frozen Gate, go down through Midgard, and shut it from the other side, which means Thrym. The journal (J) keeps the tale.' },
 ];
+// Runestones on the way down through Midgard: Thrym's side of it, which the sagas left out.
+const GATE_RUNES = [
+  'A runestone stands inside the door, taller than you, cut by a hand the size of a shield: I AM THRYM. I SHUT THIS DOOR. THE GODS HAD ALREADY GONE.',
+  'A second stone, half under the ice: THE SAGAS SAY WE WAIT FOR A WINTER WITHOUT END. WE DO NOT WAIT FOR IT. WE STAND IN ITS WAY.',
+  'A third stone: BEHIND ME ARE THE HOSTS, AND BEHIND THE HOSTS THE ONE WHO OPENS. IT HAS NO DOOR OF ITS OWN. IT USES OTHER PEOPLE\'S.',
+  'A fourth stone, scored by claws: EVERY HUNDRED YEARS IT ASKS ME TO STEP ASIDE. EVERY HUNDRED YEARS I AM A LITTLE MORE TIRED.',
+  'A fifth stone: WHEN THE BREATH CAME NORTH THE DOOR BLEW OPEN AND I COULD NOT SHUT IT ALONE. I SENT A RAVEN. I ASKED FOR HELP.',
+  'A sixth stone, the cuts fresh: THE SMALL FOLK HAVE SENT A KILLER INSTEAD. I HAVE READ MY OWN STONES. I KNOW HOW I SOUND.',
+  'The last stone stands at the head of his stair, and it is short: IF YOU ARE THE ONE WHO KILLS ME, YOU ARE THE DOOR NOW. HOLD IT BETTER THAN I DID.',
+];
+function gateFloor() {
+  if (!(dungeonDef && dungeonDef.story === 'gate') || story3().s >= 2 || floor >= dungeonDef.floors) return;
+  const line = GATE_RUNES[floor - 1]; if (line) setTimeout(() => { log(line, 'good'); toast = { text: line.replace(/^[^:]*: /, ''), until: performance.now() + 9000 }; }, 400);
+}
 const STORY3_FINALE = [
   { who: 'Thrym falls', sprite: 'troll', bg: 'crypt', title: 'Thrym falls',
     text: 'The Jarl of the Frost Giants goes down like a cliff into the sea, and the cold goes out of the hall with him. For the first time in a thousand years something drips in Midgard. The roots of the World Tree creak, the way wood creaks in spring, and the door of blue ice behind you begins, very slowly, to close.' },
   { who: 'The last village', sprite: 'villager:severin', bg: 'sea', title: 'The last village',
     text: 'Hrafnvik meets you on the pier with the church bell going and the stove lit. Forty souls, a very great deal of fish, and the raven, which lands on your shoulder, considers your ear, and decides it is yours now. You are the Giantsbane, and the north is quiet.' },
+  { who: 'The raven', sprite: 'letter', bg: 'sea', title: 'The raven',
+    text: 'It is only on the boat home that you look again at the strip of birch bark. "The gate in the hill is open. Giants. Come." A hand that has not written much, the villagers said, and none of them would own to it. The cuts are very large for a villager. The raven looks at you, and then at the north, and says nothing, being a raven.' },
 ];
 function offerStory3() {
   if (story3().s !== 0 || !story2Done() || storyOpen()) return;
@@ -2150,6 +2223,14 @@ const story3Done = () => !!player && !!player.meta && story3().s >= 2;
 const RIFTS_TO_CLOSE = 5, RIFT_EVERY = 90;
 let rifts = [];   // { x, y, town, opened, lord }
 const hordeFields = new Map();   // town key + turn -> distance field to its square
+// What comes through each rift as it folds shut: the one who opens, counting.
+const RIFT_WORDS = [
+  'As the rift folds, a voice comes through it like a draught under a door: "The Jarl held that door a thousand winters. You opened it in an afternoon."',
+  'The rift folds, and the voice with it, amused: "Two. He used to shut them faster. But then he had practice, and you killed him."',
+  'From the closing rift: "Three. Do you know what he was called, before the sagas? The Doorward. They made him a monster so the story would have one."',
+  'From the closing rift, closer than before: "Four. I have no door of my own, little Doorward. I have only ever needed someone to leave one open."',
+  'The fifth rift does not fold. It holds a moment, a hand\'s width of dark, and the voice is beside your ear: "Five. Very well. I will come and shut you myself."',
+];
 const STORY4_INTRO = [
   { who: 'The night the sky tore', sprite: 'wraith', bg: 'crypt', title: 'Story 4: The Long Night',
     text: 'It begins the week after Thrym falls. A farmer outside Hearth sees the air above his field split like cloth, and what comes through is not weather. The Frozen Gate was never the only door. Thrym was the lock on all of them, and the lock is dead.' },
@@ -2162,7 +2243,7 @@ const STORY4_FINALE = [
   { who: 'The Rift Lord falls', sprite: 'wraith', bg: 'crypt', title: 'The Rift Lord falls',
     text: 'It comes apart in a scream that is felt rather than heard, and every rift from the ice to the Far Shore folds shut in the same instant, like eyes closing. The hosts of Midgard, cut off from their door, go to dust where they stand.' },
   { who: 'Morning', sprite: 'hero', bg: 'town', title: 'Morning',
-    text: 'The roofs are patched, the watch is buried with honours and hired again, and seven realms argue about who will pay for it. Four stories, four shores, and a hero who is, at last, allowed to sleep late. The Long Night is over.' },
+    text: 'The roofs are patched, the watch is buried with honours and hired again, and seven realms argue about who will pay for it. In Hrafnvik they have cut a new stone and stood it by the door of ice, beside the old ones. It has your name on it, and under the name one word, which the villagers say means Doorward. Four stories, four shores, and a hero who is, at last, allowed to sleep late. The Long Night is over.' },
 ];
 function offerStory4() {
   if (story4().s !== 0 || !story3Done() || storyOpen()) return;
@@ -2211,6 +2292,7 @@ function tickRifts() {
     const g = 150 + 40 * story4().closed; player.gold += g; gainXp(40 + player.level * 2);
     burst(r.x, r.y, '#c084fc', 50, 180, { glow: true, gravity: 60, life: 900 }); sfx.play('win');
     log(`The last of the horde falls and the rift outside ${town ? town.name : 'the town'} folds shut. ${g} gold from the realm's purse. Rifts closed: ${story4().closed}/${RIFTS_TO_CLOSE}.`, 'good');
+    { const word = RIFT_WORDS[story4().closed - 1]; if (word) setTimeout(() => { log(word, 'bad'); toast = { text: word.replace(/^[^:]*: /, ''), until: performance.now() + 9000 }; }, 900); }
     if (story4().closed >= RIFTS_TO_CLOSE) unlock('riftwarden');
     saveProgress('progress');
   }
@@ -6524,7 +6606,7 @@ function drawHud(g, now) {
   let qOffset = 0;
   if (obj) {
     g.font = 'bold 12px sans-serif';
-    let ot = `★ ${obj.text}`; while (g.measureText(ot).width > canvas.width - 40 && ot.length > 12) ot = ot.slice(0, -4) + '…';
+    const SN = storyNow(); let ot = SN ? (canvas.width >= 760 ? `★ Story ${SN.n} · ${SN.title} — ${obj.text}` : `★ Story ${SN.n} · ${obj.text}`) : `★ ${obj.text}`; while (g.measureText(ot).width > canvas.width - 40 && ot.length > 12) ot = ot.slice(0, -4) + '…';
     const oy = (canvas.width < 560 ? 116 : 74) + hudExtra;
     g.fillStyle = 'rgba(6,12,20,0.78)'; g.beginPath(); g.roundRect(8, oy, g.measureText(ot).width + 20, 20, 5); g.fill();
     g.fillStyle = '#ffd86b'; g.fillText(ot, 18, oy + 4);
@@ -8690,7 +8772,7 @@ function nextFloor() {
   { const gr = GROUND_RULES[theme]; if (gr && (floor === 1 || dungeonDef.groundSaid !== theme)) { dungeonDef.groundSaid = theme; setTimeout(() => log(`${gr.label}: ${gr.desc}.`), 20); tip('ground_' + theme, `${thm().name}. ${gr.label}: ${gr.desc}.`); } }
   if (floorMod) { const fm = FLOOR_MODS[floorMod], good = floorMod === 'treasure'; setTimeout(() => log(`${fm.label}: ${fm.desc}.`, good ? 'good' : 'bad'), 30); }
   if (floor === dungeonDef.floors) tip('boss', 'A boss waits by the stairs on the last floor. Clear the room, use your ability, keep a potion ready.');
-  barrowFloor();
+  barrowFloor(); gateFloor();
   log(floor === 1 ? `You descend into ${/^the /i.test(dungeonDef.name) ? "" : "the "}${dungeonDef.name} (${ratingText(dungeonDef)}). Follow the compass to the stairs. The golden door beside you leads back up if you want out.` : `You descend to floor ${floor}. A golden door here leads back to the surface.`, 'good');
   saveProgress('progress');
 }
@@ -10207,6 +10289,7 @@ function endTurn(moved) {
   else arenaTurn();
   if (!gameOver && player.pendingPerks > 0) offerPerks();
   if (settings.autoSkills && !gameOver && skillPoints() > 0) autoSpendSkills();
+  announceStory(false);
   if (scene === 'world' && moved && story2().s === 0 && townContaining(player.x, player.y) && story1Done()) offerStory2();
   if (scene === 'world' && moved && story2().s >= 1 && story2().s < 3 && townContaining(player.x, player.y)) story2Beat();
   if (scene === 'world' && moved && story3().s === 0 && townContaining(player.x, player.y) && story2Done()) offerStory3();
@@ -11834,6 +11917,7 @@ function startRun(saved) {
   else if (saved && saved.floor > 0) log(`Welcome back, ${saved.name}. You resume on floor ${floor}. Follow the compass to the stairs.`, 'good');
   else if (saved && saved.level > 1) log(`Welcome back, ${saved.name}. ${townContaining(player.x, player.y) ? 'You are in ' + townContaining(player.x, player.y).name + '.' : 'You are out in the wilds.'} Roads lead to other towns.`, 'good');
   else log(`${saved ? saved.name + ' arrives' : 'You arrive'} in Hearth. Step onto a house door to go inside, take the gate at the bottom into the dungeon, or follow a road to the next town.`);
+  if (saved && saved.level > 1) setTimeout(() => announceStory(true), 60);
 }
 let starting = false;
 async function init() {
