@@ -180,6 +180,7 @@
     <li>Move with the arrow keys, WASD or HJKL, or tap the on-screen pad. Space waits a turn. Click a tile to walk there.</li>
     <li>Walk into a monster to attack it. Right-click to aim your class ability. Hover or tap anything to see what it is.</li>
     <li><kbd>P</kbd> drinks a potion, <kbd>Z</kbd> explores the floor for you, <kbd>M</kbd> opens the map. Armour counts only once it is worn.</li>
+    <li>Townsfolk only talk when you walk into them. To strike one, hold <kbd>Ctrl</kbd> and press a direction (or <kbd>X</kbd>, then a direction); on a phone, tap <strong>✊ Strike</strong> beside them. The town's watch will come for you until you leave.</li>
     <li>Find the stairs on each floor. Clear floor five and the town welcomes you back with everything you carried out.</li>
   </ul>
 </section>

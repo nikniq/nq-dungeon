@@ -37,7 +37,7 @@
                 <li><kbd>Space</kbd> or <kbd>.</kbd> wait a turn</li>
                 <li><kbd>G</kbd> groundwork in the open country: fell trees, quarry rock, beat a track or pave a road as you walk, plant trees, bridge water, or put your works back. <kbd>G</kbd> again stops</li>
                 <li><kbd>Z</kbd> explore a dungeon floor by yourself, toward the stairs the compass points at: the hero picks up what lies near the way and stops for a foe, a wound or a find. <kbd>&gt;</kbd> walks to stairs already found</li>
-                <li><kbd>Ctrl</kbd> + <kbd>↑ ↓ ← →</kbd> (or <kbd>X</kbd>, then a direction) strike a townsperson. The town's watch will come for you until you leave</li>
+                <li><kbd>Ctrl</kbd> + <kbd>↑ ↓ ← →</kbd> (or <kbd>X</kbd>, then a direction) strike a townsperson standing next to you in a town square. Walking into them only talks</li>
                 <li><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> class abilities (the second comes at level 5, the third at 10) · <kbd>P</kbd> potion · <kbd>B</kbd> bomb · <kbd>T</kbd> scroll of return</li>
                 <li><kbd>M</kbd> world map · <kbd>Q</kbd> quests · <kbd>J</kbd> journal · <kbd>N</kbd> sound · <kbd>C</kbd> make camp in the wilds</li>
                 <li><kbd>Esc</kbd> closes menus and skips story scenes · <kbd>?</kbd> this screen · <kbd>O</kbd> settings (perks and skill points can be chosen for you there)</li>
@@ -51,6 +51,7 @@
                 <li>Right-click to use your first ability aimed where you click; Shift+right-click the second, Alt+right-click the third</li>
                 <li>Hover or tap anything to see what it is, and how hard a monster will be</li>
                 <li>On phones, tap or hold to walk; the round buttons use your ability, a potion, wait or the map</li>
+                <li>To strike a townsperson on a phone, stand next to them: the wait button becomes <strong>✊ Strike</strong>. Tap it, then tap or swipe toward them</li>
               </ul>
             </div>
             <div>
@@ -62,6 +63,7 @@
                 <li>Every dungeon floor has a golden door back to the surface</li>
                 <li>Walk into water with a fishing rod to fish; eat with <kbd>P</kbd>, or cook stew at an inn or camp</li>
                 <li>Watch captains post bounties on named beasts, marked with a skull on your map</li>
+                <li>Strike a townsperson and the town's watch hunts you and every door bolts. Townsfolk are sturdy and drop only a few coins. Lose to the watch and you wake in the stocks with a fine; leave the town and all is forgiven. Children cannot be struck, and nobody can be under a roof</li>
                 <li>Pay an innkeeper to build a monument on a plot in the square, or upgrade one: every hero can use them</li>
                 <li>From level 50, recruit soldiers at a realm's seat and send its army to raze an orc warcamp; armies march across the map in real time</li>
               </ul>
