@@ -28,7 +28,7 @@
     <ul class="facts">
       <li><b>3</b> classes</li>
       <li><b>7</b> realms</li>
-      <li><b>23</b> kinds of monster</li>
+      <li><b>27</b> kinds of monster</li>
       <li><b>24</b> arms and armours</li>
       <li><b>∞</b> floors</li>
     </ul>
@@ -51,7 +51,7 @@
     <p class="muted">Rats on the first floor. Then it gets worse.</p>
   </div>
   <ul class="strip">
-    @foreach ([['rat', 'Rat'], ['goblin', 'Goblin'], ['spider', 'Spider'], ['bat', 'Bat'], ['skeleton', 'Skeleton'], ['archer', 'Archer'], ['orc', 'Orc'], ['slime', 'Slime'], ['wraith', 'Wraith'], ['mimic', 'Mimic'], ['necromancer', 'Necromancer'], ['troll', 'Troll'], ['darkknight', 'Dark knight'], ['basilisk', 'Basilisk'], ['wyrm', 'Wyrm'], ['kraken', 'Kraken']] as [$file, $name])
+    @foreach ([['rat', 'Rat'], ['goblin', 'Goblin'], ['spider', 'Spider'], ['bat', 'Bat'], ['skeleton', 'Skeleton'], ['archer', 'Archer'], ['orc', 'Orc'], ['slime', 'Slime'], ['wraith', 'Wraith'], ['mimic', 'Mimic'], ['necromancer', 'Necromancer'], ['zombie', 'Zombie'], ['troll', 'Troll'], ['ent', 'Ent'], ['darkknight', 'Dark knight'], ['basilisk', 'Basilisk'], ['giant', 'Hill giant'], ['wyrm', 'Wyrm'], ['dragon', 'Dragon'], ['kraken', 'Kraken']] as [$file, $name])
       <li><img src="{{ asset('images/home/' . $file . '.png') }}" alt="" width="144" height="144" loading="lazy"><span>{{ $name }}</span></li>
     @endforeach
   </ul>

@@ -50,7 +50,7 @@ await town(1, 0, 20); await scene('port'); await scene('og', [0, 80, 788, 414], 
 // sprites at 8x, and the three classes as the inventory draws their portraits
 const sprites = await pg.evaluate(() => {
   const out = {};
-  for (const name of ['rat', 'goblin', 'spider', 'bat', 'skeleton', 'archer', 'orc', 'slime', 'wraith', 'mimic', 'necromancer', 'troll', 'darkknight', 'basilisk', 'wyrm', 'kraken', 'chest', 'gold', 'potion', 'stairs', 'ship', 'king']) {
+  for (const name of ['rat', 'goblin', 'spider', 'bat', 'skeleton', 'archer', 'orc', 'slime', 'wraith', 'mimic', 'necromancer', 'zombie', 'troll', 'ent', 'darkknight', 'basilisk', 'giant', 'wyrm', 'dragon', 'kraken', 'chest', 'gold', 'potion', 'stairs', 'ship', 'king']) {
     const img = sprite(name), c = document.createElement('canvas'); c.width = c.height = img.width * 8; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(img, 0, 0, c.width, c.height); out[name] = c.toDataURL('image/png');
   }
   const pc = document.getElementById('hero-portrait'), w0 = pc.width, keep = { cls: player.cls, weapon: player.weapon, armor: player.armor };

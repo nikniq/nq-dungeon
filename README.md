@@ -789,6 +789,16 @@ troll** (6+) regenerates two points a turn unless it is burning. They join the
 site pools (thieves and bombers in caves and warrens, shamans in warrens,
 basilisks in crypts) and the town dungeons by floor, with bestiary entries.
 
+Deeper down come the slow and the huge. The **Zombie** (3+) and the **Ent**
+(5+) are `slow`: they act every other turn (bosses of their kind excepted),
+and the ent mends a point a turn like the trolls. The **Hill giant** (7+)
+winds up its blows like an orc and hits like a roof falling in. The **Troll**
+(8+), once only a horde and lair beast, now prowls the deep floors on its own,
+regenerating two a turn. The **Dragon** (9+) flies, breathes fire from three
+tiles off along a row or column (`ranged`, `fire`), and half the time the
+fire itself bites for two more, plus one every four floors. Their sprites are recolourings and retouches
+of the troll, the villager, the tree and the wyrm (`BIG_SPRITES`).
+
 ## Magic items
 
 Weapons and armour dropped underground (and from chests) may come enchanted:

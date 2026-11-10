@@ -39,7 +39,7 @@ const MONSTER_TYPES = [
   { name: 'Knight',   sprite: 'darkknight', hp: 16, atk: 5, xp: 24, minFloor: 99, noSpawn: true },
   { name: 'Wyrm',     sprite: 'wyrm',     hp: 30, atk: 9, xp: 60, minFloor: 99, noSpawn: true },
   { name: 'Direwolf', sprite: 'direwolf', hp: 18, atk: 7, xp: 30, minFloor: 99, noSpawn: true },
-  { name: 'Troll',    sprite: 'troll',    hp: 28, atk: 8, xp: 50, minFloor: 99, noSpawn: true, tell: 'chop' },
+  { name: 'Troll',    sprite: 'troll',    hp: 28, atk: 8, xp: 50, minFloor: 8, regen: 2, tell: 'chop' },
   // the ones with tricks: a thief who robs and runs, a shaman who mends its pack and keeps its distance,
   // a troll that knits itself back together, a basilisk whose bite turns you to stone, a goblin with a bomb
   { name: 'Thief',    sprite: 'thief',    hp: 6,  atk: 2, xp: 8,  minFloor: 2, thief: true },
@@ -47,6 +47,11 @@ const MONSTER_TYPES = [
   { name: 'Bomber',   sprite: 'bomber',   hp: 5,  atk: 2, xp: 10, minFloor: 3, bomber: true },
   { name: 'Basilisk', sprite: 'basilisk', hp: 14, atk: 4, xp: 22, minFloor: 5, tell: 'glare' },
   { name: 'Cave troll', sprite: 'cavetroll', hp: 22, atk: 6, xp: 34, minFloor: 6, regen: 2, tell: 'chop' },
+  // the slow and the huge: a zombie that shambles, a tree that walks, a giant with a club, and a dragon that breathes fire from three tiles off
+  { name: 'Zombie',   sprite: 'zombie',   hp: 12, atk: 3, xp: 9,  minFloor: 3, slow: true },
+  { name: 'Ent',      sprite: 'ent',      hp: 26, atk: 5, xp: 32, minFloor: 5, slow: true, regen: 1 },
+  { name: 'Hill giant', sprite: 'giant',  hp: 32, atk: 8, xp: 55, minFloor: 7, tell: 'chop' },
+  { name: 'Dragon',   sprite: 'dragon',   hp: 40, atk: 10, xp: 90, minFloor: 9, flies: true, ranged: 3, fire: true },
   // the beasts of the open sea: seen from the deck, hunted or avoided, never underground
   { name: 'Sea serpent', sprite: 'serpent', hp: 26, atk: 6, xp: 40, minFloor: 99, noSpawn: true, sea: true },
   { name: 'Pirate sloop', sprite: 'sloop', hp: 20, atk: 5, xp: 30, minFloor: 99, noSpawn: true, sea: true, purse: true },
@@ -835,7 +840,7 @@ function makeElite(m, roll) {
   m.mod = id; m.elite = true; m.name = `${ELITE_MODS[id].label} ${m.type.name}`;
   m.hp = m.maxHp = Math.round(m.maxHp * 1.6);
 }
-const BOSS_NAMES = { Rat: 'the Rat King', Goblin: 'the Goblin Chieftain', Skeleton: 'the Bone Lord', Orc: 'the Orc Warchief', Wraith: 'the Lich', Bat: 'the Bat Matriarch', Spider: 'the Brood Mother', Archer: 'the Goblin Marksman', Slime: 'the Slime Queen', Necromancer: 'the Necromancer Lord', Basilisk: 'the Basilisk Sire', 'Cave troll': 'the Troll Under the Mountain', Shaman: 'the Hexfather', Thief: 'the Prince of Thieves', Bomber: 'the Powder King', Mimic: 'the Hungry Hoard', Knight: 'the Black Knight', Direwolf: 'the Pack Mother', Troll: 'the Troll King', Wyrm: 'the Elder Wyrm' };
+const BOSS_NAMES = { Rat: 'the Rat King', Goblin: 'the Goblin Chieftain', Skeleton: 'the Bone Lord', Orc: 'the Orc Warchief', Wraith: 'the Lich', Bat: 'the Bat Matriarch', Spider: 'the Brood Mother', Archer: 'the Goblin Marksman', Slime: 'the Slime Queen', Necromancer: 'the Necromancer Lord', Basilisk: 'the Basilisk Sire', 'Cave troll': 'the Troll Under the Mountain', Shaman: 'the Hexfather', Thief: 'the Prince of Thieves', Bomber: 'the Powder King', Mimic: 'the Hungry Hoard', Knight: 'the Black Knight', Direwolf: 'the Pack Mother', Troll: 'the Troll King', Wyrm: 'the Elder Wyrm', Zombie: 'the Plague Father', Ent: 'the Old Oak', 'Hill giant': 'the Hill King', Dragon: 'the Dragon Matriarch' };
 // Colossi: giants that sometimes hold the last floor of an ordinary dungeon, and
 // every tenth floor of the Deep. One for each kind of stone.
 const colossus = (name, sprite) => ({ name, sprite, hp: 20, atk: 5, xp: 45, minFloor: 99, noSpawn: true, colossus: true });
@@ -1010,6 +1015,10 @@ const MONSTER_LORE = {
   Bomber: 'A goblin with a clay pot of pitch and a short fuse. Whatever kills it, it goes off, and it goes off beside you by choice.',
   Basilisk: 'A lizard the length of a man with a gaze that stiffens the blood. Its bite can leave you standing stone-still for a turn while it takes another.',
   'Cave troll': 'The grey troll of the deep halls knits its flesh back together as you watch. Fire stops the knitting.',
+  Zombie: 'Dead a long while and never told. It shambles, a step every other turn, and it does not stop, and it does not mind what you do to it.',
+  Ent: 'A tree that grew tired of standing still. Slow, and it mends itself as it comes; fire does to it what fire does to wood.',
+  'Hill giant': 'Twice your height with a club the size of you. It winds up every blow, which is your warning, and the blow lands like a falling roof.',
+  Dragon: 'Younger than the Wyrm and twice as hungry. It keeps to the air, breathes fire from three tiles off, and leaves you burning. Close the distance or break the line.',
   'Sea serpent': 'A neck as thick as a mast, seen from a long way off if you are watching the water. It takes ships for whales. Steer round it, or meet it with a blade and a full belly.',
   'Pirate sloop': 'Black sails on the horizon. The sloop will run you down if it can, and it carries a strongbox, and sometimes a chart to where the rest of the strongbox went.',
   Kraken: 'The deep water of the far seas has something in it that the sloops will not talk about. It is the colour of a bruise and the size of a church. Harpoon it only with a very good reason.',
@@ -1399,6 +1408,12 @@ BIG_SPRITES.direwolf = ['................', '................', '..kk........kk.
 BIG_SPRITES.basilisk = ['................', '................', '..............GG', '.............GkG', '............GGGG', '....GGGGGGGGGGy.', '...GGgGGGGGGGG..', '..GGGGGGGgGGG...', '..GGgGGGGGGGG...', '...GG.GG.GG.....', '...GG.GG.GG.....', '...HH.HH.HH.....', '................', '................', '................', '................'];
 BIG_SPRITES.troll = ['.....GGGGGG.....', '....GGGGGGGG....', '....GGkGGkGG....', '....GGGGGGGG....', '.....GGwwGG.....', '....GGGGGGGG....', '..GGGGGGGGGGGG..', '.GGGGGGGGGGGGGG.', '.GGhGGGGGGGGhGG.', '.GGhGGGGGGGGhGG.', '..GGGGGGGGGGGG..', '...GGGGGGGGGG...', '...GGGG..GGGG...', '...GGGG..GGGG...', '..HHHHH..HHHHH..', '................'];
 BIG_SPRITES.cavetroll = BIG_SPRITES.troll.map((r) => r.replace(/G/g, 'E').replace(/g/g, 'e'));   // the grey, deep-dwelling kind
+BIG_SPRITES.giant = BIG_SPRITES.troll.map((r, i) => (i >= 6 && i <= 11 ? r.replace(/G/g, 'd').replace(/h/g, 's') : i >= 12 ? r.replace(/G/g, 's') : r.replace(/G/g, 's')).replace(/ss(ww)ss/, 'sshhss'));   // a troll's build, a man's skin, a tunic
+BIG_SPRITES.giant[0] = '.....hhhhhh.....'; BIG_SPRITES.giant[1] = '....hhhhhhhh....';   // a shock of hair
+BIG_SPRITES.zombie = BIG_SPRITES.villager.map((r) => r.replace(/s/g, 'g').replace(/r/g, 'H').replace(/h/g, 'E'));   // grey hair, green skin, rags
+BIG_SPRITES.zombie[4] = '....ggkggkg.....'; BIG_SPRITES.zombie[6] = '.....gkgkgg.....';   // a face that has been dead a while
+BIG_SPRITES.ent = BIG_SPRITES.tree.map((r, i) => (i === 6 ? '.GGGGyGGGGyGGGG.' : i === 8 ? '..GGGGkkkkGGGG..' : i >= 12 ? r.replace(/HHHH/, 'HH.HH').replace(/HHHHHH/, 'HH..HH') : r));   // a tree with eyes, a mouth, and legs
+BIG_SPRITES.dragon = BIG_SPRITES.wyrm.map((r) => r.replace(/r/g, 'G').replace(/y/g, 'o'));   // the green kind, younger and hungrier
 BIG_SPRITES.totem = ['......kkkk......', '.....krrrrk.....', '.....kryyrk.....', '.....krrrrk.....', '......kkkk......', '.....hhhhhh.....', '....hkkhhkkh....', '....hhhhhhhh....', '.....hyyyyh.....', '.....hhhhhh.....', '....hkkhhkkh....', '....hhhhhhhh....', '.....hhhhhh.....', '....HHHHHHHH....', '...HHHHHHHHHH...', '................'];
 BIG_SPRITES.captive = ['.....hhhhhh.....', '....hhhhhhhh....', '....hhsssshh....', '....hsssssss....', '....sskssks.....', '....ssssssss....', '.....ssssss.....', '....HHHHHHHH....', '...HHHHHHHHHH...', '..EEHHHHHHHHEE..', '..E.HHHHHHHH.E..', '....HHHHHHHH....', '....HHH..HHH....', '..EEEEE..EEEEE..', '...HH......HH...', '................'];
 const spriteCache = {};
@@ -8622,6 +8637,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
     if (m.hp <= 0) { if (coopMember()) coopHit(m, 0, 'hero'); else killMonster(m); continue; }
     if (m.stunned > 0) { if (!swiftOnly) m.stunned--; if (m.tell && !m.boss) { m.tell = null; m.windup = null; m.guard = false; if (isVisible(m.x, m.y)) log(`The stun breaks ${nameOf(m)}'s ${m.type.tell === 'aim' ? 'aim' : m.type.tell === 'guard' ? 'guard' : 'wind-up'}.`, 'good'); } continue; }
     if (m.reeling > 0) { m.reeling--; continue; }
+    if (m.type.slow && !swiftOnly && !m.boss && (turn + m.x + m.y) % 2) continue;   // the shamblers: a step every other turn
     if (!swiftOnly && m.type.regen && m.hp < m.maxHp && !(m.burn && m.burn.t > 0)) { const h = Math.min(m.type.regen, m.maxHp - m.hp); m.hp += h; if (isVisible(m.x, m.y)) floatText(m.x, m.y, `+${h}`, '#9ef0b0'); }
     if (!swiftOnly && m.type.healer) { let mended = 0; for (const o of monsters) { if (o !== m && o.hp > 0 && o.hp < o.maxHp && cheb(o, m) <= 2) { const h = Math.min(2, o.maxHp - o.hp); o.hp += h; mended++; if (isVisible(o.x, o.y)) floatText(o.x, o.y, `+${h}`, '#9ef0b0'); } } if (mended && isVisible(m.x, m.y) && Math.random() < 0.3) log('The shaman chants, and its pack\'s wounds close.', 'bad'); }
     let hi = 0, hd = Infinity;
@@ -8658,7 +8674,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
       if (dd <= m.type.ranged) {
         let clear = true;
         for (let k = 1; k < dd; k++) if (!walkable(getTile(m.x + Math.sign(H.x - m.x) * k, m.y + Math.sign(H.y - m.y) * k))) clear = false;
-        if (clear) { strike(m, H, true); continue; }
+        if (clear) { strike(m, H, true); if (m.type.fire && H.me && !gameOver && player.hp > 0 && Math.random() < 0.5) { const scorch = 2 + Math.floor(floor / 4); player.hp -= scorch; floatText(player.x, player.y, `-${scorch}`, '#ff9f43'); burst(player.x, player.y, '#ff9f43', 10, 80, { glow: true, life: 400 }); if (isVisible(m.x, m.y)) log(`${nameOf(m)}'s breath washes over you: ${scorch} more from the fire.`, 'bad'); if (player.hp <= 0) die(); } continue; }
       }
     }
     const d = field(hi);
