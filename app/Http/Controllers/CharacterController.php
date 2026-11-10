@@ -45,7 +45,7 @@ class CharacterController extends Controller
             'bag' => ['present', 'array', 'max:48'],   // Packrat adds slots and quest relics land in the bag unchecked; the game enforces its own size, this only stops abuse
             'quests' => ['nullable', 'array', 'max:12'],
             'quests.*.id' => ['required', 'string', 'max:60'],
-            'quests.*.kind' => ['required', Rule::in(['clear', 'slay', 'boss', 'bounty'])],
+            'quests.*.kind' => ['required', Rule::in(['clear', 'slay', 'boss', 'bounty', 'deliver', 'fetch'])],
             'quests.*.label' => ['required', 'string', 'max:120'],
             'quests.*.need' => ['required', 'integer', 'min:1', 'max:999'],
             'quests.*.have' => ['required', 'integer', 'min:0', 'max:999'],

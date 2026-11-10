@@ -761,6 +761,18 @@ colour (`folkSprite` swaps the sprite's dominant clothing colour). Hearth keeps
 its four old hands and each Far Shore town one voice of its culture alongside
 them.
 
+Townsfolk have errands as well as tallies (`offerQuest`: four in ten offer a
+letter, three a keepsake, the rest a count of monsters). A **letter**
+(`offerDelivery`, kind `deliver`) goes to a named person in the next town along
+the road on the same continent, named in the quest with direction and distance,
+and is paid by the one who receives it when the hero walks into them
+(`errandTalk`). A **keepsake** (`offerFetch`, kind `fetch`) was dropped on a
+floor of the town's own dungeon the spring the goblins came: the first chest
+opened on that floor or deeper in that dungeon holds it (`fetchFound`, via
+`dungeonDef.home`), and the owner pays when it is carried back. A fetch counts
+twice, found and returned (`have` 1 and 2), so the only state is the quest
+itself; the floor rides in the quest id and the thing in its label.
+
 ## The Sundered Blade
 
 Dawnbreaker (+16 attack, the Sundering style: every blow also strips a tenth of

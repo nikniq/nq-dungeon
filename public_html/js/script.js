@@ -941,6 +941,90 @@ function bountyTalk(n) {
     ] }]);
   return true;
 }
+// ---------- errands ----------
+// Townsfolk have troubles of their own: a letter for someone in the next town along
+// the road, paid by the one who receives it, or a keepsake dropped in the town dungeon
+// the spring the goblins came, which turns up in a chest on that floor or deeper and
+// must be carried back. A fetch counts twice: found (have 1) and returned (have 2).
+const HEIRLOOMS = ["grandmother's locket", "father's hunting horn", 'wedding ring', 'brass compass', 'silver christening spoon', 'carved whistle', 'book of psalms', 'tin soldier', 'good knife', "mother's thimble"];
+const LETTER_REASONS = [
+  'My sister has had no word from me since the Long Night, and she will think the worst.',
+  'My boy went for a soldier and never writes. His mother wants him told that the roof is mended and the cow calved.',
+  'There is a debt owed me in the next town, and a letter asking for it politely is cheaper than a lawyer.',
+  'My old master has a cure for the cough that is going round, and he will send it if asked in my hand.',
+  'Someone I should have married lives one town over. I have written down what I should have said.',
+];
+const ORDINAL = ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth'];
+const fetchThing = (q) => (q.label.match(/^Find .+?'s (.+?): /) || [])[1] || 'keepsake';
+const fetchFloor = (q) => parseInt(q.id.split(':')[2], 10) || 1;
+const questStage = (q) => q.kind === 'fetch' ? (q.have >= 1 ? 'found: bring it back' : 'not found yet') : q.kind === 'deliver' ? 'letter in hand' : `${q.have}/${q.need}`;
+function offerDelivery(n, here, danger) {
+  const cont = continentOf(here.cx, here.cy);
+  const dests = [[1, 0], [0, 1], [-1, 0], [0, -1]].map(([di, dj]) => neighbourTown(here.i, here.j, di, dj)).filter((t) => t && t !== here && continentOf(t.cx, t.cy) === cont);
+  if (!dests.length) return false;
+  const to = dests[rnd(dests.length)];
+  const who = townNpcs(to).find((p) => !p.type.guard && !p.type.leader && !p.type.action && !p.type.notable && !isChild(p) && p.type.name !== n.type.name);
+  if (!who) return false;
+  const target = `${to.key}|${who.type.name}`;
+  if (player.quests.some((q) => q.kind === 'deliver' && !q.done && q.target === target)) return false;
+  const d = Math.round(Math.hypot(to.cx - here.cx, to.cy - here.cy)), dir = compassWord(to.cx - here.cx, to.cy - here.cy).toLowerCase();
+  const reward = 40 + 25 * danger + Math.round(d / 4), id = `deliver:${here.key}:${to.key}:${player.quests.length}`;
+  showScene([{ who: n.type.name, sprite: n.type.sprite,
+    text: `"${LETTER_REASONS[rnd(LETTER_REASONS.length)]}" ${n.type.name} holds out a letter sealed with candle wax. "It is for ${who.type.name} in ${to.name}: ${dir} of here by the road, about ${d} paces. ${who.type.name} will pay the bearer ${reward} gold. I have said so in the letter, so they can hardly refuse."`,
+    choices: [
+      { label: 'Take the letter', run: () => {
+        player.quests.push({ id, kind: 'deliver', label: `Carry ${n.type.name}'s letter to ${who.type.name} in ${to.name} (${dir}, ${d} paces)`.slice(0, 118), target, need: 1, have: 0, done: false, giver: n.type.name, reward });
+        sfx.play('quest'); track('errand_taken', { kind: 'deliver' });
+        return `You tuck the letter away. Walk into ${who.type.name} in ${to.name} to deliver it; the quest log (Q) keeps the way.`; } },
+      { label: 'Not now', run: () => '"Another time, then." The letter goes back into a pocket.' },
+    ] }]);
+  return true;
+}
+function offerFetch(n, here, danger) {
+  if (player.quests.some((q) => q.kind === 'fetch' && !q.done && q.target === here.key)) return false;
+  const N = 2 + rnd(3), thing = HEIRLOOMS[rnd(HEIRLOOMS.length)], reward = 50 + 40 * danger + 15 * N, id = `fetch:${here.key}:${N}:${player.quests.length}`;
+  showScene([{ who: n.type.name, sprite: n.type.sprite,
+    text: `"When the goblins came up out of the dungeon last spring I ran, like everyone, and somewhere on the ${ORDINAL[N]} floor I dropped my ${thing}. I have not been down since and I am not going to start now. It will be in one of their chests by this time; they pick up everything. Bring it back to me and there is ${reward} gold in it for you."`,
+    choices: [
+      { label: 'I will look for it', run: () => {
+        player.quests.push({ id, kind: 'fetch', label: `Find ${n.type.name}'s ${thing}: a chest on floor ${N} or deeper of the ${here.name} dungeon, then bring it back`.slice(0, 118), target: here.key, need: 2, have: 0, done: false, giver: n.type.name, reward });
+        sfx.play('quest'); track('errand_taken', { kind: 'fetch' });
+        return `"Floor ${N}," ${n.type.name} says again, as if you might forget. "Or deeper. They carry things down, not up."`; } },
+      { label: 'Not now', run: () => `"No. Well. It has been down there a year; it can wait."` },
+    ] }]);
+  return true;
+}
+// A chest opened in a town dungeon may hold what somebody up top is missing.
+function fetchFound() {
+  if (scene !== 'dungeon' || !dungeonDef || !dungeonDef.home || !player.quests) return;
+  for (const q of player.quests) {
+    if (q.done || q.kind !== 'fetch' || q.have !== 0 || q.target !== dungeonDef.home || floor + 1 < fetchFloor(q)) continue;
+    q.have = 1; const thing = fetchThing(q);
+    log(`Under the coins lies ${q.giver}'s ${thing}. Bring it back up to ${q.giver} in the square.`, 'good');
+    toast = { text: `Found: ${q.giver}'s ${thing}. Bring it back.`, until: performance.now() + 5000 }; sfx.play('quest');
+  }
+}
+// Walking into the right person finishes an errand, or gets a reminder.
+function errandTalk(n) {
+  if (!player.quests || scene !== 'world') return false;
+  const here = townContaining(n.x, n.y); if (!here) return false;
+  for (const q of player.quests) {
+    if (q.done) continue;
+    let line = null;
+    if (q.kind === 'deliver' && q.target === `${here.key}|${n.type.name}`) {
+      line = `"From ${q.giver}? Give it here." ${n.type.name} breaks the seal and reads it twice, and for a moment is somewhere else. "Well. Here is what was promised, bearer, and thank you for the road."`;
+      questProgress('deliver', q.target, 1); track('errand_done', { kind: 'deliver' });
+    } else if (q.kind === 'fetch' && q.target === here.key && q.giver === n.type.name) {
+      const thing = fetchThing(q);
+      if (q.have >= 1) { line = `"My ${thing}!" ${n.type.name} turns it over and over. "I had given it up. Take this, and take my thanks with it; they are worth less but there are more of them."`; questProgress('fetch', q.target, 1); track('errand_done', { kind: 'fetch' }); }
+      else line = `"Any sign of my ${thing}? The ${ORDINAL[fetchFloor(q)]} floor, or deeper, in one of the chests."`;
+    }
+    if (!line) continue;
+    log(`${n.type.name}: ${line}`); bubble = { x: n.x, y: n.y, text: line, until: performance.now() + 6000 }; draw();
+    return true;
+  }
+  return false;
+}
 function questsActive() { return player.quests.filter((q) => !q.done); }
 function questDoneIds() { return new Set(player.quests.filter((q) => q.done).map((q) => q.id)); }
 function offerQuest(n) {
@@ -958,6 +1042,9 @@ function offerQuest(n) {
     const st = cands[0];
     if (st) q = { id: 'clear:' + st.key, kind: 'clear', label: `Clear ${st.name.startsWith('The ') ? st.name : 'the ' + st.name} (${st.floors} floors, danger ${stars(st.danger).replace(/☆/g, '')})`, target: st.key, need: 1, have: 0, done: false, giver: n.type.name, reward: 80 + 70 * st.danger };
   } else {
+    const roll = rnd(10);
+    if (roll < 4 && offerDelivery(n, here, danger)) return true;
+    if (roll < 7 && offerFetch(n, here, danger)) return true;
     const types = danger < 2 ? ['Rat', 'Goblin'] : danger < 4 ? ['Goblin', 'Orc', 'Skeleton'] : ['Orc', 'Skeleton', 'Wraith'];
     const type = types[rnd(types.length)];
     const need = 5 + 3 * danger + rnd(4);
@@ -1198,7 +1285,7 @@ function drawQuests(g) {
   g.font = 'bold 14px sans-serif'; g.fillStyle = '#ffd86b'; g.fillText(active.length ? 'Active' : 'No active quests. Walk into a guard captain, the King, or any townsperson.', 24, y); y += 26;
   for (const q of active) {
     g.fillStyle = '#e6eef8'; g.font = '14px sans-serif'; g.fillText(`• ${q.label}`, 32, y);
-    g.fillStyle = '#9fd4ff'; g.font = '12px sans-serif'; g.fillText(`${q.have}/${q.need}  ·  reward ${q.reward} gold  ·  from ${q.giver}`, 48, y + 18);
+    g.fillStyle = '#9fd4ff'; g.font = '12px sans-serif'; g.fillText(`${questStage(q)}  ·  reward ${q.reward} gold  ·  from ${q.giver}`, 48, y + 18);
     g.fillStyle = '#06202c'; g.fillRect(48, y + 36, 240, 5); g.fillStyle = '#5fe17a'; g.fillRect(48, y + 36, 240 * (q.have / q.need), 5);
     y += 52;
   }
@@ -4642,6 +4729,7 @@ function talk(n) {
   if (edricTalk(n)) return;
   if (realmQuestTalk(n)) return;
   if (castleTalk(n) || castellanTalk(n)) return;
+  if (errandTalk(n)) return;
   if (n.type.action && SERVICE_SHOPS.has(n.type.action)) { log(`${n.type.name}: ${n.type.lines[rnd(n.type.lines.length)]}`); openShop(n.type.action); return; }
   const rumour = !n.type.notable && !n.type.leader && !n.type.guard && !n.type.action && Math.random() < 0.45 ? storyRumour() : null;
   const line = rumour || (n.type.notable ? n.type.lines[n.type.tell++ % n.type.lines.length] : n.type.lines[rnd(n.type.lines.length)]);
@@ -10538,7 +10626,7 @@ function openChest(x, y) {
   player.gold += gold;
   setTile(x, y, TILE.FLOOR); bgDirty = true;
   log(`You open the chest: ${gold} gold.`, 'good');
-  rqProgress('chest'); rqProgress('gold', null, gold);
+  rqProgress('chest'); rqProgress('gold', null, gold); fetchFound();
   burst(x, y, '#ffd86b', 24, 110, { glow: true, gravity: 120, life: 700, rise: 120 });
   if (player.gold >= 1000) unlock('rich');
   floatText(x, y, `+${gold}g`, '#f5c542');
