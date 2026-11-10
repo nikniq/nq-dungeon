@@ -602,7 +602,7 @@ told. A chapter card shows whenever the story or act changes (`announceStory`),
 and a returning hero is told where they stand on waking. None of it is saved:
 it is all read from the story state already in `meta`.
 
-The five stories share one thread, the doors. Story 3's opening says why the
+The six stories share one thread, the doors. Story 3's opening says why the
 gate opened (the breath the Hollow King held went north); runestones on each
 landing of Midgard give Thrym's own account (`GATE_RUNES`, `gateFloor`): he shut
 the door himself, stood in the way of what is behind it, and sent the raven
@@ -701,6 +701,22 @@ sponsor's name, roads for sixty tiles around are paved in stone, and a town with
 three works prospers a tier. Ten sponsored structures make a Founder
 (`founderNamed`: the Founder's Seal). The heroes page ranks the builders
 (`TownProject::builders`), which is this story's leaderboard.
+
+Story 6, The Rim of the World, opens once Story 5 is told (`story5Done`,
+`offerStory6`). The world has a wall of ice across its top and its bottom
+(`RIM_Y`, `RIM_W`: eight tiles thick at y = ±1245, `rimAt`, `GROUND.ICE`,
+`drawIce`), standing in the ice-sea beyond the last towns; the row of lattice
+cells it runs through holds no towns, sites or places (`RIM_J`). Four frost
+giants hold it from islets at its foot (`RIM_HEARTS`, land anchors; two on each
+wall, 320 tiles east and west of Hearth's meridian). They stand on their islets
+whenever the hero sails within sight (`spawnRimGiants`, not saved) and are marked
+on the map with a snowflake. Each one slain is a heart broken (`heartBroken`,
+`HEART_WORDS`: the giants' last words, which finish the Doorward thread), paid
+from the Founder's purse; when all four are dead the wall breaches seven tiles
+wide due north and due south of Hearth (`RIM_BREACH`, `rimBreached`; the chunks
+there are forgotten and regenerated). Sailing out past the wall ends the story
+(`tickRim`, `rimEscaped`); the breaches stay open and the sea beyond is ordinary
+procedural world. State is `meta.story6` (`s`, `slain`).
 
 Every town keeps a trade shop of its own kind, by the trade it is known for
 (`TRADE_SHOP`, 23 kinds: fishmonger, vintner, master smith, spice bazaar, fur

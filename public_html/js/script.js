@@ -181,6 +181,9 @@ const ACHIEVEMENTS = {
   builder:     { label: 'Built a monument for other heroes', title: 'the Builder' },
   patron:      { label: 'Upgraded a monument', title: 'the Patron' },
   hunter:      { label: 'Collected three bounties', title: 'the Bounty Hunter' },
+  rimward:     { label: 'Asked what the Rim was for', title: 'the Curious' },
+  rimbreaker:  { label: 'Broke the four hearts of the Rim', title: 'Rimbreaker' },
+  rimwalker:   { label: 'Passed the Rim of the World', title: 'the Rimwalker' },
   angler:      { label: 'Caught a golden carp', title: 'the Angler' },
   camper:      { label: 'Made camp in the wilds', title: 'the Wanderer' },
   rider:       { label: 'Bought a horse', title: 'the Rider' },
@@ -1055,7 +1058,7 @@ function drawJournal(g) {
         g.fillStyle = told ? '#9ef0b0' : now ? '#ffd86b' : '#6b8299'; g.fillText(text, lx, y); lx += w;
       }
       y += 24;
-      if (SN.n > 1 || SN.all) { g.fillStyle = '#a8c0d8'; g.font = 'italic 12px sans-serif'; y = wrapText(g, `The tale so far: ${STORY_RECAP[SN.all ? 4 : SN.n - 2]}`, X, y, W, 17) + 8; }
+      if (SN.n > 1 || SN.all) { g.fillStyle = '#a8c0d8'; g.font = 'italic 12px sans-serif'; y = wrapText(g, `The tale so far: ${STORY_RECAP[SN.all ? STORIES.length - 1 : SN.n - 2]}`, X, y, W, 17) + 8; }
     }
     const obj = storyObjective();
     g.fillStyle = '#9ef0b0'; g.font = '13px sans-serif'; y = wrapText(g, obj ? `Now: ${obj.text}.` : 'The crown is whole again. The realms are safe, for now.', X, y, W, 18) + 8;
@@ -1081,6 +1084,7 @@ function drawJournal(g) {
       if (S2.s === 3) { const S3 = story3(); steps.push(['Story 3: The Frozen Gate', S3.s === 0 ? 'Story 2 is told. Stand in any town and a raven will find you.' : S3.s === 2 ? 'Thrym is dead and the gate is shut. The north is quiet.' : 'A door of ice on an island in the far north opens on Midgard. Take passage to Hrafnvik and go down through it to Thrym, Jarl of the Frost Giants.', S3.s === 2]); }
       if (story3Done()) { const S4 = story4(); steps.push(['Story 4: The Long Night', S4.s === 0 ? 'Story 3 is told. Stand in any town and watch the sky.' : S4.s === 2 ? 'The Rift Lord is dust and every rift is shut.' : `Rifts to Midgard open outside the towns. Kill a horde to close its rift: ${S4.closed || 0}/${RIFTS_TO_CLOSE} closed${(S4.closed || 0) >= RIFTS_TO_CLOSE ? '. The Rift Lord is coming' : ''}.`, S4.s === 2]); }
       if (story4Done()) { const S5 = story5(); steps.push(['Story 5: The Rebuilding', S5.s === 0 ? 'Story 4 is told. Stand in any town and the reckoning will find you.' : S5.s === 2 ? `You are a Founder: ${S5.n} structures stand with your name on them.` : `Talk to town leaders to sponsor walls, buildings, memorials and roads: ${S5.n || 0}/${FOUNDER_AT} sponsored. The heroes page ranks the builders.`, S5.s === 2]); }
+      if (story5Done()) { const S6 = story6(), k = (S6.slain || []).length; steps.push(['Story 6: The Rim of the World', S6.s === 0 ? 'Story 5 is told. Stand in any town and the question of the Rim will find you.' : S6.s === 2 ? 'You passed the Rim. The breaches north and south of Hearth stay open, and the sea beyond is uncharted.' : rimBreached() ? 'The Rim is breached due north and due south of Hearth. Sail through either gap.' : `Four frost giants hold the ice walls at the top and the bottom of the world, two on each; they are marked on the map with a snowflake. ${k}/${RIM_HEARTS.length} slain. You will need a ship.`, S6.s === 2]); }
     }
     // once Story 1 is told its finished steps fold away, so the page opens on the story being lived
     for (const [name, desc, done] of (SN && SN.n > 1 ? steps.filter(([name, , done]) => !done || /^Story \d/.test(name)) : steps)) {
@@ -1846,6 +1850,13 @@ function storyObjective() {
     return { text: ACT2_STEPS[A.s - 1].label, short: 'The Gate of the Deep', x: gate.x, y: gate.y };
   }
   if (st.phase === 'seek') { const S = STORY_SITES[STORY_ORDER[st.ch]], site = siteAt(S.i, S.j); return { text: `Find the ${S.shard} in ${S.title.replace(/^The /, 'the ')}`, short: S.title, x: site.x, y: site.y }; }
+  if (story5().s === 2 && story6().s === 0) { const hp = homePort(); return { text: 'Story 5 is told. Walk into any town and word of the Rim will find you', short: hp ? hp.name : 'A town', x: hp ? hp.cx : castle.cx, y: hp ? hp.cy : castle.cy }; }
+  if (story6().s === 1) {
+    const k = (story6().slain || []).length;
+    if (rimBreached()) { const s = Math.sign(player.y) || -1; return { text: 'Sail through the breach in the Rim, due north or due south of Hearth, and see what lies outside', short: 'The breach', x: 0, y: s * (RIM_Y + RIM_W + 2) }; }
+    const h = nextHeart();
+    return { text: `Break the Rim: slay ${h.name.split(',')[0]} at the ${h.wall} wall (${k}/${RIM_HEARTS.length} giants slain)${player.meta.ship ? '' : '. You will need a ship'}`, short: 'The Rim', x: h.x, y: h.y };
+  }
   if (story5().s === 1) { const here = townContaining(player.x, player.y) || nearestTownTo(player.x, player.y); return { text: `Sponsor the rebuilding: talk to a town leader (${story5().n || 0}/${FOUNDER_AT} structures)`, short: here ? here.name : 'A town', x: here ? here.cx : player.x, y: here ? here.cy : player.y }; }
   if (story4().s === 1) {
     const r = rifts[0], closed = story4().closed || 0;
@@ -2033,7 +2044,8 @@ function guideSuggestions() {
   else if (story2Done() && story3().s === 0) out.push(['Story 3', 'Story 2 is told. Stand in any town and a raven will find you.']);
   else if (story3Done() && story4().s === 0) out.push(['Story 4', 'Story 3 is told. Stand in any town, and watch the sky.']);
   else if (story4Done() && story5().s === 0) out.push(['Story 5', 'Story 4 is told. Stand in any town and the reckoning will find you.']);
-  else if (story5().s === 2) out.push(['Founder', `You are a Founder of the realms (${story5().n} structures). The leaders still keep their lists.`]);
+  else if (story5().s === 2 && story6().s < 2) out.push(['Founder', `You are a Founder of the realms (${story5().n} structures). The leaders still keep their lists.`]);
+  if (story6().s === 2) out.push(['Outside', 'You have passed the Rim. The sea beyond it is uncharted; the breaches north and south of Hearth stay open.']);
   else if (story4().s === 2) out.push(['The Long Night', 'The Rift Lord is dust and every rift is shut. Four stories told.']);
   else if (story3().s === 2) out.push(['The Frozen Gate', 'Thrym is dead and the gate is shut. The north is quiet, and the raven is yours.']);
   else if (story2().s === 3) out.push(['The Far Shore', 'The Hollow King is dust and both shores are at peace. The sea road across the Veil is yours.']);
@@ -2119,6 +2131,7 @@ const STORIES = [
   { n: 3, title: 'The Frozen Gate', acts: ['A raven from the north', 'Midgard'] },
   { n: 4, title: 'The Long Night', acts: ['Rifts', 'The Rift Lord'] },
   { n: 5, title: 'The Rebuilding', acts: ['The reckoning', 'The builders'] },
+  { n: 6, title: 'The Rim of the World', acts: ['The rim', 'Four hearts of ice', 'The breach'] },
 ];
 // Which story the hero is in now, for the HUD, the journal and the chapter cards:
 // the number, the title, the act within it and a short measure of progress.
@@ -2136,9 +2149,10 @@ function storyNow() {
     prog = story2().s === 0 ? 'about to begin' : `${keys}/3 keys`;
   } else if (story3().s < 2) { n = 3; act = story3().s === 1 && at.y < ICE_Y ? 1 : 0; prog = story3().s === 0 ? 'about to begin' : ''; }
   else if (story4().s < 2) { n = 4; const c = Math.min(story4().closed || 0, RIFTS_TO_CLOSE); act = story4().s === 1 && c >= RIFTS_TO_CLOSE ? 1 : 0; prog = story4().s === 0 ? 'about to begin' : `${c}/${RIFTS_TO_CLOSE} rifts closed`; }
-  else { n = 5; const S5 = story5(); act = (S5.n || 0) > 0 ? 1 : 0; prog = S5.s === 0 ? 'about to begin' : S5.s === 2 ? 'told' : `${S5.n || 0}/${FOUNDER_AT} structures`; }
+  else if (story5().s < 2) { n = 5; const S5 = story5(); act = (S5.n || 0) > 0 ? 1 : 0; prog = S5.s === 0 ? 'about to begin' : `${S5.n || 0}/${FOUNDER_AT} structures`; }
+  else { n = 6; const S6 = story6(), k = (S6.slain || []).length; act = S6.s === 0 ? 0 : rimBreached() ? 2 : 1; prog = S6.s === 0 ? 'about to begin' : S6.s === 2 ? 'told' : rimBreached() ? 'the breach is open' : `${k}/${RIM_HEARTS.length} giants`; }
   const S = STORIES[n - 1];
-  return { n, of: STORIES.length, title: S.title, act: S.acts[act], prog, key: `${n}:${act}`, all: n === 5 && story5().s === 2 };
+  return { n, of: STORIES.length, title: S.title, act: S.acts[act], prog, key: `${n}:${act}`, all: n === STORIES.length && story6().s === 2 };
 }
 const storyLabel = (S = storyNow()) => (S ? `Story ${S.n} of ${S.of}: ${S.title} · ${S.act}${S.prog ? ` (${S.prog})` : ''}` : '');
 // A chapter card whenever the story or its act changes, and one line on waking, so
@@ -2160,6 +2174,7 @@ const STORY_RECAP = [
   'The breath the Hollow King had held went home, and in the far north a door of ice opened. You went through Midgard and killed Thrym, Jarl of the Frost Giants, who had been holding that door shut from the inside.',
   'With Thrym dead every door stood open. Rifts tore the sky over the towns until you had shut five and the Rift Lord came through to stop you. It did not.',
   'Seven realms counted the cost and you paid for a good part of it: ten works stand with your name on them.',
+  'The Founder asked what the Rim was for. You killed the four giants who held it, sailed through the breach, and found that the world does not end where the maps do.',
 ];
 const story2 = () => player.meta.story2 || (player.meta.story2 = { s: 0 });   // 0 locked, 1 the keys, 2 the Barrow open, 3 done
 const story1Done = () => !!player && !!player.meta && story().phase === 'done' && act2().s >= 6;
@@ -2636,7 +2651,7 @@ function placeAt(i, j) {
   const k = key(i, j);
   if (places.has(k)) return places.get(k);
   let place = null;
-  if (!(i === 0 && j === 0) && cellRand(i, j, 400) < 0.62) {
+  if (!(i === 0 && j === 0) && Math.abs(j) !== RIM_J && cellRand(i, j, 400) < 0.62) {
     const types = Object.keys(PLACE_TYPES), type = types[Math.floor(cellRand(i, j, 401) * types.length)], P = PLACE_TYPES[type];
     const town = townAt(i, j), site = siteAt(i, j);
     for (let n = 0; n < 6 && !place; n++) {
@@ -2667,7 +2682,7 @@ const discovered = (p) => player.meta.places.includes(p.key);
 const WORLD_SEED = 7331, TOWN_SPACING = 96, TW = 40, TH = 30;
 const GRAND_W = 60, GRAND_H = 44;   // Castle Aurum's footprint
 const tw = (t) => t.w || TW, th = (t) => t.h || TH;
-const GROUND = { GRASS: 0, FOREST: 1, SAND: 2, WATER: 3, MOUNTAIN: 4, ROAD: 5, COBBLE: 6, TREE: 7, RAMPART: 8, DOCK: 9, SNOW: 10 };
+const GROUND = { GRASS: 0, FOREST: 1, SAND: 2, WATER: 3, MOUNTAIN: 4, ROAD: 5, COBBLE: 6, TREE: 7, RAMPART: 8, DOCK: 9, SNOW: 10, ICE: 11 };
 const worldChunks = new Map();   // kept across scene changes
 const towns = new Map();         // lattice key -> town
 let homeTown = '0,0';            // the town whose gate you last took
@@ -2724,6 +2739,19 @@ const CONTINENTS = [...REALM_ORDER.map((id) => ({ id, cx: REALMS[id].capital[0] 
   { id: 'thule', cx: 20, cy: -10 * TOWN_SPACING + 15, rx: 60, ry: 60 }];     // Story 3: an icy island far to the north, with the Frozen Gate
 const THULE = { i: 0, j: -10 }, THULE_IDX = 5, ICE_Y = -800;   // north of ICE_Y the land is snow and the sea is pack ice
 const VEIL_X = 760;   // the Veil of storms: no ship crosses this longitude until Story 2 opens
+// The Rim: a wall of ice across the top and the bottom of the world, eight tiles thick,
+// standing in the ice-sea beyond the last towns. Four frost giants hold it from islets at
+// its foot; when all four are dead it breaches due north and due south of Hearth (Story 6).
+const RIM_Y = 1245, RIM_W = 8, RIM_J = 13, RIM_BREACH = 3;
+const RIM_HEARTS = [
+  { x: -320, y: -(RIM_Y - 7), name: 'Rime, the Glacier Giant', wall: 'north' },
+  { x: 320, y: -(RIM_Y - 7), name: 'Hoarfather, the Giant Under the Ice', wall: 'north' },
+  { x: -320, y: RIM_Y - 7, name: 'Sleet, the Giant Who Waits', wall: 'south' },
+  { x: 320, y: RIM_Y - 7, name: 'Lastlight, the Giant at the Rim', wall: 'south' },
+];
+const rimBreached = () => !!player && !!player.meta && (player.meta.story6 ? player.meta.story6.slain || [] : []).length >= RIM_HEARTS.length;
+const rimAt = (x, y) => { const ay = Math.abs(y); return ay >= RIM_Y && ay < RIM_Y + RIM_W && !(rimBreached() && Math.abs(x) <= RIM_BREACH); };
+const beyondRim = (y) => Math.abs(y) >= RIM_Y + RIM_W;
 const BRIDGES = [['cantons', 'aurum'], ['cantons', 'kathar'], ['cantons', 'league'], ['kathar', 'league']].map(([a, b]) => [CONTINENTS.find((c) => c.id === a), CONTINENTS.find((c) => c.id === b)]);
 // Six hidden lairs, each with a super boss and a one-of-a-kind reward. They stay off
 // the map until a bard, a hermit, a prophet or your own feet find them.
@@ -2773,7 +2801,7 @@ function lairHint(x, y) {
   return { ...n, text: `${LAIRS[n.id].title}, ${compassWord(n.site.x - x, n.site.y - y).toLowerCase()} of here, ${d} paces or so` };
 }
 // story sites and the Deep gate must be on land: a lobe of land around each of their cells
-const LAND_ANCHORS = [...Object.values(STORY_SITES).map((S) => ({ x: S.i * TOWN_SPACING + 47, y: S.j * TOWN_SPACING + 45, r: 58 })), ...Object.values(LAIRS).map((L) => ({ x: L.i * TOWN_SPACING + 47, y: L.j * TOWN_SPACING + 45, r: 58 })), { x: DEEP_CELL[0] * TOWN_SPACING + 48, y: DEEP_CELL[1] * TOWN_SPACING + 60, r: 50 }];
+const LAND_ANCHORS = [...Object.values(STORY_SITES).map((S) => ({ x: S.i * TOWN_SPACING + 47, y: S.j * TOWN_SPACING + 45, r: 58 })), ...Object.values(LAIRS).map((L) => ({ x: L.i * TOWN_SPACING + 47, y: L.j * TOWN_SPACING + 45, r: 58 })), { x: DEEP_CELL[0] * TOWN_SPACING + 48, y: DEEP_CELL[1] * TOWN_SPACING + 60, r: 50 }, ...RIM_HEARTS.map((h) => ({ x: h.x, y: h.y + (h.y < 0 ? 5 : -5), r: 26 }))];
 function segDist(x, y, a, b) {
   const vx = b.cx - a.cx, vy = b.cy - a.cy, wx = x - a.cx, wy = y - a.cy;
   const t = Math.max(0, Math.min(1, (wx * vx + wy * vy) / (vx * vx + vy * vy)));
@@ -2797,6 +2825,7 @@ function continentOf(x, y) {
   return best;
 }
 function terrainAt(x, y) {
+  if (rimAt(x, y)) return GROUND.ICE;
   const g = terrainAtRaw(x, y);
   return y < ICE_Y && (g === GROUND.GRASS || g === GROUND.FOREST || g === GROUND.SAND) ? GROUND.SNOW : g;   // the far north lies under snow
 }
@@ -2878,6 +2907,7 @@ function landScore(cx, cy) {
 function townAt(i, j) {
   const k = key(i, j);
   if (towns.has(k)) return towns.get(k);
+  if (Math.abs(j) === RIM_J) { towns.set(k, null); return null; }   // the Rim runs through this row of cells
   const origin = i === 0 && j === 0;
   const isCapital = ALL_REALMS.some((id) => REALMS[id].capital[0] === i && REALMS[id].capital[1] === j);
   const thule = i === THULE.i && j === THULE.j;
@@ -3479,6 +3509,73 @@ function founderNamed() {
   story5().s = 2; unlock('founder'); track('story5_done');
   showScene(STORY5_FINALE, () => { giveRelic('founderseal'); log("Story 5 complete: you are a Founder of the realms, and the Founder's Seal is yours.", 'good'); updateStats(); saveProgress('progress'); });
 }
+// ---------- Story 6: The Rim of the World ----------
+const story6 = () => player.meta.story6 || (player.meta.story6 = { s: 0, slain: [] });   // 0 locked, 1 open, 2 outside
+const story5Done = () => !!player && !!player.meta && story5().s >= 2;
+const heartsLeft = () => RIM_HEARTS.map((h, i) => ({ ...h, i })).filter((h) => !(story6().slain || []).includes(h.i));
+function nextHeart() { const at = { x: player.wx ?? player.x, y: player.wy ?? player.y }; return heartsLeft().sort((a, b) => cheb(a, at) - cheb(b, at))[0] || RIM_HEARTS[0]; }
+const STORY6_INTRO = [
+  { who: 'The rim of the world', sprite: 'colossus:frost', bg: 'sea', title: 'Story 6: The Rim of the World',
+    text: 'Every map of the realms ends in a band of white at the top and at the bottom, and every mapmaker calls it the Rim and draws nothing past it. Sailors who go far enough north or south find out why: a wall of ice higher than any tower, running from one edge of the sea to the other, with no end and no gate. The Founder of the realms has been asking the question nobody else did. What is it for?' },
+  { who: 'Four hearts of ice', sprite: 'colossus:frost', bg: 'crypt', title: 'Four hearts of ice',
+    text: 'The stone by the Frozen Gate has more to say, now that someone can read it. The Rim was raised by the first Doorward, the one the sagas forgot, who shut every door he could find and then, to be sure, shut the world. Four frost giants agreed to hold it: two at the north wall and two at the south, each on an islet at its foot. They are marked on your map. The ice does not stand on its own.' },
+  { who: 'Break it', sprite: 'hero', bg: 'town', title: 'Break it',
+    text: 'Kill the four giants and the Rim will breach at its weakest point, due north and due south of Hearth. Take a ship: the wall stands far out in the ice-sea, beyond the last towns. Then go through, and find out what a world is like when nothing in it has been shut. The journal (J) keeps the count.' },
+];
+const STORY6_FINALE = [
+  { who: 'Outside', sprite: 'hero', bg: 'sea', title: 'Outside',
+    text: 'You pass through the breach with the wall close on either side like a corridor, and then it is behind you. Outside is sea, and islands, and beyond them a coast with smoke rising from it that nobody in the seven realms has ever charted. The air is warmer. The ice ends in a line as straight as a ruled page, and past it the water is blue.' },
+  { who: 'A world without a rim', sprite: 'hero', bg: 'map', title: 'A world without a rim',
+    text: 'The breaches will not close: the hearts that held them are dead, and the realms have gates of their own now, north and south. The mapmakers of Goldspire have sent a ship to find the edge of the new charts, and it has not found one. Six stories told. What lies out here is yours to walk into, and the sagas, for once, have nothing to say about it.' },
+];
+// Each giant has a last word, in the order they fall: the ones who said yes to the Doorward.
+const HEART_WORDS = [
+  'The giant falls with the sound of a glacier calving, and says, as the light goes out of it: "The wall was never built to keep you in. It was built to keep you from knowing there was an out."',
+  'The second giant goes down on one knee and stays there, a hill of ice. "Three of us left. We were the ones who said yes when he asked. He did not ask twice."',
+  'The third giant lies still. The voice is almost kind. "Go on, then. Break it. It is only a long winter that somebody forgot to end."',
+  'The last giant looks along the wall it held, and the wall answers with a crack you feel in your teeth, running away out of sight in both directions. "Go through quickly. We will not be here to tell you how wide the world is."',
+];
+function offerStory6() {
+  if (story6().s !== 0 || !story5Done() || storyOpen()) return;
+  story6().s = 1; story6().slain = [];
+  sfx.play('boss'); shakeScreen(5, 600); unlock('rimward'); track('story6_opened'); mapCache.ox = null;
+  showScene(STORY6_INTRO, () => { log('Story 6, The Rim of the World: four frost giants hold the ice walls at the top and the bottom of the world, two on each. Slay them and the Rim breaches due north and south of Hearth. Sail through.', 'bad'); saveProgress('progress'); });
+}
+// The giants stand on their islets whenever the hero comes within sight of one (they are not saved).
+function spawnRimGiants() {
+  if (scene !== 'world' || story6().s !== 1) return;
+  for (const h of heartsLeft()) {
+    if (cheb(h, player) > 90 || worldMonsters.some((m) => m.heart === h.i)) continue;
+    const spot = freeTileNear(h.x, h.y, 6); if (!spot) continue;
+    const t = COLOSSI.frost.type, lv = player.level;
+    addMonster(t, spot.x, spot.y, { hp: 160 + lv * 12, atk: 7 + Math.floor(lv / 3), name: h.name, wild: true, boss: true, superBoss: true, heart: h.i, purse: 200 });
+    monsters = worldMonsters; monstersDirty = true;
+  }
+}
+function heartBroken(m) {
+  const S6 = story6(); if (!S6.slain) S6.slain = [];
+  if (S6.slain.includes(m.heart)) return;
+  S6.slain.push(m.heart);
+  const k = S6.slain.length, g = 300 + 100 * k; player.gold += g; gainXp(80 + player.level * 3);
+  shakeScreen(8, 800); sfx.play('win'); burst(m.x, m.y, '#d6efff', 60, 200, { glow: true, gravity: -30, life: 1200, size: 3 });
+  log(`${m.name} is dead: a heart of the Rim is broken. ${g} gold from the Founder's purse. ${k}/${RIM_HEARTS.length} giants slain.`, 'good');
+  const word = HEART_WORDS[k - 1]; if (word) setTimeout(() => { log(word, 'bad'); toast = { text: word.replace(/^[^"]*"/, '"'), until: performance.now() + 9000 }; }, 900);
+  if (k >= RIM_HEARTS.length) {
+    unlock('rimbreaker');
+    // the wall opens due north and south of Hearth: forget the chunks it stood in
+    for (const sy of [-1, 1]) for (let y = sy * RIM_Y - RIM_W - 1; y <= sy * RIM_Y + RIM_W + 1; y++) for (let x = -RIM_BREACH - 2; x <= RIM_BREACH + 2; x++) chunks.delete(key(Math.floor(x / CHUNK), Math.floor(y / CHUNK)));
+    mapCache.ox = null;
+    setTimeout(() => { showScene([{ who: 'The breach', sprite: 'hero', bg: 'sea', title: 'The breach', text: 'Far off, due north of Hearth and due south of it, the Rim gives way with a sound that reaches every town in the realms an hour later as a long low note. A gap stands in each wall, seven tiles wide, and the sea runs through it. Nothing holds it shut now. Go and see.' }], () => { log('The Rim is breached due north and due south of Hearth. Sail through either gap.', 'good'); saveProgress('progress'); }); }, 2500);
+  } else saveProgress('progress');
+}
+function rimEscaped() {
+  story6().s = 2; unlock('rimwalker'); track('story6_done');
+  showScene(STORY6_FINALE, () => { log('Story 6 complete: you have passed the Rim of the World. The sea beyond it is yours.', 'good'); updateStats(); saveProgress('progress'); });
+}
+function tickRim() {
+  if (scene !== 'world' || story6().s !== 1 || !rimBreached() || storyOpen() || gameOver) return;
+  if (beyondRim(player.y)) rimEscaped();
+}
 function rebuildRows(town) {
   const rows = [];
   if (!town) return rows;
@@ -3777,6 +3874,7 @@ const sites = new Map();
 function siteAt(i, j) {
   const k = key(i, j);
   if (sites.has(k)) return sites.get(k);
+  if (Math.abs(j) === RIM_J) { sites.set(k, null); return null; }
   if (i === DEEP_CELL[0] && j === DEEP_CELL[1]) {
     let x = i * TOWN_SPACING + 48, y = j * TOWN_SPACING + 70;
     const town = townAt(i, j);
@@ -3839,7 +3937,7 @@ function generateWorldChunk(cx, cy) {
   for (let y = 0; y < CHUNK; y++) for (let x = 0; x < CHUNK; x++) {
     const g = terrainAt(ox + x, oy + y);
     gr[y * CHUNK + x] = g;
-    tiles[y * CHUNK + x] = (g === GROUND.WATER || g === GROUND.MOUNTAIN || g === GROUND.TREE) ? TILE.WALL : TILE.FLOOR;
+    tiles[y * CHUNK + x] = (g === GROUND.WATER || g === GROUND.MOUNTAIN || g === GROUND.TREE || g === GROUND.ICE) ? TILE.WALL : TILE.FLOOR;
   }
   const mark = (wx, wy) => {
     const lx = wx - ox, ly = wy - oy;
@@ -5774,6 +5872,20 @@ function drawSand(g, c, r) {
   let wetSide = null; for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) if (groundAt(c + dx, r + dy) === GROUND.WATER) { wetSide = [dx, dy]; break; }
   if (wetSide) { g.fillStyle = 'rgba(120,100,60,0.25)'; const [dx, dy] = wetSide; g.fillRect(dx === 1 ? X + T - 6 : X, dy === 1 ? Y + T - 6 : Y, dx ? 6 : T, dy ? 6 : T); }   // damp sand by the water
 }
+// The Rim: a sheer face of old blue ice, lit along its inner edge, with cracks running down it.
+function drawIce(g, c, r) {
+  const X = c * T - off.x, Y = r * T - off.y, n = valueNoise(c, r, 606, 6), n2 = noise(c, r, 607);
+  const south = r > 0, inner = Math.abs(r) === RIM_Y, outer = Math.abs(r) === RIM_Y + RIM_W - 1;
+  const depth = (Math.abs(r) - RIM_Y) / (RIM_W - 1);   // 0 at the inner face, 1 at the outer
+  g.fillStyle = `rgb(${Math.round(70 + n * 30 + depth * 40)},${Math.round(120 + n * 30 + depth * 40)},${Math.round(180 + n * 24 + depth * 30)})`; g.fillRect(X, Y, T, T);
+  // the face: blocks of old ice, each with a lit top edge and a dark seam
+  g.fillStyle = `rgba(255,255,255,${0.10 + n2 * 0.14})`; g.fillRect(X, Y, T, 3);
+  g.fillStyle = 'rgba(20,40,80,0.35)'; g.fillRect(X, Y + T - 2, T, 2); if (n2 > 0.5) g.fillRect(X + Math.round(n * (T - 2)), Y, 2, T);
+  g.strokeStyle = 'rgba(200,235,255,0.35)'; g.lineWidth = 1; g.beginPath(); const cx = X + 4 + n2 * (T - 8); g.moveTo(cx, Y); g.lineTo(cx + (n - 0.5) * 10, Y + T); g.stroke();
+  // the lip that faces the realms shines; the ground at its foot lies in its shadow
+  if (inner) { g.fillStyle = 'rgba(255,255,255,0.8)'; g.fillRect(X, south ? Y : Y + T - 4, T, 4); }
+  if (outer) { g.fillStyle = 'rgba(255,255,255,0.45)'; g.fillRect(X, south ? Y + T - 3 : Y, T, 3); }
+}
 function drawMountain(g, c, r) {
   const X = c * T - off.x, Y = r * T - off.y, n = noise(c, r, 25), n2 = noise(c, r, 28);
   // how deep into the range this tile sits: the fringe is foothill, the heart is high and snowy
@@ -6398,6 +6510,7 @@ function renderBackground() {
       else if (gnd === GROUND.COBBLE || t === TILE.FOUNTAIN) drawCobble(g, c, r);
       else if (gnd === GROUND.WATER) drawWater(g, c, r);
       else if (gnd === GROUND.SAND) drawSand(g, c, r);
+      else if (gnd === GROUND.ICE) drawIce(g, c, r);
       else if (gnd === GROUND.MOUNTAIN) drawMountain(g, c, r);
       else if (gnd === GROUND.ROAD) drawRoad(g, c, r);
       else if (gnd === GROUND.DOCK) drawDock(g, c, r);
@@ -6673,7 +6786,7 @@ function drawHud(g, now) {
 }
 
 // Explored tiles around the hero, dungeon only.
-const WORLD_MAP_COLORS = ['#448a3f', '#336a30', '#dfc78f', '#1d4ed8', '#6b7280', '#a8865a', '#6b7280', '#2e7d32', '#94a3b8', '#b08860', '#e8f1f8'];
+const WORLD_MAP_COLORS = ['#448a3f', '#336a30', '#dfc78f', '#1d4ed8', '#6b7280', '#a8865a', '#6b7280', '#2e7d32', '#94a3b8', '#b08860', '#e8f1f8', '#d6efff'];
 function drawMinimap(g) {
   // the minimap shrinks on small screens so it never hides the view
   const small = canvas.width < 640;
@@ -7248,7 +7361,7 @@ function isNearFloor(ch, i) {
 // shades from shallows to deep water, the land has an inked coast, lit and shaded mountains and
 // a grain like paper. Names are placed last, most important first, and one that would cover
 // another (or an icon) tries the other side or is left off.
-const MAP_INK = { [GROUND.GRASS]: [156, 188, 112], [GROUND.FOREST]: [98, 150, 86], [GROUND.TREE]: [80, 132, 74], [GROUND.SAND]: [233, 215, 162], [GROUND.MOUNTAIN]: [152, 143, 130], [GROUND.ROAD]: [204, 176, 124], [GROUND.COBBLE]: [170, 168, 172], [GROUND.RAMPART]: [150, 150, 158], [GROUND.DOCK]: [176, 136, 96], [GROUND.SNOW]: [236, 241, 246] };
+const MAP_INK = { [GROUND.ICE]: [218, 240, 252], [GROUND.GRASS]: [156, 188, 112], [GROUND.FOREST]: [98, 150, 86], [GROUND.TREE]: [80, 132, 74], [GROUND.SAND]: [233, 215, 162], [GROUND.MOUNTAIN]: [152, 143, 130], [GROUND.ROAD]: [204, 176, 124], [GROUND.COBBLE]: [170, 168, 172], [GROUND.RAMPART]: [150, 150, 158], [GROUND.DOCK]: [176, 136, 96], [GROUND.SNOW]: [236, 241, 246] };
 let mapLabels = [], mapTaken = [];
 let warParties = [];   // orc bands on the march (see the war section); not saved
 function mapLabel(text, x, y, o = {}) { mapLabels.push({ text, x, y, font: o.font || 'bold 11px sans-serif', color: o.color || '#ffd86b', box: o.box !== false, pri: o.pri || 0, up: o.up ?? 8, down: o.down ?? 8, side: o.side ?? 10, sub: o.sub || '', subColor: o.subColor || '#cfe9ff', spaced: !!o.spaced }); }
@@ -7398,6 +7511,15 @@ function renderWorldMap() {
   g.strokeStyle = '#ecd49a'; g.lineWidth = MAP_STEP > 4 ? 1 : 1.6; g.stroke(roads);
   { const sz = Math.max(1.5, MAP_PX / MAP_STEP + 0.5);   // the hero's own roads, paving and bridges
     for (const [k, code] of terraMap()) { if (code !== 'r' && code !== 'c' && code !== 'b') continue; const [wx, wy] = k.split(',').map(Number), [qx, qy] = toPx(wx, wy); if (qx < 0 || qy < 0 || qx > c.width || qy > c.height) continue; g.fillStyle = code === 'r' ? '#f0d9a0' : code === 'c' ? '#e4e4ea' : '#8b5a2b'; g.fillRect(qx - sz / 2, qy - sz / 2, sz, sz); } }
+  // ----- the hearts of the Rim -----
+  if (story6().s >= 1) for (const h of RIM_HEARTS.map((h, i) => ({ ...h, i }))) {
+    const [sx, sy] = toPx(h.x, h.y); if (sx < -10 || sy < -10 || sx > c.width + 10 || sy > c.height + 10) continue;
+    const dead = (story6().slain || []).includes(h.i);
+    g.fillStyle = 'rgba(24,18,10,0.75)'; g.beginPath(); g.arc(sx, sy, 10, 0, Math.PI * 2); g.fill();
+    g.fillStyle = dead ? '#9ca3af' : '#7bdfff'; g.font = 'bold 15px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('❄', sx, sy + 1);
+    mapKeep(sx - 10, sy - 14, 20, 26);
+    mapLabel(`${h.name.split(',')[0]}${dead ? ' (slain)' : ''}`, sx, sy, { color: dead ? '#c4c8d0' : '#bfe9ff', font: 'bold 10px sans-serif', pri: 5, box: false, up: 14, down: 11 });
+  }
   // ----- dungeons -----
   for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
     const st = siteAt(i, j);
@@ -7794,6 +7916,7 @@ function describeTile(x, y) {
     const gnd = groundAt(x, y);
     if (gnd === GROUND.WATER) return seaTile(x, y) ? (aboard ? 'Open sea' : player.meta.ship ? 'The sea — your ship could sail here' : 'The sea — harbourmasters sell ships to sail it, and fish bite along the shore') : 'Water — too deep to cross';
     if (gnd === GROUND.MOUNTAIN) return 'Mountains — no way over';
+    if (gnd === GROUND.ICE) return story6().s >= 1 ? 'The Rim — a wall of ice higher than any tower. Four giants hold it' : 'The Rim — a wall of ice higher than any tower, with no end and no gate';
     if (gnd === GROUND.SNOW) return 'Snow — deep, cold, and quiet';
     if (gnd === GROUND.TREE) return 'Dense trees — find a way round';
     if (gnd === GROUND.ROAD) { const nt = nearestOtherTown(x, y); return `Road${nt ? ' — leads towards ' + nt.name : ''}`; }
@@ -8378,6 +8501,7 @@ function killMonster(m) {
     gainXp(xp);
     if ((m.xpMult || 1) <= 0.5 && !m.boss) tip('outgrown', scene === 'dungeon' ? 'You have outgrown this floor: its monsters are worth half their XP or less to you now. The stairs down lead to foes worth fighting; the compass points at them.' : 'You have outgrown these parts: the monsters here are worth half their XP or less to you now. Wilder country, further from Hearth, pays in full.');
     questProgress('slay', m.type.name, 1);
+    if (m.heart !== undefined) heartBroken(m);
     if (m.bounty) {
       questProgress('bounty', m.bounty, 1);
       log(`${m.name} is dead. The watch will want to hear about it.`, 'good');
@@ -8679,7 +8803,8 @@ function enrageBoss(m) {
   shakeScreen(8); sfx.play('boss');
   burst(m.x, m.y, '#ef4444', 40, 160, { glow: true, life: 700 });
   const def = dungeonDef || { pool: null };
-  const pool = (def.pool || MONSTER_TYPES.filter((t) => !t.noSpawn && t.minFloor <= floor));
+  let pool = (def.pool || MONSTER_TYPES.filter((t) => !t.noSpawn && t.minFloor <= floor));
+  if (!pool.length) pool = MONSTER_TYPES.filter((t) => !t.noSpawn && t.minFloor <= 3);   // out in the world, with no floor to go by
   const weak = pool.slice().sort((a, b) => a.xp - b.xp).slice(0, Math.max(1, Math.ceil(pool.length / 2)));
   let called = 0;
   for (let dy = -2; dy <= 2 && called < 2; dy++) for (let dx = -2; dx <= 2 && called < 2; dx++) {
@@ -10264,7 +10389,7 @@ function endTurn(moved) {
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
   if (scene !== 'dungeon') stepNpcs();
   stepGuards();
-  stepHound(); stepEscort(); tickTotems(); tickTrial(); tickRestless(); tickRifts(); tickWanted();
+  stepHound(); stepEscort(); tickTotems(); tickTrial(); tickRestless(); tickRifts(); tickWanted(); tickRim();
   if (scene === 'dungeon' && dungeonDef && dungeonDef.camp && !dungeonDef.razed && !monsters.some((m) => m.hp > 0)) campCleared();
   if (scene === 'dungeon' && dungeonDef && dungeonDef.cellar && !dungeonDef.done && !monsters.some((m) => m.hp > 0)) cellarCleared();
   // in a shared dungeon the host moves monsters on a steady beat instead of per turn
@@ -10295,9 +10420,10 @@ function endTurn(moved) {
   if (scene === 'world' && moved && story3().s === 0 && townContaining(player.x, player.y) && story2Done()) offerStory3();
   if (scene === 'world' && moved && story4().s === 0 && townContaining(player.x, player.y) && story3Done()) offerStory4();
   if (scene === 'world' && moved && story5().s === 0 && townContaining(player.x, player.y) && story4Done()) offerStory5();
+  if (scene === 'world' && moved && story6().s === 0 && townContaining(player.x, player.y) && story5Done()) offerStory6();
   if (inTown()) for (const pl of nearbyPlaces(player.x, player.y, 1)) if (!discovered(pl) && cheb(pl, player) <= 3) discoverPlace(pl);
   if (inTown()) for (const st of nearbySites(player.x, player.y, 1)) if (st.lair && !lairKnown(st.lair) && cheb(st, player) <= 4) revealLair(st.lair, 'You stumble on it:');
-  if (scene === 'world' && turn % 5 === 0) spawnBounties();
+  if (scene === 'world' && turn % 5 === 0) { spawnBounties(); spawnRimGiants(); }
   music.setMood(currentMood());
   if (mapPin && scene === 'world' && cheb(mapPin, player) <= 3) { mapPin = null; savePin(); log('You reach the spot you pinned on your map.', 'good'); }
   if (scene === 'world' && moved && !gameOver && !storyOpen() && !perkChoices && !aboard && !townContaining(player.x, player.y) && !coopActive()

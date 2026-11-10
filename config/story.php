@@ -50,4 +50,14 @@ return [
         ],
         'realms' => ['Every town on both shores'],
     ],
+    [
+        'n' => 6, 'title' => 'The Rim of the World', 'status' => 'opens when Story 5 is finished',
+        'tagline' => 'Every map ends in a band of white at the top and the bottom. Nobody asked what it was for.',
+        'acts' => [
+            ['title' => 'The rim', 'text' => 'Far out in the ice-sea, beyond the last towns to the north and to the south, a wall of ice higher than any tower runs from one edge of the sea to the other. The mapmakers call it the Rim and draw nothing past it. The stone by the Frozen Gate tells the rest: it was raised by the first Doorward, the one the sagas forgot, who shut every door he could find and then, to be sure, shut the world.'],
+            ['title' => 'Four hearts of ice', 'text' => 'Four frost giants agreed to hold the Rim: Rime and Hoarfather at the north wall, Sleet and Lastlight at the south, each on an islet at its foot. They are marked on the map once the story opens, and a ship is needed to reach them. Each one that falls has a last word about the man who asked them to say yes.'],
+            ['title' => 'The breach', 'text' => 'When the fourth giant dies the Rim gives way at its weakest points, due north and due south of Hearth, and a gap seven tiles wide stands in each wall with the sea running through it. Sail through either one. What lies outside is uncharted, warmer, and does not end, and the breaches never close.'],
+        ],
+        'realms' => ['The ice-sea north and south of the realms'],
+    ],
 ];
