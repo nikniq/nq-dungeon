@@ -52,6 +52,9 @@ const MONSTER_TYPES = [
   { name: 'Ent',      sprite: 'ent',      hp: 26, atk: 5, xp: 32, minFloor: 5, slow: true, regen: 1 },
   { name: 'Hill giant', sprite: 'giant',  hp: 32, atk: 8, xp: 55, minFloor: 7, tell: 'chop' },
   { name: 'Dragon',   sprite: 'dragon',   hp: 40, atk: 10, xp: 90, minFloor: 9, flies: true, ranged: 3, fire: true },
+  // game of the woods: deer that run and boars that do not, worth a purse to any merchant
+  { name: 'Deer',     sprite: 'deer',     hp: 5,  atk: 0, xp: 3,  minFloor: 99, noSpawn: true, game: true, skittish: true },
+  { name: 'Boar',     sprite: 'boar',     hp: 10, atk: 3, xp: 9,  minFloor: 99, noSpawn: true, game: true },
   // the beasts of the open sea: seen from the deck, hunted or avoided, never underground
   { name: 'Sea serpent', sprite: 'serpent', hp: 26, atk: 6, xp: 40, minFloor: 99, noSpawn: true, sea: true },
   { name: 'Pirate sloop', sprite: 'sloop', hp: 20, atk: 5, xp: 30, minFloor: 99, noSpawn: true, sea: true, purse: true },
@@ -187,6 +190,7 @@ const ACHIEVEMENTS = {
   patron:      { label: 'Upgraded a monument', title: 'the Patron' },
   hunter:      { label: 'Collected three bounties', title: 'the Bounty Hunter' },
   rimward:     { label: 'Asked what the Rim was for', title: 'the Curious' },
+  hunter_game: { label: 'Brought down ten head of game', title: 'the Huntsman' },
   rimbreaker:  { label: 'Broke the four hearts of the Rim', title: 'Rimbreaker' },
   rimwalker:   { label: 'Passed the Rim of the World', title: 'the Rimwalker' },
   angler:      { label: 'Caught a golden carp', title: 'the Angler' },
@@ -941,6 +945,78 @@ function bountyTalk(n) {
     ] }]);
   return true;
 }
+// ---------- torn maps ----------
+// A chest now and then holds a torn map: an X on open land within a hundred and fifty
+// paces of where the hero last stood on the surface. It joins the treasure charts the
+// harbourmasters sell (`charts`), is drawn as the same red X, and is dug the same way.
+function findTreasureMap() {
+  if (charts().length >= 3) return;
+  const ox = player.wx ?? player.x, oy = player.wy ?? player.y;
+  for (let k = 0; k < 30; k++) {
+    const a = Math.random() * Math.PI * 2, r = 50 + Math.random() * 100, x = Math.round(ox + Math.cos(a) * r), y = Math.round(oy + Math.sin(a) * r);
+    if (!isLand(x, y) || Math.abs(y) >= RIM_Y - 10 || townContaining(x, y) || charts().includes(key(x, y))) continue;
+    charts().push(key(x, y));
+    const t = nearestTownTo(x, y), dir = compassWord(x - t.cx, y - t.cy).toLowerCase(), d = Math.round(Math.hypot(x - t.cx, y - t.cy));
+    log(`Folded under the coins: a torn map with an X on it, ${d} paces ${dir} of ${t.name}. It is marked ✕ on your world map (M). Stand on the X, or beside it, and dig.`, 'good');
+    toast = { text: `A torn map: an X ${d} paces ${dir} of ${t.name}`, until: performance.now() + 6000 }; sfx.play('quest'); track('map_found'); mapCache.ox = null;
+    tip('tornmap', 'Torn maps mark a red ✕ on the world map, like the charts harbourmasters sell. Walk onto the spot and the hero digs. You can carry three at a time.');
+    return;
+  }
+}
+
+// ---------- the road ----------
+// Out on the roads between towns, now and then, somebody is coming the other way.
+let lastRoadEvent = -1000;
+const RIDDLES = [
+  { q: 'What has roots that nobody sees, is taller than trees, up, up it goes, and yet never grows?', a: ['A mountain', 'A tower', 'A river'], ok: 0 },
+  { q: 'I have cities but no houses, forests but no trees, water but no fish. What am I?', a: ['A dream', 'A map', 'A song'], ok: 1 },
+  { q: 'The more of me you take, the more you leave behind. What am I?', a: ['Gold', 'Years', 'Footsteps'], ok: 2 },
+  { q: 'What goes down the dungeon stairs with you and comes back up without you if you are careless?', a: ['Your shadow', 'Your gold', 'Your name'], ok: 1 },
+];
+const ROAD_EVENTS = [
+  () => ({ who: 'A pedlar', sprite: 'merchant', text: 'A pedlar with a pack as tall as himself sets it down in the road and sits on it. "Potion, twelve gold, which is less than the town will ask. Or a bottle of something I found, twenty-five, and I will not say what."',
+    choices: [
+      { label: 'Buy a potion (12 gold)', disabled: player.gold < 12 || bagFull(), run: () => { player.gold -= 12; player.bag.push('potion'); return 'He wraps it in a rag as if that made it worth more.'; } },
+      { label: 'Buy the mystery bottle (25 gold)', disabled: player.gold < 25, run: () => { player.gold -= 25; if (Math.random() < 0.6) { player.hp = player.maxHp; player.poison = 0; return 'It tastes of honey and lightning. Every ache you had is gone, and you feel you could lift the cart.'; } player.poison = 3; return 'It tastes of pond. You are poisoned, and the pedlar is already walking.'; } },
+      { label: 'Walk on', run: () => '"Your loss," he says, cheerfully, and shoulders the pack.' },
+    ] }),
+  () => ({ who: 'A game of cups', sprite: 'thief', text: 'Three cups on a barrel by the road, a pea under one, and a man with quick hands and an honest face. "Twenty-five gold says you cannot follow it. Sixty back if you can."',
+    choices: [
+      { label: 'Play (25 gold)', disabled: player.gold < 25, run: () => { player.gold -= 25; if (Math.random() < 0.4) { player.gold += 60; return 'You point. He lifts the cup, and there is the pea, and he pays with the face of a man who will not be on this road tomorrow.'; } return 'You point. He lifts the cup. Nothing. He lifts the one beside it, and there is the pea, which you would swear it was not under.'; } },
+      { label: 'Walk on', run: () => '"Another time," he says, and the pea is under none of them.' },
+    ] }),
+  () => { const t = nearestTownTo(player.x, player.y); return { who: 'A lost traveller', sprite: 'villager', text: `A woman with a bundle and a baby stops you. "Which way is ${t.name}? I have been walking since first light and every road looks like the last."`,
+    choices: [
+      { label: `Point the way to ${t.name}`, run: () => { const g = 10 + rnd(10); player.gold += g; gainXp(10); return `You point. She presses ${g} gold on you for the trouble, and will not hear otherwise.`; } },
+      { label: 'Shrug and walk on', run: () => 'She watches you go, and then picks a road, and it is the wrong one.' },
+    ] }; },
+  () => ({ who: 'A cart in the ditch', sprite: 'farmer', text: 'A cart lies on its side in the ditch with a wheel in the air and turnips everywhere. The carter sits on the bank with his head in his hands. "Half a day to get it up alone. Give me a shoulder?"',
+    choices: [
+      { label: 'Put your shoulder to it', run: () => { if (Math.random() < 0.7) { const g = 20 + rnd(20); player.gold += g; return `It comes up with a crack and a cheer. He gives you ${g} gold and all the turnips you can carry, which is none.`; } if (!bagFull()) player.bag.push('potion'); return 'It comes up with a crack and a cheer. He has no money, he says, but he has this, and presses a potion on you from under the seat.'; } },
+      { label: 'Walk on', run: () => 'He does not curse you. Somehow that is worse.' },
+    ] }),
+  () => { const toll = Math.max(10, Math.floor(player.gold * 0.1)); return { who: 'Toll', sprite: 'thief', text: `Three men step out of the trees ahead and one behind. The one with the cudgel smiles. "Toll road. ${toll} gold, and you walk on with our blessing."`,
+    choices: [
+      { label: `Pay the toll (${toll} gold)`, disabled: player.gold < toll, run: () => { player.gold -= toll; return 'They count it twice and melt back into the trees. The road is quiet again.'; } },
+      { label: 'Draw steel', run: () => { const t = byName('Thief')[0], danger = wildDanger(); let n = 0; for (let i = 0; i < 4; i++) { const spot = freeTileNear(player.x, player.y, 2); if (!spot) break; addMonster(t, spot.x, spot.y, { hp: t.hp + 3 + danger * 2, atk: t.atk + 1 + Math.floor(danger / 2), name: 'Bandit', awake: true, wild: true, purse: 12 + danger * 5 }); n++; } monsters = worldMonsters; monstersDirty = true; return `The smile goes. ${n} bandits come at you with cudgels, and each carries what he has taken from the last traveller.`; } },
+    ] }; },
+  () => ({ who: 'A bard', sprite: 'elder', text: 'A bard on a milestone, tuning a lute with three strings. "A song for the road, traveller. Ten gold and I will sing you one that puts iron in the arm for a day or so. Free, and you get the one about the goose."',
+    choices: [
+      { label: 'The iron song (10 gold)', disabled: player.gold < 10, run: () => { player.gold -= 10; player.meta.blessing = { name: 'a road song', atk: 1, def: 0, turns: 250 }; updateStats(); return 'It is in a mode you do not know and it does something to the back of your neck. +1 attack for 250 turns.'; } },
+      { label: 'The one about the goose', run: () => 'It is very long and the goose does not come out of it well. You feel no different, except about geese.' },
+    ] }),
+  () => { const R = RIDDLES[rnd(RIDDLES.length)]; return { who: 'A hermit at the crossroads', sprite: 'elder', text: `An old man sits cross-legged where the roads meet, with a bowl in front of him that has forty gold in it. "A riddle. Right, and the bowl is yours. Wrong, and you put ten in it." He clears his throat. "${R.q}"`,
+    choices: R.a.map((ans, i) => ({ label: ans, run: () => { if (i === R.ok) { player.gold += 40; gainXp(15); return 'He tips the bowl into your hands without a word, and looks pleased, and starts counting out forty more from somewhere for the next one.'; } player.gold = Math.max(0, player.gold - 10); return `"No." He holds out the bowl. The answer, he says once you have paid, was ${R.a[R.ok].toLowerCase()}.`; } })) }; },
+];
+function roadEvent() {
+  if (scene !== 'world' || aboard || storyOpen() || gameOver || perkChoices || shopOpen || turn - lastRoadEvent < 220 || Math.random() > 0.035) return;
+  const g = groundAt(player.x, player.y); if (g !== GROUND.ROAD && g !== GROUND.COBBLE) return;
+  if (townContaining(player.x, player.y) || nearbyTowns(player.x, player.y, 1).some((t) => cheb({ x: t.cx, y: t.cy }, player) < 28)) return;
+  lastRoadEvent = turn;
+  const ev = ROAD_EVENTS[rnd(ROAD_EVENTS.length)]();
+  showScene([{ bg: 'road', ...ev }]); track('road_event', { who: ev.who });
+}
+
 // ---------- errands ----------
 // Townsfolk have troubles of their own: a letter for someone in the next town along
 // the road, paid by the one who receives it, or a keepsake dropped in the town dungeon
@@ -1105,6 +1181,8 @@ const MONSTER_LORE = {
   Zombie: 'Dead a long while and never told. It shambles, a step every other turn, and it does not stop, and it does not mind what you do to it.',
   Ent: 'A tree that grew tired of standing still. Slow, and it mends itself as it comes; fire does to it what fire does to wood.',
   'Hill giant': 'Twice your height with a club the size of you. It winds up every blow, which is your warning, and the blow lands like a falling roof.',
+  Deer: 'Shy, quick, and worth a purse to any merchant for the hide and the haunch. Awake, it outruns you: walk up on one asleep, or shoot it.',
+  Boar: 'Bad-tempered and worth more than a deer. It charges whatever comes near and does not run. Tusks and hams.',
   Dragon: 'Younger than the Wyrm and twice as hungry. It keeps to the air, breathes fire from three tiles off, and leaves you burning. Close the distance or break the line.',
   'Sea serpent': 'A neck as thick as a mast, seen from a long way off if you are watching the water. It takes ships for whales. Steer round it, or meet it with a blade and a full belly.',
   'Pirate sloop': 'Black sails on the horizon. The sloop will run you down if it can, and it carries a strongbox, and sometimes a chart to where the rest of the strongbox went.',
@@ -1221,6 +1299,7 @@ function drawJournal(g) {
   } else if (journalTab === 3) {
     const all = Object.keys(ITEMS.relics);
     g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.fillText(`Treasures found: ${player.meta.found.length} of ${all.length}`, X, y); y += 28;
+    { const held = charts().length, dug = player.meta.treasures || 0; g.fillStyle = '#cfe9ff'; g.font = '12px sans-serif'; y = wrapText(g, `${held ? `Treasure charts and torn maps in your pack: ${held}, each a red ✕ on the world map (M); stand on the spot and you dig.` : 'Torn maps turn up in chests below the first floor, and harbourmasters sell charts; each marks buried treasure with a red ✕ on the world map.'} Dug up so far: ${dug}.`, X, y, W, 16) + 10; }
     for (const id of all) {
       const it = ITEMS.relics[id], got = player.meta.found.includes(id);
       g.fillStyle = got ? '#ffd86b' : '#4b5563'; g.font = 'bold 14px sans-serif'; g.fillText(`${got ? '◆' : '◇'} ${got ? it.name : '???'}${player.relic === id ? '  (worn)' : ''}`, X, y);
@@ -1473,6 +1552,8 @@ BIG_SPRITES.wolf = BIG_SPRITES.hound.map((r) => r.replace(/h/g, 'e').replace(/H/
 BIG_SPRITES.husky = BIG_SPRITES.hound.map((r) => r.replace(/h/g, 'w').replace(/H/g, 'e'));     // and a white one a husky
 BIG_SPRITES.mongoose = BIG_SPRITES.cat.map((r) => r.replace(/t/g, 'h'));                      // a brown cat shape is a mongoose
 BIG_SPRITES.horse = ['................', '................', '............HH..', '...........HhhH.', '..........Hhhkh.', '..........hhhhhh', '...hhhhhhhhhhh..', '..Hhhhhhhhhhhh..', '..hhhhhhhhhhhh..', '.H.hhhhhhhhhh...', '...hhhhhhhhhh...', '...hh.hh..hh.hh.', '...hh.hh..hh.hh.', '...hh.hh..hh.hh.', '...kk.kk..kk.kk.', '................'];
+BIG_SPRITES.deer = BIG_SPRITES.horse.map((r) => r.replace(/h/g, 't').replace(/H/g, 'h'));   // a horse's lines in fawn, with antlers
+BIG_SPRITES.deer[0] = '...........h..h.'; BIG_SPRITES.deer[1] = '...........hhhh.';
 BIG_SPRITES.statue = ['......eeee......', '.....eEEEEe.....', '.....eEeeEe.....', '......eeee......', '.....eeeeee.....', '....eeEeeEee....', '...ee.eeee.ee...', '...e..eeee..e...', '......eeee......', '......ee.ee.....', '......ee.ee.....', '....EEEEEEEE....', '...EeeeeeeeeE...', '...EEEEEEEEEE...', '..EEEEEEEEEEEE..', '................'];
 BIG_SPRITES.belltower = ['.......dd.......', '......dddd......', '.....dddddd.....', '....dddddddd....', '.....EeeeeE.....', '.....E.yy.E.....', '.....E.yy.E.....', '.....EeeeeE.....', '.....EEEEEE.....', '.....EeEEeE.....', '.....EEEEEE.....', '.....EeEEeE.....', '.....EEEEEE.....', '....EEEhhEEE....', '...EEEEhhEEEE...', '................'];
 BIG_SPRITES.bonfire = ['................', '.......yy.......', '......yooy......', '.....yoryoy.....', '.....orrroo.....', '....yorryroy....', '....orrrrrro....', '....orryyrro....', '.....orrrro.....', '...hHhorroHhh...', '..hhHHhhhHHhh...', '...HhhHHHhhH....', '..EEe....eEE....', '..EeEE..EEeE....', '................', '................'];
@@ -4141,6 +4222,14 @@ function generateWorldChunk(cx, cy) {
     const t = pool[Math.floor(rand() * pool.length)];
     const hp = t.hp + danger;
     worldMonsters.push({ ...cell, type: t, hp, maxHp: hp, atk: t.atk + Math.floor(danger / 2), awake: false, wild: true });
+  }
+  // game in the woods: a deer or two, now and then a boar, each carrying what it will fetch at market
+  const glades = spots.filter((p) => gr[(p.y - oy) * CHUNK + (p.x - ox)] === GROUND.FOREST);
+  const gameCount = glades.length > 20 ? Math.floor(rand() * 3) : 0;
+  for (let i = 0; i < gameCount && glades.length; i++) {
+    const cell = glades.splice(Math.floor(rand() * glades.length), 1)[0];
+    const t = byName(rand() < 0.7 ? 'Deer' : 'Boar')[0], hp = t.hp + Math.floor(danger / 2);
+    worldMonsters.push({ ...cell, type: t, hp, maxHp: hp, atk: t.atk, awake: false, wild: true, purse: (t.name === 'Deer' ? 10 : 16) + danger * 4 + Math.floor(rand() * 6) });
   }
   // the open sea has beasts of its own, in plain sight: sloops and serpents, and krakens in the far deeps
   const seaSpots = [];
@@ -8550,6 +8639,7 @@ function playerAttack(m) {
 }
 function killMonster(m) {
   if (m.id) { mp.dead.add(m.id); mp.graveyard.set(m.id, m); }
+  if (m.type.game && m.purse) { log(`${m.type.name === 'Deer' ? 'The hide and the haunch' : 'The tusks and the hams'} will fetch ${m.purse} gold at any market.`, 'good'); player.meta.game = (player.meta.game || 0) + 1; if (player.meta.game >= 10) unlock('hunter_game'); }
   if (m.trial && trial && m.trial === trial) trial.kills++;
   if (skill('bloodlust') && player.hp > 0 && player.hp < player.maxHp) { const h = Math.min(player.maxHp - player.hp, 2 + Math.floor(player.level / 10)); player.hp += h; floatText(player.x, player.y, `+${h}`, '#ff6b9b'); }
   if (m.mod === 'explosive' || m.type.bomber) {
@@ -8753,6 +8843,13 @@ function stepMonsters(swiftOnly = false, heroes = null) {
       let best = null, bestD = dist(m, H);
       for (const [dx, dy] of DIRS) { const nx = m.x + dx, ny = m.y + dy; if (walkable(getTile(nx, ny)) && getTile(nx, ny) !== TILE.LAVA && !getMonsterAt(nx, ny) && !houndAt(nx, ny) && !heroAt(nx, ny) && dist({ x: nx, y: ny }, H) > bestD) { bestD = dist({ x: nx, y: ny }, H); best = [nx, ny]; } }
       if (best) { moveMonster(m, best[0], best[1]); continue; }
+    }
+    if (m.type.skittish) {   // away from the nearest hero, and back to grazing once well clear
+      if (!m.awake) continue;
+      let best = null, bestD = dist(m, H);
+      for (const [dx, dy] of DIRS) { const nx = m.x + dx, ny = m.y + dy, nd = dist({ x: nx, y: ny }, H); if (nd > bestD && walkable(getTile(nx, ny)) && getTile(nx, ny) !== TILE.LAVA && !getMonsterAt(nx, ny) && !heroAt(nx, ny) && !houndAt(nx, ny) && !(scene === 'world' && (getNpcAt(nx, ny) || townContaining(nx, ny)))) { bestD = nd; best = [nx, ny]; } }
+      if (best) moveMonster(m, best[0], best[1]); else if (dist(m, H) > 10) m.awake = false;
+      continue;
     }
     const adjacent = heroes.find((h) => dist(m, h) === 1);
     if (adjacent) { strike(m, adjacent, false); continue; }
@@ -10525,6 +10622,7 @@ function endTurn(moved) {
   if (scene === 'world' && moved && story4().s === 0 && townContaining(player.x, player.y) && story3Done()) offerStory4();
   if (scene === 'world' && moved && story5().s === 0 && townContaining(player.x, player.y) && story4Done()) offerStory5();
   if (scene === 'world' && moved && story6().s === 0 && townContaining(player.x, player.y) && story5Done()) offerStory6();
+  if (scene === 'world' && moved) roadEvent();
   if (inTown()) for (const pl of nearbyPlaces(player.x, player.y, 1)) if (!discovered(pl) && cheb(pl, player) <= 3) discoverPlace(pl);
   if (inTown()) for (const st of nearbySites(player.x, player.y, 1)) if (st.lair && !lairKnown(st.lair) && cheb(st, player) <= 4) revealLair(st.lair, 'You stumble on it:');
   if (scene === 'world' && turn % 5 === 0) { spawnBounties(); spawnRimGiants(); }
@@ -10627,6 +10725,7 @@ function openChest(x, y) {
   setTile(x, y, TILE.FLOOR); bgDirty = true;
   log(`You open the chest: ${gold} gold.`, 'good');
   rqProgress('chest'); rqProgress('gold', null, gold); fetchFound();
+  if (scene === 'dungeon' && floor >= 1 && !coopActive() && Math.random() < 0.1) findTreasureMap();
   burst(x, y, '#ffd86b', 24, 110, { glow: true, gravity: 120, life: 700, rise: 120 });
   if (player.gold >= 1000) unlock('rich');
   floatText(x, y, `+${gold}g`, '#f5c542');

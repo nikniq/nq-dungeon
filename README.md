@@ -773,6 +773,27 @@ opened on that floor or deeper in that dungeon holds it (`fetchFound`, via
 twice, found and returned (`have` 1 and 2), so the only state is the quest
 itself; the floor rides in the quest id and the thing in its label.
 
+## Off the story: the woods, the roads and the torn maps
+
+Three things to do on the map that owe nothing to the stories. **Game** lives
+in the forests (`Deer`, `Boar`: `game`, spawned per chunk on forest ground
+beside the beasts, each carrying a `purse` that drops as gold): a deer is
+`skittish`, wakes at the usual range, runs from the hero a tile a turn and
+never strikes, so it is taken asleep or shot; a boar charges. Ten head make
+the Huntsman. **Torn maps** (`findTreasureMap`, one chest in ten below the
+first floor) each mark an X on open land fifty to a hundred and fifty paces
+from where the hero was last on the surface; they join the treasure charts
+the harbourmasters sell (`charts`, three held at most), are drawn with the
+same red ✕ and dug the same way (`chartNear`, `digTreasure`), so a hero who
+never buys a ship still finds buried treasure. **The road**
+(`roadEvent`, `ROAD_EVENTS`): on a road or paved way more than 28 tiles from
+any town, about one step in thirty and never twice within 220 turns, a scene
+with choices: a pedlar (a cheap potion or a mystery bottle), a game of cups, a
+lost traveller, a cart in the ditch, a toll (pay a tenth or fight four
+bandits, who are thieves by another name), a bard whose song is a blessing,
+and a hermit's riddle (`RIDDLES`). None of it is saved but the charts and the
+two tallies.
+
 ## The Sundered Blade
 
 Dawnbreaker (+16 attack, the Sundering style: every blow also strips a tenth of
