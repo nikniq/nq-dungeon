@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Set your password — Dungeon Adventure')
+@section('title', 'Set your password — Dungeon Affair')
 @section('content')
 <div class="panel">
   <h2>{{ $hasPassword ? 'Set a new password' : 'Choose your password' }}</h2>

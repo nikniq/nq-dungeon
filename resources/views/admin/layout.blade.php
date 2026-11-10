@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', $title.' — Admin — Dungeon Adventure')
+@section('title', $title.' — Admin — Dungeon Affair')
 @section('body-class', 'wide')
 @section('content')
 <div class="admin">

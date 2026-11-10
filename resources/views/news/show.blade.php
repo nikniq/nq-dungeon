@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', $article['title'].' — Dungeon Adventure news')
+@section('title', $article['title'].' — Dungeon Affair news')
 @section('description', $article['summary'])
 @section('content')
   <p class="muted small"><a href="{{ route('news.index') }}">← All news</a></p>

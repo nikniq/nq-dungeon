@@ -1,6 +1,6 @@
 @extends('layouts.app')
-@section('title', 'Items — Dungeon Adventure')
-@section('description', 'Every item in Dungeon Adventure and how to get it: weapons and their fighting styles, armour, consumables, legendary gear from the lairs, and the relics of the stories.')
+@section('title', 'Items — Dungeon Affair')
+@section('description', 'Every item in Dungeon Affair and how to get it: weapons and their fighting styles, armour, consumables, legendary gear from the lairs, and the relics of the stories.')
 @section('body-class', 'wide')
 @section('content')
   <div class="glossary-head">

@@ -1,6 +1,6 @@
 @extends('layouts.app')
-@section('title', 'News — Dungeon Adventure')
-@section('description', 'Development news for Dungeon Adventure: what is new in the game and how to use it.')
+@section('title', 'News — Dungeon Affair')
+@section('description', 'Development news for Dungeon Affair: what is new in the game and how to use it.')
 @section('content')
   <div class="glossary-head">
     <h2>News</h2>

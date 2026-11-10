@@ -1,4 +1,4 @@
-# Dungeon Adventure
+# Dungeon Affair
 
 A small browser-based dungeon game, served by Laravel. The web root is `public_html/`
 (point your web server's document root there).

@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Your profile — Dungeon Adventure')
+@section('title', 'Your profile — Dungeon Affair')
 @section('content')
 <div class="panel">
   <h2>{{ $character->name }}</h2>

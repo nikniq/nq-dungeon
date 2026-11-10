@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Create hero — Dungeon Adventure')
+@section('title', 'Create hero — Dungeon Affair')
 @section('content')
 <div class="panel">
   <h2>Create your hero</h2>

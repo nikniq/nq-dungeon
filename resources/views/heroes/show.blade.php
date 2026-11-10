@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', $character->name.' — Dungeon Adventure')
+@section('title', $character->name.' — Dungeon Affair')
 @section('description', $character->bio ?: $character->name.': level '.$character->level.' hero with '.$character->wins.' escapes and a deepest floor of '.$character->best_floor.'.')
 @section('content')
 <div class="profile">

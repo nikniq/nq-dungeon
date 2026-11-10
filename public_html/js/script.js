@@ -1,4 +1,4 @@
-// Dungeon Adventure — a small roguelike on a canvas.
+// Dungeon Affair — a small roguelike on a canvas.
 //
 // World model: the dungeon is endless. It is generated in 32x32 chunks on
 // demand, seeded per floor, every chunk links to its neighbours through the

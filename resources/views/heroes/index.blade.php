@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Heroes — Dungeon Adventure')
+@section('title', 'Heroes — Dungeon Affair')
 @section('content')
 <div class="board">
   <div class="board-head">

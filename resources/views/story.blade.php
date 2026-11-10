@@ -1,10 +1,10 @@
 @extends('layouts.app')
-@section('title', 'The story — Dungeon Adventure')
-@section('description', 'The story of Dungeon Adventure in two parts: The Shattered Crown and The Far Shore, with a discussion thread under each.')
+@section('title', 'The story — Dungeon Affair')
+@section('description', 'The story of Dungeon Affair in two parts: The Shattered Crown and The Far Shore, with a discussion thread under each.')
 @section('content')
   <div class="glossary-head">
     <h2>The story so far</h2>
-    <p class="muted">Dungeon Adventure is told in stories. Story 1 is where every hero begins; Story 2 opens when it is finished. Read, then say what you think under each. See also the <a href="{{ route('world.towns') }}">towns</a> and <a href="{{ route('world.characters') }}">characters</a>.</p>
+    <p class="muted">Dungeon Affair is told in stories. Story 1 is where every hero begins; Story 2 opens when it is finished. Read, then say what you think under each. See also the <a href="{{ route('world.towns') }}">towns</a> and <a href="{{ route('world.characters') }}">characters</a>.</p>
   </div>
   @foreach ($stories as $story)
     <section class="story-part" id="story-{{ $story['n'] }}">

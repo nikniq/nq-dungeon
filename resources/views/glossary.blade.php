@@ -1,6 +1,6 @@
 @extends('layouts.app')
-@section('title', ($kind === 'towns' ? 'Towns of the realms' : 'Characters of the realms').' — Dungeon Adventure')
-@section('description', $kind === 'towns' ? 'Every town of the four realms of Dungeon Adventure: its realm, trade, history, landmark, leader, watch and notable locals.' : 'The people of Dungeon Adventure: kings, councillors, chieftains, merchants, story figures, and the leader and notable local of every town.')
+@section('title', ($kind === 'towns' ? 'Towns of the realms' : 'Characters of the realms').' — Dungeon Affair')
+@section('description', $kind === 'towns' ? 'Every town of the four realms of Dungeon Affair: its realm, trade, history, landmark, leader, watch and notable locals.' : 'The people of Dungeon Affair: kings, councillors, chieftains, merchants, story figures, and the leader and notable local of every town.')
 @section('body-class', 'wide')
 @section('content')
   <div class="glossary-head">

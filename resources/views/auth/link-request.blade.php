@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Email me a link — Dungeon Adventure')
+@section('title', 'Email me a link — Dungeon Affair')
 @section('content')
 <div class="panel">
   <h2>Email me a sign-in link</h2>

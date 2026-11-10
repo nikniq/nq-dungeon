@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <meta name="description" content="@yield('description', 'Dungeon Adventure: a free browser roguelike. Gear up in town, descend five floors, and escape with the gold.')">
-  <title>@yield('title', 'Dungeon Adventure')</title>
+  <meta name="description" content="@yield('description', 'Dungeon Affair: a free browser roguelike. Gear up in town, descend five floors, and escape with the gold.')">
+  <title>@yield('title', 'Dungeon Affair')</title>
   @yield('head')
   <link rel="stylesheet" href="{{ asset('css/style.css') }}?v={{ filemtime(public_path('css/style.css')) }}">
   @php($gaId = config('services.google_analytics.measurement_id'))
@@ -25,7 +25,7 @@
 <body class="@yield('body-class')">
   <div class="container">
     <header class="top">
-      <h1><a href="{{ route('home') }}" class="plain">Dungeon Adventure</a></h1>
+      <h1><a href="{{ route('home') }}" class="plain">Dungeon Affair</a></h1>
       <nav class="account">
         <a href="https://nikniq.com/" class="plain" title="Back to nikniq.com">&larr; nikniq.com</a>
         <a href="{{ route('game') }}">Play</a>

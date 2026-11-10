@@ -1,8 +1,8 @@
 @extends('layouts.app')
-@section('title', 'Dungeon Adventure — a free browser roguelike')
+@section('title', 'Dungeon Affair — a free browser roguelike')
 @section('body-class', 'landing')
 @section('head')
-  <meta property="og:title" content="Dungeon Adventure — a free browser roguelike">
+  <meta property="og:title" content="Dungeon Affair — a free browser roguelike">
   <meta property="og:description" content="Towns, castles, ports and the open sea above; under every town a dungeon that only ends when you do. Turn-based, free, no download.">
   <meta property="og:image" content="{{ asset('images/home/og.png') }}">
   <meta property="og:type" content="website">
@@ -33,7 +33,7 @@
       <li><b>∞</b> floors</li>
     </ul>
   </div>
-  <a href="{{ route('game') }}" class="splash-art" aria-label="Play Dungeon Adventure">
+  <a href="{{ route('game') }}" class="splash-art" aria-label="Play Dungeon Affair">
     <video class="shot main" autoplay muted loop playsinline preload="metadata" poster="{{ asset('images/home/play-poster.jpg') }}" width="668" height="494" aria-label="Fourteen seconds of play: a warrior fights a goblin and a skeleton, picks up gold, levels up and opens a chest that bites">
       <source src="{{ asset('images/home/play.mp4') }}" type="video/mp4">
       <source src="{{ asset('images/home/play.webm') }}" type="video/webm">

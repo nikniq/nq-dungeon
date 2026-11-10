@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Play — Dungeon Adventure')
+@section('title', 'Play — Dungeon Affair')
 @section('body-class', 'wide')
 @section('content')
     @guest
