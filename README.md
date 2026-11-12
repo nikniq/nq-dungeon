@@ -794,6 +794,31 @@ bandits, who are thieves by another name), a bard whose song is a blessing,
 and a hermit's riddle (`RIDDLES`). None of it is saved but the charts and the
 two tallies.
 
+## Fair days, the night watch, fog and mastery
+
+Every town holds its fair one day in seven (`fairDay`: the day number and
+the town's cell): bunting is strung across the square (`drawBunting`), every
+shop in town takes a fifth off (`priceMult`), and walking into a stall opens
+the contests (`fairContest`): the bell (attack against a roll), the butts
+(a chance, better for rangers and with level) and the ale race (even odds,
+and a turn of poison for the loser), five gold a go; five wins across the
+realms make the Fair Champion (`meta.fairs`).
+
+After dark any guard offers the night watch (`watchTalk`): three waves come up
+the road outside the gate (`tickWatch`, kinds by the cell's danger, a troll
+leading the last), allowed into the town like a horde, each head carrying a
+purse, each wave paid at dawn or when the last falls (`endWatch`: gold, XP, +20
+standing; `meta.watches`, three for the title). One watch a night per town.
+
+Weather has fog as well as rain (`isFoggy`, about one day in five, lifting at
+night): a vignette closes the world to a few paces round the hero and everyone
+notices everyone two tiles later. The HUD's town line names the weather, the
+fair and the watch (`hudExtras`).
+
+Mastery (`mastery`): every fifty of a kind slain, from the bestiary tally
+already kept, is a point of damage against that kind, to three; the Bestiary
+page shows the points and the distance to the next.
+
 ## The Sundered Blade
 
 Dawnbreaker (+16 attack, the Sundering style: every blow also strips a tenth of

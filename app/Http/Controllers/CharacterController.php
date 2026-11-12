@@ -101,6 +101,8 @@ class CharacterController extends Controller
             'meta.stash.*' => [fn ($a, $v, $fail) => Character::validItem($v, ['weapons', 'armor', 'consumables', 'relics']) || $fail('Unknown item.')],
             'meta.deepest' => ['nullable', 'integer', 'min:0', 'max:99'],
             'meta.game' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'meta.fairs' => ['nullable', 'integer', 'min:0', 'max:100000'],
+            'meta.watches' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'meta.horse' => ['nullable', 'boolean'],
             'meta.story2' => ['nullable', 'array:s,met,mem,gift'],
             'meta.story2.s' => ['required_with:meta.story2', 'integer', 'min:0', 'max:3'],

@@ -191,6 +191,8 @@ const ACHIEVEMENTS = {
   hunter:      { label: 'Collected three bounties', title: 'the Bounty Hunter' },
   rimward:     { label: 'Asked what the Rim was for', title: 'the Curious' },
   hunter_game: { label: 'Brought down ten head of game', title: 'the Huntsman' },
+  fairchampion: { label: 'Won five contests at the fairs', title: 'the Fair Champion' },
+  nightwatch:  { label: 'Stood the night watch three times', title: 'of the Watch' },
   rimbreaker:  { label: 'Broke the four hearts of the Rim', title: 'Rimbreaker' },
   rimwalker:   { label: 'Passed the Rim of the World', title: 'the Rimwalker' },
   angler:      { label: 'Caught a golden carp', title: 'the Angler' },
@@ -964,6 +966,77 @@ function findTreasureMap() {
   }
 }
 
+// ---------- fair day ----------
+// Three contests at the stalls, five gold a go: strength, aim and a stomach for ale.
+const FAIR_FEE = 5;
+function fairContest(town, st) {
+  if (storyOpen()) return;
+  const fairs = player.meta.fairs || 0, atk = player.atk + weaponAtk();
+  const win = (what, prize) => { player.gold += prize; player.meta.fairs = (player.meta.fairs || 0) + 1; if (player.meta.fairs >= 5) unlock('fairchampion'); sfx.play('win'); track('fair_won', { what }); updateStats(); };
+  const pay = () => { player.gold -= FAIR_FEE; updateStats(); };
+  showScene([{ who: `The fair at ${town.name}`, sprite: 'merchant', bg: 'town',
+    text: `The stallholder has given the stall over to a showman in a red coat. "Roll up! The bell for the strong, the butts for the keen-eyed, and the ale race for the brave. ${FAIR_FEE} gold a go, prizes in coin, and a ribbon for anyone who wins five across the realms."${fairs ? ` You have ${fairs} win${fairs === 1 ? '' : 's'} to your name.` : ''}`,
+    choices: [
+      { label: `Ring the bell (${FAIR_FEE} gold)`, disabled: player.gold < FAIR_FEE, run: () => { pay(); const need = 7 + rnd(12), roll = atk + rnd(8); if (roll >= need) { const prize = 20 + rnd(16); win('bell', prize); return `You swing. The weight goes up like a startled bird and the bell rings over the whole square. ${prize} gold, and a cheer.`; } return `You swing. The weight climbs, thinks about it, and comes down. The showman says the bell is very old and hardly rings for anyone.`; } },
+      { label: `Shoot the butts (${FAIR_FEE} gold)`, disabled: player.gold < FAIR_FEE, run: () => { pay(); const chance = 0.35 + (player.cls === 'ranger' ? 0.3 : 0) + Math.min(0.2, player.level / 100); if (Math.random() < chance) { const prize = 20 + rnd(16); win('butts', prize); return `Three arrows, three in the gold. The showman pays out ${prize} gold with the face of a man who had not budgeted for you.`; } return 'Two arrows in the straw and one in the showman\'s hat. He keeps the hat, and your fee.'; } },
+      { label: `The ale race (${FAIR_FEE} gold)`, disabled: player.gold < FAIR_FEE, run: () => { pay(); if (Math.random() < 0.5) { const prize = 15 + rnd(16); win('ale', prize); return `Four tankards against the blacksmith, and you set yours down first. ${prize} gold, and the blacksmith's respect, which is worth more and weighs less.`; } player.poison = 1; return 'The blacksmith wins by half a tankard. You feel it already. You are, briefly, poisoned, which the showman says is the ale and not the race.'; } },
+      { label: 'Just watch', run: () => 'A boy rings the bell on his first go and is carried round the square on shoulders. The showman looks pained.' },
+    ] }]);
+}
+
+// ---------- the night watch ----------
+// Any guard, after dark, will take a hero onto the watch: three waves come up the road
+// at the gate, paid by the head and by the wave, until dawn or the last of them.
+const WATCH_WAVES = 3;
+let watch = null;   // { town, wave, spawned }
+function watchTalk(n) {
+  if (!n.type.guard || scene !== 'world' || dayPhase() !== 'night' || storyOpen()) return false;
+  const here = townContaining(n.x, n.y); if (!here) return false;
+  if (watch) { log(`${n.type.name}: "Eyes on the road. ${watchFoes().length ? 'They are coming.' : 'The next lot will be along.'}"`); return true; }
+  if (here.watched === dayNumber()) { log(`${n.type.name}: "You stood the watch tonight already. Get some sleep; we will manage."`); return true; }
+  const danger = Math.max(Math.abs(here.i), Math.abs(here.j)), perWave = 40 + 25 * danger;
+  showScene([{ who: n.type.name, sprite: n.type.sprite, bg: 'town',
+    text: `"Something has been testing the gate every night this week." ${n.type.name} looks down the road into the dark. "Stand the watch with us till dawn? ${WATCH_WAVES} waves, most nights. The town pays ${perWave} gold a wave and a bounty on every head, and the watch does not forget who stood with it."`,
+    choices: [
+      { label: 'Stand the watch', run: () => { watch = { town: here.key, wave: 0, spawned: turn - 99 }; here.watched = dayNumber(); sfx.play('quest'); track('watch_stood', { danger }); tip('watch', 'The watch: waves come up the road to the gate. Fight them at the gate with the guards, not alone in the dark. It ends at dawn or with the last wave.'); return `"Good." A horn sounds once from the gate. Take your place: they come up the road from outside the walls.`; } },
+      { label: 'Not tonight', run: () => '"Then sleep well. Somebody has to."' },
+    ] }]);
+  return true;
+}
+const watchFoes = () => (scene === 'world' ? worldMonsters : []).filter((m) => m.watch && m.hp > 0);
+function tickWatch() {
+  if (!watch || scene !== 'world' || gameOver) return;
+  const town = townAt(...watch.town.split(',').map(Number)); if (!town) { watch = null; return; }
+  const left = watchFoes().length;
+  if (dayPhase() !== 'night' && !left) { endWatch(town, 'dawn'); return; }
+  if (left) return;
+  if (watch.wave >= WATCH_WAVES) { endWatch(town, 'held'); return; }
+  if (turn - watch.spawned < 6) return;
+  // the next wave, on the road outside the gate
+  watch.wave++; watch.spawned = turn;
+  const danger = Math.max(Math.abs(town.i), Math.abs(town.j)), pool = byName('Goblin', 'Orc', ...(danger >= 2 ? ['Skeleton'] : []), ...(danger >= 4 ? ['Wraith', 'Direwolf'] : []), ...(watch.wave === WATCH_WAVES ? ['Troll'] : []));
+  const n = 3 + watch.wave + Math.min(3, Math.floor(player.level / 10));
+  let placed = 0;
+  for (let i = 0; i < n; i++) {
+    const spot = freeTileNear(town.gate.x + rnd(7) - 3, town.gate.y + 10 + rnd(8), 6); if (!spot || townContaining(spot.x, spot.y)) continue;
+    const t = pool[rnd(pool.length)];
+    addMonster(t, spot.x, spot.y, { hp: t.hp + 2 + danger * 2 + watch.wave * 2, atk: t.atk + Math.floor(danger / 2), awake: true, wild: true, watch: town.key, purse: 6 + danger * 3 + watch.wave * 2, name: watch.wave === WATCH_WAVES && t.name === 'Troll' ? 'the thing that tested the gate' : undefined });
+    placed++;
+  }
+  monsters = worldMonsters; monstersDirty = true;
+  if (!placed) { endWatch(town, 'held'); return; }
+  sfx.play('boss'); log(`A horn from the gate: wave ${watch.wave} of ${WATCH_WAVES}, ${placed} of them, coming up the road!`, 'bad');
+  toast = { text: `The watch: wave ${watch.wave} of ${WATCH_WAVES} at the gate!`, until: performance.now() + 4000 };
+}
+function endWatch(town, how) {
+  const danger = Math.max(Math.abs(town.i), Math.abs(town.j)), waves = watch.wave, g = waves * (40 + 25 * danger);
+  watch = null; player.gold += g; gainXp(30 + danger * 10 + waves * 10);
+  player.meta.watches = (player.meta.watches || 0) + 1; if (player.meta.watches >= 3) unlock('nightwatch');
+  realmState().standing = (realmState().standing || 0) + 20;
+  sfx.play('win'); log(how === 'dawn' ? `Dawn, and the road is empty. The watch of ${town.name} pays ${g} gold for ${waves} wave${waves === 1 ? '' : 's'} stood, and stands you a breakfast.` : `The last of them is down and the road is quiet. The watch of ${town.name} pays ${g} gold for the night, and the captain says the gate will sleep easier.`, 'good');
+  toast = { text: `The watch is stood: ${g} gold`, until: performance.now() + 5000 }; track('watch_done', { how, waves }); saveProgress('progress');
+}
+
 // ---------- the road ----------
 // Out on the roads between towns, now and then, somebody is coming the other way.
 let lastRoadEvent = -1000;
@@ -1158,6 +1231,8 @@ let questsOpen = false;
 let lastRealm = null, lastTownKey = null;
 let journalOpen = false, journalTab = 0;
 const JOURNAL_TABS = ['Story', 'Places', 'Towns', 'Treasures', 'Bestiary', 'World', 'Guide'];
+// Mastery: every fifty of a kind slain is a point of damage against that kind, to three.
+const mastery = (name) => Math.min(3, Math.floor(((player && player.meta && player.meta.bestiary || {})[name] || 0) / 50));
 const MONSTER_LORE = {
   Rat: 'Fat, bold and everywhere. Where there are dungeons there are rats, and where there are rats there is something worse further down.',
   Goblin: 'Small, quick and greedy. They rob the dead, and do not always wait for them to be dead.',
@@ -1325,13 +1400,14 @@ function drawJournal(g) {
       g.fillStyle = '#cfe9ff'; g.font = '12px sans-serif'; y = wrapText(g, page.text, X, y + 18, textW, 16) + 10;
     }
   } else {
-    g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.fillText('Bestiary', X, y); y += 28;
+    g.fillStyle = '#e6eef8'; g.font = 'bold 16px sans-serif'; g.fillText('Bestiary', X, y); y += 22;
+    g.fillStyle = '#a8c0d8'; g.font = '12px sans-serif'; g.fillText('Mastery: every fifty of a kind slain is a point of damage against that kind, to three.', X, y); y += 22;
     const cols = canvas.width > 900 ? 2 : 1, colW = W / cols;
     MONSTER_TYPES.forEach((t, n) => {
       const cx = X + (n % cols) * colW, cy = y + Math.floor(n / cols) * 74, k = (player.meta.bestiary || {})[t.name] || 0;
       if (cy > canvas.height - 60) return;
       g.globalAlpha = k ? 1 : 0.35; g.imageSmoothingEnabled = false; g.drawImage(sprite(t.sprite), cx, cy, 40, 40); g.globalAlpha = 1;
-      g.fillStyle = k ? '#e6eef8' : '#6b7280'; g.font = 'bold 14px sans-serif'; g.fillText(k ? `${t.name} · ${k} slain` : '???', cx + 50, cy);
+      g.fillStyle = k ? '#e6eef8' : '#6b7280'; g.font = 'bold 14px sans-serif'; g.fillText(k ? `${t.name} · ${k} slain${mastery(t.name) ? ` · mastery +${mastery(t.name)}` : k >= 25 ? ` · ${50 - (k % 50)} to the next mastery point` : ''}` : '???', cx + 50, cy);
       g.fillStyle = k ? '#a8c0d8' : '#4b5563'; g.font = '12px sans-serif';
       wrapText(g, k ? `${t.hp} HP, attack ${t.atk}, ${t.xp} XP. ${MONSTER_LORE[t.name] || ''}` : 'Slay one to learn more.', cx + 50, cy + 18, colW - 70, 15);
     });
@@ -4829,7 +4905,7 @@ function talk(n) {
   if (n.type.leader && story5Open()) { openShop('rebuild'); return; }
   if (n.type.action === 'inn') openShop('inn');
   else if (n.type.action && SHOPS[n.type.action]) openShop(n.type.action);
-  else if (!bountyTalk(n)) offerQuest(n);
+  else if (!watchTalk(n) && !bountyTalk(n)) offerQuest(n);
 }
 // ---------- breaking the peace ----------
 // Ctrl with a direction (or X, then a direction) strikes whoever stands there in a town
@@ -5893,6 +5969,19 @@ function drawTownPath(g, c, r) {
   }
 }
 // A market stall: a trestle of goods, someone behind it, and a striped awning on two poles.
+// Fair day: lines of pennants strung across the square between the fountain row and the stalls.
+function drawBunting(g, town, x0, x1, y0, y1) {
+  const [pw, ph] = town.plaza, cols = ['#e74c3c', '#ffd86b', '#4a90e2', '#7ad36b', '#ff9ecf'];
+  for (const row of [town.cy - ph + 1, town.cy + ph - 1]) {
+    if (row < y0 - 1 || row > y1 + 1) continue;
+    const X0 = (town.cx - pw) * T - off.x, X1 = (town.cx + pw + 1) * T - off.x, Y = row * T - off.y + 4;
+    g.strokeStyle = 'rgba(60,40,20,0.8)'; g.lineWidth = 1; g.beginPath(); g.moveTo(X0, Y); g.quadraticCurveTo((X0 + X1) / 2, Y + 10, X1, Y); g.stroke();
+    for (let x = X0 + 8, i = 0; x < X1 - 6; x += 14, i++) {
+      const sag = 10 * (1 - Math.pow((2 * (x - X0) / (X1 - X0) - 1), 2)) * 0.5;
+      g.fillStyle = cols[(i + row) % cols.length]; g.beginPath(); g.moveTo(x, Y + sag); g.lineTo(x + 8, Y + sag); g.lineTo(x + 4, Y + sag + 9); g.closePath(); g.fill();
+    }
+  }
+}
 function drawStall(g, town, st) {
   const X = st.x * T - off.x, Y = st.y * T - off.y, W = 2 * T, tier = townTier(town), shabby = tier === 0;
   const col = ['#c0392b', '#2c6fb3', '#2e8b57', '#b7791f', '#7d4fb0', '#c2410c'][(st.k + town.i * 3 + town.j) % 6 < 0 ? 0 : ((st.k + Math.abs(town.i) * 3 + Math.abs(town.j)) % 6)];
@@ -6755,6 +6844,7 @@ function renderBackground() {
       g.textAlign = 'start'; g.textBaseline = 'alphabetic';
     }
     for (const h of houses) if (h.x <= x1 && h.x + h.w >= x0 && h.y - (h.tower ? 2 : 0) <= y1 && h.y + h.h >= y0) { if (h.tower) drawTower(g, h); else { drawHouse(g, h); drawHouseProps(g, h); } }
+    for (const town of nearbyTowns(player.x, player.y, 1)) if (fairDay(town)) drawBunting(g, town, x0, x1, y0, y1);
     for (const town of nearbyTowns(player.x, player.y, 1)) if (STALL_SPOTS[town.size]) for (const st of townStalls(town)) if (st.x + 2 >= x0 && st.x <= x1 && st.y + 1 >= y0 && st.y - 1 <= y1) drawStall(g, town, st);
     for (const town of nearbyTowns(player.x, player.y, 1)) {
       if (town.cx < x0 - 12 || town.cx > x1 + 12 || town.cy < y0 - 8 || town.cy > y1 + 8) continue;
@@ -6850,7 +6940,7 @@ function drawHud(g, now) {
   const compact = canvas.width < 560;
   const text = compact
     ? `HP ${player.hp}/${player.maxHp}  ATK ${player.atk + weaponAtk()}  DEF ${armorDef()}  Lv ${player.level}  ${player.gold}g`
-    : `${where}   HP ${player.hp}/${player.maxHp}   ATK ${player.atk + weaponAtk()}   DEF ${armorDef()}   Lv ${player.level}   Gold ${player.gold}`;
+    : `${where}${hudExtras()}   HP ${player.hp}/${player.maxHp}   ATK ${player.atk + weaponAtk()}   DEF ${armorDef()}   Lv ${player.level}   Gold ${player.gold}`;
   g.font = compact ? 'bold 11px sans-serif' : 'bold 13px sans-serif';
   // The HUD carries the game's only health bar, with the mana bar under it.
   const big = true;
@@ -7117,6 +7207,12 @@ function draw() {
   ctx.restore();
 }
 const isRainy = () => cellRand(dayNumber(), 0, 777) < 0.3;
+const isFoggy = () => !isRainy() && cellRand(dayNumber(), 1, 778) < 0.22 && dayPhase() !== 'night';   // one day in five or so dawns in fog, which lifts at dusk
+const weatherWord = () => (scene === 'world' ? (isRainy() ? 'rain' : isFoggy() ? 'fog' : '') : '');
+// Every town holds its fair one day in seven: bunting over the square, a fifth off in
+// the shops, and contests at the stalls.
+const fairDay = (town) => !!town && ((dayNumber() + town.i * 3 + town.j * 5) % 7 + 7) % 7 === 0;
+const hudExtras = () => { const t = scene === 'world' ? townContaining(player.x, player.y) : null, bits = [weatherWord(), fairDay(t) ? 'fair day' : '', watch ? `the watch: wave ${watch.wave}/${WATCH_WAVES}` : ''].filter(Boolean); return bits.length ? ' · ' + bits.join(' · ') : ''; };
 function drawScene(now) {
   const originX = Math.floor(cam.x / T) * T - T, originY = Math.floor(cam.y / T) * T - T;
   if (originX !== bgOrigin.x || originY !== bgOrigin.y) { bgOrigin = { x: originX, y: originY }; bgDirty = true; }
@@ -7347,6 +7443,13 @@ function drawScene(now) {
       }
       ctx.stroke();
       ctx.fillStyle = 'rgba(30,40,70,0.18)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    if (isFoggy() && !townContaining(player.x, player.y)) {   // fog: the world closes in to a few paces round the hero
+      const fg = ctx.createRadialGradient(px, py, T * 3, px, py, T * 9);
+      fg.addColorStop(0, 'rgba(205,214,224,0)'); fg.addColorStop(0.55, 'rgba(205,214,224,0.35)'); fg.addColorStop(1, 'rgba(205,214,224,0.82)');
+      ctx.fillStyle = fg; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      for (let i = 0; i < 40; i++) { const x = (i * 173 + now * 0.02 * (1 + (i % 3))) % (canvas.width + 80) - 40, y = (i * 97 + Math.sin(now / 1400 + i) * 20) % (canvas.height + 40) - 20; ctx.fillRect(x, y, 24 + (i % 4) * 10, 2); }
     }
     if (player.y < ICE_Y) {   // the north: snow on the wind and a cold light
       ctx.fillStyle = 'rgba(255,255,255,0.85)';
@@ -8590,7 +8693,7 @@ function playerAttack(m) {
   scaleMonster(m);
   const w = traitOf(player.weapon), sneak = (!m.awake || m.reeling > 0) && !m.boss, solo = !coopMember();
   m.struck = turn; m.reeling = 0;
-  let dmg = Math.max(1, player.atk + weaponAtk() + rnd(2) - (m.mod === 'armored' ? 2 : 0));
+  let dmg = Math.max(1, player.atk + weaponAtk() + rnd(2) + mastery(m.type.name) - (m.mod === 'armored' ? 2 : 0));
   const notes = [];
   if (sneak) { dmg *= w === 'dagger' ? 3 : 2; notes.push('Sneak attack!'); tip('sneak', 'Sleeping monsters take double damage from your first blow, triple with a dagger. Creep up on them.'); }
   else if (w === 'short_sword' && Math.random() < 0.2) { dmg *= 2; notes.push('Critical hit!'); }
@@ -8639,6 +8742,7 @@ function playerAttack(m) {
 }
 function killMonster(m) {
   if (m.id) { mp.dead.add(m.id); mp.graveyard.set(m.id, m); }
+  if (m.watch && watch) { const left = watchFoes().length - 1; if (left > 0 && left % 2 === 0) log(`${left} of the wave still on the road.`); }
   if (m.type.game && m.purse) { log(`${m.type.name === 'Deer' ? 'The hide and the haunch' : 'The tusks and the hams'} will fetch ${m.purse} gold at any market.`, 'good'); player.meta.game = (player.meta.game || 0) + 1; if (player.meta.game >= 10) unlock('hunter_game'); }
   if (m.trial && trial && m.trial === trial) trial.kills++;
   if (skill('bloodlust') && player.hp > 0 && player.hp < player.maxHp) { const h = Math.min(player.maxHp - player.hp, 2 + Math.floor(player.level / 10)); player.hp += h; floatText(player.x, player.y, `+${h}`, '#ff6b9b'); }
@@ -8829,7 +8933,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
         if (!m.awake && Math.random() < 0.6) m.awake = true;
         if (m.awake && Math.random() < 0.7) { petBitten(pv, m); continue; }
       } }
-    const wake = (scene === 'world' ? (dayPhase() === 'night' ? 10 : 6) - ([GROUND.ROAD, GROUND.COBBLE].includes(groundAt(player.x, player.y)) && !townContaining(player.x, player.y) ? 2 : 0) : theme === 'moss' ? 3 : 6) - (wearing('wardstone') ? (scene === 'dungeon' && theme === 'moss' ? 1 : 3) : 0);
+    const wake = (scene === 'world' ? (dayPhase() === 'night' ? 10 : 6) - (isFoggy() ? 2 : 0) - ([GROUND.ROAD, GROUND.COBBLE].includes(groundAt(player.x, player.y)) && !townContaining(player.x, player.y) ? 2 : 0) : theme === 'moss' ? 3 : 6) - (wearing('wardstone') ? (scene === 'dungeon' && theme === 'moss' ? 1 : 3) : 0);
     if (!m.awake && dist(m, H) <= wake && (H.me ? isVisible(m.x, m.y) : true) && Math.random() < 0.7) m.awake = true;
     if (m.boss && m.awake && !swiftOnly && bossTurn(m, H, heroes)) continue;
     if (escort && scene === 'dungeon' && dist(m, escort) === 1 && !heroes.some((h) => dist(m, h) === 1) && (m.awake || Math.random() < 0.5)) { m.awake = true; escortHurt(m); if (!escort) continue; continue; }
@@ -8878,7 +8982,7 @@ function stepMonsters(swiftOnly = false, heroes = null) {
     for (const [dx, dy] of dirs) {
       const nx = m.x + dx, ny = m.y + dy;
       if (!walkable(getTile(nx, ny)) || getTile(nx, ny) === TILE.LAVA || getMonsterAt(nx, ny) || heroAt(nx, ny) || houndAt(nx, ny) || (scene === 'world' && getNpcAt(nx, ny))) continue;
-      if (scene === 'world' && !m.horde && townContaining(nx, ny)) continue;   // beasts keep out of settlements; hordes do not
+      if (scene === 'world' && !m.horde && !m.watch && townContaining(nx, ny)) continue;   // beasts keep out of settlements; hordes and the things that test the gate do not
       const nd = d.get(key(nx, ny));
       if (nd !== undefined && nd < bestD) { bestD = nd; best = [nx, ny]; }
     }
@@ -9235,7 +9339,7 @@ function tryMove(dx, dy) {
     fishAt(nx, ny); return;
   }
   if (t === TILE.WALL && scene === 'world') { const tn = townContaining(nx, ny); const sec = tn && grandSecret(tn, nx - tn.x0, ny - tn.y0); if (sec && !sec.open) { if (dx) player.face = dx; revealSecret(tn, sec, nx, ny); return; } }
-  if (t === TILE.WALL && scene === 'world') { const tn = townContaining(nx, ny), st = tn && stallAt(tn, nx, ny); if (st) { if (dx) player.face = dx; const cries = STALL_CRIES[st.goods], line = cries[rnd(cries.length)]; log(`The stallholder: ${line}`); bubble = { x: st.x + (nx === st.x ? 0 : 1), y: st.y, text: line, until: performance.now() + 3500 }; draw(); return; } }
+  if (t === TILE.WALL && scene === 'world') { const tn = townContaining(nx, ny), st = tn && stallAt(tn, nx, ny); if (st && fairDay(tn)) { if (dx) player.face = dx; fairContest(tn, st); return; } if (st) { if (dx) player.face = dx; const cries = STALL_CRIES[st.goods], line = cries[rnd(cries.length)]; log(`The stallholder: ${line}`); bubble = { x: st.x + (nx === st.x ? 0 : 1), y: st.y, text: line, until: performance.now() + 3500 }; draw(); return; } }
   if (t === TILE.WALL || t === TILE.FOUNTAIN) return;
   { const wp = scene === 'world' && (dx || dy) && partyAt(nx, ny); if (wp) { challengeParty(wp, dx); return; } }
   const n = scene !== 'dungeon' && getNpcAt(nx, ny);
@@ -10590,7 +10694,7 @@ function endTurn(moved) {
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
   if (scene !== 'dungeon') stepNpcs();
   stepGuards();
-  stepHound(); stepEscort(); tickTotems(); tickTrial(); tickRestless(); tickRifts(); tickWanted(); tickRim();
+  stepHound(); stepEscort(); tickTotems(); tickTrial(); tickRestless(); tickRifts(); tickWanted(); tickRim(); tickWatch();
   if (scene === 'dungeon' && dungeonDef && dungeonDef.camp && !dungeonDef.razed && !monsters.some((m) => m.hp > 0)) campCleared();
   if (scene === 'dungeon' && dungeonDef && dungeonDef.cellar && !dungeonDef.done && !monsters.some((m) => m.hp > 0)) cellarCleared();
   // in a shared dungeon the host moves monsters on a steady beat instead of per turn
@@ -10649,6 +10753,7 @@ function endTurn(moved) {
       const I = townIdentity(here);
       if (!player.meta.visited.includes(here.key)) { log(I.describe(), 'good'); log(townLore(here)); }
       toast = { text: `${here.name}. ${here.size === 'grand' ? 'The' : 'A'} ${TIER_WORDS[townTier(here)]} ${I.kind} of ${REALMS[I.realm].short}, known for ${I.famous}.`, until: performance.now() + 3500 };
+      if (fairDay(here)) { log(`It is fair day in ${here.name}: bunting over the square, a fifth off in every shop, and contests at the stalls. Walk into a stall to try your arm.`, 'good'); tip('fair', 'Every town holds its fair one day in seven. Shops are cheaper, and the stalls run contests: the bell, the butts and the ale race, five gold a go.'); }
     }
     lastTownKey = here ? here.key : null;
     if (here && !player.meta.visited.includes(here.key)) { player.meta.visited.push(here.key); if (player.meta.visited.length >= 5) unlock('explorer'); }
@@ -11446,6 +11551,7 @@ function priceMult() {
   const r = currentRealm(), rs = realmState();
   let m = r === 'cantons' ? 0.9 : r === 'league' && !rs.guild ? 1.15 : 1;
   m *= rs.guild ? 0.85 : rs.standing >= 1000 ? 0.9 : 1;   // the better of the two, not both
+  if (scene !== 'dungeon' && fairDay(townContaining(player.wx ?? player.x, player.wy ?? player.y))) m *= 0.8;   // fair day: a fifth off
   return m;
 }
 const sellRate = () => (wearing('ledger') ? 0.7 : currentRealm() === 'league' ? 0.6 : 0.5);
