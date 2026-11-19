@@ -391,3 +391,33 @@ body.landing{background:#0b1220 radial-gradient(ellipse 900px 520px at 70% -80px
 @media (max-width:720px){body:has(.stage[hidden]) .top{flex-wrap:wrap}body:has(.stage[hidden]) .account{flex-wrap:wrap;row-gap:4px}.glossary-head .search input{min-width:0;width:calc(100% - 70px)}}
 .nikniq-btn{margin-top:8px}
 .social-note{margin:6px 0 0;text-align:center}
+/* admin insights: periods, bars, breakdowns, health, logs */
+.admin-sep{width:1px;background:#12384a;margin:0 4px}
+.admin .period{display:flex;gap:6px;margin:0 0 12px}
+.admin .period a{padding:3px 10px;border-radius:999px;border:1px solid #12384a;color:#a8c0d8;text-decoration:none;font-size:.85rem}
+.admin .period a.on{background:#0b3142;color:#ffd86b;border-color:#1e4a60}
+.admin .delta{font-size:.78rem;color:#a8c0d8;margin-top:2px}
+.admin .delta.up{color:#7ee2a8}.admin .delta.down{color:#ff9b9b}
+.admin .bars{display:flex;align-items:flex-end;gap:2px;height:120px;margin:8px 0 2px;padding:6px;background:#06202c;border:1px solid #12384a;border-radius:8px}
+.admin .bar{flex:1;height:100%;display:flex;align-items:flex-end}
+.admin .bar span{display:block;width:100%;height:var(--h);min-height:1px;background:#7bdfff;border-radius:2px 2px 0 0}
+.admin .bar:hover span{background:#ffd86b}
+.admin .bars-legend{display:flex;justify-content:space-between;gap:8px;margin:0}
+.admin td.share{position:relative;min-width:90px;isolation:isolate}
+.admin td.share span{position:absolute;left:0;top:25%;height:50%;width:var(--w);background:#0b3142;border-radius:3px;z-index:-1}
+.admin .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0 24px}
+.admin .inline-form{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.admin .inline-form label{display:flex;flex-direction:column;font-size:.85rem;color:#a8c0d8}
+.admin code.copy{display:inline-block;padding:6px 10px;background:#06202c;border:1px solid #12384a;border-radius:6px;word-break:break-all;user-select:all}
+.admin .report-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.admin .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:.75rem;font-weight:700;background:#12384a;color:#cfe9ff}
+.admin .pill.ok{background:#0f3d2a;color:#7ee2a8}.admin .pill.warn{background:#4a3a0c;color:#ffd86b}.admin .pill.fail{background:#5b1d1d;color:#ffb4b4}
+.admin .health td:nth-child(3),.admin .health th:nth-child(3){text-align:left!important;width:70%}
+.admin .health-summary{padding:10px 14px;border-radius:8px;border:1px solid #12384a}
+.admin .health-summary.ok{background:#0b2a1e}.admin .health-summary.warn{background:#2c2408}.admin .health-summary.fail{background:#2e1010}
+.admin .log-entry{border-bottom:1px solid #0b2230;padding:6px 0}
+.admin .log-entry summary{cursor:pointer;word-break:break-word}
+.admin .log-entry time{color:#a8c0d8;font-size:.8rem;margin:0 6px}
+.admin .log-entry pre{white-space:pre-wrap;word-break:break-word;font-size:.78rem;max-height:420px;overflow:auto;background:#041820;padding:10px;border-radius:6px}
+.visually-hidden{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.admin a.button{display:inline-block;padding:6px 12px;border-radius:6px;background:#0b3142;border:1px solid #1e4a60;color:#ffd86b;text-decoration:none}

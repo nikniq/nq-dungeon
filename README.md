@@ -1048,6 +1048,30 @@ defaults to `https://nikniq.com`. Accounts are matched the same way as Google
 (`app/Support/SocialSignIn.php`): the portal id first, then a verified email, else
 a new hero. Run `php artisan migrate` for the `users.nikniq_id` column.
 
+## Admin insights
+
+Under `/admin` (admin flag only), next to users, heroes, posts and structures:
+
+- **Sales**: the game is free, so this is conversion: sign-ups per day, a funnel
+  (signed up → verified → killed a monster → level 5 → came back after day 1),
+  sign-up method (password, Google, NikniQ) and the biggest spenders on monuments.
+- **Marketing**: sign-ups by UTM source, medium and campaign, referring site and
+  landing page, plus a campaign link builder. The `TrackVisit` middleware keeps a
+  guest's first visit in the session and the new account stores it (first touch).
+- **Usage**: active players today / 7 / 30 days, active players and Daily Delves
+  per day, class, level, floor and achievement mix. `users.last_seen_at` is
+  bumped on signed-in visits, at most every five minutes.
+- **Reports**: KPIs against the previous period (7, 30 or 90 days), a daily table
+  and a CSV download.
+- **Health**: database, migrations, cache, storage, disk, PHP, app settings, mail,
+  sign-in setup, errors in the last day, last save and deployed commit. **Run live
+  checks** tests the Google and NikniQ credentials by sending them a fake code:
+  `invalid_grant` means the credentials work, `invalid_client` means a bad ID or secret.
+- **Logs**: the tail of `storage/logs/laravel.log`, newest first, filtered by level
+  or text (only the last megabyte is read).
+
+Run `php artisan migrate` after deploying for the attribution columns.
+
 ## Analytics
 
 Set `GOOGLE_ANALYTICS_ID` (a GA4 measurement ID like `G-XXXXXXXXXX`) in `.env` to

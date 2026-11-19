@@ -19,7 +19,7 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
-    protected $casts = ['is_admin' => 'boolean', 'email_verified_at' => 'datetime', 'password' => 'hashed'];
+    protected $casts = ['is_admin' => 'boolean', 'email_verified_at' => 'datetime', 'last_seen_at' => 'datetime', 'password' => 'hashed'];
 
     protected $fillable = [
         'name',
@@ -59,7 +59,21 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'last_seen_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /** A new account takes the first-visit attribution the TrackVisit middleware kept in the session. */
+    protected static function booted(): void
+    {
+        static::creating(function (User $user) {
+            $user->signup_method ??= 'password';
+            $user->last_seen_at ??= now();
+            $seen = app()->bound('request') && request()->hasSession() ? request()->session()->get('attribution') : null;
+            foreach (['utm_source', 'utm_medium', 'utm_campaign', 'referrer', 'landing'] as $k) {
+                $user->{$k} ??= is_array($seen) ? ($seen[$k] ?? null) : null;
+            }
+        });
     }
 }

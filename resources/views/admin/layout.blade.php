@@ -9,6 +9,10 @@
     <a href="{{ route('admin.heroes') }}" class="{{ request()->routeIs('admin.heroes') ? 'on' : '' }}">Heroes</a>
     <a href="{{ route('admin.posts') }}" class="{{ request()->routeIs('admin.posts') ? 'on' : '' }}">Story posts</a>
     <a href="{{ route('admin.structures') }}" class="{{ request()->routeIs('admin.structures') ? 'on' : '' }}">Structures</a>
+    <span class="admin-sep" aria-hidden="true"></span>
+    @foreach (['sales' => 'Sales', 'marketing' => 'Marketing', 'usage' => 'Usage', 'reports' => 'Reports', 'health' => 'Health', 'logs' => 'Logs'] as $r => $label)
+      <a href="{{ route('admin.'.$r) }}" class="{{ request()->routeIs('admin.'.$r.'*') ? 'on' : '' }}">{{ $label }}</a>
+    @endforeach
   </nav>
   <h2>{{ $title }}</h2>
   @yield('admin')

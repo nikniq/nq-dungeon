@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminInsightsController;
 use App\Http\Controllers\DelveController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CharacterController;
@@ -95,4 +96,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/structures', [AdminController::class, 'structures'])->name('structures');
     Route::delete('/projects/{project}', [AdminController::class, 'destroyProject'])->name('projects.destroy');
     Route::delete('/buildings/{building}', [AdminController::class, 'destroyBuilding'])->name('buildings.destroy');
+    // read-only insights
+    Route::get('/sales', [AdminInsightsController::class, 'sales'])->name('sales');
+    Route::get('/marketing', [AdminInsightsController::class, 'marketing'])->name('marketing');
+    Route::get('/usage', [AdminInsightsController::class, 'usage'])->name('usage');
+    Route::get('/reports', [AdminInsightsController::class, 'reports'])->name('reports');
+    Route::get('/reports/export', [AdminInsightsController::class, 'export'])->name('reports.export');
+    Route::get('/health', [AdminInsightsController::class, 'health'])->name('health');
+    Route::get('/logs', [AdminInsightsController::class, 'logs'])->name('logs');
 });

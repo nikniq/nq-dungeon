@@ -43,8 +43,8 @@ class SocialSignIn
                 $user->forceFill(array_filter([$column => $id, 'avatar' => $user->avatar ?: $avatar]))->save();
             } else {
                 $hero = self::heroName((string) ($name ?: Str::before($email, '@')));
-                $user = User::create(['name' => $hero, 'email' => $email, 'password' => null]);
-                $user->forceFill([$column => $id, 'avatar' => $avatar, 'email_verified_at' => $verified ? now() : null])->save();
+                $user = (new User)->forceFill(['name' => $hero, 'email' => $email, 'password' => null, $column => $id, 'avatar' => $avatar, 'email_verified_at' => $verified ? now() : null, 'signup_method' => $method]);
+                $user->save();
                 $user->character()->create(['name' => $hero, 'class' => 'warrior']);
                 $isNew = true;
             }
