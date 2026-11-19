@@ -8,6 +8,7 @@ use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\HeroController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MultiplayerController;
+use App\Http\Controllers\NikniqAuthController;
 use App\Http\Controllers\StoryController;
 use App\Http\Controllers\TownBuildingController;
 use App\Http\Controllers\TownProjectController;
@@ -50,6 +51,9 @@ Route::middleware('guest')->group(function () {
     Route::middleware('throttle:5,1')->post('/login/link', [AuthController::class, 'requestLink']);
     Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('google.redirect');
     Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
+    Route::get('/auth/nikniq/redirect', [NikniqAuthController::class, 'redirect'])->name('nikniq.redirect');
+    // the path the NikniQ portal registers for every game it lists
+    Route::get('/auth/callback', [NikniqAuthController::class, 'callback'])->name('nikniq.callback');
 });
 
 // the link from the email: signed, two days, proves the address and signs its owner in

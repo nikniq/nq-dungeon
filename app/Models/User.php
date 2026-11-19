@@ -37,6 +37,7 @@ class User extends Authenticatable
         'password',
         'remember_token',
         'google_id',
+        'nikniq_id',
     ];
 
     /**

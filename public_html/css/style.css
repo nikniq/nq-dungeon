@@ -389,3 +389,5 @@ body.landing{background:#0b1220 radial-gradient(ellipse 900px 520px at 70% -80px
 .detail-links{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px!important}
 /* the glossaries carry a hidden game stage, so the phone header rule above misses them */
 @media (max-width:720px){body:has(.stage[hidden]) .top{flex-wrap:wrap}body:has(.stage[hidden]) .account{flex-wrap:wrap;row-gap:4px}.glossary-head .search input{min-width:0;width:calc(100% - 70px)}}
+.nikniq-btn{margin-top:8px}
+.social-note{margin:6px 0 0;text-align:center}

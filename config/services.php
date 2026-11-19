@@ -36,6 +36,15 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
     ],
 
+    // NikniQ games portal (nikniq.com): sign in with a portal account over OAuth 2.0 / OpenID Connect.
+    // The client is the "dungeon" game in the portal admin; leave NIKNIQ_CLIENT_ID blank to hide the button.
+    'nikniq' => [
+        'url' => env('NIKNIQ_URL', 'https://nikniq.com'),
+        'client_id' => env('NIKNIQ_CLIENT_ID'),
+        'client_secret' => env('NIKNIQ_CLIENT_SECRET'),
+        'redirect' => env('NIKNIQ_REDIRECT_URI', '/auth/callback'),
+    ],
+
     // Google Analytics 4. Leave blank to load no tracking at all.
     'google_analytics' => [
         'measurement_id' => env('GOOGLE_ANALYTICS_ID'),

@@ -107,7 +107,7 @@ class GoogleAuthTest extends TestCase
     {
         $this->enable();
         $driver = Mockery::mock();
-        $driver->shouldReceive('user')->andThrow(new \Laravel\Socialite\Two\InvalidStateException);
+        $driver->shouldReceive('user')->andThrow(new \RuntimeException("network down"));
         Socialite::shouldReceive('driver')->with('google')->andReturn($driver);
 
         $this->get('/auth/google/callback')->assertRedirect('/login')->assertSessionHasErrors('email');

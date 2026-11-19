@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Character;
-use App\Models\User;
+use App\Support\SocialSignIn;
+use GuzzleHttp\Exception\ClientException;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\InvalidStateException;
 use Throwable;
 
 class GoogleAuthController extends Controller
@@ -28,66 +28,38 @@ class GoogleAuthController extends Controller
     {
         abort_unless(self::enabled(), 404);
 
+        if (request()->filled('error')) {
+            // the player pressed Cancel on Google's screen, or Google refused the request
+            return SocialSignIn::fail(request('error') === 'access_denied' ? 'Google sign-in was cancelled.' : 'Google sign-in did not complete. Please try again.');
+        }
+
         try {
             $google = Socialite::driver('google')->user();
+        } catch (InvalidStateException $e) {
+            // the session that started the sign-in is gone (expired, another tab, back button): start again once
+            if (! session()->pull('google_retried')) {
+                session()->put('google_retried', true);
+
+                return redirect()->route('google.redirect');
+            }
+            report($e);
+
+            return SocialSignIn::fail('Google sign-in timed out. Please try again.');
+        } catch (ClientException $e) {
+            // a 4xx from Google's token endpoint is our configuration, not the player: say so in the log
+            $body = json_decode((string) $e->getResponse()->getBody(), true);
+            Log::error('Google sign-in is misconfigured: '.($body['error'] ?? 'unknown').' ('.($body['error_description'] ?? $e->getMessage()).'). Check GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET, then php artisan config:clear.');
+
+            return SocialSignIn::fail('Google sign-in is not available right now. Please log in another way.');
         } catch (Throwable $e) {
             report($e);
 
-            return redirect()->route('login')->withErrors(['email' => 'Google sign-in did not complete. Please try again.']);
+            return SocialSignIn::fail('Google sign-in did not complete. Please try again.');
         }
+        session()->forget('google_retried');
 
-        $email = Str::lower((string) $google->getEmail());
         $verified = (bool) ($google->user['email_verified'] ?? $google->user['verified_email'] ?? false);
-        if ($email === '') {
-            return redirect()->route('login')->withErrors(['email' => 'Your Google account did not share an email address.']);
-        }
 
-        // 1. a returning Google user; 2. an existing account with the same verified email; 3. a new hero
-        $user = User::where('google_id', $google->getId())->first();
-        $isNew = false;
-        if (! $user) {
-            $existing = User::whereRaw('lower(email) = ?', [$email])->first();
-            if ($existing && ! $verified) {
-                return redirect()->route('login')->withErrors(['email' => 'An account with that email already exists. Log in with your password.']);
-            }
-            if ($existing) {
-                $user = $existing;
-                $user->forceFill(['google_id' => $google->getId(), 'avatar' => $google->getAvatar()])->save();
-            } else {
-                $name = $this->heroName((string) ($google->getName() ?: Str::before($email, '@')));
-                $user = User::create(['name' => $name, 'email' => $email, 'password' => null]);
-                $user->forceFill(['google_id' => $google->getId(), 'avatar' => $google->getAvatar(), 'email_verified_at' => $verified ? now() : null])->save();
-                $user->character()->create(['name' => $name, 'class' => 'warrior']);
-                $isNew = true;
-            }
-        } elseif ($google->getAvatar() && $user->avatar !== $google->getAvatar()) {
-            $user->forceFill(['avatar' => $google->getAvatar()])->save();
-        }
-
-        Auth::login($user, remember: true);
-        request()->session()->regenerate();
-
-        if ($isNew) {
-            return redirect()->route('character.edit')->with(['status' => "Welcome, {$user->character->name}! Pick your hero's name and class, then head to Play.", 'ga_event' => 'sign_up', 'ga_params' => ['method' => 'google']]);
-        }
-
-        return redirect()->intended(route('game'))->with(['ga_event' => 'login', 'ga_params' => ['method' => 'google']]);
-    }
-
-    /** A safe, unused hero name built from the Google display name. */
-    private function heroName(string $raw): string
-    {
-        $base = trim(preg_replace('/[^\pL\pN _-]+/u', '', Str::ascii($raw)) ?? '');
-        $base = trim(preg_replace('/\s+/', ' ', $base) ?? '');
-        if (mb_strlen($base) < 2 || ! preg_match('/^[\pL\pN]/u', $base)) {
-            $base = 'Hero';
-        }
-        $base = mb_substr($base, 0, 20);
-        $name = $base;
-        for ($n = 2; Character::nameTaken($name); $n++) {
-            $name = mb_substr($base, 0, 20).' '.$n;
-        }
-
-        return $name;
+        return SocialSignIn::complete('google_id', 'google', 'Google', (string) $google->getId(), $google->getEmail(), $verified, $google->getName(), $google->getAvatar());
     }
 }

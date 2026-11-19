@@ -226,6 +226,49 @@ under a quarter. It used to be worth 5% more a level, so the safest floor paid
 best and scripted heroes left the starter dungeon at level 22 to 51; they now
 leave at 18 to 28, all twelve of twelve, in about 1,000 to 3,400 turns.
 
+The monster that kills the hero does not forget it (`nemesisClaims`, `tickNemesis`,
+`meta.nemesis`). It picks up the half of the purse the hero drops, takes a name and
+a title (Wick the Purse-Taker), and some 300 turns after the hero wakes it comes
+looking for them, in the wilds or underground: awake, six to eleven steps off and out
+of sight if it can be, with three to six times the health of its kind, more attack,
+an amber skull over its head and a taunt. Each time it wins again it takes another
+purse and a grander title (Twice-Victor, the Hero-Breaker). Get away and it comes
+again later. Kill it and every coin it carries drops with interest, for three times
+the XP and the title the Unforgetting (Grudgebearer after three). There is one
+nemesis at a time; bosses, sea beasts, game, colossi and bounty beasts never become
+one. Townsfolk gossip about it, and the quest journal names it and what it carries.
+Not in the arena, a delve, a trial, a castle cellar or a shared run.
+
+Story 6 progress (the Rim hearts broken) and the counts of game hunted, fair
+contests won and night watches kept are now saved and restored. They used to reset
+on every reload, so the Rim of the World started over.
+
+A bug hunt by six scripted lenses, each finding checked by a second reader, led to
+seven fixes. A guest who fell lost the relic they wore for good: the respawn left it
+out, and `meta.found` stopped it ever dropping again. It is now kept like the rest of
+the gear. Pets level every eight kills with no ceiling, but the save capped their level
+and attack at 99 and health at 999, so a long-lived pet made every later save fail;
+the caps now allow far more. Two achievements shared the key `delver`, so Reached floor
+five had become Took on the Daily Delve; the delve has its own, `dailydelve` (the
+Daily Delver). A nemesis left in the wilds while the hero went underground could come
+again below and pay its purse twice; there is now only ever one, and killing it clears
+any other. Falling on the night watch no longer pays the watch after the respawn.
+Prince Edric threw an error when spoken to after Act II and now answers. And between
+Stories 2 and 3, 3 and 4, and 4 and 5 the Journal and compass now say that the next
+story waits in any town, as they already did after Story 1.
+
+A second round found six more. Shop discounts could stack below what a merchant pays
+back (a smithy markdown, the guild seal, a fair day and Vessa's Ledger), so buying and
+selling the same warhammer printed gold; `buyPrice` now never goes at or below the
+best sell rate the hero could get. A town's bounty could be posted and paid again once
+its finished entry fell off the end of the quest list; finished errands and slayings
+now fall off first. A warrior who Charged from a ship's deck landed still aboard, and
+the next step sailed the ship over dry land; Charge now lands the hero like Blink and
+Evade. Rally can shake off stone as it says. On a gamepad, B under a story scene drank
+a potion behind it and no button could move a scene on: A now turns the page or takes
+the highlighted choice and the d-pad moves between choices. On a phone, the on-screen
+d-pad no longer walks the hero while the journal covers the map.
+
 The land can be changed (`WORKS`, `groundWorkStep`, `terraPut`). G, or the
 Groundwork button, opens a list of jobs in the open country; pick one and the
 hero's steps do that work until G is pressed again. Fell trees: walk into a
@@ -987,6 +1030,23 @@ then set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REDIRECT_URI` in
 `.env` and run `php artisan optimize`. The button stays hidden until both the ID
 and secret are set. New Google users get a hero automatically; an existing
 account is linked only when Google reports the email as verified.
+
+If sign-in fails with "Google sign-in is not available right now", Google
+rejected the client itself: the log names the error (usually `invalid_client`,
+a wrong `GOOGLE_CLIENT_SECRET`). A sign-in whose session was lost (back button,
+another tab) quietly starts over once instead of failing.
+
+## Sign in with NikniQ
+
+Optional. Players can sign in with their nikniq.com games-portal account, which
+is a standard OAuth 2.0 / OpenID Connect server. The game is already a client
+there (portal admin → games → dungeon, redirect URI
+`https://dungeon.nikniq.com/auth/callback`). Copy its client ID into
+`NIKNIQ_CLIENT_ID`; if the portal entry is confidential, also set
+`NIKNIQ_CLIENT_SECRET` (a public entry signs in with PKCE alone). `NIKNIQ_URL`
+defaults to `https://nikniq.com`. Accounts are matched the same way as Google
+(`app/Support/SocialSignIn.php`): the portal id first, then a verified email, else
+a new hero. Run `php artisan migrate` for the `users.nikniq_id` column.
 
 ## Analytics
 
