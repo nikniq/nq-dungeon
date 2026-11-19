@@ -73,6 +73,19 @@ class CharacterTest extends TestCase
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['pets' => array_fill(0, 4, $pets[0])]])->assertUnprocessable();
     }
 
+    public function test_a_pet_that_has_fought_for_years_can_still_be_saved(): void
+    {
+        // a pet levels every 8 kills with no ceiling, so a wolf of 800 kills is at level 101 with 104 attack;
+        // the old caps (level and attack 99, health 999) turned every later save into a 422
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla', 'class' => 'warrior']);
+        $state = ['event' => 'progress', 'floor' => 0, 'level' => 300, 'xp' => 5, 'gold' => 10, 'hp' => 900, 'max_hp' => 900, 'atk' => 50, 'kills' => 0, 'bag' => []];
+        $pets = [['kind' => 'wolf', 'hp' => 1200, 'max_hp' => 1300, 'atk' => 104, 'level' => 101, 'kills' => 800, 'down' => false]];
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['pets' => $pets]])->assertOk()->assertJsonPath('meta.pets.0.level', 101);
+        $pets[0]['atk'] = 99999;
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['pets' => $pets]])->assertUnprocessable();
+    }
+
     public function test_the_profile_page_names_relics_in_the_bag(): void
     {
         $user = User::factory()->create();
@@ -375,6 +388,22 @@ class CharacterTest extends TestCase
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['terra' => ['drop table']]])->assertUnprocessable();
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['terra' => array_map(fn ($i) => "$i,0,r", range(1, 1501))]])->assertUnprocessable();
         $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['wood' => -1]])->assertUnprocessable();
+    }
+
+    public function test_the_nemesis_story_six_and_counters_are_saved_and_checked(): void
+    {
+        $user = User::factory()->create();
+        $user->character()->create(['name' => 'Ayla']);
+        $state = ['event' => 'death', 'floor' => 2, 'level' => 9, 'xp' => 0, 'gold' => 300, 'hp' => 0, 'max_hp' => 60, 'atk' => 8, 'kills' => 0, 'bag' => []];
+        $meta = ['nemesis' => ['foe' => ['kind' => 'Goblin', 'name' => 'Grisk', 'gold' => 150, 'wins' => 2, 'lvl' => 9], 'slain' => 1],
+            'story6' => ['s' => 1, 'slain' => [0, 2]], 'game' => 4, 'fairs' => 2, 'watches' => 1];
+
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => $meta])->assertOk()->assertJson(['meta' => $meta, 'gold' => 150]);
+        $this->actingAs($user)->postJson('/api/character', ['event' => 'progress'] + $state + ['meta' => ['nemesis' => ['foe' => null, 'slain' => 2]]])->assertOk()->assertJsonPath('meta.nemesis.slain', 2);
+        foreach ([['foe' => ['kind' => 'Goblin', 'name' => 'Grisk', 'gold' => -5, 'wins' => 1]], ['foe' => ['kind' => 'Goblin', 'name' => str_repeat('x', 40), 'gold' => 1, 'wins' => 1]], ['foe' => ['kind' => 'Goblin', 'name' => 'Grisk', 'gold' => 1, 'wins' => 0]], ['foe' => ['kind' => 'Goblin', 'name' => 'Grisk', 'gold' => 1, 'wins' => 1, 'evil' => 1]]] as $bad) {
+            $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['nemesis' => $bad]])->assertUnprocessable();
+        }
+        $this->actingAs($user)->postJson('/api/character', $state + ['meta' => ['story6' => ['s' => 3]]])->assertUnprocessable();
     }
 
     public function test_story_answers_are_saved_and_checked(): void

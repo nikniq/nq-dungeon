@@ -209,7 +209,7 @@ const ACHIEVEMENTS = {
   northbound:  { label: 'Answered the raven', title: 'the Far-Farer' },
   giantsbane:  { label: 'Slew Thrym, Jarl of the Frost Giants', title: 'Giantsbane' },
   castaway:    { label: 'Washed up on a shore after losing at sea', title: 'the Castaway' },
-  delver:      { label: 'Took on the Daily Delve', title: 'the Delver' },
+  dailydelve:  { label: 'Took on the Daily Delve', title: 'the Daily Delver' }, // its own key: a second 'delver' silently replaced the floor-five one
   enchanted:   { label: 'Found a magic weapon or armour', title: 'the Enchanted' },
   delve_champion: { label: 'Topped the Daily Delve board', title: 'Champion of the Delve' },
   longnight:   { label: 'Saw the sky tear', title: 'of the Long Night' },
@@ -224,6 +224,8 @@ const ACHIEVEMENTS = {
   abyss10:     { label: 'Reached floor 10 of the Deep', title: 'the Deepwalker' },
   abyss25:     { label: 'Reached floor 25 of the Deep', title: 'Lord of the Deep' },
   wayfarer:    { label: 'Met ten strangers on the road', title: 'the Wayfarer' },
+  grudge:      { label: 'Slew your nemesis', title: 'the Unforgetting' },
+  grudge3:     { label: 'Settled three grudges', title: 'Grudgebearer' },
   postern:     { label: "Found the Queen's postern", title: 'the Sly' },
   vault:       { label: 'Broke into a secret vault', title: 'the Delver of Secrets' },
   squire:      { label: 'Became a Squire of Aurum', title: 'the Squire' },
@@ -412,7 +414,7 @@ async function saveProgress(event, keepalive = false) {
         meta: { visited: player.meta.visited.slice(-80), second_wind: !!player.meta.second_wind, pets: petsState(),
           story: story(), places: player.meta.places.slice(-400), looted: player.meta.looted.slice(-400), found: player.meta.found,
           bestiary: player.meta.bestiary || {}, blessing: player.meta.blessing && player.meta.blessing.turns > 0 ? player.meta.blessing : null, realm: realmState(), encounters: player.meta.encounters || 0,
-          room: !!player.meta.room, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, story4: player.meta.story4 || null, story5: player.meta.story5 || null, delve: player.meta.delve || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, forged: !!player.meta.forged, trials: player.meta.trials || 0, skills: player.meta.skills || {}, terra: terraList().slice(0, TERRA_MAX), wood: terraStock('wood'), stone: terraStock('stone'), war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
+          room: !!player.meta.room, story6: player.meta.story6 || null, nemesis: player.meta.nemesis || null, game: player.meta.game || 0, fairs: player.meta.fairs || 0, watches: player.meta.watches || 0, stash: stash(), deepest: player.meta.deepest || 0, rq: player.meta.rq || {}, horse: !!player.meta.horse, ship: player.meta.ship || null, charts: player.meta.charts || [], treasures: player.meta.treasures || 0, secrets: player.meta.secrets || [], story2: player.meta.story2 || null, story3: player.meta.story3 || null, story4: player.meta.story4 || null, story5: player.meta.story5 || null, delve: player.meta.delve || null, arena: player.meta.arena || 0, rod: !!player.meta.rod, forged: !!player.meta.forged, trials: player.meta.trials || 0, skills: player.meta.skills || {}, terra: terraList().slice(0, TERRA_MAX), wood: terraStock('wood'), stone: terraStock('stone'), war: war(), act2: act2(), lairs: lairState(), rescued: player.meta.rescued || 0 },
         relic: player.relic || null,
         weapon_plus: player.weaponPlus || 0, armor_plus: player.armorPlus || 0 }),
     });
@@ -925,6 +927,93 @@ function spawnBounties() {
     monsters = worldMonsters; monstersDirty = true;
   }
 }
+// ---------- the nemesis ----------
+// The monster that kills the hero does not forget it. It picks up the purse the hero
+// drops, takes a name, and some while after the hero wakes it comes looking, in the
+// wilds or underground. Each time it wins again it grows, takes another purse and a
+// grander title. Kill it and every coin comes back with interest. One at a time, kept
+// as meta.nemesis = { foe: { kind, name, gold, wins, lvl } | null, slain }.
+const NEMESIS_NAMES = ['Grisk', 'Mawkin', 'Sallow', 'Krell', 'Thrane', 'Vosk', 'Ushk', 'Morrow', 'Gnash', 'Skarra', 'Brindle', 'Ketch', 'Old Hob', 'Rusk', 'Wick', 'Harrow', 'Fenn', 'Sorrel', 'Grue', 'Tallow', 'Nettle', 'Scab'];
+const NEMESIS_TITLES = ['the Purse-Taker', 'Twice-Victor', 'the Hero-Breaker', 'the Long Grudge', 'the Unforgiven'];
+const NEMESIS_TAUNTS = {
+  1: ['You again! Your gold spends well.', 'I kept your purse warm for you.', 'Back for more? I remember your face.', 'They gave me a name for killing you. I want another.'],
+  2: ['Twice I put you down. Shall we make it three?', 'Every time you come back, you come back poorer.', 'The others tell stories about me now. You are in all of them.'],
+  3: ['Hero-breaker, they call me. Shall I show you why?', 'I have spent your gold on a better blade. Look.', 'Run, and I will find you again. I always do.'],
+};
+const NEMESIS_CALM = 300;   // turns after waking before it comes, and between its visits
+let nemesisCalm = NEMESIS_CALM;
+const nemesis = () => (player && player.meta && player.meta.nemesis && player.meta.nemesis.foe) || null;
+const nemesisName = (f) => `${f.name} ${NEMESIS_TITLES[Math.min(NEMESIS_TITLES.length - 1, Math.max(0, f.wins - 1))]}`;
+const nemesisTaunt = (f) => { const lines = NEMESIS_TAUNTS[Math.min(3, f.wins)]; return lines[rnd(lines.length)]; };
+// Called as the hero falls: the killer takes the purse and, if it is nobody yet, a name.
+// Returns a line for the death screen, or ''.
+function nemesisClaims(hurt, lost) {
+  const m = hurt && hurt.mon, f = nemesis();
+  if (!m) return '';
+  if (m.nemesis && f) {
+    f.wins++; f.gold = Math.min(1000000, f.gold + lost); f.lvl = player.level;
+    return `${nemesisName(f)} has beaten you ${f.wins === 2 ? 'twice' : `${f.wins} times`} now and carries ${f.gold} of your gold. It will be back.`;
+  }
+  if (f || m.boss || m.sea || m.small || m.raised || m.riftLord || m.bounty || m.heart !== undefined || m.type.game || m.type.colossus || !MONSTER_TYPES.includes(m.type)) return '';
+  const nf = { kind: m.type.name, name: NEMESIS_NAMES[rnd(NEMESIS_NAMES.length)], gold: lost, wins: 1, lvl: player.level };
+  player.meta.nemesis = { foe: nf, slain: (player.meta.nemesis && player.meta.nemesis.slain) || 0 };
+  return `The ${m.type.name.toLowerCase()} that killed you picked up your ${lost} gold, and a name to go with it: ${nemesisName(nf)}. It will come looking for you.`;
+}
+// Each turn in the wilds or a dungeon, once the hero has had time to get up, the nemesis may arrive.
+function tickNemesis() {
+  const f = nemesis();
+  if (!f || gameOver || storyOpen() || perkChoices || shopOpen || coopActive() || mp.instance) return;
+  if (monsters.some((m) => m.nemesis)) { nemesisCalm = turn + NEMESIS_CALM; return; }   // already here; it comes again a while after the hero gets away
+  if (turn < nemesisCalm || Math.random() > 1 / 150) return;
+  if (scene === 'world') { if (aboard || wanted || watch || townContaining(player.x, player.y)) return; }
+  else if (scene !== 'dungeon' || !dungeonDef || dungeonDef.arena || dungeonDef.delve || dungeonDef.cellar || trial) return;
+  const type = MONSTER_TYPES.find((t) => t.name === f.kind);
+  if (!type) { player.meta.nemesis = { foe: null, slain: player.meta.nemesis.slain || 0 }; return; }
+  // somewhere six to eleven steps off, out of sight if it can be
+  const d = bfs(player.x, player.y, 11, true, true), spots = [];
+  for (const [k, n] of d) {
+    if (n < 6) continue;
+    const [x, y] = k.split(',').map(Number);
+    if (getTile(x, y) === TILE.LAVA || getTile(x, y) === TILE.TRAP || getMonsterAt(x, y) || houndAt(x, y) || (scene === 'world' && (getTile(x, y) !== TILE.FLOOR || townContaining(x, y)))) continue;
+    spots.push({ x, y, seen: isVisible(x, y) });
+  }
+  const hidden = spots.filter((s) => !s.seen), pool = hidden.length ? hidden : spots;
+  if (!pool.length) return;
+  // a copy left in the wilds when the hero went underground goes now: only ever one nemesis, one purse to win back
+  worldMonsters = worldMonsters.filter((o) => !o.nemesis); if (scene === 'world') monsters = worldMonsters;
+  const spot = pool[rnd(pool.length)], wins = Math.min(4, f.wins);
+  const m = addMonster(type, spot.x, spot.y, { nemesis: true, name: nemesisName(f), awake: true, wild: scene === 'world' });
+  m.maxHp = m.hp = Math.round(m.maxHp * (3 + 0.75 * wins)); m.atk += 1 + wins;
+  m.xpMult = (m.xpMult || 1) * 3; m.purse = f.gold + 30 + 15 * f.wins + 3 * player.level;
+  if (scene === 'world') { worldMonsters = monsters; }
+  monstersDirty = true; nemesisCalm = turn + NEMESIS_CALM;
+  const line = nemesisTaunt(f);
+  stopWalk();
+  sfx.play('boss'); shakeScreen(3, 300);
+  log(`${m.name} has found you. It carries ${f.gold} of your gold. "${line}"`, 'bad');
+  bubble = { x: m.x, y: m.y, text: line, until: performance.now() + 4500 };
+  toast = { text: `Your nemesis: ${m.name}`, until: performance.now() + 3500 };
+  tip('nemesis', 'A nemesis is the monster that last killed you. It is tougher than its kind, and carries the gold it took. Kill it and you get it all back with interest. Run, and it will find you again.');
+}
+function nemesisSlain(m) {
+  const st = player.meta.nemesis || {};
+  player.meta.nemesis = { foe: null, slain: (st.slain || 0) + 1 };
+  worldMonsters = worldMonsters.filter((o) => !o.nemesis); if (scene === 'world') monsters = worldMonsters;   // any other copy must not pay the same purse twice
+  log(`${m.name} goes down and stays down. Your gold spills from its belt: ${m.purse} coins, with interest. The grudge is settled.`, 'good');
+  toast = { text: 'Grudge settled', until: performance.now() + 3000 };
+  sfx.play('win'); shakeScreen(4, 400); unlock('grudge');
+  if (player.meta.nemesis.slain >= 3) unlock('grudge3');
+}
+// What the townsfolk say once a nemesis is about.
+function nemesisRumour() {
+  const f = nemesis(); if (!f) return null;
+  const lines = [
+    `There is ${aOrAn(f.kind.toLowerCase())} ${f.kind.toLowerCase()} going about calling itself ${nemesisName(f)}. They say it is buying drinks with your gold.`,
+    `Travellers saw ${aOrAn(f.kind)} ${f.kind.toLowerCase()} with a fat purse on its belt. It was asking after you by name.`,
+    `${f.name}? Everyone has heard of ${f.name}. It tells the story of how it beat you to anyone who will listen.`,
+  ];
+  return lines[rnd(lines.length)];
+}
 function bountyTalk(n) {
   if (!BOUNTY_GIVERS.includes(n.type.name)) return false;
   const here = townContaining(player.wx ?? player.x, player.wy ?? player.y) || nearestTownTo(player.wx ?? player.x, player.wy ?? player.y);
@@ -1225,7 +1314,7 @@ function questProgress(kind, target, amount = 1) {
   }
   // keep the list short: finished quests fall off after a while
   const done = player.quests.filter((q) => q.done);
-  if (done.length > 6) player.quests.splice(player.quests.indexOf(done[0]), 1);
+  if (done.length > 6) player.quests.splice(player.quests.indexOf(done.find((q) => q.kind !== 'bounty' && q.kind !== 'clear') || done[0]), 1);
 }
 let questsOpen = false;
 let lastRealm = null, lastTownKey = null;
@@ -1436,6 +1525,12 @@ function drawQuests(g) {
     g.font = '12px sans-serif'; g.fillStyle = '#a8c0d8';
     g.fillText('Realm leaders have errands too: Speaker Maren in Hearth, King Aldric, Chieftain Ulrek in Kar Thuldun, and the Goldspire bankers.', 24, y); y += 26;
   }
+  { const f = nemesis(); if (f) {
+    g.font = 'bold 14px sans-serif'; g.fillStyle = '#ff8a8a'; g.fillText('Nemesis', 24, y); y += 22;
+    g.fillStyle = '#e6eef8'; g.font = '14px sans-serif'; g.fillText(`${nemesisName(f)}, ${aOrAn(f.kind)} ${f.kind.toLowerCase()}`, 32, y);
+    g.fillStyle = '#f0b4b4'; g.font = '12px sans-serif'; g.fillText(`Has beaten you ${f.wins === 1 ? 'once' : `${f.wins} times`} and carries ${f.gold} of your gold. It hunts you in the wilds and underground.`, 32, y + 18);
+    y += 46;
+  } }
   const active = questsActive(), done = player.quests.filter((q) => q.done).slice(-5).reverse();
   g.font = 'bold 14px sans-serif'; g.fillStyle = '#ffd86b'; g.fillText(active.length ? 'Active' : 'No active quests. Walk into a guard captain, the King, or any townsperson.', 24, y); y += 26;
   for (const q of active) {
@@ -2130,6 +2225,7 @@ function storyObjective() {
   // between the stories: never leave the hero without a star to follow
   if (st.phase === 'done' && act2().s === 0) { const ed = castle; return { text: 'Speak with Prince Edric at Castle Aurum: Act II, What Sleeps Below', short: 'Castle Aurum', x: ed.cx, y: ed.cy }; }
   if (story1Done() && story2().s === 0) { const hp = homePort(); return { text: 'Story 1 is told. Walk into any town and the news of Story 2 will find you', short: hp ? hp.name : 'A town', x: hp ? hp.cx : castle.cx, y: hp ? hp.cy : castle.cy }; }
+  { const nx = story2Done() && story3().s === 0 ? 3 : story3Done() && story4().s === 0 ? 4 : story4Done() && story5().s === 0 ? 5 : 0; if (nx) { const hp = homePort(); return { text: `Story ${nx - 1} is told. Walk into any town and Story ${nx} will find you`, short: hp ? hp.name : 'A town', x: hp ? hp.cx : castle.cx, y: hp ? hp.cy : castle.cy }; } }   // stories 3 to 5 open in any town too
   if (story2().s === 1 && FAR_REALMS.every((r) => rqState(r).s === 5)) { setTimeout(() => { if (story2().s === 1 && !storyOpen()) { const owed = FAR_REALMS.find((r) => !keyMems().includes(REALM_QUESTS[r].relic)); if (owed) keyMemory(owed, unsealBarrow); else unsealBarrow(); } }, 0); }
   if (story2().s === 2) { const S = STORY_SITES.hollow, site = siteAt(S.i, S.j); return { text: 'Go down the Thousand-Step Barrow and face the Hollow King', short: S.title, x: site.x, y: site.y }; }
   if (story2().s === 1) {
@@ -2835,6 +2931,7 @@ function edricTalk(n) {
     showScene([{ who: 'Prince Edric', sprite: 'darkknight', text: report }], () => { log(`Next: ${ACT2_STEPS[A.s - 1].label}.`, 'good'); saveProgress('progress'); });
     return true;
   }
+  if (A.s >= 6) { log('Prince Edric: "Deepwarden. The Deep sleeps, and so, for once, do I."'); return true; }   // Act II is told: there is no next step to name
   log(`Prince Edric: "${ACT2_STEPS[A.s - 1].label}. I will be here."`);
   return true;
 }
@@ -3893,7 +3990,7 @@ async function recordDelve(cleared) {
   if (!delve) return;
   const floorReached = cleared ? 5 : Math.max(1, Math.min(5, floor)), kills = Math.max(0, player.lifetimeKills - delve.kills0), gold = Math.max(0, player.gold - delve.gold0);
   const score = floorReached * 100 + kills * 5 + gold + (cleared ? 250 : 0);
-  delve = null; player.meta.delve = delveDay(); unlock('delver');
+  delve = null; player.meta.delve = delveDay(); unlock('dailydelve');
   log(`The Delve of ${delveTheme().name}: ${cleared ? 'cleared' : `floor ${floorReached}`}, ${kills} kill${kills === 1 ? '' : 's'}, ${gold} gold. Score ${score}.`, 'good');
   track('delve_done', { score, floor: floorReached, cleared });
   if (!ACCOUNT.user) { log('Create a hero (or log in) and tomorrow\'s delve goes on the board.'); return; }
@@ -4896,7 +4993,8 @@ function talk(n) {
   if (castleTalk(n) || castellanTalk(n)) return;
   if (errandTalk(n)) return;
   if (n.type.action && SERVICE_SHOPS.has(n.type.action)) { log(`${n.type.name}: ${n.type.lines[rnd(n.type.lines.length)]}`); openShop(n.type.action); return; }
-  const rumour = !n.type.notable && !n.type.leader && !n.type.guard && !n.type.action && Math.random() < 0.45 ? storyRumour() : null;
+  const plain = !n.type.notable && !n.type.leader && !n.type.guard && !n.type.action;
+  const rumour = plain && nemesis() && Math.random() < 0.25 ? nemesisRumour() : plain && Math.random() < 0.45 ? storyRumour() : null;
   const line = rumour || (n.type.notable ? n.type.lines[n.type.tell++ % n.type.lines.length] : n.type.lines[rnd(n.type.lines.length)]);
   if (n.type.notable && /worse than the Deep/.test(line)) { const id = Object.keys(LAIRS).find((k) => line.includes(LAIRS[k].title[0].toUpperCase() + LAIRS[k].title.slice(1))); if (id) revealLair(id, 'The prophet points:'); }
   log(`${n.type.name}: ${line}`);
@@ -7405,6 +7503,7 @@ function drawScene(now) {
     if (m.tell && m.tell.kind === 'glare') { ctx.fillStyle = `rgba(255,80,80,${0.6 + 0.4 * Math.sin(now / 90)})`; ctx.font = 'bold 13px sans-serif'; ctx.fillText('◉', lx * T - cam.x + T / 2 - 6, ly * T - cam.y - 2); }
     if (m.reeling > 0) { ctx.fillStyle = '#ffd86b'; ctx.font = 'bold 12px sans-serif'; ctx.fillText('~', lx * T - cam.x + T / 2 - 4, ly * T - cam.y - 2); }
     if (m.bounty) { ctx.fillStyle = '#ef4444'; ctx.font = 'bold 14px sans-serif'; ctx.fillText('☠', lx * T - cam.x + T / 2 - 6, ly * T - cam.y - 4); }
+    if (m.nemesis) { ctx.fillStyle = `rgba(245,158,11,${0.75 + 0.25 * Math.sin(now / 200)})`; ctx.font = 'bold 15px sans-serif'; ctx.fillText('☠', lx * T - cam.x + T / 2 - 7, ly * T - cam.y - 4); }
     if (m.mod) { ctx.fillStyle = ELITE_MODS[m.mod].color; ctx.font = 'bold 12px sans-serif'; ctx.fillText('★', lx * T - cam.x + 1, ly * T - cam.y + 10); }
   }
   drawArmies(ctx, now); drawParties(ctx, now); drawRifts(ctx, now);
@@ -8674,7 +8773,7 @@ const WEAPON_TRAITS = {
 // One-of-a-kind gear from the lairs borrows the fighting style of a common weapon.
 const LEGEND_TRAIT = { fangblade: 'dagger', tidecaller: 'longsword', stormhammer: 'warhammer', staffofages: 'greatsword' };
 const traitOf = (id) => { const b = baseOf(id); return LEGEND_TRAIT[b] || b; };
-const nameOf = (m) => (m.boss ? m.name : 'the ' + mName(m));
+const nameOf = (m) => (m.boss || m.nemesis ? m.name : 'the ' + mName(m));
 function moveMonster(m, x, y) { monsterIndex.delete(key(m.x, m.y)); m.x = x; m.y = y; monsterIndex.set(key(m.x, m.y), m); monstersDirty = true; monsterHazard(m); monsterGround(m); }
 // The dungeon bites both ways: a walking monster that steps on spikes takes them
 // (and the trap is spent), and one driven into lava burns. Flyers pass over.
@@ -8794,11 +8893,12 @@ function killMonster(m) {
       if (m.type.colossus) { unlock('giantslayer'); shakeScreen(10, 900); log(`${bossTitle(m)} comes down like a wall. The whole floor feels it.`, 'good'); }
       player.gold += purse; floatText(m.x, m.y, `+${purse}g`, '#f5c542');
       sfx.play('win');
-    } else log(`You slay the ${mName(m)} (+${xp} XP).`, 'good');
+    } else log(m.nemesis ? `You slay ${m.name} (+${xp} XP).` : `You slay the ${mName(m)} (+${xp} XP).`, 'good');
     gainXp(xp);
     if ((m.xpMult || 1) <= 0.5 && !m.boss) tip('outgrown', scene === 'dungeon' ? 'You have outgrown this floor: its monsters are worth half their XP or less to you now. The stairs down lead to foes worth fighting; the compass points at them.' : 'You have outgrown these parts: the monsters here are worth half their XP or less to you now. Wilder country, further from Hearth, pays in full.');
     questProgress('slay', m.type.name, 1);
     if (m.heart !== undefined) heartBroken(m);
+    if (m.nemesis) nemesisSlain(m);
     if (m.bounty) {
       questProgress('bounty', m.bounty, 1);
       log(`${m.name} is dead. The watch will want to hear about it.`, 'good');
@@ -8900,8 +9000,8 @@ function monsterAttack(m, ranged = false) {
   if (player.x !== m.x) m.face = Math.sign(player.x - m.x);
   player.flashUntil = now + 120;
   floatText(player.x, player.y, `-${dmg}`, '#ff6b6b');
-  log(`${m.boss || m.band ? m.name[0].toUpperCase() + m.name.slice(1) : m.type.name} hits you for ${dmg}.`, 'bad');
-  lastHurt = { at: turn, by: m.boss || m.band ? m.name : `${/^[aeiou]/i.test(mName(m)) ? 'an' : 'a'} ${mName(m).toLowerCase()}`, kind: m.boss ? 'boss' : m.type.name };
+  log(`${m.boss || m.band || m.nemesis ? m.name[0].toUpperCase() + m.name.slice(1) : m.type.name} hits you for ${dmg}.`, 'bad');
+  lastHurt = { at: turn, by: m.boss || m.band || m.nemesis ? m.name : `${/^[aeiou]/i.test(mName(m)) ? 'an' : 'a'} ${mName(m).toLowerCase()}`, kind: m.boss ? 'boss' : m.type.name, mon: m };
   sfx.play('hurt');
 }
 // Monsters act for one beat. heroes defaults to just you; in a shared dungeon
@@ -10694,7 +10794,7 @@ function endTurn(moved) {
   if (turn % SAVE_EVERY_TURNS === 0) saveProgress('progress');
   if (scene !== 'dungeon') stepNpcs();
   stepGuards();
-  stepHound(); stepEscort(); tickTotems(); tickTrial(); tickRestless(); tickRifts(); tickWanted(); tickRim(); tickWatch();
+  stepHound(); stepEscort(); tickTotems(); tickTrial(); tickRestless(); tickRifts(); tickWanted(); tickRim(); tickWatch(); tickNemesis();
   if (scene === 'dungeon' && dungeonDef && dungeonDef.camp && !dungeonDef.razed && !monsters.some((m) => m.hp > 0)) campCleared();
   if (scene === 'dungeon' && dungeonDef && dungeonDef.cellar && !dungeonDef.done && !monsters.some((m) => m.hp > 0)) cellarCleared();
   // in a shared dungeon the host moves monsters on a steady beat instead of per turn
@@ -10798,8 +10898,8 @@ function die() {
   { const where = scene === 'world' ? 'in the wilds' : `on floor ${floor} of ${dungeonDef ? dungeonDef.name : 'the dungeon'}`, spent = player.bag.filter((id) => id === 'potion' || id === 'elixir').length, errands = (player.quests || []).filter((q) => !q.done).length;
     const hurt = lastHurt && turn - lastHurt.at <= 1 ? lastHurt : null; lastHurt = null;   // only a blow from this turn or the last is the one that did it
     const cause = hurt ? `Killed by ${hurt.by} ${where}` : `You fell ${where}`;
-    const tipText = DEATH_TIPS[hurt ? hurt.kind : 'any'] || DEATH_TIPS.any;
-    endGame('You fell', `${cause}, after ${turn} turns.\nYou wake at the inn in ${t.name}. Kept: level ${player.level}, your gear, your pets and your place in the story. Lost: ${lost} gold${spent ? `, ${spent} healing potion${spent === 1 ? '' : 's'}` : ''}${errands ? `, and the ${errands === 1 ? 'errand' : `${errands} errands`} you had taken on` : ''}.\n${tipText}`); }
+    const tipText = DEATH_TIPS[hurt ? hurt.kind : 'any'] || DEATH_TIPS.any, grudge = nemesisClaims(hurt, lost);
+    endGame('You fell', `${cause}, after ${turn} turns.\n${grudge ? grudge + '\n' : ''}You wake at the inn in ${t.name}. Kept: level ${player.level}, your gear, your pets and your place in the story. Lost: ${lost} gold${spent ? `, ${spent} healing potion${spent === 1 ? '' : 's'}` : ''}${errands ? `, and the ${errands === 1 ? 'errand' : `${errands} errands`} you had taken on` : ''}.\n${tipText}`); }
   player.wx = t.spawn.x; player.wy = t.spawn.y;
   sfx.play('die');
   track('hero_died', { where: scene === 'world' ? 'wilds' : (dungeonDef ? (dungeonDef.kind === 'site' ? dungeonDef.site.type : 'town') : 'dungeon'), floor, turns: turn });
@@ -10807,7 +10907,7 @@ function die() {
     guestRespawn = { name: null, floor: 0, level: player.level, xp: player.xp, gold: player.gold - lost, hp: player.maxHp, max_hp: player.maxHp, atk: player.atk,
       weapon: player.weapon, armor: player.armor, bag: player.bag.filter((id) => id !== 'potion' && id !== 'elixir'), quests: [], quests_done: player.questsDone || 0,
       wx: t.spawn.x, wy: t.spawn.y, home: t.key, class: player.cls, guest: true,
-      perks: player.perks, achievements: player.achievements, title: player.title, meta: { ...player.meta, pets: petsState() }, weapon_plus: player.weaponPlus, armor_plus: player.armorPlus, kills: player.lifetimeKills };
+      perks: player.perks, achievements: player.achievements, title: player.title, meta: { ...player.meta, pets: petsState() }, relic: player.relic, weapon_plus: player.weaponPlus, armor_plus: player.armorPlus, kills: player.lifetimeKills };   // the worn relic is gear too: meta.found would stop it ever dropping again
   }
   saveProgress('death');
 }
@@ -10936,7 +11036,7 @@ const ABILITIES = {
       if (!target) for (let d = 1; d <= 5; d++) { const x = player.x + dx * d, y = player.y + dy * d; const m = getMonsterAt(x, y); if (m) { target = m; break; } if (!walkable(getTile(x, y))) break; }
       if (!target) { log('Nothing to charge at that way. Face a foe within five tiles.'); return false; }
       let sx = target.x - dx, sy = target.y - dy; while ((sx !== player.x || sy !== player.y) && (!walkable(getTile(sx, sy)) || getMonsterAt(sx, sy) || hazard(sx, sy))) { sx -= dx; sy -= dy; }
-      burst(player.x, player.y, '#fff3c4', 14, 140, { life: 300 }); player.x = sx; player.y = sy; settle(player);
+      burst(player.x, player.y, '#fff3c4', 14, 140, { life: 300 }); const leapt = sx !== player.x || sy !== player.y; player.x = sx; player.y = sy; settle(player); if (leapt) landFromDeck();
       const dmg = spellDmg(Math.max(1, (player.atk + weaponAtk()) * 2 + rnd(2) - (target.mod === 'armored' ? 2 : 0)));
       target.hp -= dmg; target.awake = true; target.struck = turn; if (!target.boss) target.stunned = 1; target.flashUntil = performance.now() + 120; floatText(target.x, target.y, `-${dmg}`, '#ffd86b'); shakeScreen(5); sfx.play('hit');
       log(`You charge ${nameOf(target)} and hit it for ${dmg}.`, 'good'); if (coopMember()) coopHit(target, dmg, 'hero'); else if (target.hp <= 0) killMonster(target);
@@ -11073,7 +11173,7 @@ function useAbility(aim = null, slot = 0) {
   if (!abilityUnlocked(slot)) { log(`${A.name} comes at level ${A.level}. You are level ${player.level}.`); draw(); return; }
   const cost = abilityCost(slot);
   if ((player.mana ?? 0) < cost) { log(`Not enough mana for ${A.name}: it costs ${cost}, you have ${player.mana ?? 0}. Mana returns a point a turn, or drink a mana potion.`); draw(); return; }
-  if (stoneTurn()) return;
+  if (!(A.name === 'Rally' && player.stunned > 0) && stoneTurn()) return;
   if (!A.run(aim)) { draw(); return; }
   player.mana -= cost;
   endTurn(false);
@@ -11153,6 +11253,7 @@ window.addEventListener('keydown', (e) => {
 document.querySelectorAll('[data-move]').forEach((btn) => {
   btn.addEventListener('click', () => {
     if (shopOpen) return;
+    if (journalOpen) return;
     const [dx, dy] = btn.dataset.move.split(',').map(Number);
     if (dx === 0 && dy === 0) wait(); else tryMove(dx, dy);
   });
@@ -11571,7 +11672,7 @@ const SHOPS = {
 };
 SHOPS.apothecary.stock = (id) => id === 'potion' || id === 'elixir' || id === 'scroll' || id === 'manapotion';
 let shopKind = 'shop';
-const buyPrice = (id) => Math.max(1, Math.round(SHOPS[shopKind].price(itemInfo(id)) * priceMult() * (SERVICE_SHOPS.has(shopKind) ? 1 : localDeal(id))));
+const buyPrice = (id) => Math.max(1, Math.floor(((itemInfo(id) || {}).price || 0) * (wearing('ledger') || player.bag.includes('ledger') || (player.meta?.stash || []).includes('ledger') ? 0.7 : 0.6)) + 1, Math.round(SHOPS[shopKind].price(itemInfo(id)) * priceMult() * (SERVICE_SHOPS.has(shopKind) ? 1 : localDeal(id))));   // never at or below the best any merchant pays back (70% with Vessa's Ledger worn, carried or stashed, else the League's 60%), or buying and selling prints gold
 Object.assign(SHOPS, {
   court: { title: 'The Court of Aurum', stock: () => false, price: (it) => it.price, greet: 'The herald unrolls a long scroll of titles. Each comes with a seal, a ribbon, and a price.' },
   rebuild: { title: 'The rebuilding', stock: () => false, price: (it) => it.price, greet: 'The leader unrolls a list of what the town needs, and looks at your purse.' },
@@ -12280,7 +12381,7 @@ function startRun(saved) {
   pets = [];
   { const h = saved && saved.meta && saved.meta.hound; if (h && h.max_hp) pets.push({ kind: 'hound', x: 0, y: 0, hp: h.hp, maxHp: h.max_hp, atk: h.atk, level: h.level, kills: h.kills, down: !!h.down, face: 1 }); }   // heroes from before there were pets
   { const ps = saved && saved.meta && saved.meta.pets; if (Array.isArray(ps)) for (const h of ps.slice(0, PET_MAX)) if (h && PET_KINDS[h.kind] && h.max_hp && !pets.some((q) => q.kind === h.kind && q.level === h.level && q.kills === h.kills)) pets.push({ kind: h.kind, x: 0, y: 0, hp: h.hp, maxHp: h.max_hp, atk: h.atk, level: h.level, kills: h.kills, down: !!h.down, face: 1 }); }
-  floor = TOWN; interior = null; gameOver = false; turn = 0; kills = 0;
+  floor = TOWN; interior = null; gameOver = false; turn = 0; kills = 0; nemesisCalm = NEMESIS_CALM; watch = null;   // a watch the hero fell on is not stood: no pay at dawn after the respawn
   overlay.classList.remove('show');
   logEl.innerHTML = ''; messages.length = 0;
   if (saved) {
@@ -12309,7 +12410,9 @@ function startRun(saved) {
         secrets: Array.isArray(saved.meta?.secrets) ? saved.meta.secrets.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 20) : [],
         charts: Array.isArray(saved.meta?.charts) ? saved.meta.charts.filter((k) => /^-?\d+,-?\d+$/.test(k)).slice(0, 3) : [], treasures: Number(saved.meta?.treasures) || 0,
         ship: saved.meta?.ship && Number.isInteger(saved.meta.ship.x) && Number.isInteger(saved.meta.ship.y) ? { x: saved.meta.ship.x, y: saved.meta.ship.y } : null,
-        rescued: Number(saved.meta?.rescued) || 0,
+        rescued: Number(saved.meta?.rescued) || 0, game: Number(saved.meta?.game) || 0, fairs: Number(saved.meta?.fairs) || 0, watches: Number(saved.meta?.watches) || 0,
+        story6: saved.meta?.story6 && Number.isInteger(saved.meta.story6.s) ? { s: Math.max(0, Math.min(2, saved.meta.story6.s)), slain: Array.isArray(saved.meta.story6.slain) ? saved.meta.story6.slain.filter((k) => Number.isInteger(k) && k >= 0 && k <= 3).slice(0, 4) : [] } : null,
+        nemesis: saved.meta?.nemesis ? { slain: Number(saved.meta.nemesis.slain) || 0, foe: saved.meta.nemesis.foe && MONSTER_TYPES.some((t) => t.name === saved.meta.nemesis.foe.kind) && typeof saved.meta.nemesis.foe.name === 'string' ? { kind: saved.meta.nemesis.foe.kind, name: saved.meta.nemesis.foe.name.slice(0, 24), gold: Math.max(0, Number(saved.meta.nemesis.foe.gold) || 0), wins: Math.max(1, Number(saved.meta.nemesis.foe.wins) || 1), lvl: Number(saved.meta.nemesis.foe.lvl) || 1 } : null } : null,
         lairs: saved.meta?.lairs && Array.isArray(saved.meta.lairs.known) ? { known: saved.meta.lairs.known.filter((id) => LAIRS[id]), slain: (saved.meta.lairs.slain || []).filter((id) => LAIRS[id]) } : null,
         act2: saved.meta?.act2 && Number.isInteger(saved.meta.act2.s) ? { s: saved.meta.act2.s, n: 0, told: !!saved.meta.act2.told } : null,
         war: saved.meta?.war && saved.meta.war.troops ? { troops: { ...emptyTroops(), ...saved.meta.war.troops }, armies: Array.isArray(saved.meta.war.armies) ? saved.meta.war.armies.map((a) => ({ ...a, fightUntil: undefined })) : [], camps: Array.isArray(saved.meta.war.camps) ? saved.meta.war.camps : [], routed: Number(saved.meta.war.routed) || 0 } : null },
@@ -12381,6 +12484,12 @@ function pollGamepad(now) {
   else if (down(12) || ay < -0.5) dy = -1; else if (down(13) || ay > 0.5) dy = 1;
   if (perkChoices) { if (edge(0)) choosePerk(0); else if (edge(1)) choosePerk(1); else if (edge(2)) choosePerk(2); }
   else if (shopOpen) { if (edge(1)) closeShop(); }
+  else if (storyOpen()) {   // A takes the page or the highlighted choice, as Enter does; the d-pad moves the choice
+    const many = !!(scenePage && scenePage.choices && scenePage.choices.length);
+    if (many && (edge(12) || edge(13))) moveChoice(edge(12) ? -1 : 1);
+    else if (edge(0)) { if (many) chooseScene(choiceIndex); else nextScenePage(); }
+  }
+  else if (journalOpen || settingsOpen() || controlsOpen()) { if (edge(1) && journalOpen) { journalOpen = false; draw(); } }
   else if (gameOver) { if (edge(0) || edge(9)) init(); }
   else {
     if ((dx || dy) && now - pad.lastMove > 170) { pad.lastMove = now; mapOpen = false; questsOpen = false; tryMove(dx, dy); }
